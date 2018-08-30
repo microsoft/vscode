@@ -90,8 +90,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
 		const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-		this._isExtensionDevDebug = (typeof this._environmentService.debugExtensionHost.port === 'number' && extDevLoc && extDevLoc.scheme === Schemas.file);
-		this._isExtensionDevDebugBrk = !!this._environmentService.debugExtensionHost.break;
+		const debugOk = extDevLoc && extDevLoc.scheme === Schemas.file;
+		this._isExtensionDevDebug = debugOk && typeof this._environmentService.debugExtensionHost.port === 'number';
+		this._isExtensionDevDebugBrk = debugOk && !!this._environmentService.debugExtensionHost.break;
 		this._isExtensionDevTestFromCli = this._isExtensionDevHost && !!this._environmentService.extensionTestsPath && !this._environmentService.debugExtensionHost.break;
 
 		this._lastExtensionHostError = null;
@@ -229,7 +230,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
-				if (this._isExtensionDevHost && portData.actual) {
+				if (this._isExtensionDevHost && portData.actual && this._isExtensionDevDebug) {
 					this._broadcastService.broadcast({
 						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 						payload: {

@@ -94,4 +94,22 @@ suite('TextSearchResult', () => {
 				range: new OneLineRange(5, 30, 33)
 			});
 	});
+
+	test('truncating match', () => {
+		const previewOptions: ITextSearchPreviewOptions = {
+			leadingChars: 4,
+			maxLines: 1,
+			totalChars: 5
+		};
+
+		assert.deepEqual(
+			new TextSearchResult('foo bar', new OneLineRange(0, 4, 7), previewOptions),
+			<ITextSearchResult>{
+				preview: {
+					text: 'foo b',
+					match: new OneLineRange(0, 4, 5)
+				},
+				range: new OneLineRange(0, 4, 7)
+			});
+	});
 });

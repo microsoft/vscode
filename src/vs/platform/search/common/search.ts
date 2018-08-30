@@ -238,11 +238,12 @@ export class TextSearchResult implements ITextSearchResult {
 		this.range = range;
 		if (previewOptions) {
 			const previewStart = Math.max(range.startColumn - previewOptions.leadingChars, 0);
-			const previewEnd = Math.max(previewOptions.totalChars + previewStart, range.endColumn);
+			const previewEnd = previewOptions.totalChars + previewStart;
+			const endOfMatchRangeInPreview = Math.min(previewEnd, range.endColumn - previewStart);
 
 			this.preview = {
 				text: fullLine.substring(previewStart, previewEnd),
-				match: new OneLineRange(0, range.startColumn - previewStart, range.endColumn - previewStart)
+				match: new OneLineRange(0, range.startColumn - previewStart, endOfMatchRangeInPreview)
 			};
 		} else {
 			this.preview = {

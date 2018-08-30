@@ -8,7 +8,7 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel } from 'vscode';
+import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, WorkspaceFolder } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -20,6 +20,8 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { createGitExtension } from './api/extension';
+import * as path from 'path';
+import * as fs from 'fs';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -71,6 +73,54 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	return model;
 }
 
+async function isGitRepository(folder: WorkspaceFolder): Promise<boolean> {
+	if (folder.uri.scheme !== 'file') {
+		return false;
+	}
+
+	const dotGit = path.join(folder.uri.fsPath, '.git');
+
+	try {
+		const dotGitStat = await new Promise<fs.Stats>((c, e) => fs.stat(dotGit, (err, stat) => err ? e(err) : c(stat)));
+		return dotGitStat.isDirectory();
+	} catch (err) {
+		return false;
+	}
+}
+
+async function warnAboutMissingGit(): Promise<void> {
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreMissingGitWarning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
+	if (!workspace.workspaceFolders) {
+		return;
+	}
+
+	const areGitRepositories = await Promise.all(workspace.workspaceFolders.map(isGitRepository));
+
+	if (areGitRepositories.every(isGitRepository => !isGitRepository)) {
+		return;
+	}
+
+	const download = localize('downloadgit', "Download Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const choice = await window.showWarningMessage(
+		localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
+		download,
+		neverShowAgain
+	);
+
+	if (choice === download) {
+		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreMissingGitWarning', true, true);
+	}
+}
+
 export async function activate(context: ExtensionContext): Promise<GitExtension> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
@@ -100,28 +150,10 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 			throw err;
 		}
 
-		const config = workspace.getConfiguration('git');
-		const shouldIgnore = config.get<boolean>('ignoreMissingGitWarning') === true;
+		console.warn(err.message);
+		outputChannel.appendLine(err.message);
 
-		if (!shouldIgnore) {
-			console.warn(err.message);
-			outputChannel.appendLine(err.message);
-			outputChannel.show();
-
-			const download = localize('downloadgit', "Download Git");
-			const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
-			const choice = await window.showWarningMessage(
-				localize('notfound', "Git not found. Install it or configure it using the 'git.path' setting."),
-				download,
-				neverShowAgain
-			);
-
-			if (choice === download) {
-				commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-			} else if (choice === neverShowAgain) {
-				await config.update('ignoreMissingGitWarning', true, true);
-			}
-		}
+		await warnAboutMissingGit();
 
 		return createGitExtension();
 	}

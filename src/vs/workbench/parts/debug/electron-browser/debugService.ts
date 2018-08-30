@@ -215,7 +215,7 @@ export class DebugService implements IDebugService {
 					let buf = '';
 
 					for (let j = 0, len = a.length; j < len; j++) {
-						if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd')) {
+						if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd' || a[j + 1] === 'O')) {
 							i++; // read over substitution
 							buf += !isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
 							j++; // read over directive

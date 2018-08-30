@@ -13,6 +13,13 @@ var __assign = (this && this.__assign) || Object.assign || function(t) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
+var fs = require("fs");
+var glob = require("glob");
+var gulp = require("gulp");
+var path = require("path");
+var File = require("vinyl");
+var vsce = require("vsce");
+var util2 = require("./util");
 var assign = require("object-assign");
 var remote = require("gulp-remote-src");
 var flatmap = require('gulp-flatmap');
@@ -24,13 +31,6 @@ var buffer = require('gulp-buffer');
 var json = require('gulp-json-editor');
 var webpack = require('webpack');
 var webpackGulp = require('webpack-stream');
-var fs = require("fs");
-var path = require("path");
-var vsce = require("vsce");
-var File = require("vinyl");
-var glob = require("glob");
-var gulp = require("gulp");
-var util2 = require("./util");
 var root = path.resolve(path.join(__dirname, '..', '..'));
 function fromLocal(extensionPath, sourceMappingURLBase) {
     var result = es.through();
@@ -68,10 +68,22 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
             }))
                 .pipe(packageJsonFilter.restore);
             var webpackStreams = webpackConfigLocations.map(function (webpackConfigPath) {
-                var webpackConfig = __assign({}, require(webpackConfigPath), { mode: 'production', stats: 'errors-only' });
+                var webpackDone = function (err, stats) {
+                    util.log("Bundled extension: " + util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath))) + "...");
+                    if (err) {
+                        result.emit('error', err);
+                    }
+                    var compilation = stats.compilation;
+                    if (compilation.errors.length > 0) {
+                        result.emit('error', compilation.errors.join('\n'));
+                    }
+                    if (compilation.warnings.length > 0) {
+                        result.emit('error', compilation.warnings.join('\n'));
+                    }
+                };
+                var webpackConfig = __assign({}, require(webpackConfigPath), { mode: 'production' });
                 var relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
-                var webpackBaseDir = path.dirname(webpackConfigPath);
-                return webpackGulp(webpackConfig, webpack)
+                return webpackGulp(webpackConfig, webpack, webpackDone)
                     .pipe(es.through(function (data) {
                     data.stat = data.stat || {};
                     data.base = extensionPath;

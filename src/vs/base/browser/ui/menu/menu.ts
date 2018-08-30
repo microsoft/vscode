@@ -17,8 +17,8 @@ import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(\w)\)|&{1,2}(\w)/;
-export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(\w)/;
+export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
 
 export interface IMenuOptions {
 	context?: any;

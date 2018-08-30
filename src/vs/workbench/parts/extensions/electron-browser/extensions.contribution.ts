@@ -252,7 +252,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '2_keybindings',
 	command: {
 		id: ShowRecommendedKeymapExtensionsAction.ID,
-		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions")
+		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymaps")
 	},
 	order: 2
 });

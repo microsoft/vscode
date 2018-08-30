@@ -107,7 +107,8 @@ export class LabelService implements ILabelService {
 			// Folder on disk
 			const formatter = this.formatters.get(workspace.scheme);
 			const label = options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
-			return formatter && formatter.workspace && formatter.workspace.suffix ? `${label} (${formatter.workspace.suffix})` : label;
+			const suffix = formatter && formatter.workspace && (typeof formatter.workspace.suffix === 'string') ? formatter.workspace.suffix : workspace.scheme;
+			return suffix ? `${label} (${suffix})` : label;
 		}
 
 		// Workspace: Untitled

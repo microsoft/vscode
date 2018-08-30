@@ -54,6 +54,7 @@ export function getPathCompletionParticipant(
 					}
 				});
 			}
+
 			result.items = [...suggestions, ...result.items];
 		}
 	};
@@ -66,8 +67,13 @@ function providePathSuggestions(pathValue: string, position: Position, range: Ra
 		? fullValue.slice(0, position.character - (range.start.character + 1))
 		: fullValue.slice(0, position.character - range.start.character);
 	const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
+	const currentDocFsPath = URI.parse(document.uri).fsPath;
 
-	const paths = providePaths(valueBeforeCursor, URI.parse(document.uri).fsPath, workspaceRoot);
+	const paths = providePaths(valueBeforeCursor, currentDocFsPath, workspaceRoot).filter(p => {
+		// Exclude current doc's path
+		return path.resolve(currentDocFsPath, '../', p) !== currentDocFsPath;
+	});
+
 	const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
 	const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);
 

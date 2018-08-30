@@ -199,7 +199,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$createProcess(request.proxy.terminalId, shellLaunchConfigDto, request.cols, request.rows);
 		request.proxy.onInput(data => this._proxy.$acceptProcessInput(request.proxy.terminalId, data));
 		request.proxy.onResize(dimensions => this._proxy.$acceptProcessResize(request.proxy.terminalId, dimensions.cols, dimensions.rows));
-		request.proxy.onShutdown(() => this._proxy.$acceptProcessShutdown(request.proxy.terminalId));
+		request.proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(request.proxy.terminalId, immediate));
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {

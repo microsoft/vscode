@@ -107,6 +107,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
+	private _ignoreChangeEvent: boolean;
 
 	private _findFocusTracker: dom.IFocusTracker;
 	private _findInputFocused: IContextKey<boolean>;
@@ -138,6 +139,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
+		this._ignoreChangeEvent = false;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._register(toDisposable(() => this._updateHistoryDelayer.cancel()));
@@ -250,7 +252,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (e.searchString) {
-			this._findInput.setValue(this._state.searchString);
+			try {
+				this._ignoreChangeEvent = true;
+				this._findInput.setValue(this._state.searchString);
+			} finally {
+				this._ignoreChangeEvent = false;
+			}
 			this._updateButtons();
 		}
 		if (e.replaceString) {
@@ -728,6 +735,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._findInput.setWholeWords(!!this._state.wholeWord);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this._register(this._findInput.inputBox.onDidChange(() => {
+			if (this._ignoreChangeEvent) {
+				return;
+			}
 			this._state.change({ searchString: this._findInput.getValue() }, true);
 		}));
 		this._register(this._findInput.onDidOptionChange(() => {

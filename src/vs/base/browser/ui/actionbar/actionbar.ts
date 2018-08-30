@@ -139,6 +139,10 @@ export class BaseActionItem extends lifecycle.Disposable implements IActionItem 
 			}
 		}));
 
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.DBLCLICK, e => {
+			DOM.EventHelper.stop(e, true);
+		}));
+
 		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
 			this._register(DOM.addDisposableListener(this.element, event, e => {
 				DOM.EventHelper.stop(e);

@@ -307,6 +307,7 @@
 	left: -6px;
 	z-index: 20;
 	color: black;
+	text-align: center;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .folding {

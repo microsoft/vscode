@@ -213,10 +213,14 @@ export class SimplePagedDataSource implements IDataSource {
 	private loadedToIndex: number;
 
 	constructor(private realDataSource: IDataSource) {
+		this.reset();
+	}
+
+	reset(): void {
 		this.loadedToIndex = SimplePagedDataSource.SETTINGS_PER_PAGE * 2;
 	}
 
-	pageTo(index: number, top = true): boolean {
+	pageTo(index: number, top = false): boolean {
 		const buffer = top ? SimplePagedDataSource.SETTINGS_PER_PAGE : SimplePagedDataSource.BUFFER;
 
 		if (index > this.loadedToIndex - buffer) {
@@ -328,8 +332,6 @@ export interface ISettingChangeEvent {
 }
 
 export class SettingsRenderer implements ITreeRenderer {
-
-	public static readonly MAX_ENUM_DESCRIPTIONS = 10;
 
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
@@ -788,16 +790,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
 		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
-			hasDetails: true, markdownActionHandler: {
-				callback: (content: string) => {
-					if (startsWith(content, '#')) {
-						this._onDidClickSettingLink.fire(content.substr(1));
-					} else {
-						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-					}
-				},
-				disposeables: common.toDispose
-			}
+			hasDetails: true
 		});
 
 		common.toDispose.push(selectBox);
@@ -930,7 +923,7 @@ export class SettingsRenderer implements ITreeRenderer {
 				this.commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', template.context.extensionIds);
 			}
 		}));
-		button.label = localize('newExtensionsButtonLabel', "Show other matching extensions");
+		button.label = localize('newExtensionsButtonLabel', "Show matching extensions");
 		button.element.classList.add('settings-new-extensions-button');
 		toDispose.push(attachButtonStyler(button, this.themeService));
 
@@ -1107,7 +1100,10 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const displayOptions = getDisplayEnumOptions(dataElement.setting);
+		const displayOptions = dataElement.setting.enum
+			.map(String)
+			.map(escapeInvisibleChars);
+
 		template.selectBox.setOptions(displayOptions);
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
@@ -1247,22 +1243,6 @@ function fixSettingLinks(text: string, linkify = true): string {
 			`[${targetName}](#${settingKey})` :
 			`"${targetName}"`;
 	});
-}
-
-function getDisplayEnumOptions(setting: ISetting): string[] {
-	if (setting.enum.length > SettingsRenderer.MAX_ENUM_DESCRIPTIONS && setting.enumDescriptions) {
-		return setting.enum
-			.map(escapeInvisibleChars)
-			.map((value, i) => {
-				return setting.enumDescriptions[i] ?
-					`${value}: ${setting.enumDescriptions[i]}` :
-					value;
-			});
-	}
-
-	return setting.enum
-		.map(String)
-		.map(escapeInvisibleChars);
 }
 
 function escapeInvisibleChars(enumValue: string): string {
@@ -1496,6 +1476,11 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			if (headerForegroundColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
+			}
+
+			const focusBorderColor = theme.getColor(focusBorder);
+			if (focusBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
 

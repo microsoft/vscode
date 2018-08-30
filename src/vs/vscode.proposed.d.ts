@@ -87,10 +87,12 @@ declare module 'vscode' {
 
 	/**
 	 * Options to specify the size of the result text preview.
+	 * These options don't affect the size of the match itself, just the amount of preview text.
 	 */
 	export interface TextSearchPreviewOptions {
 		/**
 		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
 		 */
 		maxLines: number;
 

@@ -35,6 +35,9 @@ const $ = dom.$;
 interface IListElement {
 	index: number;
 	item: IQuickPickItem;
+	saneLabel: string;
+	saneDescription?: string;
+	saneDetail?: string;
 	checked: boolean;
 	separator: IQuickPickSeparator;
 	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -43,6 +46,9 @@ interface IListElement {
 class ListElement implements IListElement {
 	index: number;
 	item: IQuickPickItem;
+	saneLabel: string;
+	saneDescription?: string;
+	saneDetail?: string;
 	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
@@ -137,16 +143,16 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		// Label
 		const options: IIconLabelValueOptions = Object.create(null);
 		options.matches = labelHighlights || [];
-		options.descriptionTitle = element.item.description;
+		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
-		data.label.setValue(element.item.label, element.item.description, options);
+		data.label.setValue(element.saneLabel, element.saneDescription, options);
 
 		// Meta
-		data.detail.set(element.item.detail, detailHighlights);
+		data.detail.set(element.saneDetail, detailHighlights);
 
 		// ARIA label
-		data.entry.setAttribute('aria-label', [element.item.label, element.item.description, element.item.detail]
+		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
 			.filter(s => !!s)
 			.join(', '));
 
@@ -197,7 +203,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
-		return element.item.detail ? 44 : 22;
+		return element.saneDetail ? 44 : 22;
 	}
 
 	getTemplateId(element: ListElement): string {
@@ -358,6 +364,9 @@ export class QuickInputList {
 				result.push(new ListElement({
 					index,
 					item,
+					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
+					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
+					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
@@ -473,9 +482,9 @@ export class QuickInputList {
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.item.label));
-				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.description || '')) : undefined;
-				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.detail || '')) : undefined;
+				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel));
+				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
+				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
 
 				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
@@ -566,7 +575,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 1;
 	}
 
-	return compareAnything(elementA.item.label, elementB.item.label, lookFor);
+	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
 }
 
 registerThemingParticipant((theme, collector) => {

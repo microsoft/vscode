@@ -6,7 +6,6 @@
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -24,9 +23,7 @@ import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey }
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ISettingSearchResult, ISettingsSearchIssueReporterData, IssueType } from 'vs/platform/issue/common/issue';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -35,7 +32,6 @@ import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/ran
 import { DefaultSettingsHeaderWidget, EditPreferenceWidget, FloatingClickWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IFilterResult, IPreferencesEditorModel, IPreferencesService, IScoredResults, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -239,7 +235,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private filteredMatchesRenderer: FilteredMatchesRenderer;
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
-	private issueWidgetRenderer: IssueWidgetRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 	private bracesHidingRenderer: BracesHidingRenderer;
 	private filterResult: IFilterResult;
@@ -264,7 +259,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
-		this.issueWidgetRenderer = this._register(instantiationService.createInstance(IssueWidgetRenderer, editor));
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
 		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
 		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
@@ -286,7 +280,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	public render() {
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
-		this.issueWidgetRenderer.render(null);
 		this.feedbackWidgetRenderer.render(null);
 		this.settingHighlighter.clear(true);
 		this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
@@ -322,11 +315,9 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private renderIssueWidget(filterResult: IFilterResult): void {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		if (workbenchSettings.enableNaturalLanguageSearchFeedback) {
-			this.issueWidgetRenderer.render(null);
 			this.feedbackWidgetRenderer.render(filterResult);
 		} else {
 			this.feedbackWidgetRenderer.render(null);
-			this.issueWidgetRenderer.render(filterResult);
 		}
 	}
 
@@ -762,88 +753,6 @@ export class FeedbackWidgetRenderer extends Disposable {
 		if (this._feedbackWidget) {
 			this._feedbackWidget.dispose();
 			this._feedbackWidget = null;
-		}
-	}
-
-	public dispose() {
-		this.disposeWidget();
-		super.dispose();
-	}
-}
-
-export class IssueWidgetRenderer extends Disposable {
-	private _issueWidget: FloatingClickWidget;
-	private _currentResult: IFilterResult;
-
-	constructor(private editor: ICodeEditor,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchIssueService private issueService: IWorkbenchIssueService,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) {
-		super();
-	}
-
-	public render(result: IFilterResult): void {
-		this._currentResult = result;
-		if (result && result.metadata && this.environmentService.appQuality !== 'stable') {
-			this.showWidget();
-		} else if (this._issueWidget) {
-			this.disposeWidget();
-		}
-	}
-
-	private showWidget(): void {
-		if (!this._issueWidget) {
-			this._issueWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('reportSettingsSearchIssue', "Report Issue"), null));
-			this._register(this._issueWidget.onClick(() => this.showIssueReporter()));
-			this._issueWidget.render();
-		}
-	}
-
-	private showIssueReporter(): TPromise<void> {
-		const nlpMetadata = this._currentResult.metadata['nlpResult'];
-		const results = nlpMetadata.scoredResults;
-
-		const enabledExtensions = nlpMetadata.extensions;
-		const issueResults = Object.keys(results)
-			.map(key => (<ISettingSearchResult>{
-				key: key.split('##')[1],
-				extensionId: results[key].packageId === 'core' ?
-					'core' :
-					this.getExtensionIdByGuid(enabledExtensions, results[key].packageId),
-				score: results[key].score
-			}))
-			.slice(0, 20);
-
-		const issueReporterData: Partial<ISettingsSearchIssueReporterData> = {
-			enabledExtensions,
-			issueType: IssueType.SettingsSearchIssue,
-			actualSearchResults: issueResults,
-			filterResultCount: this.getFilterResultCount(),
-			query: this._currentResult.query
-		};
-
-		return this.issueService.openReporter(issueReporterData);
-	}
-
-	private getFilterResultCount(): number {
-		const filterResultGroup = arrays.first(this._currentResult.filteredGroups, group => group.id === 'filterResult');
-		return filterResultGroup ?
-			filterResultGroup.sections[0].settings.length :
-			0;
-	}
-
-	private getExtensionIdByGuid(extensions: ILocalExtension[], guid: string): string {
-		const match = arrays.first(extensions, ext => ext.identifier.uuid === guid);
-
-		// identifier.id includes the version, not needed here
-		return match && `${match.manifest.publisher}.${match.manifest.name}`;
-	}
-
-	private disposeWidget(): void {
-		if (this._issueWidget) {
-			this._issueWidget.dispose();
-			this._issueWidget = null;
 		}
 	}
 

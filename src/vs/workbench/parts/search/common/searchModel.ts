@@ -231,7 +231,7 @@ export class FileMatch extends Disposable {
 		matches.forEach(m => {
 			const textSearchResult = new TextSearchResult(
 				this._model.getLineContent(m.range.startLineNumber),
-				new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.startLineNumber - 1, m.range.endColumn),
+				new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.startLineNumber - 1, m.range.endColumn - 1),
 				this._previewOptions);
 			const match = new Match(this, textSearchResult);
 

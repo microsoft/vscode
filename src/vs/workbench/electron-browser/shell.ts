@@ -93,7 +93,7 @@ import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
-import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
+import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';

@@ -84,7 +84,7 @@ export class MenubarControl extends Disposable {
 		'View': nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View"),
 		'Go': nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go"),
 		'Debug': nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"),
-		'Terminal': nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "Ter&&minal"),
+		'Terminal': nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 		'Help': nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
 	};
 
@@ -822,7 +822,7 @@ export class MenubarControl extends Disposable {
 					this.focusNext();
 				} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 					this.setUnfocusedState();
-				} else if (!event.ctrlKey && this.currentEnableMenuBarMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
+				} else if (!this.isOpen && !event.ctrlKey && this.currentEnableMenuBarMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
 					const menuIndex = this.mnemonics.get(key);
 					this.onMenuTriggered(menuIndex, false);
 				} else {
@@ -881,6 +881,7 @@ export class MenubarControl extends Disposable {
 				}
 
 				this.mnemonicsInUse = true;
+				this.updateMnemonicVisibility(true);
 
 				const menuIndex = this.mnemonics.get(key);
 				this.onMenuTriggered(menuIndex, false);
@@ -1300,14 +1301,18 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		};
 
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+			const event = new StandardKeyboardEvent(e);
+
 			if (e.altKey && !this._keyStatus.altKey) {
 				this._keyStatus.lastKeyPressed = 'alt';
 			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
 				this._keyStatus.lastKeyPressed = 'ctrl';
 			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
 				this._keyStatus.lastKeyPressed = 'shift';
-			} else {
+			} else if (event.keyCode !== KeyCode.Alt) {
 				this._keyStatus.lastKeyPressed = undefined;
+			} else {
+				return;
 			}
 
 			this._keyStatus.altKey = e.altKey;

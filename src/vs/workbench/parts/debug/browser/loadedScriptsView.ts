@@ -27,6 +27,7 @@ import { tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const SMART = true;
 
@@ -307,7 +308,6 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	private loadedScriptsItemType: IContextKey<string>;
 	private settings: any;
 
-
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -366,31 +366,33 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			}
 		}));
 
+		let nextRefreshIsRecursive = false;
+		const refreshScheduler = new RunOnceScheduler(() => {
+			if (this.tree) {
+				this.tree.refresh(undefined, nextRefreshIsRecursive);
+				nextRefreshIsRecursive = false;
+			}
+		}, 300);
+		this.disposables.push(refreshScheduler);
+
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 		this.tree.setInput(root);
 
-		let timeout: number;
-
-		this.disposables.push(this.debugService.onDidNewSession(session => {
+		const registerLoadedSourceListener = (session: ISession) => {
 			this.disposables.push(session.onDidLoadedSource(event => {
 				const sessionRoot = root.add(session);
 				sessionRoot.addPath(event.source);
-
-				clearTimeout(timeout);
-				timeout = setTimeout(() => {
-					if (this.tree) {
-						this.tree.refresh(root, true);
-					}
-				}, 300);
+				nextRefreshIsRecursive = true;
+				refreshScheduler.schedule();
 			}));
-		}));
+		};
+
+		this.disposables.push(this.debugService.onDidNewSession(registerLoadedSourceListener));
+		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
-			clearTimeout(timeout);
 			root.remove(session.getId());
-			if (this.tree) {
-				this.tree.refresh(root, false);
-			}
+			refreshScheduler.schedule();
 		}));
 	}
 
@@ -404,6 +406,11 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	public shutdown(): void {
 		this.settings[LoadedScriptsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
+	}
+
+	dispose(): void {
+		this.tree = undefined;
+		super.dispose();
 	}
 }
 

@@ -147,7 +147,6 @@ export class TOCRenderer implements IRenderer {
 
 		DOM.toggleClass(template.labelElement, 'no-results', count === 0);
 		template.labelElement.textContent = label;
-		template.labelElement.title = label;
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;

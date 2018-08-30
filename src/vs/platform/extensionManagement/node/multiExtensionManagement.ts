@@ -5,6 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, EventMultiplexer } from 'vs/base/common/event';
+import * as pfs from 'vs/base/node/pfs';
 import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, LocalExtensionType, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
 	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService, InstallOperation
@@ -12,7 +13,7 @@ import {
 import { flatten } from 'vs/base/common/arrays';
 import { isWorkspaceExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import URI from 'vs/base/common/uri';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
@@ -122,9 +123,9 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 				if (extensionsToSync.size > 0) {
 					const handler = this.notificationService.notify({ severity: Severity.Info, message: localize('synchronising', "Synchronising workspace extensions...") });
 					handler.progress.infinite();
-					this.doSyncExtensions(extensionsToSync).then(() => {
+					this.doSyncExtensions(extensionsToSync, handler).then(() => {
 						handler.progress.done();
-						handler.updateMessage(localize('Synchronize.finished', "Finished synchronising workspace extensions. Please reload now."));
+						handler.updateMessage(localize('Synchronize.finished', "Finished synchronising. Please reload now."));
 						handler.updateActions({
 							primary: [
 								new Action('Synchronize.reloadNow', localize('Synchronize.reloadNow', "Reload Now"), null, true, () => this.windowService.reloadWindow())
@@ -132,6 +133,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 						});
 					}, error => {
 						handler.progress.done();
+						handler.updateSeverity(Severity.Error);
 						handler.updateMessage(error);
 					});
 				}
@@ -151,7 +153,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		return extensionsToSync;
 	}
 
-	private async doSyncExtensions(extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]>): Promise<void> {
+	private async doSyncExtensions(extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]>, notificationHandler: INotificationHandle): Promise<void> {
 		const ids: string[] = [];
 		const zipLocationResolvers: TPromise<{ location: URI, vsix: boolean }>[] = [];
 
@@ -172,7 +174,13 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 			extensions.forEach(extension => {
 				const index = ids.indexOf(extension.galleryIdentifier.id);
 				const { location, vsix } = zipLocations[index];
-				promise = promise.then(() => vsix ? server.extensionManagementService.install(location) : server.extensionManagementService.unzip(location, extension.type));
+				promise = promise
+					.then(() => {
+						notificationHandler.updateMessage(localize('synchronising extension', "Synchronising workspace extension: {0}", extension.manifest.displayName || extension.manifest.name));
+						return vsix ? server.extensionManagementService.install(location) : server.extensionManagementService.unzip(location, extension.type);
+					}).then(
+						() => pfs.rimraf(location.fsPath),
+						error => pfs.rimraf(location.fsPath).then(() => TPromise.wrapError(error), () => TPromise.wrapError(error)));
 			});
 			promises.push(promise);
 		});

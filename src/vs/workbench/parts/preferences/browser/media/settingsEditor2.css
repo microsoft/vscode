@@ -383,6 +383,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
 	display: flex;
+	cursor: pointer;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {

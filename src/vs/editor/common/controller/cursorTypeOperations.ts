@@ -589,10 +589,10 @@ export class TypeOperations {
 
 	private static _shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
 		if (isQuote(ch)) {
-			return (config.autoWrapping === 'quotes' || config.autoWrapping === 'always');
+			return (config.autoSurround === 'quotes' || config.autoSurround === 'languageDefined');
 		} else {
 			// Character is a bracket
-			return (config.autoWrapping === 'brackets' || config.autoWrapping === 'always');
+			return (config.autoSurround === 'brackets' || config.autoSurround === 'languageDefined');
 		}
 	}
 

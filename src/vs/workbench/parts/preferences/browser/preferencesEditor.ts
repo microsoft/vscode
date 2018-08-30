@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
@@ -55,7 +55,6 @@ import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsE
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -108,20 +107,6 @@ export class PreferencesEditor extends BaseEditor {
 		DOM.addClass(parent, 'preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
-		const advertisement = DOM.append(this.headerContainer, DOM.$('.new-settings-ad'));
-		const advertisementLabel = DOM.append(advertisement, DOM.$('span.new-settings-ad-label'));
-		advertisementLabel.textContent = nls.localize('advertisementLabel', "Try a preview of our ") + ' ';
-		const openSettings2Button = this._register(new Button(advertisement, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		openSettings2Button.style({
-			buttonBackground: null,
-			buttonForeground: null,
-			buttonBorder: null,
-			buttonHoverBackground: null
-		});
-		openSettings2Button.label = nls.localize('openSettings2Label', "new settings editor");
-		openSettings2Button.element.classList.add('open-settings2-button');
-		this._register(openSettings2Button.onDidClick(() => this.preferencesService.openSettings(false)));
-
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),

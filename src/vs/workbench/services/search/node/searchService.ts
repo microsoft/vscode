@@ -365,7 +365,7 @@ export class SearchService extends Disposable implements ISearchService {
 					matches.forEach((match) => {
 						fileMatch.matches.push(new TextSearchResult(
 							model.getLineContent(match.range.startLineNumber),
-							new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.startLineNumber - 1, match.range.endColumn),
+							new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.startLineNumber - 1, match.range.endColumn - 1),
 							query.previewOptions));
 					});
 				} else {

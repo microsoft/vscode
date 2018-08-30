@@ -36,6 +36,7 @@ import { PreferencesSearchService } from 'vs/workbench/parts/preferences/electro
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 registerSingleton(IPreferencesSearchService, PreferencesSearchService);
 
@@ -149,23 +150,34 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
+interface ISerializedSettingsEditor2EditorInput {
+	resource: string;
+	configurationTarget: ConfigurationTarget;
+	folderResource?: string;
+}
+
 class SettingsEditor2InputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: SettingsEditor2Input): string {
-		const input = <DefaultPreferencesEditorInput>editorInput;
-
-		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
+	public serialize(input: SettingsEditor2Input): string {
+		const serialized: ISerializedSettingsEditor2EditorInput = {
+			resource: input.getResource().toString(),
+			configurationTarget: input.configurationTarget,
+			folderResource: input.folderUri && input.folderUri.toString()
+		};
 
 		return JSON.stringify(serialized);
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
-		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
+		const deserialized: ISerializedSettingsEditor2EditorInput = JSON.parse(serializedEditorInput);
 
-		return instantiationService.createInstance(SettingsEditor2Input, URI.parse(deserialized.resource));
+		return instantiationService.createInstance(
+			SettingsEditor2Input,
+			URI.parse(deserialized.resource),
+			deserialized.configurationTarget,
+			deserialized.folderResource && URI.parse(deserialized.folderResource));
 	}
 }
-
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;

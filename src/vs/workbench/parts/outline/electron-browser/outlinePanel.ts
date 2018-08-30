@@ -13,8 +13,8 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
-import { asDisposablePromise, setDisposableTimeout, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
+import { asDisposablePromise, createCancelablePromise, setDisposableTimeout, timeout } from 'vs/base/common/async';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -29,6 +29,7 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -37,6 +38,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -50,10 +52,8 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
+import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 
 class RequestState {
 
@@ -277,12 +277,19 @@ export class OutlinePanel extends ViewletPanel {
 
 	focus(): void {
 		if (this._tree) {
+			// focus on tree and fallback to root
+			// dom node when the tree cannot take focus,
+			// e.g. when hidden
 			this._tree.domFocus();
+			if (!this._tree.isDOMFocused()) {
+				this._domNode.focus();
+			}
 		}
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		this._domNode = container;
+		this._domNode.tabIndex = 0;
 		dom.addClass(container, 'outline-panel');
 
 		let progressContainer = dom.$('.outline-progress');
@@ -524,6 +531,11 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._input.enable();
 		this.layoutBody();
+
+		// transfer focus from domNode to the tree
+		if (this._domNode === document.activeElement) {
+			this._tree.domFocus();
+		}
 
 		// feature: filter on type
 		// on type -> update filters
