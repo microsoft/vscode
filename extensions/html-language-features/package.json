@@ -124,15 +124,6 @@
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
-        "html.format.wrapAttributesIndentSize": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "scope": "resource",
-          "default": null,
-          "description": "%html.format.wrapAttributesIndentSize.desc%"
-        },
         "html.suggest.angular1": {
           "type": "boolean",
           "scope": "resource",
