@@ -470,20 +470,35 @@ export class SettingsRenderer implements ITreeRenderer {
 			this.descriptionMeasureContainer.classList.remove(boolMeasureClass);
 		}
 
-		// Remove markdown links, setting links, backticks
-		const measureText = element.setting.descriptionIsMarkdown ?
-			fixSettingLinks(element.description)
-				.replace(/\[(.*)\]\(.*\)/g, '$1')
-				.replace(/`([^`]*)`/g, '$1') :
-			element.description;
+		const shouldRenderMarkdown = element.setting.descriptionIsMarkdown && element.description.indexOf('\n- ') >= 0;
 
-		this.descriptionMeasureContainer.innerText = measureText;
-		const h = this.descriptionMeasureContainer.offsetHeight;
-		if (h < 20 && measureText.length > this.longestSingleLineDescription) {
-			this.longestSingleLineDescription = measureText.length;
+		while (this.descriptionMeasureContainer.firstChild) {
+			this.descriptionMeasureContainer.removeChild(this.descriptionMeasureContainer.firstChild);
 		}
 
-		return h;
+		if (shouldRenderMarkdown) {
+			const text = fixSettingLinks(element.description);
+			const rendered = renderMarkdown({ value: text });
+			rendered.classList.add('setting-item-description-markdown');
+			this.descriptionMeasureContainer.appendChild(rendered);
+
+			return this.descriptionMeasureContainer.offsetHeight;
+		} else {
+			// Remove markdown links, setting links, backticks
+			const measureText = element.setting.descriptionIsMarkdown ?
+				fixSettingLinks(element.description)
+					.replace(/\[(.*)\]\(.*\)/g, '$1')
+					.replace(/`([^`]*)`/g, '$1') :
+				element.description;
+
+			this.descriptionMeasureContainer.innerText = measureText;
+			const h = this.descriptionMeasureContainer.offsetHeight;
+			if (h < 20 && measureText.length > this.longestSingleLineDescription) {
+				this.longestSingleLineDescription = measureText.length;
+			}
+
+			return h;
+		}
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {

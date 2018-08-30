@@ -115,15 +115,23 @@
 	display: none;
 }
 
-.settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper,
-.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
+.settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	width: calc(100% - 11px);
 	margin-left: 0px;
 }
 
-.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper,
-.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
+.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 33px);
+	margin-left: 0px;
+}
+
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	width: calc(100% - 11px);
+	margin-left: 0px;
+}
+
+.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 33px);
 	margin-left: 0px;
 }
 
