@@ -583,6 +583,10 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
 
 		this.currentSuggestionDetails.then(() => {
+			if (this.list.length < index) {
+				return;
+			}
+
 			// item can have extra information, so re-render
 			this.ignoreFocusEvents = true;
 			this.list.splice(index, 1, [item]);
