@@ -211,7 +211,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	showContextMenu(): void {
-		const settingDOMElement = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
+		const settingDOMElement = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(this.getActiveElementInSettingsTree());
 		if (!settingDOMElement) {
 			return;
 		}
@@ -771,6 +771,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
+	private getActiveElementInSettingsTree(): HTMLElement | null {
+		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
+			<HTMLElement>document.activeElement :
+			null;
+	}
+
 	private renderTree(key?: string, force = false): TPromise<void> {
 		if (!force && key && this.scheduledRefreshes.has(key)) {
 			this.updateModifiedLabelForKey(key);
@@ -778,7 +784,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
-		const focusedSetting = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(<HTMLElement>document.activeElement);
+		const focusedSetting = this.settingsTreeRenderer.getSettingDOMElementForDOMElement(this.getActiveElementInSettingsTree());
 		if (focusedSetting && !force) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
 			if (key) {
