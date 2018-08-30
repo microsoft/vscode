@@ -43,6 +43,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
+import { AccessibilitySupport } from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -73,6 +76,7 @@ interface QuickInputUI {
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
+	isScreenReaderOptimized(): boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
 	setComboboxAccessibility(enabled: boolean): void;
@@ -428,7 +432,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					}
 					this._value = value;
 					this.ui.list.filter(this.ui.inputBox.value);
-					if (!this.canSelectMany) {
+					if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
 						this.ui.list.focus('First');
 					}
 					this.onDidChangeValueEmitter.fire(value);
@@ -584,14 +588,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			if (!this.canSelectMany) {
+			if (!this.ui.isScreenReaderOptimized() && !this.canSelectMany) {
 				this.ui.list.focus('First');
 			}
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== this.canSelectMany) {
 			if (this.canSelectMany) {
 				this.ui.list.clearFocus();
-			} else {
+			} else if (!this.ui.isScreenReaderOptimized()) {
 				this.ui.list.focus('First');
 			}
 		}
@@ -1011,6 +1015,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: { ctrlCmd: false, alt: false },
+			isScreenReaderOptimized: () => this.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
@@ -1255,6 +1260,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.ui.inputBox.removeAttribute('aria-activedescendant');
 			}
 		}
+	}
+
+	private isScreenReaderOptimized() {
+		const detected = browser.getAccessibilitySupport() === AccessibilitySupport.Enabled;
+		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	private setEnabled(enabled: boolean) {
