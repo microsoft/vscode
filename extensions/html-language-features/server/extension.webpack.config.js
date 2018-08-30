@@ -34,7 +34,7 @@ module.exports = withDefaults({
 	},
 	plugins: [
 		new webpack.NormalModuleReplacementPlugin(
-			/\/|\\vscode-languageserver\/|\\lib\/|\\files\.js/,
+			/(\/|\\)vscode-languageserver(\/|\\)lib(\/|\\)files\.js/,
 			require.resolve('./build/filesFillIn')
 		),
 		new webpack.IgnorePlugin(/vertx/)
