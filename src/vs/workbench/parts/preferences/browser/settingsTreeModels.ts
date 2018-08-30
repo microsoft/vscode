@@ -125,7 +125,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.defaultValue = inspected.default;
 
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags) {
+		if (isConfigured || this.setting.tags || this.tags) {
+			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
 				this.tags.add(MODIFIED_SETTING_TAG);

@@ -786,7 +786,9 @@ export class SettingsEditor2 extends BaseEditor {
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
-				refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+				// TODO https://github.com/Microsoft/vscode/issues/57360
+				// refreshP = TPromise.join(elements.map(e => this.settingsTree.refresh(e)));
+				refreshP = this.settingsTree.refresh();
 			} else {
 				// Refresh requested for a key that we don't know about
 				return TPromise.wrap(null);
