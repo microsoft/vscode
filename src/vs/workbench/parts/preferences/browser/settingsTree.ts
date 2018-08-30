@@ -790,16 +790,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
 		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
-			hasDetails: true, markdownActionHandler: {
-				callback: (content: string) => {
-					if (startsWith(content, '#')) {
-						this._onDidClickSettingLink.fire(content.substr(1));
-					} else {
-						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
-					}
-				},
-				disposeables: common.toDispose
-			}
+			hasDetails: true
 		});
 
 		common.toDispose.push(selectBox);
