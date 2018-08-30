@@ -1218,14 +1218,21 @@ export class Repository implements Disposable {
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {
-		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
+		const possibleRebaseCommitPaths = [
+			path.join(this.repository.root, '.git', 'REBASE_HEAD'),
+			path.join(this.repository.root, '.git', 'rebase-apply', 'orig-head'),
+			path.join(this.repository.root, '.git', 'rebase-merge', 'orig-head')
+		];
 
-		try {
-			const rebaseHead = await new Promise<string>((c, e) => fs.readFile(rebaseHeadPath, 'utf8', (err, result) => err ? e(err) : c(result)));
-			return await this.getCommit(rebaseHead.trim());
-		} catch (err) {
-			return undefined;
+		for (const rebaseCommitPath of possibleRebaseCommitPaths) {
+			try {
+				const rebaseHead = await new Promise<string>((c, e) => fs.readFile(rebaseCommitPath, 'utf8', (err, result) => err ? e(err) : c(result)));
+				return await this.getCommit(rebaseHead.trim());
+			} catch (err) {
+				// noop
+			}
 		}
+		return undefined;
 	}
 
 	private onFSChange(uri: Uri): void {
