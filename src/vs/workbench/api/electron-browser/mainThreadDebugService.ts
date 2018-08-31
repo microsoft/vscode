@@ -37,13 +37,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
-			this._toDispose.push(session.onDidCustomEvent(event => {
-				if (event && event.sessionId) {
-					if (process) {
-						this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
-					}
+		}));
+		this._toDispose.push(debugService.onDidCustomEvent(event => {
+			if (event && event.sessionId) {
+				const session = this.debugService.getModel().getSessions().filter(p => p.getId() === event.sessionId).pop();
+				if (session) {
+					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
 				}
-			}));
+			}
 		}));
 		this._toDispose.push(debugService.onDidEndSession(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.getViewModel().onDidFocusSession(proc => {

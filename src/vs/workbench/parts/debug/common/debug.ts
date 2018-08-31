@@ -614,6 +614,8 @@ export interface IDebugService {
 	 */
 	onDidEndSession: Event<ISession>;
 
+	onDidCustomEvent: Event<DebugEvent>;
+
 	/**
 	 * Gets the current configuration manager.
 	 */

@@ -52,7 +52,7 @@ import { deepClone, equals } from 'vs/base/common/objects';
 import { Session } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, ISession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, ISession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, DebugEvent } from 'vs/workbench/parts/debug/common/debug';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -66,6 +66,7 @@ export class DebugService implements IDebugService {
 	private readonly _onDidChangeState: Emitter<State>;
 	private readonly _onDidNewSession: Emitter<ISession>;
 	private readonly _onDidEndSession: Emitter<ISession>;
+	private readonly _onDidCustomEvent: Emitter<DebugEvent>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
@@ -106,6 +107,7 @@ export class DebugService implements IDebugService {
 		this._onDidChangeState = new Emitter<State>();
 		this._onDidNewSession = new Emitter<ISession>();
 		this._onDidEndSession = new Emitter<ISession>();
+		this._onDidCustomEvent = new Emitter<DebugEvent>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
@@ -331,6 +333,10 @@ export class DebugService implements IDebugService {
 
 	get onDidEndSession(): Event<ISession> {
 		return this._onDidEndSession.event;
+	}
+
+	get onDidCustomEvent(): Event<DebugEvent> {
+		return this._onDidCustomEvent.event;
 	}
 
 	focusStackFrame(stackFrame: IStackFrame, thread?: IThread, session?: ISession, explicit?: boolean): void {
@@ -646,8 +652,8 @@ export class DebugService implements IDebugService {
 		const dbgr = this.configurationManager.getDebugger(resolved.type);
 		const session = this.instantiationService.createInstance(Session, sessionId, configuration, root, this.model);
 		this.allSessions.set(sessionId, session);
+		this.registerSessionListeners(session);
 		return session.initialize(dbgr).then(() => {
-			this.registerSessionListeners(session);
 			const raw = <RawDebugSession>session.raw;
 			return (resolved.request === 'attach' ? raw.attach(resolved) : raw.launch(resolved))
 				.then((result: DebugProtocol.Response) => {
@@ -748,6 +754,8 @@ export class DebugService implements IDebugService {
 	}
 
 	private registerSessionListeners(session: Session): void {
+		this.toDispose.push(session.onDidCustomEvent(event => this._onDidCustomEvent.fire(event)));
+
 		this.toDispose.push(session.onDidChangeState((state) => {
 			if (state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
 				this.focusStackFrame(undefined);
