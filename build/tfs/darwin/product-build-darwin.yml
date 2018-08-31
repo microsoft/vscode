@@ -11,9 +11,9 @@ steps:
     set -e
     echo "machine monacotools.visualstudio.com password $(VSO_PAT)" > ~/.netrc
     yarn
-    npm run gulp -- hygiene
-    npm run monaco-compile-check
-    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" npm run gulp -- mixin
+    # yarn gulp -- hygiene
+    # yarn monaco-compile-check
+    VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" yarn gulp -- mixin
     node build/tfs/common/installDistro.js
     node build/lib/builtInExtensions.js
 
@@ -21,43 +21,61 @@ steps:
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    npm run gulp -- vscode-darwin-min upload-vscode-sourcemaps
+    yarn gulp -- vscode-darwin-min upload-vscode-sourcemaps
   name: build
 
-- script: |
-    set -e
-    ./scripts/test.sh --build --tfs "Unit Tests"
-    APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
-    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
-  name: test
+# - script: |
+#     set -e
+#     ./scripts/test.sh --build --tfs "Unit Tests"
+#     APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
+#     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
+#   name: test
 
-- script: |
-    set -e
-    # archive the unsigned build
-    pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin-unsigned.zip * && popd
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)/VSCode-darwin'
+    Pattern: '*.app'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppDeveloperSign",
+          "parameters": [ ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]​​
+    SessionTimeout: 120
 
-    # publish the unsigned build
-    PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
-    VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-    node build/tfs/common/publish.js \
-      "$(VSCODE_QUALITY)" \
-      darwin \
-      archive-unsigned \
-      "VSCode-darwin-$(VSCODE_QUALITY)-unsigned.zip" \
-      $VERSION \
-      false \
-      ../VSCode-darwin-unsigned.zip
+# - script: |
+#     set -e
+#     # archive the unsigned build
+#     pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin-unsigned.zip * && popd
 
-    # publish hockeyapp symbols
-    node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
+#     # publish the unsigned build
+#     PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
+#     VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
+#     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+#     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+#     MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
+#     node build/tfs/common/publish.js \
+#       "$(VSCODE_QUALITY)" \
+#       darwin \
+#       archive-unsigned \
+#       "VSCode-darwin-$(VSCODE_QUALITY)-unsigned.zip" \
+#       $VERSION \
+#       false \
+#       ../VSCode-darwin-unsigned.zip
 
-    # enqueue the unsigned build
-    AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
-    node build/tfs/darwin/enqueue.js "$(VSCODE_QUALITY)"
+#     # publish hockeyapp symbols
+#     node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_MACOS)"
 
-    AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    npm run gulp -- upload-vscode-configuration
+#     # enqueue the unsigned build
+#     AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
+#     AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
+#     node build/tfs/darwin/enqueue.js "$(VSCODE_QUALITY)"
+
+#     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
+#     yarn gulp -- upload-vscode-configuration
