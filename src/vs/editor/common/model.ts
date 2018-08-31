@@ -734,31 +734,6 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
 
 	/**
-	 * Get the language associated with this model.
-	 * @internal
-	 */
-	getLanguageIdentifier(): LanguageIdentifier;
-
-	/**
-	 * Get the language associated with this model.
-	 */
-	getModeId(): string;
-
-	/**
-	 * Get the word under or besides `position`.
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Might be null.
-	 */
-	getWordAtPosition(position: IPosition): IWordAtPosition;
-
-	/**
-	 * Get the word under or besides `position` trimmed to `position`.column
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Will never be null.
-	 */
-	getWordUntilPosition(position: IPosition): IWordAtPosition;
-
-	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
 	 * @internal
 	 */
