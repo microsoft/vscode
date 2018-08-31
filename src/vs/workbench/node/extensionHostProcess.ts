@@ -103,6 +103,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 					}
 				}, 1000);
 			});
+
 			process.on('rejectionHandled', (promise: Promise<any>) => {
 				const idx = unhandledPromises.indexOf(promise);
 				if (idx >= 0) {
@@ -115,6 +116,8 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				onUnexpectedError(err);
 			});
 
+			// Workaround for Electron not installing a handler to ignore SIGPIPE
+			// (https://github.com/electron/electron/issues/13254)
 			process.on('SIGPIPE', () => {
 				onUnexpectedError(new Error('Unexpected SIGPIPE'));
 			});
