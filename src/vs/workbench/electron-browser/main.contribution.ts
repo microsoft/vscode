@@ -793,7 +793,7 @@ configurationRegistry.registerConfiguration({
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
-			'default': isLinux ? 'native' : 'custom',
+			'default': isMacintosh ? 'custom' : 'native',
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		},

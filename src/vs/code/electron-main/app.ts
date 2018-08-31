@@ -559,15 +559,7 @@ export class CodeApplication {
 		// Install Menu
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
-
-		let createNativeMenu = true;
-		if (platform.isLinux) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
-		} else if (platform.isWindows) {
-			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
-		}
-
-		if (createNativeMenu) {
+		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
 			instantiationService.createInstance(CodeMenu);
 		}
 
