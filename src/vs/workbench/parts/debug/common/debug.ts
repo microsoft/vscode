@@ -610,6 +610,11 @@ export interface IDebugService {
 	onDidNewSession: Event<ISession>;
 
 	/**
+	 * Allows to register on sessions about to be created (not yet fully initialised)
+	 */
+	onWillNewSession: Event<ISession>;
+
+	/**
 	 * Allows to register on end session events.
 	 */
 	onDidEndSession: Event<ISession>;

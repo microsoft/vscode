@@ -35,13 +35,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
-		this._toDispose.push(debugService.onDidNewSession(session => {
+		this._toDispose.push(debugService.onWillNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
 			this._toDispose.push(session.onDidCustomEvent(event => {
 				if (event && event.sessionId) {
-					if (process) {
-						this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
-					}
+					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
 				}
 			}));
 		}));
