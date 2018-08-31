@@ -65,6 +65,7 @@ export class DebugService implements IDebugService {
 
 	private readonly _onDidChangeState: Emitter<State>;
 	private readonly _onDidNewSession: Emitter<ISession>;
+	private readonly _onWillNewSession: Emitter<ISession>;
 	private readonly _onDidEndSession: Emitter<ISession>;
 	private model: Model;
 	private viewModel: ViewModel;
@@ -105,6 +106,7 @@ export class DebugService implements IDebugService {
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
 		this._onDidChangeState = new Emitter<State>();
 		this._onDidNewSession = new Emitter<ISession>();
+		this._onWillNewSession = new Emitter<ISession>();
 		this._onDidEndSession = new Emitter<ISession>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
@@ -327,6 +329,10 @@ export class DebugService implements IDebugService {
 
 	get onDidNewSession(): Event<ISession> {
 		return this._onDidNewSession.event;
+	}
+
+	get onWillNewSession(): Event<ISession> {
+		return this._onWillNewSession.event;
 	}
 
 	get onDidEndSession(): Event<ISession> {
@@ -645,6 +651,7 @@ export class DebugService implements IDebugService {
 
 		const dbgr = this.configurationManager.getDebugger(resolved.type);
 		const session = this.instantiationService.createInstance(Session, sessionId, configuration, root, this.model);
+		this._onWillNewSession.fire(session);
 		this.allSessions.set(sessionId, session);
 		return session.initialize(dbgr).then(() => {
 			this.registerSessionListeners(session);
