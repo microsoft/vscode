@@ -177,4 +177,10 @@ if (typeof crashReporterOptionsRaw === 'string') {
 	}
 }
 
+// Workaround for Electron not installing a handler to ignore SIGPIPE
+// (https://github.com/electron/electron/issues/13254)
+process.on('SIGPIPE', () => {
+	console.error(new Error('Unexpected SIGPIPE'));
+});
+
 require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
