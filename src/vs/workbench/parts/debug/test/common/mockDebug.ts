@@ -20,6 +20,10 @@ export class MockDebugService implements IDebugService {
 		return null;
 	}
 
+	public get onDidCustomEvent(): Event<DebugEvent> {
+		return null;
+	}
+
 	public get onDidNewSession(): Event<ISession> {
 		return null;
 	}
