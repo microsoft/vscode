@@ -102,6 +102,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.labelService.onDidRegisterFormatter(() => this.setTitle(this.getWindowTitle())));
 	}
 
 	private onBlur(): void {

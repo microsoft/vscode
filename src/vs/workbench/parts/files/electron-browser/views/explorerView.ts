@@ -145,6 +145,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		};
 
 		this.disposables.push(this.contextService.onDidChangeWorkspaceName(setHeader));
+		this.disposables.push(this.labelService.onDidRegisterFormatter(setHeader));
 		setHeader();
 	}
 
@@ -200,6 +201,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(e => this.refreshFromEvent(e.added)));
 		this.disposables.push(this.contextService.onDidChangeWorkbenchState(e => this.refreshFromEvent()));
 		this.disposables.push(this.fileService.onDidChangeFileSystemProviderRegistrations(() => this.refreshFromEvent()));
+		this.disposables.push(this.labelService.onDidRegisterFormatter(() => {
+			this._onDidChangeTitleArea.fire();
+			this.refreshFromEvent();
+		}));
 	}
 
 	layoutBody(size: number): void {
