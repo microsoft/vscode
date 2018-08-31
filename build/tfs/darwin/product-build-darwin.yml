@@ -32,11 +32,16 @@ steps:
 #     # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
 #   name: test
 
+- script: |
+    set -e
+    pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
+  displayName: Archive
+
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
-    FolderPath: '$(agent.builddirectory)/VSCode-darwin'
-    Pattern: '*.app'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin.zip'
     signConfigType: inlineSignParams
     inlineOperation: |
       [
