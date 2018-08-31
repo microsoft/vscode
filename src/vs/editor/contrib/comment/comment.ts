@@ -55,6 +55,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+				secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_DIVIDE],
 				weight: KeybindingWeight.EditorContrib
 			},
 			menubarOpts: {
