@@ -44,7 +44,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { CodeWindow } from 'vs/code/electron-main/window';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import URI from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
@@ -68,6 +67,7 @@ import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
+import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
 
 export class CodeApplication {
 
@@ -297,8 +297,8 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.stateService.setItem(CodeWindow.themeStorageKey, data.baseTheme);
-			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+			this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
+			this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
 		}
 	}
 
@@ -338,7 +338,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+			this.sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services

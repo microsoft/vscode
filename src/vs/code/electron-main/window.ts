@@ -26,6 +26,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { getBackgroundColor } from 'vs/code/electron-main/theme';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -54,13 +55,6 @@ interface ITouchBarSegment extends Electron.SegmentedControlSegment {
 }
 
 export class CodeWindow implements ICodeWindow {
-
-	static readonly themeStorageKey = 'theme';
-	static readonly themeBackgroundStorageKey = 'themeBackground';
-
-	private static readonly DEFAULT_BG_LIGHT = '#FFFFFF';
-	private static readonly DEFAULT_BG_DARK = '#1E1E1E';
-	private static readonly DEFAULT_BG_HC_BLACK = '#000000';
 
 	private static readonly MIN_WIDTH = 200;
 	private static readonly MIN_HEIGHT = 120;
@@ -124,17 +118,12 @@ export class CodeWindow implements ICodeWindow {
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
-		let backgroundColor = this.getBackgroundColor();
-		if (isMacintosh && backgroundColor.toUpperCase() === CodeWindow.DEFAULT_BG_DARK) {
-			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
-		}
-
 		const options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor,
+			backgroundColor: getBackgroundColor(this.stateService),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -621,31 +610,6 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		return `${require.toUrl('vs/workbench/electron-browser/bootstrap/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-	}
-
-	private getBaseTheme(): string {
-		if (isWindows && systemPreferences.isInvertedColorScheme()) {
-			return 'hc-black';
-		}
-
-		const theme = this.stateService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
-
-		return theme.split(' ')[0];
-	}
-
-	private getBackgroundColor(): string {
-		if (isWindows && systemPreferences.isInvertedColorScheme()) {
-			return CodeWindow.DEFAULT_BG_HC_BLACK;
-		}
-
-		const background = this.stateService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
-		if (!background) {
-			const baseTheme = this.getBaseTheme();
-
-			return baseTheme === 'hc-black' ? CodeWindow.DEFAULT_BG_HC_BLACK : (baseTheme === 'vs' ? CodeWindow.DEFAULT_BG_LIGHT : CodeWindow.DEFAULT_BG_DARK);
-		}
-
-		return background;
 	}
 
 	serializeWindowState(): IWindowState {
