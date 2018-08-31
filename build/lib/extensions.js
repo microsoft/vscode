@@ -19,6 +19,7 @@ var gulp = require("gulp");
 var path = require("path");
 var File = require("vinyl");
 var vsce = require("vsce");
+var stats_1 = require("./stats");
 var util2 = require("./util");
 var assign = require("object-assign");
 var remote = require("gulp-remote-src");
@@ -114,7 +115,7 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
             filesStream.pipe(result);
         }
     }).catch(function (err) { return result.emit('error', err); });
-    return result;
+    return stats_1.createStatsStream(path.basename(extensionPath), result, true);
 }
 exports.fromLocal = fromLocal;
 function error(err) {
