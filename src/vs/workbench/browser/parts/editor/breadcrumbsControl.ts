@@ -17,7 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import 'vs/css!./media/breadcrumbscontrol';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
@@ -42,6 +42,7 @@ import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/par
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
@@ -204,8 +205,13 @@ export class BreadcrumbsControl {
 	}
 
 	update(): boolean {
-		const input = this._editorGroup.activeEditor;
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
+
+		// honor diff editors and such
+		let input = this._editorGroup.activeEditor;
+		if (input instanceof SideBySideEditorInput) {
+			input = input.master;
+		}
 
 		if (!input || !input.getResource() || (input.getResource().scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()))) {
 			// cleanup and return when there is no input or when
@@ -221,8 +227,8 @@ export class BreadcrumbsControl {
 		dom.toggleClass(this.domNode, 'hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
 
-		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
-		let model = new EditorBreadcrumbsModel(input.getResource(), isCodeEditor(control) ? control : undefined, this._workspaceService, this._configurationService);
+		let editor = this._getActiveCodeEditor();
+		let model = new EditorBreadcrumbsModel(input.getResource(), editor, this._workspaceService, this._configurationService);
 		dom.toggleClass(this.domNode, 'relative-path', model.isRelative());
 
 		let updateBreadcrumbs = () => {
@@ -244,6 +250,17 @@ export class BreadcrumbsControl {
 		});
 
 		return true;
+	}
+
+	private _getActiveCodeEditor(): ICodeEditor {
+		let control = this._editorGroup.activeControl.getControl();
+		let editor: ICodeEditor;
+		if (isCodeEditor(control)) {
+			editor = control as ICodeEditor;
+		} else if (isDiffEditor(control)) {
+			editor = control.getModifiedEditor();
+		}
+		return editor;
 	}
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
@@ -279,7 +296,7 @@ export class BreadcrumbsControl {
 
 		// show picker
 		let picker: BreadcrumbsPicker;
-		let editor = this._editorGroup.activeControl.getControl() as ICodeEditor;
+		let editor = this._getActiveCodeEditor();
 		let editorDecorations: string[] = [];
 		let editorViewState: ICodeEditorViewState;
 
@@ -318,7 +335,7 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
-				let pickerHeight = 330;
+				let pickerHeight = Math.min(330, window.innerHeight * 0.4);
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
