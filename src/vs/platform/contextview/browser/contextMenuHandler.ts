@@ -58,7 +58,14 @@ export class ContextMenuHandler {
 			this.focusToReturn = document.activeElement as HTMLElement;
 
 			this.contextViewService.showContextView({
-				getAnchor: () => delegate.getAnchor(),
+				getAnchor: () => {
+					const anchor = delegate.getAnchor();
+					if (anchor && !(anchor instanceof HTMLElement) && typeof anchor.x === 'number') {
+						return { x: anchor.x + 2, y: anchor.y }; // prevent first item from being selected automatically under mouse
+					}
+
+					return anchor;
+				},
 				canRelayout: false,
 
 				render: (container) => {
