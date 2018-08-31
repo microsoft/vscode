@@ -77,8 +77,8 @@ suite('Editor service', () => {
 
 		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-basics'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-basics'));
 
 		let activeEditorChangeEventCounter = 0;
 		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
@@ -145,9 +145,9 @@ suite('Editor service', () => {
 
 		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
-		const replaceInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource3'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-openEditors'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openEditors'));
+		const replaceInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource3-openEditors'));
 
 		// Open editors
 		return service.openEditors([{ editor: input }, { editor: otherInput }]).then(() => {
@@ -259,7 +259,7 @@ suite('Editor service', () => {
 
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
+		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource-delegate'));
 		const delegate = instantiationService.createInstance(DelegatingEditorService);
 		delegate.setEditorOpenHandler((group: IEditorGroup, input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
@@ -283,7 +283,7 @@ suite('Editor service', () => {
 
 		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-close1'));
 
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
@@ -319,8 +319,8 @@ suite('Editor service', () => {
 
 		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-close2'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-close2'));
 		const diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
 		const rootGroup = part.activeGroup;
@@ -357,8 +357,8 @@ suite('Editor service', () => {
 
 		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-close3'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-close3'));
 		const diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
 		// Open input
@@ -384,8 +384,8 @@ suite('Editor service', () => {
 
 		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-close4'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-close4'));
 		const diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
 		// Open input
@@ -413,8 +413,8 @@ suite('Editor service', () => {
 
 		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
-		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1'));
-		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1-openside'));
+		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-openside'));
 
 		const rootGroup = part.activeGroup;
 
@@ -445,8 +445,8 @@ suite('Editor service', () => {
 
 		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
 
-		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
-		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource-active'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2-active'));
 
 		let activeEditorChangeEventFired = false;
 		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
