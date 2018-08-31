@@ -168,7 +168,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		this._activeSearches[requestId] = search;
 		const onDone = () => delete this._activeSearches[requestId];
-		search.done(onDone, onDone);
+		search.then(onDone, onDone);
 
 		return search;
 	}

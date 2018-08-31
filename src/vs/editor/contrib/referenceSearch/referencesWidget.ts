@@ -274,9 +274,9 @@ class Controller extends WorkbenchTreeController {
 	private _expandCollapse(tree: tree.ITree, element: any): boolean {
 
 		if (tree.isExpanded(element)) {
-			tree.collapse(element).done(null, onUnexpectedError);
+			tree.collapse(element).then(null, onUnexpectedError);
 		} else {
-			tree.expand(element).done(null, onUnexpectedError);
+			tree.expand(element).then(null, onUnexpectedError);
 		}
 		return true;
 	}
