@@ -173,6 +173,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 	const groupIdToUntitledResourceInput = new Map<number, IResourceInput[]>();
 
 	editorGroupService.groups.forEach(g => {
+		const activeEditorResource = g.activeEditor && g.activeEditor.getResource();
 		g.editors.forEach(e => {
 			const resource = e.getResource();
 			if (resource && untitledEditorService.isDirty(resource)) {
@@ -184,7 +185,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 					encoding: untitledEditorService.getEncoding(resource),
 					resource,
 					options: {
-						inactive: g.activeEditor ? g.activeEditor.getResource().toString() !== resource.toString() : true,
+						inactive: activeEditorResource ? activeEditorResource.toString() !== resource.toString() : true,
 						pinned: true,
 						preserveFocus: true,
 						index: g.getIndexOfEditor(e)

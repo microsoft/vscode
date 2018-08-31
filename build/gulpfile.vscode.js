@@ -403,8 +403,6 @@ gulp.task('vscode-translations-push-test', ['optimize-vscode'], function () {
 
 gulp.task('vscode-translations-pull', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		i18n.pullCoreAndExtensionsXlfFiles(apiHostname, apiName, apiToken, language).pipe(vfs.dest(`../vscode-localization/${language.id}/build`));
-
 		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
 		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));
 	}));
@@ -412,13 +410,9 @@ gulp.task('vscode-translations-pull', function () {
 
 gulp.task('vscode-translations-import', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		return es.merge([gulp.src(`../vscode-localization/${language.id}/build/*/*.xlf`)
-			.pipe(i18n.prepareI18nFiles())
-			.pipe(vfs.dest(`./i18n/${language.folderName}`)),
-		gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
+		return gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
-			.pipe(vfs.dest(`./build/win32/i18n`))
-		]);
+			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));
 });
 

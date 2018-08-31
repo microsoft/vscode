@@ -27,10 +27,10 @@ import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIG
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export enum ConfigurationEditingErrorCode {
 
@@ -132,7 +132,7 @@ export class ConfigurationEditingService {
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@INotificationService private notificationService: INotificationService,
-		@ICommandService private commandService: ICommandService,
+		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEditorService private editorService: IEditorService
 	) {
 		this.queue = new Queue<void>();
@@ -248,16 +248,16 @@ export class ConfigurationEditingService {
 	private openSettings(operation: IConfigurationEditOperation): void {
 		switch (operation.target) {
 			case ConfigurationTarget.USER:
-				this.commandService.executeCommand('workbench.action.openGlobalSettings');
+				this.preferencesService.openGlobalSettings(true);
 				break;
 			case ConfigurationTarget.WORKSPACE:
-				this.commandService.executeCommand('workbench.action.openWorkspaceSettings');
+				this.preferencesService.openWorkspaceSettings(true);
 				break;
 			case ConfigurationTarget.WORKSPACE_FOLDER:
 				if (operation.resource) {
 					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
 					if (workspaceFolder) {
-						this.commandService.executeCommand('_workbench.action.openFolderSettings', workspaceFolder);
+						this.preferencesService.openFolderSettings(workspaceFolder.uri, true);
 					}
 				}
 				break;

@@ -155,12 +155,16 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
-			.then(() => this.render(token))
+			.then(() => {
+				const target = this.getSettingsTarget(input);
+				this.settingsTargetsWidget.settingsTarget = target;
+				this.viewState.settingsTarget = target;
+
+				return this.render(token);
+			})
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
-
-				this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(input);
 
 				this.onSearchInputChanged();
 			});

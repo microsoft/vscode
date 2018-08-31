@@ -17,6 +17,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename, dirname, join } from 'vs/base/common/paths';
+import { Schemas } from 'vs/base/common/network';
 
 export interface ILabelService {
 	_serviceBrand: any;
@@ -107,6 +108,10 @@ export class LabelService implements ILabelService {
 			// Folder on disk
 			const formatter = this.formatters.get(workspace.scheme);
 			const label = options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
+			if (workspace.scheme === Schemas.file) {
+				return label;
+			}
+
 			const suffix = formatter && formatter.workspace && (typeof formatter.workspace.suffix === 'string') ? formatter.workspace.suffix : workspace.scheme;
 			return suffix ? `${label} (${suffix})` : label;
 		}

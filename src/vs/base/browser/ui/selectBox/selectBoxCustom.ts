@@ -564,6 +564,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				this.selectList.reveal(this.selectList.getFocus()[0] || 0);
 			}
 
+			if (this.detailsProvider) {
+				// Leave the selectDropDownContainer to size itself according to children (list + details) - #57447
+				this.selectList.getHTMLElement().style.height = (listHeight + verticalPadding) + 'px';
+			} else {
+				this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
+			}
+
 			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
 			const selectWidth = this.selectElement.offsetWidth;
 			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
