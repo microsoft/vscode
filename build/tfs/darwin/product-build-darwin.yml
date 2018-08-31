@@ -21,7 +21,8 @@ steps:
     set -e
     VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)" \
     AZURE_STORAGE_ACCESS_KEY="$(AZURE_STORAGE_ACCESS_KEY)" \
-    yarn gulp -- vscode-darwin-min upload-vscode-sourcemaps
+    yarn gulp -- vscode-darwin-min
+    # yarn gulp -- vscode-darwin-min upload-vscode-sourcemaps
   name: build
 
 # - script: |
@@ -46,7 +47,7 @@ steps:
           "toolName": "sign",
           "toolVersion": "1.0"
         }
-      ]​​
+      ]
     SessionTimeout: 120
 
 # - script: |
