@@ -4,23 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-var path = require("path");
+var es = require("event-stream");
 var gulp = require("gulp");
-var sourcemaps = require("gulp-sourcemaps");
-var filter = require("gulp-filter");
+var concat = require("gulp-concat");
 var minifyCSS = require("gulp-cssnano");
+var filter = require("gulp-filter");
+var flatmap = require("gulp-flatmap");
+var sourcemaps = require("gulp-sourcemaps");
 var uglify = require("gulp-uglify");
 var composer = require("gulp-uglify/composer");
+var gulpUtil = require("gulp-util");
+var path = require("path");
+var pump = require("pump");
 var uglifyes = require("uglify-es");
-var es = require("event-stream");
-var concat = require("gulp-concat");
 var VinylFile = require("vinyl");
 var bundle = require("./bundle");
-var util = require("./util");
-var gulpUtil = require("gulp-util");
-var flatmap = require("gulp-flatmap");
-var pump = require("pump");
 var i18n_1 = require("./i18n");
+var stats_1 = require("./stats");
+var util = require("./util");
 var REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     gulpUtil.log(gulpUtil.colors.cyan('[' + prefix + ']'), message);
@@ -101,7 +102,8 @@ function toConcatStream(src, bundledFileHeader, sources, dest) {
     });
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-        .pipe(concat(dest));
+        .pipe(concat(dest))
+        .pipe(stats_1.createStatsStream(dest, true));
 }
 function toBundleStream(src, bundledFileHeader, bundles) {
     return es.merge(bundles.map(function (bundle) {

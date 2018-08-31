@@ -7,7 +7,6 @@
 
 import * as es from 'event-stream';
 import * as util from 'gulp-util';
-import { Stream } from 'stream';
 import * as File from 'vinyl';
 
 class Entry {
@@ -20,29 +19,38 @@ class Entry {
 
 const _entries = new Map<string, Entry>();
 
-export function createStatsStream(group: string, stream: Stream, log?: boolean): Stream {
+export function createStatsStream(group: string, log?: boolean): es.ThroughStream {
 
 	const entry = new Entry(group, 0, 0);
 	_entries.set(entry.name, entry);
 
-	return stream.pipe(es.through(function (data) {
+	return es.through(function (data) {
 		let file = data as File;
 		if (typeof file.path === 'string') {
 			entry.totalCount += 1;
-			if (typeof file.stat === 'object' && typeof file.stat.size === 'number') {
+			if (Buffer.isBuffer(file.contents)) {
+				entry.totalSize += file.contents.length;
+			} else if (file.stat && typeof file.stat.size === 'number') {
 				entry.totalSize += file.stat.size;
-				// } else {
-				// 	console.warn(`${file.path} looks like a file but has no stat`);
+			} else {
+				// funky file...
 			}
 		}
 		this.emit('data', data);
-	}, () => {
+	}, function () {
 		if (log) {
-			let count = entry.totalCount < 100
-				? util.colors.green(entry.totalCount.toString())
-				: util.colors.red(entry.totalCount.toString());
+			if (entry.totalCount === 1) {
+				util.log(`Stats for '${util.colors.grey(entry.name)}': ${Math.round(entry.totalSize / 1204)}KB`);
 
-			util.log(`Stats for ${group}: ${count} files with approx. ${Math.round(entry.totalSize / 1204)}KB`);
+			} else {
+				let count = entry.totalCount < 100
+					? util.colors.green(entry.totalCount.toString())
+					: util.colors.red(entry.totalCount.toString());
+
+				util.log(`Stats for '${util.colors.grey(entry.name)}': ${count} files, ${Math.round(entry.totalSize / 1204)}KB`);
+			}
 		}
-	}));
+
+		this.emit('end');
+	});
 }

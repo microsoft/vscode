@@ -18,27 +18,37 @@ var Entry = /** @class */ (function () {
     return Entry;
 }());
 var _entries = new Map();
-function createStatsStream(group, stream, log) {
+function createStatsStream(group, log) {
     var entry = new Entry(group, 0, 0);
     _entries.set(entry.name, entry);
-    return stream.pipe(es.through(function (data) {
+    return es.through(function (data) {
         var file = data;
         if (typeof file.path === 'string') {
             entry.totalCount += 1;
-            if (typeof file.stat === 'object' && typeof file.stat.size === 'number') {
+            if (Buffer.isBuffer(file.contents)) {
+                entry.totalSize += file.contents.length;
+            }
+            else if (file.stat && typeof file.stat.size === 'number') {
                 entry.totalSize += file.stat.size;
-                // } else {
-                // 	console.warn(`${file.path} looks like a file but has no stat`);
+            }
+            else {
+                // funky file...
             }
         }
         this.emit('data', data);
     }, function () {
         if (log) {
-            var count = entry.totalCount < 100
-                ? util.colors.green(entry.totalCount.toString())
-                : util.colors.red(entry.totalCount.toString());
-            util.log("Stats for " + group + ": " + count + " files with approx. " + Math.round(entry.totalSize / 1204) + "KB");
+            if (entry.totalCount === 1) {
+                util.log("Stats for '" + util.colors.grey(entry.name) + "': " + Math.round(entry.totalSize / 1204) + "KB");
+            }
+            else {
+                var count = entry.totalCount < 100
+                    ? util.colors.green(entry.totalCount.toString())
+                    : util.colors.red(entry.totalCount.toString());
+                util.log("Stats for '" + util.colors.grey(entry.name) + "': " + count + " files, " + Math.round(entry.totalSize / 1204) + "KB");
+            }
         }
-    }));
+        this.emit('end');
+    });
 }
 exports.createStatsStream = createStatsStream;
