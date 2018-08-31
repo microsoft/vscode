@@ -1017,7 +1017,8 @@ export class FileService extends Disposable implements IFileService {
 			if (renamedOrDeleted) {
 
 				// Very important to dispose the watcher which now points to a stale inode
-				this.unwatchFileChanges(resource);
+				watcher.close();
+				this.activeFileChangesWatchers.delete(resource);
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 				setTimeout(() => {
