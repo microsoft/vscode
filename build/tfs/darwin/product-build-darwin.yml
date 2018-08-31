@@ -59,6 +59,9 @@ steps:
 - script: |
     set -e
 
+    # remove pkg from archive
+    zip -d ../VSCode-darwin.zip "*.pkg"
+
     # publish the build
     PACKAGEJSON=`ls ../VSCode-darwin/*.app/Contents/Resources/app/package.json`
     VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
