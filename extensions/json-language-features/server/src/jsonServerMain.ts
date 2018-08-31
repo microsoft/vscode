@@ -19,8 +19,6 @@ import { formatError, runSafe, runSafeAsync } from './utils/runner';
 import { JSONDocument, JSONSchema, getLanguageService, DocumentLanguageSettings, SchemaConfiguration } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
-import { FoldingRangeRequest, FoldingRangeServerCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
-
 interface ISchemaAssociations {
 	[pattern: string]: string[];
 }
@@ -61,6 +59,7 @@ documents.listen(connection);
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
 let foldingRangeLimit = Number.MAX_VALUE;
+let hierarchicalDocumentSymbolSupport = false;
 
 // After the server has started the client sends an initialize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
@@ -81,7 +80,8 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
 	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-	const capabilities: ServerCapabilities & FoldingRangeServerCapabilities = {
+	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
+	const capabilities: ServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
 		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
@@ -344,7 +344,11 @@ connection.onDocumentSymbol((documentSymbolParams, token) => {
 		const document = documents.get(documentSymbolParams.textDocument.uri);
 		if (document) {
 			const jsonDocument = getJSONDocument(document);
-			return languageService.findDocumentSymbols(document, jsonDocument);
+			if (hierarchicalDocumentSymbolSupport) {
+				return languageService.findDocumentSymbols2(document, jsonDocument);
+			} else {
+				return languageService.findDocumentSymbols(document, jsonDocument);
+			}
 		}
 		return [];
 	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
@@ -382,7 +386,7 @@ connection.onColorPresentation((params, token) => {
 	}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
 });
 
-connection.onRequest(FoldingRangeRequest.type, (params, token) => {
+connection.onFoldingRanges((params, token) => {
 	return runSafe(() => {
 		const document = documents.get(params.textDocument.uri);
 		if (document) {

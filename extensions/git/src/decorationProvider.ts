@@ -11,7 +11,7 @@ import { Repository, GitResourceGroup, Status } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent } from './util';
-import { GitErrorCodes } from './git';
+import { GitErrorCodes } from './api/git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 
@@ -93,7 +93,7 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private static SubmoduleDecorationData: DecorationData = {
 		title: 'Submodule',
-		abbreviation: 'S',
+		letter: 'S',
 		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
 	};
 

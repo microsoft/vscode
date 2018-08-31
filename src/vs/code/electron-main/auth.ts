@@ -56,10 +56,7 @@ export class ProxyAuthHandler {
 			width: 450,
 			height: 220,
 			show: true,
-			title: 'VS Code',
-			webPreferences: {
-				disableBlinkFeatures: 'Auxclick'
-			}
+			title: 'VS Code'
 		};
 
 		const focusedWindow = this.windowsMainService.getFocusedWindow();

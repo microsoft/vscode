@@ -8,7 +8,8 @@
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
-import { ISuggestionItem, SnippetConfig } from './suggest';
+import { ISuggestionItem } from './suggest';
+import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -46,8 +47,9 @@ const enum Refilter {
 
 export class CompletionModel {
 
-	private readonly _column: number;
 	private readonly _items: ICompletionItem[];
+	private readonly _column: number;
+	private readonly _options: InternalSuggestOptions;
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
 	private _lineContext: LineContext;
@@ -56,15 +58,16 @@ export class CompletionModel {
 	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest) {
 		this._items = items;
 		this._column = column;
+		this._options = options;
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
-		if (snippetConfig === 'top') {
+		if (options.snippets === 'top') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
-		} else if (snippetConfig === 'bottom') {
+		} else if (options.snippets === 'bottom') {
 			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
 		}
 	}
@@ -146,8 +149,9 @@ export class CompletionModel {
 		const target: typeof source = [];
 
 		// picks a score function based on the number of
-		// items that we have to score/filter
-		const scoreFn = source.length > 2000 ? fuzzyScore : fuzzyScoreGracefulAggressive;
+		// items that we have to score/filter and based on the
+		// user-configuration
+		const scoreFn = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
 
 		for (let i = 0; i < source.length; i++) {
 

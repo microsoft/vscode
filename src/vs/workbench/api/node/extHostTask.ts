@@ -860,15 +860,24 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $provideTasks(handle: number): TPromise<tasks.TaskSet> {
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<tasks.TaskSet> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<tasks.TaskSet>(new Error('no handler found'));
 		}
 		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
+			let sanitized: vscode.Task[] = [];
+			for (let task of value) {
+				if (task.definition && validTypes[task.definition.type] === true) {
+					sanitized.push(task);
+				} else {
+					sanitized.push(task);
+					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+				}
+			}
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
 			return {
-				tasks: Tasks.from(value, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
+				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
 		});

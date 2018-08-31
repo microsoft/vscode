@@ -28,7 +28,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -39,6 +39,8 @@ import { addClass, addDisposableListener, hasClass, EventType, EventHelper, remo
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IEditorInputLabel {
 	name: string;
@@ -78,9 +80,10 @@ export class TabsTitleControl extends TitleControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService);
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -108,6 +111,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Close Action
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
+
+		// Breadcrumbs
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
 	}
 
 	private createScrollbar(): void {
@@ -126,6 +135,19 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
+	}
+
+	private updateBreadcrumbsControl(): void {
+		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+			// relayout when we have a breadcrumbs and when update changed
+			// its hidden-status
+			this.group.relayout();
+		}
+	}
+
+	protected handleBreadcrumbsEnablementChange(): void {
+		// relayout when breadcrumbs are enable/disabled
+		this.group.relayout();
 	}
 
 	private registerContainerListeners(): void {
@@ -240,6 +262,9 @@ export class TabsTitleControl extends TitleControl {
 
 		// Redraw all tabs
 		this.redraw();
+
+		// Update Breadcrumbs
+		this.updateBreadcrumbsControl();
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -287,6 +312,9 @@ export class TabsTitleControl extends TitleControl {
 
 			this.clearEditorActionsToolbar();
 		}
+
+		// Update Breadcrumbs
+		this.updateBreadcrumbsControl();
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
@@ -462,6 +490,8 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.originatesFromTabActionBar(e)) {
+				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
+
 				this.blockRevealActiveTabOnce();
 				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
 			}
@@ -908,6 +938,11 @@ export class TabsTitleControl extends TitleControl {
 		const activeTab = this.getTab(this.group.activeEditor);
 		if (!activeTab) {
 			return;
+		}
+
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;

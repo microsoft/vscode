@@ -38,6 +38,7 @@ interface ILanguageConfiguration {
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
+	autoCloseBefore?: string;
 }
 
 function isStringArr(something: string[]): boolean {
@@ -89,7 +90,7 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
-		this._fileService.resolveContent(configFileLocation).then((contents) => {
+		this._fileService.resolveContent(configFileLocation, { encoding: 'utf8' }).then((contents) => {
 			const errors: ParseError[] = [];
 			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
@@ -274,6 +275,11 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.surroundingPairs = surroundingPairs;
 		}
 
+		const autoCloseBefore = configuration.autoCloseBefore;
+		if (typeof autoCloseBefore === 'string') {
+			richEditConfig.autoCloseBefore = autoCloseBefore;
+		}
+
 		if (configuration.wordPattern) {
 			try {
 				let wordPattern = this._parseRegex(configuration.wordPattern);
@@ -432,6 +438,11 @@ const schema: IJSONSchema = {
 					}
 				}]
 			}
+		},
+		autoCloseBefore: {
+			default: ';:.,=}])> \n\t',
+			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which can not start an expression.'),
+			type: 'string',
 		},
 		surroundingPairs: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],

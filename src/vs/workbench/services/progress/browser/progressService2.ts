@@ -15,7 +15,7 @@ import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { always } from 'vs/base/common/async';
+import { always, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
@@ -130,8 +130,8 @@ export class ProgressService2 implements IProgressService2 {
 			this._updateWindowProgress();
 
 			// show progress for at least 150ms
-			always(TPromise.join([
-				TPromise.timeout(150),
+			always(Promise.all([
+				timeout(150),
 				promise
 			]), () => {
 				const idx = this._stack.indexOf(task);
@@ -142,7 +142,7 @@ export class ProgressService2 implements IProgressService2 {
 		}, 150);
 
 		// cancel delay if promise finishes below 150ms
-		always(TPromise.wrap(promise), () => clearTimeout(delayHandle));
+		always(promise, () => clearTimeout(delayHandle));
 		return promise;
 	}
 
@@ -270,7 +270,7 @@ export class ProgressService2 implements IProgressService2 {
 		});
 
 		// Show progress for at least 800ms and then hide once done or canceled
-		always(TPromise.join([TPromise.timeout(800), p]), () => {
+		always(Promise.all([timeout(800), p]), () => {
 			if (handle) {
 				handle.close();
 			}

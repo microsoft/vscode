@@ -16,9 +16,15 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
-export function clearNode(node: HTMLElement) {
+export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.removeChild(node.firstChild);
+	}
+}
+
+export function removeNode(node: HTMLElement): void {
+	if (node.parentNode) {
+		node.parentNode.removeChild(node);
 	}
 }
 
@@ -486,8 +492,8 @@ export function getClientArea(element: HTMLElement): Dimension {
 		return new Dimension(window.innerWidth, window.innerHeight);
 	}
 
-	// Try with document.body.clientWidth / document.body.clientHeigh
-	if (document.body && document.body.clientWidth && document.body.clientWidth) {
+	// Try with document.body.clientWidth / document.body.clientHeight
+	if (document.body && document.body.clientWidth && document.body.clientHeight) {
 		return new Dimension(document.body.clientWidth, document.body.clientHeight);
 	}
 
@@ -812,13 +818,14 @@ export function isHTMLElement(o: any): o is HTMLElement {
 export const EventType = {
 	// Mouse
 	CLICK: 'click',
-	AUXCLICK: 'auxclick', // >= Chrome 56
 	DBLCLICK: 'dblclick',
 	MOUSE_UP: 'mouseup',
 	MOUSE_DOWN: 'mousedown',
 	MOUSE_OVER: 'mouseover',
 	MOUSE_MOVE: 'mousemove',
 	MOUSE_OUT: 'mouseout',
+	MOUSE_ENTER: 'mouseenter',
+	MOUSE_LEAVE: 'mouseleave',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -838,6 +845,8 @@ export const EventType = {
 	SUBMIT: 'submit',
 	RESET: 'reset',
 	FOCUS: 'focus',
+	FOCUS_IN: 'focusin',
+	FOCUS_OUT: 'focusout',
 	BLUR: 'blur',
 	INPUT: 'input',
 	// Local Storage
@@ -916,7 +925,7 @@ class FocusTracker implements IFocusTracker {
 	private disposables: IDisposable[] = [];
 
 	constructor(element: HTMLElement | Window) {
-		let hasFocus = false;
+		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
 		let loosingFocus = false;
 
 		let onFocus = () => {

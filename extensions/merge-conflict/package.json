@@ -100,7 +100,7 @@
     }
   },
   "dependencies": {
-    "vscode-nls": "^3.2.1"
+    "vscode-nls": "^3.2.4"
   },
   "devDependencies": {
     "@types/node": "8.0.33"

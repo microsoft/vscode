@@ -25,6 +25,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // --- adapter
 
@@ -143,6 +144,15 @@ class CodeLensAdapter {
 	}
 }
 
+function convertToDefinitionLinks(value: vscode.Definition): modes.DefinitionLink[] {
+	if (Array.isArray(value)) {
+		return (value as (vscode.DefinitionLink | vscode.Location)[]).map(typeConvert.DefinitionLink.from);
+	} else if (value) {
+		return [typeConvert.DefinitionLink.from(value)];
+	}
+	return undefined;
+}
+
 class DefinitionAdapter {
 
 	constructor(
@@ -153,29 +163,7 @@ class DefinitionAdapter {
 	provideDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-
-		return asWinJsPromise(token => this._provider.provideDefinition2 ? this._provider.provideDefinition2(doc, pos, token) : this._provider.provideDefinition(doc, pos, token)).then((value): modes.DefinitionLink[] => {
-			if (Array.isArray(value)) {
-				return (value as (vscode.DefinitionLink | vscode.Location)[]).map(x => DefinitionAdapter.convertDefinitionLink(x));
-			} else if (value) {
-				return [DefinitionAdapter.convertDefinitionLink(value)];
-			}
-			return undefined;
-		});
-	}
-
-	private static convertDefinitionLink(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
-		const definitionLink = <vscode.DefinitionLink>value;
-		return {
-			origin: definitionLink.origin
-				? typeConvert.Range.from(definitionLink.origin)
-				: undefined,
-			uri: value.uri,
-			range: typeConvert.Range.from(value.range),
-			selectionRange: definitionLink.selectionRange
-				? typeConvert.Range.from(definitionLink.selectionRange)
-				: undefined,
-		};
+		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -186,17 +174,10 @@ class ImplementationAdapter {
 		private readonly _provider: vscode.ImplementationProvider
 	) { }
 
-	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideImplementation(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConvert.location.from);
-			} else if (value) {
-				return typeConvert.location.from(value);
-			}
-			return undefined;
-		});
+		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -207,17 +188,10 @@ class TypeDefinitionAdapter {
 		private readonly _provider: vscode.TypeDefinitionProvider
 	) { }
 
-	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(typeConvert.location.from);
-			} else if (value) {
-				return typeConvert.location.from(value);
-			}
-			return undefined;
-		});
+		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(convertToDefinitionLinks);
 	}
 }
 
@@ -300,7 +274,9 @@ class CodeActionAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
 		private readonly _diagnostics: ExtHostDiagnostics,
-		private readonly _provider: vscode.CodeActionProvider
+		private readonly _provider: vscode.CodeActionProvider,
+		private readonly _logService: ILogService,
+		private readonly _extensionId: string
 	) { }
 
 	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
@@ -341,6 +317,14 @@ class CodeActionAdapter {
 						command: this._commands.toInternal(candidate),
 					});
 				} else {
+					if (codeActionContext.only) {
+						if (!candidate.kind) {
+							this._logService.warn(`${this._extensionId} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+						} else if (!codeActionContext.only.contains(candidate.kind)) {
+							this._logService.warn(`${this._extensionId} -Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+						}
+					}
+
 					// new school: convert code action
 					result.push({
 						title: candidate.title,
@@ -865,6 +849,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
+	private readonly _logService: ILogService;
 
 	constructor(
 		mainContext: IMainContext,
@@ -872,7 +857,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		heapMonitor: ExtHostHeapService,
-		diagnostics: ExtHostDiagnostics
+		diagnostics: ExtHostDiagnostics,
+		logService: ILogService
 	) {
 		this._schemeTransformer = schemeTransformer;
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
@@ -880,6 +866,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		this._commands = commands;
 		this._heapService = heapMonitor;
 		this._diagnostics = diagnostics;
+		this._logService = logService;
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): ISerializedDocumentFilter[] {
@@ -999,7 +986,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, ImplementationAdapter, adapter => adapter.provideImplementation(URI.revive(resource), position));
 	}
 
@@ -1009,7 +996,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, TypeDefinitionAdapter, adapter => adapter.provideTypeDefinition(URI.revive(resource), position));
 	}
 
@@ -1051,8 +1038,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- quick fix
 
-	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
+	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, extension?: IExtensionDescription, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
+		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension ? extension.id : ''));
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), metadata && metadata.providedCodeActionKinds ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
 		return this._createDisposable(handle);
 	}

@@ -103,7 +103,7 @@ function findFirstEvenNumber(arr) {
 
 
 ### Formatting
-Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content either the entire document with kb(editor.action.formatDocument). Formatting can be applied to the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
+Keeping your code looking great is hard without a good formatter.  Luckily it's easy to format content, either for the entire document with kb(editor.action.formatDocument) or for the current selection with kb(editor.action.formatSelection).  Both of these options are also available through the right-click context menu.
 
 ```js
 var cars = ["Saab", "Volvo", "BMW"];
@@ -137,7 +137,7 @@ In a large file it can often be useful to collapse sections of code to increase 
 >**Tip:** Folding is based on indentation and as a result can apply to all languages.  Simply indent your code to create a foldable section you can fold a certain number of levels with shortcuts like kb(editor.foldLevel1) through to kb(editor.foldLevel5).
 
 ### Errors and Warnings
-Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.next) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
+Errors and warnings are highlighted as you edit your code with squiggles.  In the sample below you can see a number of syntax errors.  By pressing kb(editor.action.marker.nextInFiles) you can navigate across them in sequence and see the detailed error message.  As you correct them the squiggles and scrollbar indicators will update.
 
 ```js
 // This code has a few syntax errors

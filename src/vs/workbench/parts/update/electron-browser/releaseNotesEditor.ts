@@ -51,6 +51,7 @@ export class ReleaseNotesManager {
 	private _releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
+	private _lastText: string;
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -60,14 +61,25 @@ export class ReleaseNotesManager {
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-	) { }
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService
+	) {
+		TokenizationRegistry.onDidChange(async () => {
+			if (!this._currentReleaseNotes || !this._lastText) {
+				return;
+			}
+			const html = await this.renderBody(this._lastText);
+			if (this._currentReleaseNotes) {
+				this._currentReleaseNotes.html = html;
+			}
+		});
+	}
 
 	public async show(
 		accessor: ServicesAccessor,
 		version: string
-	): TPromise<boolean> {
+	): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version);
+		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
@@ -87,6 +99,11 @@ export class ReleaseNotesManager {
 					onDispose: () => { this._currentReleaseNotes = undefined; }
 				});
 
+			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
+			this._currentReleaseNotes.iconPath = {
+				light: iconPath,
+				dark: iconPath
+			};
 			this._currentReleaseNotes.html = html;
 		}
 
@@ -141,6 +158,13 @@ export class ReleaseNotesManager {
 		if (!this._releaseNotesCache[version]) {
 			this._releaseNotesCache[version] = this._requestService.request({ url })
 				.then(asText)
+				.then(text => {
+					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+						return TPromise.wrapError<string>(new Error('Invalid release notes'));
+					}
+
+					return TPromise.wrap(text);
+				})
 				.then(text => patchKeybindings(text));
 		}
 
@@ -154,13 +178,14 @@ export class ReleaseNotesManager {
 	}
 
 	private async renderBody(text: string) {
+		const content = await this.renderContent(text);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(await this.renderContent(text), css);
+		const body = renderBody(content, css);
 		return body;
 	}
 
-	private async renderContent(text: string): TPromise<string> {
+	private async renderContent(text: string): Promise<string> {
 		const renderer = await this.getRenderer(text);
 		return marked(text, { renderer });
 	}

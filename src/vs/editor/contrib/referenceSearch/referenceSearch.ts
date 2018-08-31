@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -28,6 +28,7 @@ import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/reference
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import URI from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -69,7 +70,8 @@ export class ReferenceAction extends EditorAction {
 				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F12
+				primary: KeyMod.Shift | KeyCode.F12,
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: 'navigation',
@@ -85,7 +87,7 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+		let references = createCancelablePromise(token => provideReferences(model, range.getStartPosition(), token).then(references => new ReferencesModel(references)));
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }
@@ -113,7 +115,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			return undefined;
 		}
 
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
+		let references = createCancelablePromise(token => provideReferences(control.getModel(), Position.lift(position), token).then(references => new ReferencesModel(references)));
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
 	});
@@ -137,7 +139,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 		return TPromise.as(controller.toggleWidget(
 			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			TPromise.as(new ReferencesModel(references)),
+			createCancelablePromise(_ => Promise.resolve(new ReferencesModel(references))),
 			defaultReferenceSearchOptions)).then(() => true);
 	});
 };
@@ -191,7 +193,7 @@ function withController(accessor: ServicesAccessor, fn: (controller: ReferencesC
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReference',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.F4,
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
@@ -203,7 +205,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToNextReferenceFromEmbeddedEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.F4,
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
@@ -215,7 +217,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReference',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: ctxReferenceSearchVisible,
 	handler(accessor) {
@@ -227,7 +229,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'goToPreviousReferenceFromEmbeddedEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyMod.Shift | KeyCode.F4,
 	when: PeekContext.inPeekEditor,
 	handler(accessor) {
@@ -239,7 +241,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -248,7 +250,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearchEditor',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(-101),
+	weight: KeybindingWeight.EditorContrib - 101,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -257,7 +259,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
@@ -266,7 +268,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: openReferenceToSide
 });
 
-export function provideReferences(model: ITextModel, position: Position): TPromise<Location[]> {
+export function provideReferences(model: ITextModel, position: Position, token: CancellationToken): Promise<Location[]> {
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
@@ -282,7 +284,7 @@ export function provideReferences(model: ITextModel, position: Position): TPromi
 		});
 	});
 
-	return TPromise.join(promises).then(references => {
+	return Promise.all(promises).then(references => {
 		let result: Location[] = [];
 		for (let ref of references) {
 			if (ref) {
@@ -293,4 +295,4 @@ export function provideReferences(model: ITextModel, position: Position): TPromi
 	});
 }
 
-registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+registerDefaultLanguageCommand('_executeReferenceProvider', (model, position) => provideReferences(model, position, CancellationToken.None));

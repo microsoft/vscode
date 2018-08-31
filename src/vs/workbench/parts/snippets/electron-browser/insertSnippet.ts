@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -16,8 +15,9 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
-interface ISnippetPick extends IPickOpenEntry {
+interface ISnippetPick extends IQuickPickItem {
 	snippet: Snippet;
 }
 
@@ -71,7 +71,7 @@ class InsertSnippetAction extends EditorAction {
 			return undefined;
 		}
 
-		const quickOpenService = accessor.get(IQuickOpenService);
+		const quickInputService = accessor.get(IQuickInputService);
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
 
@@ -116,7 +116,7 @@ class InsertSnippetAction extends EditorAction {
 			} else {
 				// let user pick a snippet
 				const snippets = (await snippetService.getSnippets(languageId)).sort(Snippet.compare);
-				const picks: ISnippetPick[] = [];
+				const picks: QuickPickInput<ISnippetPick>[] = [];
 				let prevSnippet: Snippet;
 				for (const snippet of snippets) {
 					const pick: ISnippetPick = {
@@ -125,14 +125,14 @@ class InsertSnippetAction extends EditorAction {
 						snippet
 					};
 					if (!snippet.isFromExtension && !prevSnippet) {
-						pick.separator = { label: nls.localize('sep.userSnippet', "User Snippets") };
+						picks.push({ type: 'separator', label: nls.localize('sep.userSnippet', "User Snippets") });
 					} else if (snippet.isFromExtension && (!prevSnippet || !prevSnippet.isFromExtension)) {
-						pick.separator = { label: nls.localize('sep.extSnippet', "Extension Snippets") };
+						picks.push({ type: 'separator', label: nls.localize('sep.extSnippet', "Extension Snippets") });
 					}
 					picks.push(pick);
 					prevSnippet = snippet;
 				}
-				return quickOpenService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
+				return quickInputService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
 			}
 		}).then(snippet => {
 			if (snippet) {

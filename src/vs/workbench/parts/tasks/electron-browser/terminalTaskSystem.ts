@@ -329,9 +329,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
-				let toUnbind: IDisposable[] = [];
+				let toDispose: IDisposable[] = [];
 				let eventCounter: number = 0;
-				toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 					if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 						eventCounter++;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -397,8 +397,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (processStartedSignaled) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					}
-					toUnbind = dispose(toUnbind);
-					toUnbind = null;
+					toDispose = dispose(toDispose);
+					toDispose = null;
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);

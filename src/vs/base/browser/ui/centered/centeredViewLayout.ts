@@ -60,7 +60,14 @@ export class CenteredViewLayout {
 
 	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = GOLDEN_RATIO) {
 		this.container.appendChild(this.view.element);
+		// Make sure to hide the split view overflow like sashes #52892
+		this.container.style.overflow = 'hidden';
 	}
+
+	get minimumWidth(): number { return this.splitView ? this.splitView.minimumSize : this.view.minimumWidth; }
+	get maximumWidth(): number { return this.splitView ? this.splitView.maximumSize : this.view.maximumWidth; }
+	get minimumHeight(): number { return this.view.minimumHeight; }
+	get maximumHeight(): number { return this.view.maximumHeight; }
 
 	layout(width: number, height: number): void {
 		this.width = width;

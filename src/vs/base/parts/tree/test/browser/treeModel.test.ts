@@ -613,23 +613,6 @@ suite('TreeModel - Expansion', () => {
 		});
 	});
 
-	test('collapseDeepestExpandedLevel', () => {
-		return model.setInput(SAMPLE.DEEP2).then(() => {
-			return model.expand(SAMPLE.DEEP2.children[0]).then(() => {
-				return model.expand(SAMPLE.DEEP2.children[0].children[0]).then(() => {
-
-					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
-					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
-
-					return model.collapseDeepestExpandedLevel().then(() => {
-						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
-						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
-					});
-				});
-			});
-		});
-	});
-
 	test('auto expand single child folders', () => {
 		return model.setInput(SAMPLE.DEEP).then(() => {
 			return model.expand(SAMPLE.DEEP.children[0]).then(() => {

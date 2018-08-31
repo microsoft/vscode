@@ -97,7 +97,7 @@ export class FileIconThemeStore {
 			}
 
 			const iconThemeLocation = resources.joinPath(extensionLocation, iconTheme.path);
-			if (iconThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
+			if (!resources.isEqualOrParent(iconThemeLocation, extensionLocation)) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, iconThemeLocation.path, extensionLocation.path));
 			}
 

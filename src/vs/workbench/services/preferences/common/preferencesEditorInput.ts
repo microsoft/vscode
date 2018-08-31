@@ -8,23 +8,18 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
-import { IPreferencesService } from './preferences';
-import { DefaultSettingsEditorModel } from './preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
 	getTypeId(): string {
 		return PreferencesEditorInput.ID;
-	}
-
-	public supportsSplitEditor(): boolean {
-		return true;
 	}
 
 	public getTitle(verbosity: Verbosity): string {
@@ -74,7 +69,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	resolve(refresh?: boolean): TPromise<KeybindingsEditorModel> {
+	resolve(): TPromise<KeybindingsEditorModel> {
 		return TPromise.as(this.keybindingsModel);
 	}
 
@@ -83,29 +78,28 @@ export class KeybindingsEditorInput extends EditorInput {
 	}
 }
 
-export class SettingsEditor2Input extends EditorInput {
+export class SettingsEditor2Input extends ResourceEditorInput {
 
 	public static readonly ID: string = 'workbench.input.settings2';
 
-	constructor(
-		@IPreferencesService private preferencesService: IPreferencesService
+	constructor(defaultSettingsResource: URI,
+		private _configurationTarget: ConfigurationTarget,
+		private _folderUri: URI | undefined,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IHashService hashService: IHashService
 	) {
-		super();
+		super(nls.localize('settingsEditor2InputName', "Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
+	}
+
+	get configurationTarget(): ConfigurationTarget {
+		return this._configurationTarget;
+	}
+
+	get folderUri(): URI | undefined {
+		return this._folderUri;
 	}
 
 	getTypeId(): string {
 		return SettingsEditor2Input.ID;
-	}
-
-	getName(): string {
-		return nls.localize('settingsEditor2InputName', "Settings (Preview)");
-	}
-
-	resolve(refresh?: boolean): TPromise<DefaultSettingsEditorModel> {
-		return <TPromise<DefaultSettingsEditorModel>>this.preferencesService.createPreferencesEditorModel(URI.parse('vscode://defaultsettings/0/settings.json'));
-	}
-
-	matches(otherInput: any): boolean {
-		return otherInput instanceof SettingsEditor2Input;
 	}
 }

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, debounceEvent } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -14,9 +15,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { getCodeActions } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -99,7 +100,7 @@ export class CodeActionOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TPromise<CodeAction[] | undefined> {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): Thenable<CodeAction[] | undefined> {
 		if (!selection) {
 			// cancel
 			this._signalChange({
@@ -113,10 +114,10 @@ export class CodeActionOracle {
 			const model = this._editor.getModel();
 			const markerRange = this._getRangeOfMarker(selection);
 			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-			const actions = getCodeActions(model, selection, trigger);
+			const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
 
 			if (this._progressService && trigger.type === 'manual') {
-				this._progressService.showWhile(actions, 250);
+				this._progressService.showWhile(TPromise.wrap(actions), 250);
 			}
 
 			this._signalChange({
@@ -134,7 +135,7 @@ export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
 	rangeOrSelection: Range | Selection;
 	position: Position;
-	actions: TPromise<CodeAction[]>;
+	actions: CancelablePromise<CodeAction[]>;
 }
 
 export class CodeActionModel {
@@ -196,7 +197,7 @@ export class CodeActionModel {
 		}
 	}
 
-	trigger(trigger: CodeActionTrigger): TPromise<CodeAction[] | undefined> {
+	trigger(trigger: CodeActionTrigger): Thenable<CodeAction[] | undefined> {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}

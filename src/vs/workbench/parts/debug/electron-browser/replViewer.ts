@@ -24,6 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const $ = dom.$;
 
@@ -95,7 +96,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 	constructor(
 		@IEditorService private editorService: IEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ILabelService private labelService: ILabelService
 	) {
 		this.linkDetector = this.instantiationService.createInstance(LinkDetector);
 	}
@@ -258,7 +260,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? element.sourceData.source.uri.toString() : '';
+		templateData.source.title = element.sourceData ? this.labelService.getUriLabel(element.sourceData.source.uri) : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 

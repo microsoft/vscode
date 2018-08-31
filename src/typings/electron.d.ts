@@ -1,4 +1,4 @@
-// Type definitions for Electron 2.0.0-beta.2
+// Type definitions for Electron 2.0.5
 // Project: http://electron.atom.io/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -104,7 +104,7 @@ declare namespace Electron {
 	const powerMonitor: PowerMonitor;
 	const powerSaveBlocker: PowerSaveBlocker;
 	const protocol: Protocol;
-	const remote: Remote;
+	// const remote: Remote; ### VSCODE CHANGE (we do not want to use remote)
 	const screen: Screen;
 	type session = Session;
 	const session: typeof Session;
@@ -204,7 +204,9 @@ declare namespace Electron {
 		 * event.preventDefault() will prevent the default behaviour, which is terminating
 		 * the application. Note: If application quit was initiated by
 		 * autoUpdater.quitAndInstall() then before-quit is emitted after emitting close
-		 * event on all windows and closing them.
+		 * event on all windows and closing them. Note: On Windows, this event will not be
+		 * emitted if the app is closed due to a shutdown/restart of the system or a user
+		 * logout.
 		 */
 		on(event: 'before-quit', listener: (event: Event) => void): this;
 		once(event: 'before-quit', listener: (event: Event) => void): this;
@@ -446,7 +448,9 @@ declare namespace Electron {
 		removeListener(event: 'open-url', listener: (event: Event,
 			url: string) => void): this;
 		/**
-		 * Emitted when the application is quitting.
+		 * Emitted when the application is quitting. Note: On Windows, this event will not
+		 * be emitted if the app is closed due to a shutdown/restart of the system or a
+		 * user logout.
 		 */
 		on(event: 'quit', listener: (event: Event,
 			exitCode: number) => void): this;
@@ -587,7 +591,9 @@ declare namespace Electron {
 		 * Emitted when all windows have been closed and the application will quit. Calling
 		 * event.preventDefault() will prevent the default behaviour, which is terminating
 		 * the application. See the description of the window-all-closed event for the
-		 * differences between the will-quit and window-all-closed events.
+		 * differences between the will-quit and window-all-closed events. Note: On
+		 * Windows, this event will not be emitted if the app is closed due to a
+		 * shutdown/restart of the system or a user logout.
 		 */
 		on(event: 'will-quit', listener: (event: Event) => void): this;
 		once(event: 'will-quit', listener: (event: Event) => void): this;
@@ -659,9 +665,10 @@ declare namespace Electron {
 		getGPUFeatureStatus(): GPUFeatureStatus;
 		getJumpListSettings(): JumpListSettings;
 		/**
-		 * Note: When distributing your packaged app, you have to also ship the locales
-		 * folder. Note: On Windows you have to call it after the ready events gets
-		 * emitted.
+		 * To set the locale, you'll want to use a command line switch at app startup,
+		 * which may be found here. Note: When distributing your packaged app, you have to
+		 * also ship the locales folder. Note: On Windows you have to call it after the
+		 * ready events gets emitted.
 		 */
 		getLocale(): string;
 		/**
@@ -975,6 +982,13 @@ declare namespace Electron {
 		static fromId(id: number): BrowserView;
 		static fromWebContents(webContents: WebContents): BrowserView | null;
 		static getAllViews(): BrowserView[];
+		/**
+		 * Force closing the view, the unload and beforeunload events won't be emitted for
+		 * the web page. After you're done with a view, call this function in order to free
+		 * memory and other resources as soon as possible.
+		 */
+		destroy(): void;
+		isDestroyed(): boolean;
 		setAutoResize(options: AutoResizeOptions): void;
 		setBackgroundColor(color: string): void;
 		/**
@@ -2948,7 +2962,7 @@ declare namespace Electron {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		sendSync(channel: string, ...args: any[]): any;
+		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
 		/**
 		 * Sends a message to a window with windowid via channel.
 		 */
@@ -6360,7 +6374,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will be allowed to open new
 		 * windows. Popups are disabled by default.
 		 */
-		allowpopups?: string;
+		// allowpopups?: string; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * When this attribute is present the webview container will automatically resize
 		 * within the bounds specified by the attributes minwidth, minheight, maxwidth, and
@@ -6393,7 +6407,7 @@ declare namespace Electron {
 		 * When this attribute is present the guest page will have web security disabled.
 		 * Web security is enabled by default.
 		 */
-		disablewebsecurity?: string;
+		// disablewebsecurity?: string; ### VSCODE CHANGE(https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * A value that links the webview to a specific webContents. When a webview first
 		 * loads a new webContents is created and this attribute is set to its instance
@@ -6757,7 +6771,8 @@ declare namespace Electron {
 		/**
 		 * Add a type of vibrancy effect to the window, only on macOS. Can be
 		 * appearance-based, light, dark, titlebar, selection, menu, popover, sidebar,
-		 * medium-light or ultra-dark.
+		 * medium-light or ultra-dark. Please note that using frame: false in combination
+		 * with a vibrancy value requires that you use a non-default titleBarStyle as well.
 		 */
 		vibrancy?: ('appearance-based' | 'light' | 'dark' | 'titlebar' | 'selection' | 'menu' | 'popover' | 'sidebar' | 'medium-light' | 'ultra-dark');
 		/**
@@ -7967,9 +7982,9 @@ declare namespace Electron {
 
 	interface ProgressBarOptions {
 		/**
-		 * Mode for the progress bar. Can be none, normal, indeterminate, error, or paused.
+		 * Mode for the progress bar. Can be none, normal, indeterminate, error or paused.
 		 */
-		mode: ('none' | 'normal' | 'indeterminate' | 'error');
+		mode: ('none' | 'normal' | 'indeterminate' | 'error' | 'paused');
 	}
 
 	interface Provider {
@@ -8178,10 +8193,25 @@ declare namespace Electron {
 
 	interface SizeOptions {
 		/**
+		 * true to make the webview container automatically resize within the bounds
+		 * specified by the attributes normal, min and max.
+		 */
+		enableAutoSize?: boolean;
+		/**
 		 * Normal size of the page. This can be used in combination with the attribute to
 		 * manually resize the webview guest contents.
 		 */
-		normal?: Normal;
+		normal?: Size;
+		/**
+		 * Minimum size of the page. This can be used in combination with the attribute to
+		 * manually resize the webview guest contents.
+		 */
+		min?: Size;
+		/**
+		 * Maximium size of the page. This can be used in combination with the attribute to
+		 * manually resize the webview guest contents.
+		 */
+		max?: Size;
 	}
 
 	interface SourcesOptions {
@@ -8522,11 +8552,6 @@ declare namespace Electron {
 		canRotate: boolean;
 	}
 
-	interface Normal {
-		width: number;
-		height: number;
-	}
-
 	interface Options {
 	}
 
@@ -8608,12 +8633,12 @@ declare namespace Electron {
 		 * websites by people), and set allowRunningInsecureContent to true if this options
 		 * has not been set by user. Default is true.
 		 */
-		webSecurity?: boolean;
+		// webSecurity?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Allow an https page to run JavaScript, CSS or plugins from http URLs. Default is
 		 * false.
 		 */
-		allowRunningInsecureContent?: boolean;
+		// allowRunningInsecureContent?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables image support. Default is true.
 		 */
@@ -8637,7 +8662,7 @@ declare namespace Electron {
 		/**
 		 * Enables Chromium's experimental features. Default is false.
 		 */
-		experimentalFeatures?: boolean;
+		// experimentalFeatures?: boolean; ### VSCODE CHANGE (https://github.com/electron/electron/blob/master/docs/tutorial/security.md) ###
 		/**
 		 * Enables Chromium's experimental canvas features. Default is false.
 		 */

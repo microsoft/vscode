@@ -38,12 +38,12 @@ function uriFromPath(_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -52,6 +52,8 @@ function readFile(file) {
 		});
 	});
 }
+
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 
 function main() {
 	const args = parseURLQueryArgs();
@@ -100,7 +102,7 @@ function main() {
 
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function(bundle, language, cb) {
+		nlsConfig.loadBundle = function (bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
@@ -111,8 +113,15 @@ function main() {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 				cb(undefined, json);
-			})
-				.catch(cb);
+			}).catch((error) => {
+				try {
+					if (nlsConfig._corruptedFile) {
+						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+					}
+				} finally {
+					cb(error, undefined);
+				}
+			});
 		};
 	}
 

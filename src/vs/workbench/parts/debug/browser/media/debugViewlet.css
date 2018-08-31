@@ -109,6 +109,7 @@
 	font-size: 0.9em;
 	padding: 0 3px;
 	margin-left: 0.8em;
+	line-height: 20px;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
@@ -350,6 +351,10 @@
 
 /* Breakpoints */
 
+.debug-viewlet .monaco-list-row {
+	line-height: 22px;
+}
+
 .debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
 	padding-left: 2px;
 }
@@ -372,6 +377,7 @@
 .debug-viewlet .debug-breakpoints .breakpoint > .icon {
 	width: 19px;
 	height: 19px;
+	min-width: 19px;
 }
 
 .debug-viewlet .debug-breakpoints .breakpoint > .file-path {
@@ -381,6 +387,11 @@
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.debug-viewlet .debug-breakpoints .breakpoint .name {
+	overflow: hidden;
+	text-overflow: ellipsis
 }
 
 .debug-viewlet .debug-action.remove {

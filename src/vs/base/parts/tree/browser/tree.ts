@@ -110,13 +110,6 @@ export interface ITree {
 	collapseAll(elements?: any[], recursive?: boolean): WinJS.Promise;
 
 	/**
-	 * Collapses several elements.
-	 * Collapses all elements at the greatest tree depth that has expanded elements.
-	 * The returned promise returns a boolean for whether the elements were collapsed or not.
-	 */
-	collapseDeepestExpandedLevel(): WinJS.Promise;
-
-	/**
 	 * Toggles an element's expansion state.
 	 */
 	toggleExpansion(element: any, recursive?: boolean): WinJS.Promise;
@@ -371,6 +364,10 @@ export interface IDataSource {
 	/**
 	 * Returns the unique identifier of the given element.
 	 * No more than one element may use a given identifier.
+	 *
+	 * You should not attempt to "move" an element to a different
+	 * parent by keeping its ID. The idea here is to have tree location
+	 * related IDs (eg. full file path, in the Explorer example).
 	 */
 	getId(tree: ITree, element: any): string;
 

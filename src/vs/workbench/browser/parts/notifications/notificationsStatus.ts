@@ -7,13 +7,12 @@
 
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, INotificationViewItem } from 'vs/workbench/common/notifications';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
 
-export class NotificationsStatus {
+export class NotificationsStatus extends Disposable {
 	private statusItem: IDisposable;
-	private toDispose: IDisposable[];
 	private isNotificationsCenterVisible: boolean;
 	private _counter: Set<INotificationViewItem>;
 
@@ -21,7 +20,8 @@ export class NotificationsStatus {
 		private model: INotificationsModel,
 		@IStatusbarService private statusbarService: IStatusbarService
 	) {
-		this.toDispose = [];
+		super();
+
 		this._counter = new Set<INotificationViewItem>();
 
 		this.updateNotificationsStatusItem();
@@ -33,7 +33,7 @@ export class NotificationsStatus {
 		return this._counter.size;
 	}
 
-	public update(isCenterVisible: boolean): void {
+	update(isCenterVisible: boolean): void {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;
 
@@ -44,7 +44,7 @@ export class NotificationsStatus {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -101,8 +101,8 @@ export class NotificationsStatus {
 		return localize('notifications', "{0} New Notifications", this.count);
 	}
 
-	public dispose() {
-		this.toDispose = dispose(this.toDispose);
+	dispose() {
+		super.dispose();
 
 		if (this.statusItem) {
 			this.statusItem.dispose();

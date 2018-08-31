@@ -4,24 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DocumentSymbolProviderRegistry, DocumentSymbolProvider, DocumentSymbol } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { first, size } from 'vs/base/common/collections';
-import { isFalsyOrEmpty, binarySearch, coalesce } from 'vs/base/common/arrays';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { binarySearch, coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { LRUCache } from 'vs/base/common/map';
+import { commonPrefixLength } from 'vs/base/common/strings';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
+
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
-	abstract parent: TreeElement | any;
+	abstract parent: TreeElement;
+
+	abstract adopt(newParent: TreeElement): TreeElement;
+
+	remove(): void {
+		delete this.parent.children[this.id];
+	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
@@ -71,6 +77,13 @@ export abstract class TreeElement {
 		}
 		return res;
 	}
+
+	static empty(element: TreeElement): boolean {
+		for (const _key in element.children) {
+			return false;
+		}
+		return true;
+	}
 }
 
 export class OutlineElement extends TreeElement {
@@ -86,6 +99,12 @@ export class OutlineElement extends TreeElement {
 	) {
 		super();
 	}
+
+	adopt(parent: OutlineModel | OutlineGroup | OutlineElement): OutlineElement {
+		let res = new OutlineElement(this.id, parent, this.symbol);
+		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
+		return res;
+	}
 }
 
 export class OutlineGroup extends TreeElement {
@@ -99,6 +118,12 @@ export class OutlineGroup extends TreeElement {
 		readonly providerIndex: number,
 	) {
 		super();
+	}
+
+	adopt(parent: OutlineModel): OutlineGroup {
+		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
+		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
+		return res;
 	}
 
 	updateMatches(pattern: string, topMatch: OutlineElement): OutlineElement {
@@ -196,17 +221,42 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _keys = new class {
 
-	static create(textModel: ITextModel): TPromise<OutlineModel> {
+		private _counter = 1;
+		private _data = new WeakMap<DocumentSymbolProvider, number>();
 
-		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
+		for(textModel: ITextModel): string {
+			return `${textModel.id}/${textModel.getVersionId()}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
+		}
+
+		private _hash(providers: DocumentSymbolProvider[]): string {
+			let result = '';
+			for (const provider of providers) {
+				let n = this._data.get(provider);
+				if (typeof n === 'undefined') {
+					n = this._counter++;
+					this._data.set(provider, n);
+				}
+				result += n;
+			}
+			return result;
+		}
+	};
+
+
+	static create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+
+		let key = this._keys.for(textModel);
 		let data = OutlineModel._requests.get(key);
 
 		if (!data) {
+			let source = new CancellationTokenSource();
 			data = {
 				promiseCnt: 0,
-				promise: OutlineModel._create(textModel),
+				source,
+				promise: OutlineModel._create(textModel, source.token),
 				model: undefined,
 			};
 			OutlineModel._requests.set(key, data);
@@ -214,13 +264,21 @@ export class OutlineModel extends TreeElement {
 
 		if (data.model) {
 			// resolved -> return data
-			return TPromise.as(data.model);
+			return Promise.resolve(data.model);
 		}
 
 		// increase usage counter
 		data.promiseCnt += 1;
 
-		return new TPromise((resolve, reject) => {
+		token.onCancellationRequested(() => {
+			// last -> cancel provider request, remove cached promise
+			if (--data.promiseCnt === 0) {
+				data.source.cancel();
+				OutlineModel._requests.delete(key);
+			}
+		});
+
+		return new Promise((resolve, reject) => {
 			data.promise.then(model => {
 				data.model = model;
 				resolve(model);
@@ -228,16 +286,10 @@ export class OutlineModel extends TreeElement {
 				OutlineModel._requests.delete(key);
 				reject(err);
 			});
-		}, () => {
-			// last -> cancel provider request, remove cached promise
-			if (--data.promiseCnt === 0) {
-				data.promise.cancel();
-				OutlineModel._requests.delete(key);
-			}
 		});
 	}
 
-	static _create(textModel: ITextModel): TPromise<OutlineModel> {
+	static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
 
 		let result = new OutlineModel(textModel);
 		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
@@ -245,7 +297,7 @@ export class OutlineModel extends TreeElement {
 			let id = TreeElement.findId(`provider_${index}`, result);
 			let group = new OutlineGroup(id, result, provider, index);
 
-			return asWinJsPromise(token => provider.provideDocumentSymbols(result.textModel, token)).then(result => {
+			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, token)).then(result => {
 				if (!isFalsyOrEmpty(result)) {
 					for (const info of result) {
 						OutlineModel._makeOutlineElement(info, group);
@@ -256,38 +308,15 @@ export class OutlineModel extends TreeElement {
 				onUnexpectedExternalError(err);
 				return group;
 			}).then(group => {
-				result._groups[id] = group;
+				if (!TreeElement.empty(group)) {
+					result._groups[id] = group;
+				} else {
+					group.remove();
+				}
 			});
 		});
 
-		return TPromise.join(promises).then(() => {
-
-			let count = 0;
-			for (const key in result._groups) {
-				let group = result._groups[key];
-				if (first(group.children) === undefined) { // empty
-					delete result._groups[key];
-				} else {
-					count += 1;
-				}
-			}
-
-			if (count !== 1) {
-				//
-				result.children = result._groups;
-
-			} else {
-				// adopt all elements of the first group
-				let group = first(result._groups);
-				for (let key in group.children) {
-					let child = group.children[key];
-					child.parent = result;
-					result.children[child.id] = child;
-				}
-			}
-
-			return result;
-		});
+		return Promise.all(promises).then(() => result._compact());
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
@@ -321,11 +350,38 @@ export class OutlineModel extends TreeElement {
 		super();
 	}
 
-	dispose(): void {
-
+	adopt(): OutlineModel {
+		let res = new OutlineModel(this.textModel);
+		forEach(this._groups, entry => res._groups[entry.key] = entry.value.adopt(res));
+		return res._compact();
 	}
 
-	adopt(other: OutlineModel): boolean {
+	private _compact(): this {
+		let count = 0;
+		for (const key in this._groups) {
+			let group = this._groups[key];
+			if (first(group.children) === undefined) { // empty
+				delete this._groups[key];
+			} else {
+				count += 1;
+			}
+		}
+		if (count !== 1) {
+			//
+			this.children = this._groups;
+		} else {
+			// adopt all elements of the first group
+			let group = first(this._groups);
+			for (let key in group.children) {
+				let child = group.children[key];
+				child.parent = this;
+				this.children[child.id] = child;
+			}
+		}
+		return this;
+	}
+
+	merge(other: OutlineModel): boolean {
 		if (this.textModel.uri.toString() !== other.textModel.uri.toString()) {
 			return false;
 		}
@@ -337,11 +393,17 @@ export class OutlineModel extends TreeElement {
 		return true;
 	}
 
+	private _matches: [string, OutlineElement];
+
 	updateMatches(pattern: string): OutlineElement {
+		if (this._matches && this._matches[0] === pattern) {
+			return this._matches[1];
+		}
 		let topMatch: OutlineElement;
 		for (const key in this._groups) {
 			topMatch = this._groups[key].updateMatches(pattern, topMatch);
 		}
+		this._matches = [pattern, topMatch];
 		return topMatch;
 	}
 

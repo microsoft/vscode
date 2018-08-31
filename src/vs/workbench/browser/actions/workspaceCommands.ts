@@ -14,15 +14,19 @@ import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { dirname } from 'vs/base/common/paths';
-import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileKind, isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isLinux } from 'vs/base/common/platform';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
@@ -157,10 +161,12 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions, CancellationToken]) {
+CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
+	const quickInputService = accessor.get(IQuickInputService);
+	const labelService = accessor.get(ILabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
-	const quickOpenService = accessor.get(IQuickOpenService);
-	const environmentService = accessor.get(IEnvironmentService);
+	const modelService = accessor.get(IModelService);
+	const modeService = accessor.get(IModeService);
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
@@ -170,14 +176,13 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: getPathLabel(resources.dirname(folder.uri), environmentService, contextService),
+			description: labelService.getUriLabel(resources.dirname(folder.uri), true),
 			folder,
-			resource: folder.uri,
-			fileKind: FileKind.ROOT_FOLDER
-		} as IFilePickOpenEntry;
+			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
+		} as IQuickPickItem;
 	});
 
-	let options: IPickOptions;
+	let options: IPickOptions<IQuickPickItem>;
 	if (args) {
 		options = args[0];
 	}
@@ -186,8 +191,8 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		options = Object.create(null);
 	}
 
-	if (!options.autoFocus) {
-		options.autoFocus = { autoFocusFirstEntry: true };
+	if (!options.activeItem) {
+		options.activeItem = folderPicks[0];
 	}
 
 	if (!options.placeHolder) {
@@ -207,7 +212,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		token = CancellationToken.None;
 	}
 
-	return quickOpenService.pick(folderPicks, options, token).then(pick => {
+	return quickInputService.pick(folderPicks, options, token).then(pick => {
 		if (!pick) {
 			return void 0;
 		}

@@ -146,7 +146,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		const newUri = URI.revive(newUriDto);
 
 		const edits: WorkspaceEdit[] = [];
-		return this._onWillRenameFile.fireAsync((bucket, listener) => {
+		return TPromise.wrap(this._onWillRenameFile.fireAsync((bucket, listener) => {
 			return {
 				oldUri,
 				newUri,
@@ -179,6 +179,6 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 				}
 			}
 			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
-		});
+		}));
 	}
 }

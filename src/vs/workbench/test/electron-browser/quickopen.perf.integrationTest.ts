@@ -12,7 +12,6 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IExperimentService, IExperiments } from 'vs/platform/telemetry/common/experiments';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -68,11 +67,9 @@ suite.skip('QuickOpen performance (integration)', () => {
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
-		const experimentService = new TestExperimentService();
 		const configurationService = new TestConfigurationService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
-			[IExperimentService, experimentService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
@@ -177,14 +174,5 @@ class TestTelemetryService implements ITelemetryService {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	}
-}
-
-class TestExperimentService implements IExperimentService {
-
-	_serviceBrand: any;
-
-	getExperiments(): IExperiments {
-		return {};
 	}
 }

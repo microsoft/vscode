@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -142,7 +142,7 @@ registerEditorCommand(new TabCompletionCommand({
 	precondition: TabCompletionController.ContextKey,
 	handler: x => x.performSnippetCompletions(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
+		weight: KeybindingWeight.EditorContrib,
 		kbExpr: ContextKeyExpr.and(
 			EditorContextKeys.editorTextFocus,
 			EditorContextKeys.tabDoesNotMoveFocus,

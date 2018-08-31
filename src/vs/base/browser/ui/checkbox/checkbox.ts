@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/css!./checkbox';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -12,7 +13,6 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as objects from 'vs/base/common/objects';
-import 'vs/css!./checkbox';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName: string;
@@ -31,18 +31,19 @@ const defaultOpts = {
 export class Checkbox extends Widget {
 
 	private readonly _onChange = this._register(new Emitter<boolean>());
-	public readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _opts: ICheckboxOpts;
-	public readonly domNode: HTMLElement;
+	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
 
 	constructor(opts: ICheckboxOpts) {
 		super();
+
 		this._opts = objects.deepClone(opts);
 		objects.mixin(this._opts, defaultOpts, false);
 		this._checked = this._opts.isChecked;
@@ -75,19 +76,19 @@ export class Checkbox extends Widget {
 		});
 	}
 
-	public get enabled(): boolean {
+	get enabled(): boolean {
 		return this.domNode.getAttribute('aria-disabled') !== 'true';
 	}
 
-	public focus(): void {
+	focus(): void {
 		this.domNode.focus();
 	}
 
-	public get checked(): boolean {
+	get checked(): boolean {
 		return this._checked;
 	}
 
-	public set checked(newIsChecked: boolean) {
+	set checked(newIsChecked: boolean) {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		if (this._checked) {
@@ -99,11 +100,11 @@ export class Checkbox extends Widget {
 		this.applyStyles();
 	}
 
-	public width(): number {
+	width(): number {
 		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
-	public style(styles: ICheckboxStyles): void {
+	style(styles: ICheckboxStyles): void {
 		if (styles.inputActiveOptionBorder) {
 			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		}
@@ -116,12 +117,12 @@ export class Checkbox extends Widget {
 		}
 	}
 
-	public enable(): void {
+	enable(): void {
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
-	public disable(): void {
+	disable(): void {
 		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}

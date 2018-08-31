@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/gotoSymbolHandler';
+import 'vs/css!vs/editor/contrib/documentSymbols/media/symbol-icons';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -32,8 +32,8 @@ export const SCOPE_PREFIX = ':';
 
 export class GotoSymbolAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.gotoSymbol';
-	public static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
+	static readonly ID = 'workbench.action.gotoSymbol';
+	static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
@@ -42,7 +42,7 @@ export class GotoSymbolAction extends QuickOpenAction {
 
 class OutlineModel extends QuickOpenModel {
 
-	public applyFilter(searchValue: string): void {
+	applyFilter(searchValue: string): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -239,9 +239,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private icon: string;
 	private description: string;
 	private range: IRange;
+	private revealRange: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
@@ -250,51 +251,52 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		this.icon = icon;
 		this.description = description;
 		this.range = range;
+		this.revealRange = revealRange || range;
 		this.setHighlights(highlights);
 		this.editorService = editorService;
 		this.handler = handler;
 	}
 
-	public getIndex(): number {
+	getIndex(): number {
 		return this.index;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.name;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, symbols", this.getLabel());
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.icon;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public getType(): string {
+	getType(): string {
 		return this.type;
 	}
 
-	public getRange(): IRange {
+	getRange(): IRange {
 		return this.range;
 	}
 
-	public getInput(): IEditorInput {
+	getInput(): IEditorInput {
 		return this.editorService.activeEditor;
 	}
 
-	public getOptions(pinned?: boolean): ITextEditorOptions {
+	getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
 			selection: this.toSelection(),
 			pinned
 		};
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -342,10 +344,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	private toSelection(): IRange {
 		return {
-			startLineNumber: this.range.startLineNumber,
-			startColumn: this.range.startColumn || 1,
-			endLineNumber: this.range.startLineNumber,
-			endColumn: this.range.startColumn || 1
+			startLineNumber: this.revealRange.startLineNumber,
+			startColumn: this.revealRange.startColumn || 1,
+			endLineNumber: this.revealRange.startLineNumber,
+			endColumn: this.revealRange.startColumn || 1
 		};
 	}
 }
@@ -358,7 +360,7 @@ interface IEditorLineDecoration {
 
 export class GotoSymbolHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.filesymbols';
+	static readonly ID = 'workbench.picker.filesymbols';
 
 	private outlineToModelCache: { [modelId: string]: OutlineModel; };
 	private rangeHighlightDecorationId: IEditorLineDecoration;
@@ -373,7 +375,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.outlineToModelCache = {};
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel
@@ -392,7 +394,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
 			return nls.localize('noSymbolsMatching', "No symbols matching");
 		}
@@ -400,11 +402,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return nls.localize('noSymbolsFound', "No symbols found");
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('gotoSymbolHandlerAriaLabel', "Type to narrow down symbols of the currently active editor.");
 	}
 
-	public canRun(): boolean | string {
+	canRun(): boolean | string {
 		let canRun = false;
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
@@ -422,7 +424,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return canRun ? true : activeTextEditorWidget !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		searchValue = searchValue.trim();
 
 		// Remove any type pattern (:) from search value as needed
@@ -449,8 +451,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			results.push(new SymbolEntry(i,
-				label, icon, description, icon,
-				element.range, null, this.editorService, this
+				label, icon, description, `symbol-icon ${icon}`,
+				element.range, element.selectionRange, null, this.editorService, this
 			));
 		}
 
@@ -496,7 +498,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return TPromise.wrap<OutlineModel>(null);
 	}
 
-	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {
+	decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const deleteDecorations: string[] = [];
 
@@ -543,7 +545,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	public clearDecorations(): void {
+	clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
 				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
@@ -561,7 +563,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 
 		// Clear Cache
 		this.outlineToModelCache = {};

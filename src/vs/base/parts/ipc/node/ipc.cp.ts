@@ -3,21 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { ChildProcess, fork, ForkOptions } from 'child_process';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
-import { Emitter, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
-import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
+
+/**
+ * This implementation doesn't perform well since it uses base64 encoding for buffers.
+ * We should move all implementations to use named ipc.net, so we stop depending on cp.fork.
+ */
 
 export class Server extends IPCServer {
 	constructor() {
 		super({
-			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: fromNodeEventEmitter(process, 'message', msg => msg)
+			send: r => { try { process.send(r.toString('base64')); } catch (e) { /* not much to do */ } },
+			onMessage: fromNodeEventEmitter(process, 'message', msg => Buffer.from(msg, 'base64'))
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -74,10 +79,13 @@ export interface IIPCOptions {
 export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
-	private activeRequests: TPromise<void>[];
+	private activeRequests: IDisposable[];
 	private child: ChildProcess;
 	private _client: IPCClient;
 	private channels: { [name: string]: IChannel };
+
+	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	constructor(private modulePath: string, private options: IIPCOptions) {
 		const timeout = options && options.timeout ? options.timeout : 60000;
@@ -89,11 +97,12 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command: string, arg: any) => this.request(channelName, command, arg);
-		return { call } as T;
+		const call = (command: string, arg: any) => this.requestPromise(channelName, command, arg);
+		const listen = (event: string, arg: any) => this.requestEvent(channelName, event, arg);
+		return { call, listen } as IChannel as T;
 	}
 
-	protected request(channelName: string, name: string, arg: any): TPromise<void> {
+	protected requestPromise(channelName: string, name: string, arg: any): TPromise<void> {
 		if (!this.disposeDelayer) {
 			return TPromise.wrapError(new Error('disposed'));
 		}
@@ -103,14 +112,13 @@ export class Client implements IChannelClient, IDisposable {
 		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
 		const request: TPromise<void> = channel.call(name, arg);
 
-		// Progress doesn't propagate across 'then', we need to create a promise wrapper
-		const result = new TPromise<void>((c, e, p) => {
-			request.then(c, e, p).done(() => {
+		const result = new TPromise<void>((c, e) => {
+			request.then(c, e).done(() => {
 				if (!this.activeRequests) {
 					return;
 				}
 
-				this.activeRequests.splice(this.activeRequests.indexOf(result), 1);
+				this.activeRequests.splice(this.activeRequests.indexOf(disposable), 1);
 
 				if (this.activeRequests.length === 0) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
@@ -118,14 +126,49 @@ export class Client implements IChannelClient, IDisposable {
 			});
 		}, () => request.cancel());
 
-		this.activeRequests.push(result);
+		const disposable = toDisposable(() => result.cancel());
+		this.activeRequests.push(disposable);
 		return result;
+	}
+
+	protected requestEvent<T>(channelName: string, name: string, arg: any): Event<T> {
+		if (!this.disposeDelayer) {
+			return Event.None;
+		}
+
+		this.disposeDelayer.cancel();
+
+		let listener: IDisposable;
+		const emitter = new Emitter<any>({
+			onFirstListenerAdd: () => {
+				const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
+				const event: Event<T> = channel.listen(name, arg);
+
+				listener = event(emitter.fire, emitter);
+				this.activeRequests.push(listener);
+
+			},
+			onLastListenerRemove: () => {
+				if (!this.activeRequests) {
+					return;
+				}
+
+				this.activeRequests.splice(this.activeRequests.indexOf(listener), 1);
+				listener.dispose();
+
+				if (this.activeRequests.length === 0) {
+					this.disposeDelayer.trigger(() => this.disposeClient());
+				}
+			}
+		});
+
+		return emitter.event;
 	}
 
 	private get client(): IPCClient {
 		if (!this._client) {
 			const args = this.options && this.options.args ? this.options.args : [];
-			const forkOpts = Object.create(null);
+			const forkOpts: ForkOptions = Object.create(null);
 
 			forkOpts.env = assign(deepClone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
 
@@ -147,7 +190,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child = fork(this.modulePath, args, forkOpts);
 
-			const onMessageEmitter = new Emitter<any>();
+			const onMessageEmitter = new Emitter<Buffer>();
 			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
@@ -159,11 +202,11 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				// Anything else goes to the outside
-				onMessageEmitter.fire(msg);
+				onMessageEmitter.fire(Buffer.from(msg, 'base64'));
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;
-			const send = r => this.child && this.child.connected && sender.send(r);
+			const send = (r: Buffer) => this.child && this.child.connected && sender.send(r.toString('base64'));
 			const onMessage = onMessageEmitter.event;
 			const protocol = { send, onMessage };
 
@@ -178,15 +221,16 @@ export class Client implements IChannelClient, IDisposable {
 				process.removeListener('exit', onExit);
 
 				if (this.activeRequests) {
-					this.activeRequests.forEach(req => req.cancel());
-					this.activeRequests = [];
+					this.activeRequests = dispose(this.activeRequests);
 				}
 
 				if (code !== 0 && signal !== 'SIGTERM') {
-					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
+					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
 					this.disposeDelayer.cancel();
 					this.disposeClient();
 				}
+
+				this._onDidProcessExit.fire({ code, signal });
 			});
 		}
 
@@ -203,6 +247,7 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	dispose() {
+		this._onDidProcessExit.dispose();
 		this.disposeDelayer.cancel();
 		this.disposeDelayer = null;
 		this.disposeClient();

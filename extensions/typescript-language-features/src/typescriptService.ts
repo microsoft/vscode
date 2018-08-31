@@ -3,18 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Uri, Event } from 'vscode';
+import * as vscode from 'vscode';
+import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
 import API from './utils/api';
-import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
-import BufferSyncSupport from './features/bufferSyncSupport';
+import { TypeScriptServerPlugin } from './utils/plugins';
 
-declare module './protocol' {
-	export type JsxClosingTagRequestArgs = any;
-	export type JsxClosingTagResponse = any;
+interface TypeScriptRequestTypes {
+	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
+	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
+	'completionInfo': [Proto.CompletionsRequestArgs, Proto.CompletionInfoResponse];
+	'completions': [Proto.CompletionsRequestArgs, Proto.CompletionsResponse];
+	'configure': [Proto.ConfigureRequestArguments, Proto.ConfigureResponse];
+	'definition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
+	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
+	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
+	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
+	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
+	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];
+	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.GetCodeFixesResponse];
+	'getCombinedCodeFix': [Proto.GetCombinedCodeFixRequestArgs, Proto.GetCombinedCodeFixResponse];
+	'getEditsForFileRename': [Proto.GetEditsForFileRenameRequestArgs, Proto.GetEditsForFileRenameResponse];
+	'getEditsForRefactor': [Proto.GetEditsForRefactorRequestArgs, Proto.GetEditsForRefactorResponse];
+	'getOutliningSpans': [Proto.FileRequestArgs, Proto.OutliningSpansResponse];
+	'getSupportedCodeFixes': [null, Proto.GetSupportedCodeFixesResponse];
+	'implementation': [Proto.FileLocationRequestArgs, Proto.ImplementationResponse];
+	'jsxClosingTag': [Proto.JsxClosingTagRequestArgs, Proto.JsxClosingTagResponse];
+	'navto': [Proto.NavtoRequestArgs, Proto.NavtoResponse];
+	'navtree': [Proto.FileRequestArgs, Proto.NavTreeResponse];
+	'occurrences': [Proto.FileLocationRequestArgs, Proto.OccurrencesResponse];
+	'organizeImports': [Proto.OrganizeImportsRequestArgs, Proto.OrganizeImportsResponse];
+	'projectInfo': [Proto.ProjectInfoRequestArgs, Proto.ProjectInfoResponse];
+	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];
+	'references': [Proto.FileLocationRequestArgs, Proto.ReferencesResponse];
+	'rename': [Proto.RenameRequestArgs, Proto.RenameResponse];
+	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
+	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
 }
+
 
 export interface ITypeScriptServiceClient {
 	/**
@@ -22,27 +50,27 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * Does not try handling case insensitivity.
 	 */
-	normalizedPath(resource: Uri): string | null;
+	normalizedPath(resource: vscode.Uri): string | null;
 
 	/**
 	 * Map a resource to a normalized path
 	 *
 	 * This will attempt to handle case insensitivity.
 	 */
-	toPath(resource: Uri): string | null;
+	toPath(resource: vscode.Uri): string | null;
 
 	/**
 	 * Convert a path to a resource.
 	 */
-	toResource(filepath: string): Uri;
+	toResource(filepath: string): vscode.Uri;
 
-	getWorkspaceRootForResource(resource: Uri): string | undefined;
+	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
-	readonly onTsServerStarted: Event<API>;
-	readonly onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
-	readonly onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
-	readonly onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
-	readonly onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
+	readonly onTsServerStarted: vscode.Event<API>;
+	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;
+	readonly onDidBeginInstallTypings: vscode.Event<Proto.BeginInstallTypesEventBody>;
+	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;
+	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	readonly apiVersion: API;
 	readonly plugins: TypeScriptServerPlugin[];
@@ -50,42 +78,22 @@ export interface ITypeScriptServiceClient {
 	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;
 
-	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
-	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
-	execute(command: 'close', args: Proto.FileRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
-	execute(command: 'change', args: Proto.ChangeRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
-	execute(command: 'quickinfo', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.QuickInfoResponse>;
-	execute(command: 'completions', args: Proto.CompletionsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionsResponse>;
-	execute(command: 'completionEntryDetails', args: Proto.CompletionDetailsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionDetailsResponse>;
-	execute(command: 'signatureHelp', args: Proto.SignatureHelpRequestArgs, token?: CancellationToken): Promise<Proto.SignatureHelpResponse>;
-	execute(command: 'definition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionResponse>;
-	execute(command: 'definitionAndBoundSpan', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionInfoAndBoundSpanReponse>;
-	execute(command: 'implementation', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ImplementationResponse>;
-	execute(command: 'typeDefinition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.TypeDefinitionResponse>;
-	execute(command: 'references', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ReferencesResponse>;
-	execute(command: 'navto', args: Proto.NavtoRequestArgs, token?: CancellationToken): Promise<Proto.NavtoResponse>;
-	execute(command: 'navbar', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavBarResponse>;
-	execute(command: 'format', args: Proto.FormatRequestArgs, token?: CancellationToken): Promise<Proto.FormatResponse>;
-	execute(command: 'formatonkey', args: Proto.FormatOnKeyRequestArgs, token?: CancellationToken): Promise<Proto.FormatResponse>;
-	execute(command: 'rename', args: Proto.RenameRequestArgs, token?: CancellationToken): Promise<Proto.RenameResponse>;
-	execute(command: 'occurrences', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.OccurrencesResponse>;
-	execute(command: 'projectInfo', args: Proto.ProjectInfoRequestArgs, token?: CancellationToken): Promise<Proto.ProjectInfoResponse>;
-	execute(command: 'reloadProjects', args: any, expectedResult: boolean, token?: CancellationToken): Promise<any>;
-	execute(command: 'reload', args: Proto.ReloadRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;
-	execute(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs, token?: CancellationToken): Promise<any>;
-	execute(command: 'navtree', args: Proto.FileRequestArgs, token?: CancellationToken): Promise<Proto.NavTreeResponse>;
-	execute(command: 'getCodeFixes', args: Proto.CodeFixRequestArgs, token?: CancellationToken): Promise<Proto.GetCodeFixesResponse>;
-	execute(command: 'getSupportedCodeFixes', args: null, token?: CancellationToken): Promise<Proto.GetSupportedCodeFixesResponse>;
-	execute(command: 'getCombinedCodeFix', args: Proto.GetCombinedCodeFixRequestArgs, token?: CancellationToken): Promise<Proto.GetCombinedCodeFixResponse>;
-	execute(command: 'docCommentTemplate', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DocCommandTemplateResponse>;
-	execute(command: 'getApplicableRefactors', args: Proto.GetApplicableRefactorsRequestArgs, token?: CancellationToken): Promise<Proto.GetApplicableRefactorsResponse>;
-	execute(command: 'getEditsForRefactor', args: Proto.GetEditsForRefactorRequestArgs, token?: CancellationToken): Promise<Proto.GetEditsForRefactorResponse>;
-	execute(command: 'applyCodeActionCommand', args: Proto.ApplyCodeActionCommandRequestArgs, token?: CancellationToken): Promise<Proto.ApplyCodeActionCommandResponse>;
-	execute(command: 'organizeImports', args: Proto.OrganizeImportsRequestArgs, token?: CancellationToken): Promise<Proto.OrganizeImportsResponse>;
-	execute(command: 'getOutliningSpans', args: Proto.FileRequestArgs, token: CancellationToken): Promise<Proto.OutliningSpansResponse>;
-	execute(command: 'getEditsForFileRename', args: Proto.GetEditsForFileRenameRequestArgs): Promise<Proto.GetEditsForFileRenameResponse>;
-	execute(command: 'jsxClosingTag', args: Proto.JsxClosingTagRequestArgs, token: CancellationToken): Promise<Proto.JsxClosingTagResponse>;
-	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;
+	execute<K extends keyof TypeScriptRequestTypes>(
+		command: K,
+		args: TypeScriptRequestTypes[K][0],
+		token: vscode.CancellationToken
+	): Promise<TypeScriptRequestTypes[K][1]>;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: CancellationToken): Promise<any>;
+	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
+	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
+	executeWithoutWaitingForResponse(command: 'change', args: Proto.ChangeRequestArgs): void;
+	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
+	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
+
+	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any>;
+
+	/**
+	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.
+	 */
+	interuptGetErr<R>(f: () => R): R;
 }

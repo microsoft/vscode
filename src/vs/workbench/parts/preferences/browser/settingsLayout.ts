@@ -27,6 +27,7 @@ export const tocData: ITOCEntry = {
 		{
 			id: 'editor',
 			label: localize('textEditor', "Text Editor"),
+			settings: ['editor.*'],
 			children: [
 				{
 					id: 'editor/cursor',
@@ -45,7 +46,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'editor/format',
-					label: localize('format', "Format"),
+					label: localize('formatting', "Formatting"),
 					settings: ['editor.format*']
 				},
 				{
@@ -61,23 +62,19 @@ export const tocData: ITOCEntry = {
 				{
 					id: 'editor/suggestions',
 					label: localize('suggestions', "Suggestions"),
-					settings: ['editor.*suggestion*']
+					settings: ['editor.*suggest*']
 				},
 				{
 					id: 'editor/files',
 					label: localize('files', "Files"),
 					settings: ['files.*']
-				},
-				{
-					id: 'editor/editor',
-					label: localize('editor', "Editor"),
-					settings: ['editor.*']
 				}
 			]
 		},
 		{
 			id: 'workbench',
 			label: localize('workbench', "Workbench"),
+			settings: ['workbench.*'],
 			children: [
 				{
 					id: 'workbench/appearance',
@@ -85,35 +82,36 @@ export const tocData: ITOCEntry = {
 					settings: ['workbench.activityBar.*', 'workbench.*color*', 'workbench.fontAliasing', 'workbench.iconTheme', 'workbench.sidebar.location', 'workbench.*.visible', 'workbench.tips.enabled', 'workbench.tree.*', 'workbench.view.*']
 				},
 				{
+					id: 'workbench/breadcrumbs',
+					label: localize('breadcrumbs', "Breadcrumbs"),
+					settings: ['breadcrumbs.*']
+				},
+				{
 					id: 'workbench/editor',
 					label: localize('editorManagement', "Editor Management"),
 					settings: ['workbench.editor.*']
 				},
 				{
+					id: 'workbench/settings',
+					label: localize('settings', "Settings Editor"),
+					settings: ['workbench.settings.*']
+				},
+				{
 					id: 'workbench/zenmode',
 					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
-				},
-				{
-					id: 'workbench/workbench',
-					label: localize('workbench', "Workbench"),
-					settings: ['workbench.*']
 				}
 			]
 		},
 		{
 			id: 'window',
 			label: localize('window', "Window"),
+			settings: ['window.*'],
 			children: [
 				{
 					id: 'window/newWindow',
 					label: localize('newWindow', "New Window"),
 					settings: ['window.*newwindow*']
-				},
-				{
-					id: 'window/window',
-					label: localize('window', "Window"),
-					settings: ['window.*']
 				}
 			]
 		},
@@ -123,7 +121,7 @@ export const tocData: ITOCEntry = {
 			children: [
 				{
 					id: 'features/explorer',
-					label: localize('fileExplorer', "File Explorer"),
+					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
 				},
 				{
@@ -184,11 +182,20 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				}
 			]
-		},
-		{
-			id: 'extensions',
-			label: localize('extensions', "Extensions"),
-			settings: ['*']
 		}
 	]
 };
+
+export const knownAcronyms = new Set();
+[
+	'css',
+	'html',
+	'scss',
+	'less',
+	'json',
+	'js',
+	'ts',
+	'ie',
+	'id',
+	'php',
+].forEach(str => knownAcronyms.add(str));

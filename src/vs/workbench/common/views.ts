@@ -42,7 +42,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(id: string): ViewContainer;
+	registerViewContainer(id: string, extensionId?: string): ViewContainer;
 
 	/**
 	 * Returns the view container with given id.
@@ -54,7 +54,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(readonly id: string) { }
+	protected constructor(readonly id: string, readonly extensionId: string) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
@@ -68,11 +68,11 @@ class ViewContainersRegistryImpl implements IViewContainersRegistry {
 		return values(this.viewContainers);
 	}
 
-	registerViewContainer(id: string): ViewContainer {
+	registerViewContainer(id: string, extensionId: string): ViewContainer {
 		if (!this.viewContainers.has(id)) {
 			const viewContainer = new class extends ViewContainer {
 				constructor() {
-					super(id);
+					super(id, extensionId);
 				}
 			};
 			this.viewContainers.set(id, viewContainer);
@@ -96,7 +96,7 @@ export interface IViewDescriptor {
 
 	readonly container: ViewContainer;
 
-	// TODO do we really need this?!
+	// TODO@Sandeep do we really need this?!
 	readonly ctor: any;
 
 	readonly when?: ContextKeyExpr;
@@ -227,6 +227,10 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeSelection: Event<ITreeItem[]>;
 
+	readonly onDidChangeVisibility: Event<boolean>;
+
+	readonly visible: boolean;
+
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
 	setVisibility(visible: boolean): void;
@@ -269,9 +273,9 @@ export interface ITreeItem {
 
 	label?: string;
 
-	icon?: string;
+	icon?: UriComponents;
 
-	iconDark?: string;
+	iconDark?: UriComponents;
 
 	themeIcon?: ThemeIcon;
 
@@ -284,7 +288,6 @@ export interface ITreeItem {
 	command?: Command;
 
 	children?: ITreeItem[];
-
 }
 
 export interface ITreeViewDataProvider {

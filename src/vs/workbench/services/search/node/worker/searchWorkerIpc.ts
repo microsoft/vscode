@@ -6,16 +6,18 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ISerializedFileMatch } from '../search';
-import { IPatternInfo } from 'vs/platform/search/common/search';
+import { IPatternInfo, ITextSearchPreviewOptions } from 'vs/platform/search/common/search';
 import { SearchWorker } from './searchWorker';
+import { Event } from 'vs/base/common/event';
 
 export interface ISearchWorkerSearchArgs {
 	pattern: IPatternInfo;
 	fileEncoding: string;
 	absolutePaths: string[];
 	maxResults?: number;
+	previewOptions?: ITextSearchPreviewOptions;
 }
 
 export interface ISearchWorkerSearchResult {
@@ -39,6 +41,10 @@ export interface ISearchWorkerChannel extends IChannel {
 
 export class SearchWorkerChannel implements ISearchWorkerChannel {
 	constructor(private worker: SearchWorker) {
+	}
+
+	listen<T>(event: string, arg?: any): Event<T> {
+		throw new Error('No events');
 	}
 
 	call(command: string, arg?: any): TPromise<any> {

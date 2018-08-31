@@ -14,8 +14,8 @@ import { canNormalize } from 'vs/base/common/normalization';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import * as extfs from 'vs/base/node/extfs';
-
-
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const ignore = () => { };
 
@@ -169,7 +169,7 @@ suite('Extfs', () => {
 	test('copy, move and delete', function (done) {
 		const id = uuid.generateUuid();
 		const id2 = uuid.generateUuid();
-		const sourceDir = require.toUrl('./fixtures');
+		const sourceDir = getPathFromAmdModule(require, './fixtures');
 		const parentDir = path.join(os.tmpdir(), 'vsctests', 'extfs');
 		const targetDir = path.join(parentDir, id);
 		const targetDir2 = path.join(parentDir, id2);
@@ -320,7 +320,7 @@ suite('Extfs', () => {
 	test('writeFileAndFlush (file stream)', function (done) {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const sourceFile = require.toUrl('./fixtures/index.html');
+		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
 		const newDir = path.join(parentDir, 'extfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
@@ -453,7 +453,7 @@ suite('Extfs', () => {
 	test('writeFileAndFlush (file stream, error handling)', function (done) {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const sourceFile = require.toUrl('./fixtures/index.html');
+		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
 		const newDir = path.join(parentDir, 'extfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
@@ -559,6 +559,23 @@ suite('Extfs', () => {
 				assert.ok(!error);
 			}
 			assert.ok(realpath);
+
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
+		});
+	});
+
+	test('mkdirp cancellation', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		const source = new CancellationTokenSource();
+
+		const mkdirpPromise = extfs.mkdirp(newDir, 493, source.token);
+		source.cancel();
+
+		return mkdirpPromise.then(res => {
+			assert.equal(res, false);
 
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});

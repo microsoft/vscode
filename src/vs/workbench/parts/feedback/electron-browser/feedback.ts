@@ -216,6 +216,7 @@ export class FeedbackDropdown extends Dropdown {
 				dom.EventHelper.stop(event);
 				const actionId = 'workbench.action.openIssueReporter';
 				this.commandService.executeCommand(actionId).done(null, errors.onUnexpectedError);
+				this.hide();
 
 				/* __GDPR__
 					"workbenchActionExecuted" : {
@@ -227,8 +228,12 @@ export class FeedbackDropdown extends Dropdown {
 			})
 			.appendTo($contactUsContainer);
 
-		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
-			.appendTo($contactUsContainer);
+		if (!!this.requestFeatureLink) {
+			$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
+				.on('click', event => { this.hide(); })
+				.appendTo($contactUsContainer);
+		}
+
 
 		this.remainingCharacterCount = $('span.char-counter').text(this.getCharCountText(0));
 
@@ -342,7 +347,7 @@ export class FeedbackDropdown extends Dropdown {
 		return element;
 	}
 
-	public show(): void {
+	show(): void {
 		super.show();
 
 		if (this.options.onFeedbackVisibilityChange) {
@@ -356,7 +361,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	public hide(): void {
+	hide(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedback = this.feedbackDescriptionInput.value;
 		}
@@ -373,7 +378,7 @@ export class FeedbackDropdown extends Dropdown {
 		super.hide();
 	}
 
-	public onEvent(e: Event, activeElement: HTMLElement): void {
+	onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
 			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape

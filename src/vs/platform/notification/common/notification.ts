@@ -205,7 +205,7 @@ export class NoOpNotification implements INotificationHandle {
 
 	private readonly _onDidClose: Emitter<void> = new Emitter();
 
-	public get onDidClose(): Event<void> {
+	get onDidClose(): Event<void> {
 		return this._onDidClose.event;
 	}
 

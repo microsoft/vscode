@@ -6,7 +6,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -111,12 +111,10 @@ class ThemingRegistry implements IThemingRegistry {
 	public onThemeChange(participant: IThemingParticipant): IDisposable {
 		this.themingParticipants.push(participant);
 		this.onThemingParticipantAddedEmitter.fire(participant);
-		return {
-			dispose: () => {
-				const idx = this.themingParticipants.indexOf(participant);
-				this.themingParticipants.splice(idx, 1);
-			}
-		};
+		return toDisposable(() => {
+			const idx = this.themingParticipants.indexOf(participant);
+			this.themingParticipants.splice(idx, 1);
+		});
 	}
 
 	public get onThemingParticipantAdded(): Event<IThemingParticipant> {

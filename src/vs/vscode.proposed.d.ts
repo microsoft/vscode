@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// This is the place for API experiments and proposal.
-
-import { QuickPickItem } from 'vscode';
+// This is the place for API experiments and proposals.
 
 declare module 'vscode' {
 
@@ -13,46 +11,349 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: remote, search provider
+	export namespace languages {
 
+		/**
+		 *
+		 */
+		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
+	}
+
+	//#region Rob: search provider
+
+	/**
+	 * The parameters of a query for text search.
+	 */
 	export interface TextSearchQuery {
+		/**
+		 * The text pattern to search for.
+		 */
 		pattern: string;
-		isRegExp: boolean;
-		isCaseSensitive: boolean;
-		isWordMatch: boolean;
+
+		/**
+		 * Whether or not `pattern` should be interpreted as a regular expression.
+		 */
+		isRegExp?: boolean;
+
+		/**
+		 * Whether or not the search should be case-sensitive.
+		 */
+		isCaseSensitive?: boolean;
+
+		/**
+		 * Whether or not to search for whole word matches only.
+		 */
+		isWordMatch?: boolean;
 	}
 
+	/**
+	 * A file glob pattern to match file paths against.
+	 * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * @see [GlobPattern](#GlobPattern)
+	 */
+	export type GlobString = string;
+
+	/**
+	 * Options common to file and text search
+	 */
 	export interface SearchOptions {
+		/**
+		 * The root folder to search within.
+		 */
 		folder: Uri;
-		includes: string[]; // paths relative to folder
-		excludes: string[];
-		useIgnoreFiles?: boolean;
-		followSymlinks?: boolean;
+
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: GlobString[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobString[];
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
+		useIgnoreFiles: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
+		followSymlinks: boolean;
 	}
 
+	/**
+	 * Options to specify the size of the result text preview.
+	 * These options don't affect the size of the match itself, just the amount of preview text.
+	 */
+	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
+		 */
+		maxLines: number;
+
+		/**
+		 * The maximum number of characters included before the start of the match.
+		 */
+		leadingChars: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		totalChars: number;
+	}
+
+	/**
+	 * Options that apply to text search.
+	 */
 	export interface TextSearchOptions extends SearchOptions {
-		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
+
+		/**
+		 * Exclude files larger than `maxFileSize` in bytes.
+		 */
 		maxFileSize?: number;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
 		encoding?: string;
 	}
 
-	export interface FileSearchOptions extends SearchOptions { }
-
-	export interface TextSearchResult {
-		path: string;
-		range: Range;
-
-		// For now, preview must be a single line of text
-		preview: { text: string, match: Range };
+	/**
+	 * The parameters of a query for file search.
+	 */
+	export interface FileSearchQuery {
+		/**
+		 * The search pattern to match against file paths.
+		 */
+		pattern: string;
 	}
 
-	export interface SearchProvider {
-		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
-		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	/**
+	 * Options that apply to file search.
+	 */
+	export interface FileSearchOptions extends SearchOptions {
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+	}
+
+	/**
+	 * Options that apply to requesting the file index.
+	 */
+	export interface FileIndexOptions extends SearchOptions { }
+
+	/**
+	 * A preview of the text result.
+	 */
+	export interface TextSearchResultPreview {
+		/**
+		 * The matching line of text, or a portion of the matching line that contains the match.
+		 * For now, this can only be a single line.
+		 */
+		text: string;
+
+		/**
+		 * The Range within `text` corresponding to the text of the match.
+		 */
+		match: Range;
+	}
+
+	/**
+	 * A match from a text search
+	 */
+	export interface TextSearchResult {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+
+		/**
+		 * The range of the match within the document.
+		 */
+		range: Range;
+
+		/**
+		 * A preview of the text result.
+		 */
+		preview: TextSearchResultPreview;
+	}
+
+	/**
+	 * A FileIndexProvider provides a list of files in the given folder. VS Code will filter that list for searching with quickopen or from other extensions.
+	 *
+	 * A FileIndexProvider is the simpler of two ways to implement file search in VS Code. Use a FileIndexProvider if you are able to provide a listing of all files
+	 * in a folder, and want VS Code to filter them according to the user's search query.
+	 *
+	 * The FileIndexProvider will be invoked once when quickopen is opened, and VS Code will filter the returned list. It will also be invoked when
+	 * `workspace.findFiles` is called.
+	 *
+	 * If a [`FileSearchProvider`](#FileSearchProvider) is registered for the scheme, that provider will be used instead.
+	 */
+	export interface FileIndexProvider {
+		/**
+		 * Provide the set of files in the folder.
+		 * @param options A set of options to consider while searching.
+		 * @param token A cancellation token.
+		 */
+		provideFileIndex(options: FileIndexOptions, token: CancellationToken): Thenable<Uri[]>;
+	}
+
+	/**
+	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
+	 *
+	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
+	 * all files that match the user's query.
+	 *
+	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
+	 * and in that case, every file in the folder should be returned.
+	 *
+	 * @see [FileIndexProvider](#FileIndexProvider)
+	 */
+	export interface FileSearchProvider {
+		/**
+		 * Provide the set of files that match a certain file path pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching files.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): Thenable<Uri[]>;
+	}
+
+	/**
+	 * A TextSearchProvider provides search results for text results inside files in the workspace.
+	 */
+	export interface TextSearchProvider {
+		/**
+		 * Provide results that match the given text pattern.
+		 * @param query The parameters for this query.
+		 * @param options A set of options to consider while searching.
+		 * @param progress A progress callback that must be invoked for all results.
+		 * @param token A cancellation token.
+		 */
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * Options that can be set on a findTextInFiles search.
+	 */
+	export interface FindTextInFilesOptions {
+		/**
+		 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 */
+		include?: GlobPattern;
+
+		/**
+		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
+		 * apply, when `null` no excludes will apply.
+		 */
+		exclude?: GlobPattern | null;
+
+		/**
+		 * The maximum number of results to search for
+		 */
+		maxResults?: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 */
+		useIgnoreFiles?: boolean;
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"`.
+		 */
+		followSymlinks?: boolean;
+
+		/**
+		 * Interpret files using this encoding.
+		 * See the vscode setting `"files.encoding"`
+		 */
+		encoding?: string;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
 	}
 
 	export namespace workspace {
-		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+		/**
+		 * DEPRECATED
+		 */
+		export function registerSearchProvider(): Disposable;
+
+		/**
+		 * Register a file index provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFileIndexProvider(scheme: string, provider: FileIndexProvider): Disposable;
+
+		/**
+		 * Register a search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+
+		/**
+		 * Register a text search provider.
+		 *
+		 * Only one provider can be registered per scheme.
+		 *
+		 * @param scheme The provider will be invoked for workspace folders that have this file scheme.
+		 * @param provider The provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+
+		/**
+		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
+		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
+		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
+		 * @param callback A callback, called for each result
+		 * @param token A token that can be used to signal cancellation to the underlying search engine.
+		 * @return A thenable that resolves when the search is complete.
+		 */
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
 	//#endregion
@@ -94,12 +395,12 @@ declare module 'vscode' {
 
 	//todo@joh -> make class
 	export interface DecorationData {
-		priority?: number;
+		letter?: string;
 		title?: string;
-		bubble?: boolean;
-		abbreviation?: string;
 		color?: ThemeColor;
-		source?: string;
+		priority?: number;
+		bubble?: boolean;
+		source?: string; // hacky... we should remove it and use equality under the hood
 	}
 
 	export interface SourceControlResourceDecorations {
@@ -171,39 +472,16 @@ declare module 'vscode' {
 		Off = 7
 	}
 
-	/**
-	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
-	 */
-	export interface Logger {
-		trace(message: string, ...args: any[]): void;
-		debug(message: string, ...args: any[]): void;
-		info(message: string, ...args: any[]): void;
-		warn(message: string, ...args: any[]): void;
-		error(message: string | Error, ...args: any[]): void;
-		critical(message: string | Error, ...args: any[]): void;
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * This extension's logger
-		 */
-		logger: Logger;
-
-		/**
-		 * Path where an extension can write log files.
-		 *
-		 * Extensions must create this directory before writing to it. The parent directory will always exist.
-		 */
-		readonly logDirectory: string;
-	}
-
 	export namespace env {
 		/**
 		 * Current logging level.
-		 *
-		 * @readonly
 		 */
 		export const logLevel: LogLevel;
+
+		/**
+		 * An [event](#Event) that fires when the log level has changed.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion
@@ -254,6 +532,23 @@ declare module 'vscode' {
 		 * the validation provider simply by setting this property to a different function.
 		 */
 		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	//#endregion
+
+	//#region Joao: SCM selected provider
+
+	export interface SourceControl {
+
+		/**
+		 * Whether the source control is selected.
+		 */
+		readonly selected: boolean;
+
+		/**
+		 * An event signaling when the selection state changes.
+		 */
+		readonly onDidChangeSelection: Event<boolean>;
 	}
 
 	//#endregion
@@ -341,7 +636,7 @@ declare module 'vscode' {
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including VT sequences.
 		 */
-		onData: Event<string>;
+		onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -351,12 +646,12 @@ declare module 'vscode' {
 		/**
 		 * The number of columns in the terminal.
 		 */
-		cols: number;
+		readonly columns: number;
 
 		/**
 		 * The number of rows in the terminal.
 		 */
-		rows: number;
+		readonly rows: number;
 	}
 
 	/**
@@ -368,10 +663,10 @@ declare module 'vscode' {
 	 * created with all its APIs available for use by extensions. When using the Terminal object
 	 * of a TerminalRenderer it acts just like normal only the extension that created the
 	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onData](#Terminal.onData) listener is registered, that will fire when
-	 * [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
+	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
-	 * [TerminalRenderer.onInput](#TerminalRenderer.onInput) event.
+	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
@@ -399,7 +694,7 @@ declare module 'vscode' {
 		 * };
 		 * ```
 		 */
-		dimensions: TerminalDimensions;
+		dimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The maximum dimensions of the terminal, this will be undefined immediately after a
@@ -407,12 +702,12 @@ declare module 'vscode' {
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
 		 */
-		readonly maximumDimensions: TerminalDimensions;
+		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
-		readonly terminal: Thenable<Terminal>;
+		readonly terminal: Terminal;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
@@ -441,49 +736,34 @@ declare module 'vscode' {
 		 * workbench command such as `workbench.action.terminal.runSelectedText`
 		 * ```typescript
 		 * const terminalRenderer = window.createTerminalRenderer('test');
-		 * terminalRenderer.onInput(data => {
+		 * terminalRenderer.onDidAcceptInput(data => {
 		 *   cosole.log(data); // 'Hello world'
 		 * });
 		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
 		 * ```
 		 */
-		onInput: Event<string>;
+		readonly onDidAcceptInput: Event<string>;
 
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
 		 * the terminal renderer change.
 		 */
-		onDidChangeMaximumDimensions: Event<TerminalDimensions>;
+		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
 
 	export namespace window {
 		/**
-		 * The currently opened terminals or an empty array.
-		 *
-		 * @readonly
-		 */
-		export let terminals: Terminal[];
-
-		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
 		 * currently has focus or most recently had focus.
-		 *
-		 * @readonly
 		 */
-		export let activeTerminal: Terminal | undefined;
+		export const activeTerminal: Terminal | undefined;
 
 		/**
 		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active editor changes
+		 * has changed. *Note* that the event also fires when the active terminal changes
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
-
-		/**
-		 * An [event](#Event) which fires when a terminal has been created, either through the
-		 * [createTerminal](#window.createTerminal) API or commands.
-		 */
-		export const onDidOpenTerminal: Event<Terminal>;
 
 		/**
 		 * Create a [TerminalRenderer](#TerminalRenderer).
@@ -495,161 +775,10 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region URLs
-
-	export interface ProtocolHandler {
-		handleUri(uri: Uri): void;
-	}
-
-	export namespace window {
-
-		/**
-		 * Registers a protocol handler capable of handling system-wide URIs.
-		 */
-		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
-	}
-
-	//#endregion
-
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
-	}
-
-	//#endregion
-
-	//#region QuickInput API
-
-	export namespace window {
-
-		export const quickInputBackButton: QuickInputButton;
-
-		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
-
-		export function createInputBox(): InputBox;
-	}
-
-	export interface QuickInput {
-
-		title: string | undefined;
-
-		step: number | undefined;
-
-		totalSteps: number | undefined;
-
-		enabled: boolean;
-
-		busy: boolean;
-
-		ignoreFocusOut: boolean;
-
-		show(): void;
-
-		hide(): void;
-
-		onDidHide: Event<void>;
-
-		dispose(): void;
-	}
-
-	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
-
-		value: string;
-
-		placeholder: string | undefined;
-
-		readonly onDidChangeValue: Event<string>;
-
-		readonly onDidAccept: Event<void>;
-
-		buttons: ReadonlyArray<QuickInputButton>;
-
-		readonly onDidTriggerButton: Event<QuickInputButton>;
-
-		items: ReadonlyArray<T>;
-
-		canSelectMany: boolean;
-
-		matchOnDescription: boolean;
-
-		matchOnDetail: boolean;
-
-		activeItems: ReadonlyArray<T>;
-
-		readonly onDidChangeActive: Event<T[]>;
-
-		selectedItems: ReadonlyArray<T>;
-
-		readonly onDidChangeSelection: Event<T[]>;
-	}
-
-	export interface InputBox extends QuickInput {
-
-		value: string;
-
-		placeholder: string | undefined;
-
-		password: boolean;
-
-		readonly onDidChangeValue: Event<string>;
-
-		readonly onDidAccept: Event<void>;
-
-		buttons: ReadonlyArray<QuickInputButton>;
-
-		readonly onDidTriggerButton: Event<QuickInputButton>;
-
-		prompt: string | undefined;
-
-		validationMessage: string | undefined;
-	}
-
-	export interface QuickInputButton {
-		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
-		readonly tooltip?: string | undefined;
-	}
-
-	//#endregion
-
-	//#region joh: https://github.com/Microsoft/vscode/issues/10659
-
-	/**
-	 * A workspace edit is a collection of textual and files changes for
-	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
-	 * to apply a workspace edit. Note that all changes are applied in the same order in which
-	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
-	 * file a' causes failure of the operation.
-	 */
-	export interface WorkspaceEdit {
-
-		/**
-		 * Create a regular file.
-		 *
-		 * @param uri Uri of the new file..
-		 * @param options Defines if an existing file should be overwritten or be ignored.
-		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
-
-		/**
-		 * Delete a file or folder.
-		 *
-		 * @param uri The uri of the file that is to be deleted.
-		 */
-		deleteFile(uri: Uri): void;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
-
-		// replaceText(uri: Uri, range: Range, newText: string): void;
-		// insertText(uri: Uri, position: Position, newText: string): void;
-		// deleteText(uri: Uri, range: Range): void;
 	}
 
 	//#endregion
@@ -670,111 +799,5 @@ declare module 'vscode' {
 		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
-	//#endregion
-
-	//#region Matt: WebView Serializer
-
-	/**
-	 * Restore webview panels that have been persisted when vscode shuts down.
-	 *
-	 * There are two types of webview persistence:
-	 *
-	 * - Persistence within a session.
-	 * - Persistence across sessions (across restarts of VS Code).
-	 *
-	 * A `WebviewPanelSerializer` is only required for the second case: persisting a webview across sessions.
-	 *
-	 * Persistence within a session allows a webview to save its state when it becomes hidden
-	 * and restore its content from this state when it becomes visible again. It is powered entirely
-	 * by the webview content itself. To save off a persisted state, call `acquireVsCodeApi().setState()` with
-	 * any json serializable object. To restore the state again, call `getState()`
-	 *
-	 * ```js
-	 * // Within the webview
-	 * const vscode = acquireVsCodeApi();
-	 *
-	 * // Get existing state
-	 * const oldState = vscode.getState() || { value: 0 };
-	 *
-	 * // Update state
-	 * setState({ value: oldState.value + 1 })
-	 * ```
-	 *
-	 * A `WebviewPanelSerializer` extends this persistence across restarts of VS Code. When the editor is shutdown, VS Code will save off the state from `setState` of all webviews that have a serializer. When the
-	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
-	 * The extension can then restore the old `WebviewPanel` from this state.
-	 */
-	interface WebviewPanelSerializer {
-		/**
-		 * Restore a webview panel from its seriailzed `state`.
-		 *
-		 * Called when a serialized webview first becomes visible.
-		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
-		 * @param state Persisted state.
-		 *
-		 * @return Thanble indicating that the webview has been fully restored.
-		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
-	}
-
-	namespace window {
-		/**
-		 * Registers a webview panel serializer.
-		 *
-		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
-		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
-		 *
-		 * Only a single serializer may be registered at a time for a given `viewType`.
-		 *
-		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param serializer Webview serializer.
-		 */
-		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
-	}
-
-	//#endregion
-
-	//#region Matt: Deinition range
-
-	/**
-	 * Information about where a symbol is defined.
-	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
-	 * the defining symbol
-	 */
-	export interface DefinitionLink {
-		/**
-		 * Span of the symbol being defined in the source file.
-		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
-		 * the definition position.
-		 */
-		origin?: Range;
-
-		/**
-		 * The resource identifier of the definition.
-		 */
-		uri: Uri;
-
-		/**
-		 * The full range of the definition.
-		 *
-		 * For a class definition for example, this would be the entire body of the class definition.
-		 */
-		range: Range;
-
-		/**
-		 * The span of the symbol definition.
-		 *
-		 * For a class definition, this would be the class name itself in the class definition.
-		 */
-		selectionRange?: Range;
-	}
-
-	export interface DefinitionProvider {
-		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
-	}
-
 	//#endregion
 }

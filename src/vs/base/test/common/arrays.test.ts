@@ -52,6 +52,11 @@ suite('Arrays', () => {
 		assert.deepEqual(data, [1, 2, 3, 4, 5, 6, 7, 8]);
 	});
 
+	test('mergeSort, sorted array', function () {
+		let data = arrays.mergeSort([1, 2, 3, 4, 5, 6], (a, b) => a - b);
+		assert.deepEqual(data, [1, 2, 3, 4, 5, 6]);
+	});
+
 	test('mergeSort, is stable', function () {
 
 		let numbers = arrays.mergeSort([33, 22, 11, 4, 99, 1], (a, b) => 0);

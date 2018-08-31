@@ -2,17 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
-
-import * as path from 'path';
 import * as fs from 'fs';
-
-import { workspace, window } from 'vscode';
-
+import * as path from 'path';
+import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
+import API from './api';
 import { TypeScriptServiceConfiguration } from './configuration';
 import { RelativeWorkspacePathResolver } from './relativePathResolver';
-import API from './api';
+const localize = nls.loadMessageBundle();
 
 
 export class TypeScriptVersion {
@@ -40,7 +37,7 @@ export class TypeScriptVersion {
 		}
 
 		// Allow TS developers to provide custom version
-		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
+		const tsdkVersion = vscode.workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
 		if (tsdkVersion) {
 			return API.fromVersionString(tsdkVersion);
 		}
@@ -143,16 +140,16 @@ export class TypeScriptVersionProvider {
 
 	public get bundledVersion(): TypeScriptVersion {
 		try {
-			const bundledVersion = new TypeScriptVersion(
-				path.dirname(require.resolve('typescript/lib/tsserver.js')),
-				'');
+			const { extensionPath } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
+			const typescriptPath = path.join(extensionPath, '../node_modules/typescript/lib');
+			const bundledVersion = new TypeScriptVersion(typescriptPath, '');
 			if (bundledVersion.isValid) {
 				return bundledVersion;
 			}
 		} catch (e) {
 			// noop
 		}
-		window.showErrorMessage(localize(
+		vscode.window.showErrorMessage(localize(
 			'noBundledServerFound',
 			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
 		throw new Error('Could not find bundled tsserver.js');
@@ -182,14 +179,14 @@ export class TypeScriptVersionProvider {
 	}
 
 	private loadTypeScriptVersionsFromPath(relativePath: string): TypeScriptVersion[] {
-		if (!workspace.workspaceFolders) {
+		if (!vscode.workspace.workspaceFolders) {
 			return [];
 		}
 
 		const versions: TypeScriptVersion[] = [];
-		for (const root of workspace.workspaceFolders) {
+		for (const root of vscode.workspace.workspaceFolders) {
 			let label: string = relativePath;
-			if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
+			if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 1) {
 				label = path.join(root.name, relativePath);
 			}
 

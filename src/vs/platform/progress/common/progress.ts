@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -24,7 +23,7 @@ export interface IProgressService {
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: TPromise<any>, delay?: number): TPromise<void>;
+	showWhile(promise: Thenable<any>, delay?: number): Thenable<void>;
 }
 
 export interface IProgressRunner {

@@ -38,7 +38,7 @@ export function removeTag() {
 
 function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selection: vscode.Selection, indentInSpaces: string): vscode.Range[] {
 
-	let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start);
+	let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start, true);
 	if (!nodeToUpdate) {
 		return [];
 	}

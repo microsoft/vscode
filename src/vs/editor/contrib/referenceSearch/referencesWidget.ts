@@ -4,46 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/referencesWidget';
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { getPathLabel } from 'vs/base/common/labels';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Color } from 'vs/base/common/color';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { FileLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Color } from 'vs/base/common/color';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
+import { Location } from 'vs/editor/common/modes';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Location } from 'vs/editor/common/modes';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+
 
 class DecorationsManager implements IDisposable {
 
@@ -274,9 +274,9 @@ class Controller extends WorkbenchTreeController {
 	private _expandCollapse(tree: tree.ITree, element: any): boolean {
 
 		if (tree.isExpanded(element)) {
-			tree.collapse(element).done(null, onUnexpectedError);
+			tree.collapse(element).then(null, onUnexpectedError);
 		} else {
-			tree.expand(element).done(null, onUnexpectedError);
+			tree.expand(element).then(null, onUnexpectedError);
 		}
 		return true;
 	}
@@ -294,20 +294,19 @@ class Controller extends WorkbenchTreeController {
 
 class FileReferencesTemplate {
 
-	readonly file: FileLabel;
+	readonly file: IconLabel;
 	readonly badge: CountBadge;
 	readonly dispose: () => void;
 
 	constructor(
 		container: HTMLElement,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
+		@ILabelService private readonly _uriLabel: ILabelService,
 		@IThemeService themeService: IThemeService,
 	) {
 		const parent = document.createElement('div');
 		dom.addClass(parent, 'reference-file');
 		container.appendChild(parent);
-		this.file = new FileLabel(parent, URI.parse('no:file'), this._contextService, this._environmentService);
+		this.file = new IconLabel(parent);
 
 		this.badge = new CountBadge($('.count').appendTo(parent).getHTMLElement());
 		const styler = attachBadgeStyler(this.badge, themeService);
@@ -319,7 +318,8 @@ class FileReferencesTemplate {
 	}
 
 	set(element: FileReferences) {
-		this.file.setFile(element.uri, this._contextService, this._environmentService);
+		let parent = dirname(element.uri);
+		this.file.setValue(getBaseLabel(element.uri), parent ? this._uriLabel.getUriLabel(parent, true) : undefined, { title: this._uriLabel.getUriLabel(element.uri) });
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {
@@ -367,9 +367,8 @@ class Renderer implements tree.IRenderer {
 	};
 
 	constructor(
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@optional(IEnvironmentService) private _environmentService: IEnvironmentService,
+		@ILabelService private readonly _uriLabel: ILabelService,
 	) {
 		//
 	}
@@ -389,7 +388,7 @@ class Renderer implements tree.IRenderer {
 
 	renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement) {
 		if (templateId === Renderer._ids.FileReferences) {
-			return new FileReferencesTemplate(container, this._contextService, this._environmentService, this._themeService);
+			return new FileReferencesTemplate(container, this._uriLabel, this._themeService);
 		} else if (templateId === Renderer._ids.OneReference) {
 			return new OneReferenceTemplate(container);
 		}
@@ -530,11 +529,10 @@ export class ReferenceWidget extends PeekViewWidget {
 		editor: ICodeEditor,
 		private _defaultTreeKeyboardSupport: boolean,
 		public layoutData: LayoutData,
-		private _textModelResolverService: ITextModelService,
-		private _contextService: IWorkspaceContextService,
-		themeService: IThemeService,
-		private _instantiationService: IInstantiationService,
-		private _environmentService: IEnvironmentService
+		@IThemeService themeService: IThemeService,
+		@ITextModelService private _textModelResolverService: ITextModelService,
+		@IInstantiationService private _instantiationService: IInstantiationService,
+		@ILabelService private _uriLabel: ILabelService
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
 
@@ -574,7 +572,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._tree.domFocus();
 	}
 
-	protected _onTitleClick(e: MouseEvent): void {
+	protected _onTitleClick(e: IMouseEvent): void {
 		if (this._preview && this._preview.getModel()) {
 			this._onDidSelectReference.fire({
 				element: this._getFocusedReference(),
@@ -705,7 +703,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._preview.layout();
 	}
 
-	public setSelection(selection: OneReference): TPromise<any> {
+	public setSelection(selection: OneReference): Promise<any> {
 		return this._revealReference(selection, true).then(() => {
 
 			// show in tree
@@ -776,11 +774,11 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private async _revealReference(reference: OneReference, revealParent: boolean): TPromise<void> {
+	private async _revealReference(reference: OneReference, revealParent: boolean): Promise<void> {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(reference.name, getPathLabel(reference.directory, this._environmentService, this._contextService));
+			this.setTitle(basenameOrAuthority(reference.uri), this._uriLabel.getUriLabel(dirname(reference.uri), false));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

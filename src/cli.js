@@ -20,8 +20,20 @@ function getApplicationPath() {
 	}
 }
 
-const portableDataName = product.portable || `${product.applicationName}-portable-data`;
-const portableDataPath = path.join(path.dirname(getApplicationPath()), portableDataName);
+function getPortableDataPath() {
+	if (process.env['VSCODE_PORTABLE']) {
+		return process.env['VSCODE_PORTABLE'];
+	}
+
+	if (process.platform === 'win32' || process.platform === 'linux') {
+		return path.join(getApplicationPath(), 'data');
+	} else {
+		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
+		return path.join(path.dirname(getApplicationPath()), portableDataName);
+	}
+}
+
+const portableDataPath = getPortableDataPath();
 const isPortable = fs.existsSync(portableDataPath);
 const portableTempPath = path.join(portableDataPath, 'tmp');
 const isTempPortable = isPortable && fs.existsSync(portableTempPath);

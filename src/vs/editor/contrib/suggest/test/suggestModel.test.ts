@@ -30,13 +30,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
-	return createTestCodeEditor({
+	let editor = createTestCodeEditor({
 		model: model,
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, NullStorageService]
-		)
+		),
 	});
+	editor.registerAndInstantiateContribution(SnippetController2);
+	return editor;
 }
 
 suite('SuggestModel - Context', function () {

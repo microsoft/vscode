@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, ISession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
-import { Thread, StackFrame, ThreadAndSessionIds, Session, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, StackFrame, ThreadAndSessionIds, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -27,8 +27,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { getPathLabel } from 'vs/base/common/labels';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { Session } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 const $ = dom.$;
 
@@ -88,10 +88,10 @@ export class CallStackView extends TreeViewsViewletPanel {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
-		const title = dom.append(container, $('.title.debug-call-stack-title'));
-		const name = dom.append(title, $('span'));
-		name.textContent = this.options.title;
-		this.pauseMessage = dom.append(title, $('span.pause-message'));
+		let titleContainer = dom.append(container, $('.debug-call-stack-title'));
+		super.renderHeaderTitle(titleContainer, this.options.title);
+
+		this.pauseMessage = dom.append(titleContainer, $('span.pause-message'));
 		this.pauseMessage.hidden = true;
 		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
 	}
@@ -289,7 +289,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new Separator());
 			actions.push(new TerminateThreadAction(TerminateThreadAction.ID, TerminateThreadAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof StackFrame) {
-			if (element.thread.session.raw.capabilities.supportsRestartFrame) {
+			if (element.thread.session.capabilities.supportsRestartFrame) {
 				actions.push(new RestartFrameAction(RestartFrameAction.ID, RestartFrameAction.LABEL, this.debugService, this.keybindingService));
 			}
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
@@ -337,7 +337,7 @@ class CallStackDataSource implements IDataSource {
 		}
 
 		return callStackPromise.then(() => {
-			if (callStack.length === 1 && thread.session.raw.capabilities.supportsDelayedStackTraceLoading) {
+			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading) {
 				// To reduce flashing of the call stack view simply append the stale call stack
 				// once we have the correct data the tree will refresh and we will no longer display it.
 				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
@@ -399,7 +399,7 @@ class CallStackRenderer implements IRenderer {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ILabelService private labelService: ILabelService
 	) {
 		// noop
 	}
@@ -518,8 +518,7 @@ class CallStackRenderer implements IRenderer {
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
-		const path = stackFrame.source.raw.path || stackFrame.source.name;
-		data.file.title = getPathLabel(path, this.environmentService);
+		data.file.title = stackFrame.source.inMemory ? stackFrame.source.name : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}

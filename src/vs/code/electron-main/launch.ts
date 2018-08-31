@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -16,10 +16,11 @@ import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { BrowserWindow } from 'electron';
+import { Event } from 'vs/base/common/event';
+import { hasArgs } from 'vs/platform/environment/node/argv';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -32,7 +33,7 @@ export interface IStartArguments {
 export interface IWindowInfo {
 	pid: number;
 	title: string;
-	folders: string[];
+	folderURIs: UriComponents[];
 }
 
 export interface IMainProcessInfo {
@@ -79,7 +80,11 @@ export class LaunchChannel implements ILaunchChannel {
 
 	constructor(private service: ILaunchService) { }
 
-	public call(command: string, arg: any): TPromise<any> {
+	listen<T>(event: string): Event<T> {
+		throw new Error('No event found');
+	}
+
+	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
 			case 'start':
 				const { args, userEnv } = arg as IStartArguments;
@@ -105,19 +110,19 @@ export class LaunchChannelClient implements ILaunchService {
 
 	constructor(private channel: ILaunchChannel) { }
 
-	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		return this.channel.call('start', { args, userEnv });
 	}
 
-	public getMainProcessId(): TPromise<number> {
+	getMainProcessId(): TPromise<number> {
 		return this.channel.call('get-main-process-id', null);
 	}
 
-	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
+	getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		return this.channel.call('get-main-process-info', null);
 	}
 
-	public getLogsPath(): TPromise<string> {
+	getLogsPath(): TPromise<string> {
 		return this.channel.call('get-logs-path', null);
 	}
 }
@@ -135,7 +140,7 @@ export class LaunchService implements ILaunchService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
+	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		const urlsToOpen = parseOpenUrl(args);
@@ -174,7 +179,7 @@ export class LaunchService implements ILaunchService {
 		}
 
 		// Start without file/folder arguments
-		else if (args._.length === 0) {
+		else if (!hasArgs(args._) && !hasArgs(args['folder-uri']) && !hasArgs(args['file-uri'])) {
 			let openNewWindow = false;
 
 			// Force new window
@@ -237,13 +242,13 @@ export class LaunchService implements ILaunchService {
 		return TPromise.as(null);
 	}
 
-	public getMainProcessId(): TPromise<number> {
+	getMainProcessId(): TPromise<number> {
 		this.logService.trace('Received request for process ID from other instance.');
 
 		return TPromise.as(process.pid);
 	}
 
-	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
+	getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowInfo[] = [];
@@ -263,34 +268,32 @@ export class LaunchService implements ILaunchService {
 		} as IMainProcessInfo);
 	}
 
-	public getLogsPath(): TPromise<string> {
+	getLogsPath(): TPromise<string> {
 		this.logService.trace('Received request for logs path from other instance.');
 
 		return TPromise.as(this.environmentService.logsPath);
 	}
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
-		const folders: string[] = [];
+		const folderURIs: URI[] = [];
 
-		if (window.openedFolderPath) {
-			folders.push(window.openedFolderPath);
+		if (window.openedFolderUri) {
+			folderURIs.push(window.openedFolderUri);
 		} else if (window.openedWorkspace) {
 			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
 			rootFolders.forEach(root => {
-				if (root.uri.scheme === Schemas.file) { // todo@remote signal remote folders?
-					folders.push(root.uri.fsPath);
-				}
+				folderURIs.push(root.uri);
 			});
 		}
 
-		return this.browserWindowToInfo(window.win, folders);
+		return this.browserWindowToInfo(window.win, folderURIs);
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folders: string[] = []): IWindowInfo {
+	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = []): IWindowInfo {
 		return {
 			pid: win.webContents.getOSProcessId(),
 			title: win.getTitle(),
-			folders
+			folderURIs
 		} as IWindowInfo;
 	}
 }

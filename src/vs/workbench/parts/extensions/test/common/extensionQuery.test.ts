@@ -140,4 +140,12 @@ suite('Extension query', () => {
 		query2 = new Query('hello', 'installs', '');
 		assert(!query1.equals(query2));
 	});
+
+	test('autocomplete', () => {
+		Query.suggestions('@sort:in').some(x => x === '@sort:installs ');
+		Query.suggestions('@sort:installs').every(x => x !== '@sort:rating ');
+
+		Query.suggestions('@category:blah').some(x => x === '@category:"extension packs" ');
+		Query.suggestions('@category:"extension packs"').every(x => x !== '@category:formatters ');
+	});
 });

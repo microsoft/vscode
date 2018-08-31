@@ -49,8 +49,8 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.debugService.onDidChangeState(state => this.updateStyles()));
-		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(state => this.updateStyles()));
+		this._register(this.debugService.onDidChangeState(state => this.updateStyles()));
+		this._register(this.contextService.onDidChangeWorkbenchState(state => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {

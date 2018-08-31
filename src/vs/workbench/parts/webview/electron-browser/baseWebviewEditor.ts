@@ -77,4 +77,10 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 			this._webview.focus();
 		}
 	}
+
+	public selectAll(): void {
+		if (this._webview) {
+			this._webview.selectAll();
+		}
+	}
 }

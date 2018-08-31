@@ -27,8 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -39,22 +39,24 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { RPCProtocol, IRPCProtocolLogger } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { isEqualOrParent } from 'vs/base/common/resources';
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+		_SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
 	}
 	return _SystemExtensionsRoot;
 }
 let _ExtraDevSystemExtensionsRoot: string = null;
 function getExtraDevSystemExtensionsRoot(): string {
 	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', '.build', 'builtInExtensions'));
+		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
 	}
 	return _ExtraDevSystemExtensionsRoot;
 }
@@ -118,14 +120,14 @@ export class ExtensionHostProcessManager extends Disposable {
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
 	private _extensionHostProcessRPCProtocol: RPCProtocol;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
-	private readonly _extensionHostProcessWorker: ExtensionHostProcessWorker;
+	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
 	 */
-	private readonly _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
+	private _extensionHostProcessProxy: TPromise<{ value: ExtHostExtensionServiceShape; }>;
 
 	constructor(
-		extensionHostProcessWorker: ExtensionHostProcessWorker,
+		extensionHostProcessWorker: IExtensionHostStarter,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -134,7 +136,6 @@ export class ExtensionHostProcessManager extends Disposable {
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessRPCProtocol = null;
 		this._extensionHostProcessCustomers = [];
-		this._extensionHostProcessProxy = null;
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
 		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
@@ -168,6 +169,7 @@ export class ExtensionHostProcessManager extends Disposable {
 				errors.onUnexpectedError(err);
 			}
 		}
+		this._extensionHostProcessProxy = null;
 
 		super.dispose();
 	}
@@ -178,11 +180,12 @@ export class ExtensionHostProcessManager extends Disposable {
 
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
+		let logger: IRPCProtocolLogger = null;
 		if (logExtensionHostCommunication || this._environmentService.logExtensionHostCommunication) {
-			protocol = asLoggingProtocol(protocol);
+			logger = new RPCLogger();
 		}
 
-		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol);
+		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
 		const extHostContext: IExtHostContext = {
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
@@ -218,6 +221,11 @@ export class ExtensionHostProcessManager extends Disposable {
 			return NO_OP_VOID_PROMISE;
 		}
 		return this._extensionHostProcessProxy.then((proxy) => {
+			if (!proxy) {
+				// this case is already covered above and logged.
+				// i.e. the extension host could not be started
+				return NO_OP_VOID_PROMISE;
+			}
 			return proxy.value.$activateByEvent(activationEvent);
 		}).then(() => {
 			this._extensionHostProcessFinishedActivateEvents[activationEvent] = true;
@@ -281,8 +289,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this.startDelayed(lifecycleService);
 
-		if (this._environmentService.disableExtensions) {
-			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All extensions are temporarily disabled. Reload the window to return to the previous state."), [{
+		if (this._extensionEnablementService.allUserExtensionsDisabled) {
+			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
 				label: nls.localize('Reload', "Reload"),
 				run: () => {
 					this._windowService.reloadWindow();
@@ -513,7 +521,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource(source, message) : message);
 		});
 
-		return ExtensionService._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, log)
+		return ExtensionService._scanInstalledExtensions(this._windowService, this._notificationService, this._environmentService, this._extensionEnablementService, log)
 			.then(({ system, user, development }) => {
 				let result: { [extensionId: string]: IExtensionDescription; } = {};
 				system.forEach((systemExtension) => {
@@ -536,7 +544,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			});
 	}
 
-	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): TPromise<IExtensionDescription[]> {
+	private _getRuntimeExtensions(allExtensions: IExtensionDescription[]): Promise<IExtensionDescription[]> {
 		return this._extensionEnablementService.getDisabledExtensions()
 			.then(disabledExtensions => {
 
@@ -544,11 +552,25 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const extensionsToDisable: IExtensionIdentifier[] = [];
 				const userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
-				const enableProposedApiForAll = !this._environmentService.isBuilt || (!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0);
 				const enableProposedApiFor: string | string[] = this._environmentService.args['enable-proposed-api'] || [];
 
+				const notFound = (id: string) => nls.localize('notFound', "Extension \`{0}\` cannot use PROPOSED API as it cannot be found", id);
+
+				if (enableProposedApiFor.length) {
+					let allProposed = (enableProposedApiFor instanceof Array ? enableProposedApiFor : [enableProposedApiFor]);
+					allProposed.forEach(id => {
+						if (!allExtensions.some(description => description.id === id)) {
+							console.error(notFound(id));
+						}
+					});
+				}
+
+				const enableProposedApiForAll = !this._environmentService.isBuilt ||
+					(!!this._environmentService.extensionDevelopmentLocationURI && product.nameLong.indexOf('Insiders') >= 0) ||
+					(enableProposedApiFor.length === 0 && 'enable-proposed-api' in this._environmentService.args);
+
 				for (const extension of allExtensions) {
-					const isExtensionUnderDevelopment = this._environmentService.isExtensionDevelopment && extension.extensionLocation.scheme === Schemas.file && extension.extensionLocation.fsPath.indexOf(this._environmentService.extensionDevelopmentPath) === 0;
+					const isExtensionUnderDevelopment = this._environmentService.isExtensionDevelopment && isEqualOrParent(extension.extensionLocation, this._environmentService.extensionDevelopmentLocationURI);
 					// Do not disable extensions under development
 					if (!isExtensionUnderDevelopment) {
 						if (disabledExtensions.some(disabled => areSameExtensions(disabled, extension))) {
@@ -646,7 +668,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _validateExtensionsCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
+	private static async _validateExtensionsCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): Promise<void> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -681,7 +703,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		);
 	}
 
-	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): TPromise<IExtensionCacheData> {
+	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): Promise<IExtensionCacheData> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -695,7 +717,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return null;
 	}
 
-	private static async _writeExtensionCache(environmentService: IEnvironmentService, cacheKey: string, cacheContents: IExtensionCacheData): TPromise<void> {
+	private static async _writeExtensionCache(environmentService: IEnvironmentService, cacheKey: string, cacheContents: IExtensionCacheData): Promise<void> {
 		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
@@ -712,7 +734,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _scanExtensionsWithCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+	private static async _scanExtensionsWithCache(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
 			return ExtensionScanner.scanExtensions(input, log);
@@ -756,7 +778,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return result;
 	}
 
-	private static _scanInstalledExtensions(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	private static _scanInstalledExtensions(windowService: IWindowService, notificationService: INotificationService, environmentService: IEnvironmentService, extensionEnablementService: IExtensionEnablementService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 
 		const translationConfig: TPromise<Translations> = platform.translationsConfigFile
 			? pfs.readFile(platform.translationsConfigFile, 'utf8').then((content) => {
@@ -785,10 +807,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				log
 			);
 
-			let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = builtinExtensions;
+			let finalBuiltinExtensions: TPromise<IExtensionDescription[]> = TPromise.wrap(builtinExtensions);
 
 			if (devMode) {
-				const builtInExtensionsFilePath = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'build', 'builtInExtensions.json'));
+				const builtInExtensionsFilePath = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'build', 'builtInExtensions.json'));
 				const builtInExtensions = pfs.readFile(builtInExtensionsFilePath, 'utf8')
 					.then<IBuiltInExtension[]>(raw => JSON.parse(raw));
 
@@ -828,7 +850,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 
 			const userExtensions = (
-				environmentService.disableExtensions || !environmentService.extensionsPath
+				extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
 					? TPromise.as([])
 					: this._scanExtensionsWithCache(
 						windowService,
@@ -841,13 +863,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			);
 
 			// Always load developed extensions while extensions development
-			const developedExtensions = (
-				environmentService.isExtensionDevelopment
-					? ExtensionScanner.scanOneOrMultipleExtensions(
-						new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentPath, false, true, translations), log
-					)
-					: TPromise.as([])
-			);
+			let developedExtensions = TPromise.as([]);
+			if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
+				developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
+					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentLocationURI.fsPath, false, true, translations), log
+				);
+			}
 
 			return TPromise.join([finalBuiltinExtensions, userExtensions, developedExtensions]).then((extensionDescriptions: IExtensionDescription[][]) => {
 				const system = extensionDescriptions[0];
@@ -934,20 +955,20 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 }
 
-function asLoggingProtocol(protocol: IMessagePassingProtocol): IMessagePassingProtocol {
+class RPCLogger implements IRPCProtocolLogger {
 
-	protocol.onMessage(msg => {
-		console.log('%c[Extension \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
-	});
+	private _totalIncoming = 0;
+	private _totalOutgoing = 0;
 
-	return {
-		onMessage: protocol.onMessage,
+	logIncoming(msgLength: number, str: string, data?: any): void {
+		this._totalIncoming += msgLength;
+		console.log(`%c[Extension \u2192 Window]%c[${strings.pad(this._totalIncoming, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
+	}
 
-		send(msg: any) {
-			protocol.send(msg);
-			console.log('%c[Window \u2192 Extension]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
-		}
-	};
+	logOutgoing(msgLength: number, str: string, data?: any): void {
+		this._totalOutgoing += msgLength;
+		console.log(`%c[Window \u2192 Extension]%c[${strings.pad(this._totalOutgoing, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
+	}
 }
 
 interface IExtensionCacheData {
