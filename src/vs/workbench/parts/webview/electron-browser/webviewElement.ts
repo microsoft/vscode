@@ -49,9 +49,6 @@ export class WebviewElement extends Disposable {
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
 
-		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
-
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
 

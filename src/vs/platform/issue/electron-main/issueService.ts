@@ -67,10 +67,7 @@ export class IssueService implements IIssueService {
 				x: position.x,
 				y: position.y,
 				title: localize('issueReporter', "Issue Reporter"),
-				backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
-				webPreferences: {
-					disableBlinkFeatures: 'Auxclick'
-				}
+				backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR
 			});
 
 			this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
@@ -117,10 +114,7 @@ export class IssueService implements IIssueService {
 				x: position.x,
 				y: position.y,
 				backgroundColor: data.styles.backgroundColor,
-				title: localize('processExplorer', "Process Explorer"),
-				webPreferences: {
-					disableBlinkFeatures: 'Auxclick'
-				}
+				title: localize('processExplorer', "Process Explorer")
 			});
 
 			this._processExplorerWindow.setMenuBarVisibility(false);
