@@ -5,12 +5,12 @@
 
 'use strict';
 
-import * as errors from 'vs/base/common/errors';
-import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
+import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -109,33 +109,6 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 		});
 	}
 	return always(promise, () => subscription.dispose());
-}
-
-export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, bucket?: IDisposable[]): { promise: Thenable<T> } & IDisposable {
-	let dispose: () => void;
-	let promise = new TPromise((resolve, reject) => {
-		dispose = function () {
-			resolve(cancelValue);
-			if (isWinJSPromise(input)) {
-				input.cancel();
-			}
-		};
-		input.then(resolve, err => {
-			if (errors.isPromiseCanceledError(err)) {
-				resolve(cancelValue);
-			} else {
-				reject(err);
-			}
-		});
-	});
-	let res = {
-		promise,
-		dispose
-	};
-	if (Array.isArray(bucket)) {
-		bucket.push(res);
-	}
-	return res;
 }
 
 export interface ITask<T> {
