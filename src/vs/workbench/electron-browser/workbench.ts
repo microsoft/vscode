@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, EditorIsFirstGroupContext, EditorIsLastGroupContext, EditorGroupIndexContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -626,10 +626,18 @@ export class Workbench extends Disposable implements IPartService {
 		const textCompareEditorActive = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
 		const activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
 		const multipleEditorGroups = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
+		const editorIsFirstGroupContext = EditorIsFirstGroupContext.bindTo(this.contextKeyService);
+		const editorIsLastGroupContext = EditorIsLastGroupContext.bindTo(this.contextKeyService);
+		const editorGroupIndexContext = EditorGroupIndexContext.bindTo(this.contextKeyService);
 
 		const updateEditorContextKeys = () => {
 			const activeControl = this.editorService.activeControl;
 			const visibleEditors = this.editorService.visibleControls;
+			const editorGroupIndex = visibleEditors.indexOf(activeControl);
+
+			editorGroupIndexContext.set(editorGroupIndex);
+			editorIsFirstGroupContext.set(editorGroupIndex === 0);
+			editorIsLastGroupContext.set(editorGroupIndex === visibleEditors.length - 1);
 
 			textCompareEditorActive.set(activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
 			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));

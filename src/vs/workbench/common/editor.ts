@@ -31,6 +31,9 @@ export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleE
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
+export const EditorIsFirstGroupContext = new RawContextKey<boolean>('isFirstGroup', false);
+export const EditorIsLastGroupContext = new RawContextKey<boolean>('isLastGroup', false);
+export const EditorGroupIndexContext = new RawContextKey<number>('editorGroupIndex', 0);
 
 /**
  * Text diff editor id.
