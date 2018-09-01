@@ -281,6 +281,11 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
+	 * Restore the previous scroll position on file open.
+	 * Defaults to true.
+	 */
+	restoreViewState?: boolean;
+	/**
 	 * Control the behavior and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
@@ -990,6 +995,7 @@ export interface IValidatedEditorOptions {
 	readonly lineNumbersMinChars: number;
 	readonly lineDecorationsWidth: number | string;
 	readonly readOnly: boolean;
+	readonly restoreViewState: boolean;
 	readonly mouseStyle: 'text' | 'default' | 'copy';
 	readonly disableLayerHinting: boolean;
 	readonly automaticLayout: boolean;
@@ -1027,6 +1033,7 @@ export class InternalEditorOptions {
 	readonly editorClassName: string;
 	readonly lineHeight: number;
 	readonly readOnly: boolean;
+	readonly restoreViewState: boolean;
 	/**
 	 * @internal
 	 */
@@ -1062,6 +1069,7 @@ export class InternalEditorOptions {
 		editorClassName: string;
 		lineHeight: number;
 		readOnly: boolean;
+		restoreViewState: boolean;
 		accessibilitySupport: platform.AccessibilitySupport;
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		multiCursorMergeOverlapping: boolean;
@@ -1086,6 +1094,7 @@ export class InternalEditorOptions {
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight | 0;
 		this.readOnly = source.readOnly;
+		this.restoreViewState = source.restoreViewState;
 		this.accessibilitySupport = source.accessibilitySupport;
 		this.multiCursorModifier = source.multiCursorModifier;
 		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
@@ -1116,6 +1125,7 @@ export class InternalEditorOptions {
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
+			&& this.restoreViewState == other.restoreViewState
 			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
@@ -1735,6 +1745,7 @@ export class EditorOptionsValidator {
 			lineNumbersMinChars: _clampedInt(opts.lineNumbersMinChars, defaults.lineNumbersMinChars, 1, 10),
 			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
 			readOnly: _boolean(opts.readOnly, defaults.readOnly),
+			restoreViewState: _boolean(opts.restoreViewState, defaults.restoreViewState),
 			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
 			disableLayerHinting: _boolean(opts.disableLayerHinting, defaults.disableLayerHinting),
 			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
@@ -2018,6 +2029,7 @@ export class InternalEditorOptionsFactory {
 			lineNumbersMinChars: opts.lineNumbersMinChars,
 			lineDecorationsWidth: opts.lineDecorationsWidth,
 			readOnly: opts.readOnly,
+			restoreViewState: opts.restoreViewState,
 			mouseStyle: opts.mouseStyle,
 			disableLayerHinting: opts.disableLayerHinting,
 			automaticLayout: opts.automaticLayout,
@@ -2247,6 +2259,7 @@ export class InternalEditorOptionsFactory {
 			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
+			restoreViewState: opts.restoreViewState,
 			accessibilitySupport: accessibilitySupport,
 			multiCursorModifier: opts.multiCursorModifier,
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
@@ -2476,6 +2489,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	lineNumbersMinChars: 5,
 	lineDecorationsWidth: 10,
 	readOnly: false,
+	restoreViewState: true,
 	mouseStyle: 'text',
 	disableLayerHinting: false,
 	automaticLayout: false,
