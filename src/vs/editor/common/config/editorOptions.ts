@@ -1125,7 +1125,7 @@ export class InternalEditorOptions {
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
-			&& this.restoreViewState == other.restoreViewState
+			&& this.restoreViewState === other.restoreViewState
 			&& this.accessibilitySupport === other.accessibilitySupport
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
