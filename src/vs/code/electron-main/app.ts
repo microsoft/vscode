@@ -63,7 +63,7 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -232,8 +232,8 @@ export class CodeApplication {
 			}
 		});
 
-		ipc.on('vscode:labelRegisterFormater', (event: any, { scheme, formater }) => {
-			this.labelService.registerFormatter(scheme, formater);
+		ipc.on('vscode:labelRegisterFormater', (event: any, data: RegisterFormatterEvent) => {
+			this.labelService.registerFormatter(data.scheme, data.formatter);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: Event) => {
