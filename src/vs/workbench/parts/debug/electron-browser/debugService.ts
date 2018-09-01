@@ -641,6 +641,10 @@ export class DebugService implements IDebugService {
 		).then(() => {
 			this.initializing = false;
 			this.onStateChange();
+		}, err => {
+			this.initializing = false;
+			this.onStateChange();
+			return TPromise.wrapError(err);
 		});
 	}
 
