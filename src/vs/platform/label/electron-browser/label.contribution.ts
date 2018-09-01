@@ -17,7 +17,7 @@ class LabelRegistrationContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
 		labelService.onDidRegisterFormatter(data => {
-			ipc.send('vscode:labelRegisterFormater', data);
+			ipc.send('vscode:labelRegisterFormatter', data);
 		});
 	}
 }
