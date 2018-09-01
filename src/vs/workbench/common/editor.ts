@@ -33,6 +33,10 @@ export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', fa
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
 export const EditorIsFirstGroupContext = new RawContextKey<boolean>('isFirstGroup', false);
 export const EditorIsLastGroupContext = new RawContextKey<boolean>('isLastGroup', false);
+export const EditorIsLeftGroupContext = new RawContextKey<boolean>('isLeftGroup', false);
+export const EditorIsRightGroupContext = new RawContextKey<boolean>('isRightGroup', false);
+export const EditorIsBottomGroupContext = new RawContextKey<boolean>('isBottomGroup', false);
+export const EditorIsTopGroupContext = new RawContextKey<boolean>('isTopGroup', false);
 export const EditorGroupIndexContext = new RawContextKey<number>('editorGroupIndex', 0);
 
 /**

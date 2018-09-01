@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, EditorIsFirstGroupContext, EditorIsLastGroupContext, EditorGroupIndexContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, EditorIsFirstGroupContext, EditorIsLastGroupContext, EditorIsLeftGroupContext, EditorIsRightGroupContext, EditorIsBottomGroupContext, EditorIsTopGroupContext, EditorGroupIndexContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -117,6 +117,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { LabelService, ILabelService } from 'vs/platform/label/common/label';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -628,9 +629,13 @@ export class Workbench extends Disposable implements IPartService {
 		const multipleEditorGroups = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
 		const editorIsFirstGroupContext = EditorIsFirstGroupContext.bindTo(this.contextKeyService);
 		const editorIsLastGroupContext = EditorIsLastGroupContext.bindTo(this.contextKeyService);
+		const editorIsLeftGroupContext = EditorIsLeftGroupContext.bindTo(this.contextKeyService);
+		const editorIsRightGroupContext = EditorIsRightGroupContext.bindTo(this.contextKeyService);
+		const editorIsTopGroupContext = EditorIsTopGroupContext.bindTo(this.contextKeyService);
+		const editorIsBottomGroupContext = EditorIsBottomGroupContext.bindTo(this.contextKeyService);
 		const editorGroupIndexContext = EditorGroupIndexContext.bindTo(this.contextKeyService);
 
-		const updateEditorContextKeys = () => {
+		const updateEditorGroupPositionContextKeys = () => {
 			const activeControl = this.editorService.activeControl;
 			const visibleEditors = this.editorService.visibleControls;
 			const editorGroupIndex = visibleEditors.indexOf(activeControl);
@@ -638,6 +643,41 @@ export class Workbench extends Disposable implements IPartService {
 			editorGroupIndexContext.set(editorGroupIndex);
 			editorIsFirstGroupContext.set(editorGroupIndex === 0);
 			editorIsLastGroupContext.set(editorGroupIndex === visibleEditors.length - 1);
+
+			let maxXValue = 0;
+			let minXValue = Number.MAX_VALUE;
+			let maxYValue = 0;
+			let minYValue = Number.MAX_VALUE;
+			visibleEditors.forEach((control, index) => {
+				const groupView = control.group as IEditorGroupView;
+				const { x, y, width, height } = groupView.element.getBoundingClientRect() as DOMRect;
+
+				if (x + width > maxXValue) {
+					maxXValue = x + width;
+				}
+				if (x < minXValue) {
+					minXValue = x;
+				}
+				if (y + height > maxYValue) {
+					maxYValue = y + height;
+				}
+				if (y < minYValue) {
+					minYValue = y;
+				}
+			});
+
+			const activeControlGroupView = activeControl.group as IEditorGroupView;
+			const activeControlRect = activeControlGroupView.element.getBoundingClientRect() as DOMRect;
+
+			editorIsLeftGroupContext.set(activeControlRect.x <= minXValue);
+			editorIsRightGroupContext.set(activeControlRect.x + activeControlRect.width >= maxXValue);
+			editorIsTopGroupContext.set(activeControlRect.y <= minYValue);
+			editorIsBottomGroupContext.set(activeControlRect.y + activeControlRect.height >= maxYValue);
+		};
+
+		const updateEditorContextKeys = () => {
+			const activeControl = this.editorService.activeControl;
+			const visibleEditors = this.editorService.visibleControls;
 
 			textCompareEditorActive.set(activeControl && activeControl.getId() === TEXT_DIFF_EDITOR_ID);
 			textCompareEditorVisible.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
@@ -659,6 +699,8 @@ export class Workbench extends Disposable implements IPartService {
 			} else {
 				multipleEditorGroups.reset();
 			}
+
+			updateEditorGroupPositionContextKeys();
 		};
 
 		this.editorPart.whenRestored.then(() => updateEditorContextKeys());
