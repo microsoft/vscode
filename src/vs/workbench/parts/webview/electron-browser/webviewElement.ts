@@ -311,9 +311,8 @@ export class WebviewElement extends Disposable {
 
 	public focus(): void {
 
-		// Electron 3.0.x: this seems to be the only way how to make the <webview> truly have focus
-		// ever since it moved to OOPIF.
-		this._webview.sendInputEvent({ type: 'mouseDown', x: 0, y: 0, button: 'left', clickCount: 1 });
+		// TODO@Ben use webview.focus() once available (see https://github.com/electron/electron/issues/14259#issuecomment-417932015)
+		(<any>this._webview).contentWindow.focus();
 
 		// Handle focus change programmatically (do not rely on event from <webview>)
 		this.handleFocusChange(true);
