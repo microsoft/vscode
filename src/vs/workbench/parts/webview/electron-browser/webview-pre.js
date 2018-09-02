@@ -138,14 +138,6 @@
 			});
 		});
 
-		// propagate focus
-		ipcRenderer.on('focus', () => {
-			const target = getActiveFrame();
-			if (target) {
-				target.contentWindow.focus();
-			}
-		});
-
 		// update iframe-contents
 		ipcRenderer.on('content', (_event, data) => {
 			const options = data.options;
@@ -345,6 +337,8 @@
 
 			// write new content onto iframe
 			newFrame.contentDocument.open('text/html', 'replace');
+			newFrame.contentWindow.addEventListener('focus', function () { ipcRenderer.sendToHost('did-focus'); });
+			newFrame.contentWindow.addEventListener('blur', function () { ipcRenderer.sendToHost('did-blur'); });
 			newFrame.contentWindow.onbeforeunload = () => {
 				if (isInDevelopmentMode) { // Allow reloads while developing a webview
 					ipcRenderer.sendToHost('do-reload');

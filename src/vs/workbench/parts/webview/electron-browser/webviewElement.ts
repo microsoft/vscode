@@ -157,7 +157,9 @@ export class WebviewElement extends Disposable {
 				});
 
 				// Dispatch through our keybinding service
-				if (this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), document.body)) {
+				// Note: we set the <webview> as target of the event so that scoped context key
+				// services function properly to enable commands like select all and find.
+				if (this._keybindingService.dispatchEvent(new StandardKeyboardEvent(emulatedKeyboardEvent), this._webview)) {
 					event.preventDefault();
 				}
 			});
@@ -206,16 +208,14 @@ export class WebviewElement extends Disposable {
 					this._state = event.args[0];
 					this._onDidUpdateState.fire(this._state);
 					return;
-			}
-		}));
-		this._register(addDisposableListener(this._webview, 'focus', () => {
-			if (this._contextKey) {
-				this._contextKey.set(true);
-			}
-		}));
-		this._register(addDisposableListener(this._webview, 'blur', () => {
-			if (this._contextKey) {
-				this._contextKey.reset();
+
+				case 'did-focus':
+					this.handleFocusChange(true);
+					return;
+
+				case 'did-blur':
+					this.handleFocusChange(false);
+					return;
 			}
 		}));
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
@@ -310,8 +310,32 @@ export class WebviewElement extends Disposable {
 	}
 
 	public focus(): void {
-		this._webview.focus();
-		this._send('focus');
+
+		// Electron 3.0.x: this seems to be the only way how to make the <webview> truly have focus
+		// ever since it moved to OOPIF.
+		this._webview.sendInputEvent({ type: 'mouseDown', x: 0, y: 0, button: 'left', clickCount: 1 });
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	private handleFocusChange(isFocused: boolean): void {
+
+		// Update context key accordingly
+		if (this._contextKey) {
+			if (isFocused) {
+				this._contextKey.set(true);
+			} else {
+				this._contextKey.reset();
+			}
+		}
+
+		// Workaround for https://github.com/electron/electron/issues/14255:
+		// We emulate the focus event on the <webview> so that clients of this component
+		// can install focus listeners as if the component was a normal HTML element.
+		const event = document.createEvent('FocusEvent');
+		event.initEvent(isFocused ? 'focus' : 'blur');
+		this._webview.dispatchEvent(event);
 	}
 
 	public sendMessage(data: any): void {
