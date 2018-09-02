@@ -61,6 +61,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
@@ -93,7 +94,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private actions: (RefreshAction | CollapseDeepestExpandedLevelAction | ClearSearchResultsAction | CancelSearchAction)[] = [];
 	private tree: WorkbenchTree;
 	private viewletSettings: any;
-	private messages: Builder;
+	private messagesElement: HTMLElement;
+	private messageDisposables: IDisposable[] = [];
 	private searchWidgetsContainer: Builder;
 	private searchWidget: SearchWidget;
 	private size: dom.Dimension;
@@ -110,7 +112,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private changedWhileHidden: boolean;
 	private isWide: boolean;
 
-	private searchWithoutFolderMessageBuilder: Builder;
+	private searchWithoutFolderMessageElement: HTMLElement;
 
 	constructor(
 		@IPartService partService: IPartService,
@@ -163,8 +165,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private onDidChangeWorkbenchState(): void {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageBuilder) {
-			this.searchWithoutFolderMessageBuilder.hide();
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageElement) {
+			dom.hide(this.searchWithoutFolderMessageElement);
 		}
 	}
 
@@ -295,9 +297,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			});
 		}).getHTMLElement();
 
-		this.messages = builder.div({ 'class': 'messages' }).hide().clone();
+		this.messagesElement = dom.append(builder.getContainer(), dom.$('.messages'));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.searchWithoutFolderMessage(this.clearMessage());
+			this.showSearchWithoutFolderMessage();
 		}
 
 		this.createSearchResultsView(builder);
@@ -461,8 +463,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				this.searchWidget.setReplaceAllActionState(false);
 				this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
 					progressRunner.done();
-					this.clearMessage()
-						.p({ text: afterReplaceAllMessage });
+					const messageEl = this.clearMessage();
+					dom.append(messageEl, dom.$('p', undefined, afterReplaceAllMessage));
 				}, (error) => {
 					progressRunner.done();
 					errors.isPromiseCanceledError(error);
@@ -536,12 +538,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		return nls.localize('replaceAll.occurrences.files.confirmation.message', "Replace {0} occurrences across {1} files?", occurrences, fileCount);
 	}
 
-	private clearMessage(): Builder {
-		this.searchWithoutFolderMessageBuilder = void 0;
+	private clearMessage(): HTMLElement {
+		this.searchWithoutFolderMessageElement = void 0;
 
-		return this.messages.empty().show()
-			.asContainer().div({ 'class': 'message' })
-			.asContainer();
+		dom.clearNode(this.messagesElement);
+		dom.show(this.messagesElement);
+		dispose(this.messageDisposables);
+		this.messageDisposables = [];
+
+		return dom.append(this.messagesElement, dom.$('.message'));
 	}
 
 	private createSearchResultsView(builder: Builder): void {
@@ -839,7 +844,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 
-		const messagesSize = this.messages.isHidden() ? 0 : dom.getTotalHeight(this.messages.getHTMLElement());
+		const messagesSize = this.messagesElement.style.display === 'none' ?
+			0 :
+			dom.getTotalHeight(this.messagesElement);
+
 		const searchResultContainerSize = this.size.height -
 			messagesSize -
 			dom.getTotalHeight(this.searchWidgetsContainer.getContainer());
@@ -874,7 +882,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.searchWithoutFolderMessage(this.clearMessage());
+			this.showSearchWithoutFolderMessage();
 		}
 		this.searchWidget.clear();
 		this.viewModel.cancelSearch();
@@ -1220,37 +1228,29 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 				this.tree.onHidden();
 				this.results.hide();
-				const div = this.clearMessage();
-				const p = $(div).p({ text: message });
+
+				const messageEl = this.clearMessage();
+				const p = dom.append(messageEl, dom.$('p', undefined, message));
 
 				if (!completed) {
-					$(p).a({
-						'class': ['pointer', 'prominent'],
-						text: nls.localize('rerunSearch.message', "Search again")
-					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+					const searchAgainLink = dom.append(p, dom.$('a.pointer.prominent', undefined, nls.localize('rerunSearch.message', "Search again")));
+					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
-
 						this.onQueryChanged(true);
-					});
+					}));
 				} else if (hasIncludes || hasExcludes) {
-					$(p).a({
-						'class': ['pointer', 'prominent'],
-						'tabindex': '0',
-						text: nls.localize('rerunSearchInAll.message', "Search again in all files")
-					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+					const searchAgainLink = dom.append(p, dom.$('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
+					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
 						this.inputPatternExcludes.setValue('');
 						this.inputPatternIncludes.setValue('');
 
 						this.onQueryChanged(true);
-					});
+					}));
 				} else {
-					$(p).a({
-						'class': ['pointer', 'prominent'],
-						'tabindex': '0',
-						text: nls.localize('openSettings.message', "Open Settings")
-					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+					const openSettingsLink = dom.append(p, dom.$('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
+					this.messageDisposables.push(dom.addDisposableListener(openSettingsLink, dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
 						let editorPromise = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
@@ -1259,27 +1259,22 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 								editor.focusSearch('.exclude');
 							}
 						}, errors.onUnexpectedError);
-					});
+					}));
 				}
 
 				if (completed) {
-					$(p).span({
-						text: ' - '
-					});
+					dom.append(p, dom.$('span', undefined, ' - '));
 
-					$(p).a({
-						'class': ['pointer', 'prominent'],
-						'tabindex': '0',
-						text: nls.localize('openSettings.learnMore', "Learn More")
-					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
+					const learnMoreLink = dom.append(p, dom.$('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
+					this.messageDisposables.push(dom.addDisposableListener(learnMoreLink, dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
 
 						window.open('https://go.microsoft.com/fwlink/?linkid=853977');
-					});
+					}));
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.searchWithoutFolderMessage(div);
+					this.showSearchWithoutFolderMessage();
 				}
 			} else {
 				this.viewModel.searchResult.toggleHighlights(true); // show highlights
@@ -1367,15 +1362,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const fileCount = this.viewModel.searchResult.fileCount();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
-		const msgWasHidden = this.messages.isHidden();
+		const msgWasHidden = this.messagesElement.style.display === 'none';
 		if (fileCount > 0) {
-			const div = this.clearMessage();
-			$(div).p({ text: this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount) });
+			const messageEl = this.clearMessage();
+			dom.append(messageEl, dom.$('p', undefined, this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount)));
 			if (msgWasHidden) {
 				this.reLayout();
 			}
 		} else if (!msgWasHidden) {
-			this.messages.hide();
+			dom.hide(this.messagesElement);
 		}
 	}
 
@@ -1391,26 +1386,27 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	private searchWithoutFolderMessage(div: Builder): void {
-		this.searchWithoutFolderMessageBuilder = $(div);
+	private showSearchWithoutFolderMessage(): void {
+		this.searchWithoutFolderMessageElement = this.clearMessage();
 
-		this.searchWithoutFolderMessageBuilder.p({ text: nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ") })
-			.asContainer().a({
-				'class': ['pointer', 'prominent'],
-				'tabindex': '0',
-				text: nls.localize('openFolder', "Open Folder")
-			}).on(dom.EventType.CLICK, (e: MouseEvent) => {
-				dom.EventHelper.stop(e, false);
+		const textEl = dom.append(this.searchWithoutFolderMessageElement,
+			dom.$('p', undefined, nls.localize('searchWithoutFolder', "You have not yet opened a folder. Only open files are currently searched - ")));
 
-				const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
-				const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
-				this.actionRunner.run(action).done(() => {
-					action.dispose();
-				}, err => {
-					action.dispose();
-					errors.onUnexpectedError(err);
-				});
+		const openFolderLink = dom.append(textEl,
+			dom.$('a.pointer.prominent', { tabindex: 0 }, nls.localize('openFolder', "Open Folder")));
+
+		this.messageDisposables.push(dom.addDisposableListener(openFolderLink, dom.EventType.CLICK, (e: MouseEvent) => {
+			dom.EventHelper.stop(e, false);
+
+			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			this.actionRunner.run(action).done(() => {
+				action.dispose();
+			}, err => {
+				action.dispose();
+				errors.onUnexpectedError(err);
 			});
+		}));
 	}
 
 	private showEmptyStage(): void {
@@ -1421,7 +1417,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		// clean up ui
 		// this.replaceService.disposeAllReplacePreviews();
-		this.messages.hide();
+		dom.hide(this.messagesElement);
 		this.results.show();
 		this.tree.onVisible();
 		this.currentSelectedFileMatch = null;
