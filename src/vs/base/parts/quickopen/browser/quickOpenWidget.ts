@@ -117,6 +117,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	private inputChangingTimeoutHandle: number;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
+	private lastValue: string;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		super();
@@ -150,7 +151,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 				const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
-
+					this.lastValue = this.inputBox.inputElement.value;
 					this.hide(HideReason.CANCELED);
 				} else if (keyboardEvent.keyCode === KeyCode.Tab && !keyboardEvent.altKey && !keyboardEvent.ctrlKey && !keyboardEvent.metaKey) {
 					const stops = e.currentTarget.querySelectorAll('input, .monaco-tree, .monaco-tree-row.focused .action-label.icon');
@@ -570,6 +571,8 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		this.visible = true;
 		this.isLoosingFocus = false;
 		this.quickNavigateConfiguration = options ? options.quickNavigateConfiguration : void 0;
+		this.inputBox.inputElement.value = (this.lastValue) || '';
+		this.inputBox.inputElement.select();
 
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
@@ -816,6 +819,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		// Callbacks
 		if (reason === HideReason.ELEMENT_SELECTED) {
 			this.callbacks.onOk();
+			this.lastValue = '';
 		} else {
 			this.callbacks.onCancel();
 		}
