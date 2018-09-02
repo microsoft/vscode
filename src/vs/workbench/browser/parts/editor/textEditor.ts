@@ -26,6 +26,7 @@ import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/edito
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -55,6 +56,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, telemetryService, themeService);
 
@@ -148,15 +150,17 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		}
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onEditorFocusLost()));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
+		this._register(this.windowService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 	}
 
 	private onEditorFocusLost(): void {
 		this.maybeTriggerSaveAll(SaveReason.FOCUS_CHANGE);
 	}
 
-	private onWindowFocusLost(): void {
-		this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
+	private onWindowFocusChange(focused: boolean): void {
+		if (!focused) {
+			this.maybeTriggerSaveAll(SaveReason.WINDOW_CHANGE);
+		}
 	}
 
 	private maybeTriggerSaveAll(reason: SaveReason): void {

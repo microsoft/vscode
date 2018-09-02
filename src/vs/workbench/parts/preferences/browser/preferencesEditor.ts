@@ -55,6 +55,7 @@ import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsE
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -975,9 +976,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

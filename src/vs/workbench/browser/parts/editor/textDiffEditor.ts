@@ -37,6 +37,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -61,8 +62,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
 		this._register(this._actualConfigurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')) {
