@@ -1218,8 +1218,8 @@ export class Workbench extends Disposable implements IPartService {
 		return offset;
 	}
 
-	getWorkbenchElementId(): string {
-		return Identifiers.WORKBENCH_CONTAINER;
+	getWorkbenchElement(): HTMLElement {
+		return this.workbench;
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {

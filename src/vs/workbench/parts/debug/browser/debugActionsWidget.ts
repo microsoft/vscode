@@ -239,7 +239,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			document.getElementById(this.partService.getWorkbenchElementId()).appendChild(this.$el);
+			this.partService.getWorkbenchElement().appendChild(this.$el);
 		}
 
 		this.isVisible = true;
