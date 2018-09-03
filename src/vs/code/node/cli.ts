@@ -14,7 +14,7 @@ import * as paths from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
@@ -251,13 +251,13 @@ export async function main(argv: string[]): Promise<any> {
 		// to get better profile traces. Last, we listen on stdout for a signal that tells us to
 		// stop profiling.
 		if (args['prof-startup']) {
-			const portMain = await findFreePort(9222, 10, 6000);
-			const portRenderer = await findFreePort(portMain + 1, 10, 6000);
-			const portExthost = await findFreePort(portRenderer + 1, 10, 6000);
+			const portMain = await findFreePort(randomPort(), 10, 3000);
+			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
+			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
 
-			if (!portMain || !portRenderer || !portExthost) {
-				console.error('Failed to find free ports for profiler to connect to do.');
-				return;
+			// fail the operation when one of the ports couldn't be accquired.
+			if (portMain * portRenderer * portExthost === 0) {
+				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
 			const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
