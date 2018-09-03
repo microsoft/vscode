@@ -89,7 +89,6 @@ suite('Polyfill Promise', function () {
 	});
 
 	test('Promises polyfill does not support chaining then and catch #57722', function () {
-		this.skip();
 		return PolyfillPromise.resolve(1).then(function (x) { return x + 1; }).then(function (x) {
 			assert.equal(x, 2);
 		});
