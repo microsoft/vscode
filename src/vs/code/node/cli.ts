@@ -270,38 +270,42 @@ export async function main(argv: string[]): Promise<any> {
 
 			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
-			processCallbacks.push(async child => {
+			processCallbacks.push(async _child => {
+				try {
+					// load and start profiler
+					const profiler = await import('v8-inspect-profiler');
+					const main = await profiler.startProfiling({ port: portMain });
+					const renderer = await profiler.startProfiling({ port: portRenderer, tries: 200 });
+					const extHost = await profiler.startProfiling({ port: portExthost, tries: 300 });
 
-				// load and start profiler
-				const profiler = await import('v8-inspect-profiler');
-				const main = await profiler.startProfiling({ port: portMain });
-				const renderer = await profiler.startProfiling({ port: portRenderer, tries: 200 });
-				const extHost = await profiler.startProfiling({ port: portExthost, tries: 300 });
+					// wait for the renderer to delete the
+					// marker file
+					whenDeleted(filenamePrefix);
 
-				// wait for the renderer to delete the
-				// marker file
-				whenDeleted(filenamePrefix);
+					let profileMain = await main.stop();
+					let profileRenderer = await renderer.stop();
+					let profileExtHost = await extHost.stop();
+					let suffix = '';
 
-				let profileMain = await main.stop();
-				let profileRenderer = await renderer.stop();
-				let profileExtHost = await extHost.stop();
-				let suffix = '';
+					if (!process.env['VSCODE_DEV']) {
+						// when running from a not-development-build we remove
+						// absolute filenames because we don't want to reveal anything
+						// about users. We also append the `.txt` suffix to make it
+						// easier to attach these files to GH issues
+						profileMain = profiler.rewriteAbsolutePaths(profileMain, 'piiRemoved');
+						profileRenderer = profiler.rewriteAbsolutePaths(profileRenderer, 'piiRemoved');
+						profileExtHost = profiler.rewriteAbsolutePaths(profileExtHost, 'piiRemoved');
+						suffix = '.txt';
+					}
 
-				if (!process.env['VSCODE_DEV']) {
-					// when running from a not-development-build we remove
-					// absolute filenames because we don't want to reveal anything
-					// about users. We also append the `.txt` suffix to make it
-					// easier to attach these files to GH issues
-					profileMain = profiler.rewriteAbsolutePaths(profileMain, 'piiRemoved');
-					profileRenderer = profiler.rewriteAbsolutePaths(profileRenderer, 'piiRemoved');
-					profileExtHost = profiler.rewriteAbsolutePaths(profileExtHost, 'piiRemoved');
-					suffix = '.txt';
+					// finally stop profiling and save profiles to disk
+					await profiler.writeProfile(profileMain, `${filenamePrefix}-main.cpuprofile${suffix}`);
+					await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
+					await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
+
+				} catch (e) {
+					console.error('Failed to profile startup. Make sure to quit Code first.');
 				}
-
-				// finally stop profiling and save profiles to disk
-				await profiler.writeProfile(profileMain, `${filenamePrefix}-main.cpuprofile${suffix}`);
-				await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
-				await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
 			});
 		}
 
