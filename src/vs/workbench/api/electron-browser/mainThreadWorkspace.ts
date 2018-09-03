@@ -6,7 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';

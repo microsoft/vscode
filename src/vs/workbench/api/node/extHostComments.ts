@@ -6,7 +6,7 @@
 'use strict';
 
 import { asWinJsPromise } from 'vs/base/common/async';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';

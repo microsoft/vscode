@@ -12,7 +12,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { BackupFileService, BackupFilesModel } from 'vs/workbench/services/backup/node/backupFileService';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { TextModel, createTextBufferFactory } from 'vs/editor/common/model/textModel';
