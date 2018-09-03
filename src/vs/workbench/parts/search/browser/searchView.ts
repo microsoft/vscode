@@ -177,7 +177,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
 		const containerElement = dom.append(parent, $('.search-view'));
 
-		this.searchWidgetsContainerElement = dom.append(containerElement, $('search-widgets-container'));
+		this.searchWidgetsContainerElement = dom.append(containerElement, $('.search-widgets-container'));
 		this.createSearchWidget(this.searchWidgetsContainerElement);
 
 		const history = this.searchHistoryService.load();
