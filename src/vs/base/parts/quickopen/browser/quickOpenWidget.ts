@@ -96,7 +96,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
-	private builder: HTMLElement;
+	private element: HTMLElement;
 	private tree: ITree;
 	private inputBox: InputBox;
 	private inputContainer: HTMLElement;
@@ -130,7 +130,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	}
 
 	getElement(): HTMLElement {
-		return this.builder;
+		return this.element;
 	}
 
 	getModel(): IModel<any> {
@@ -144,14 +144,14 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	create(): HTMLElement {
 
 		// Container
-		this.builder = document.createElement('div');
-		DOM.addClass(this.builder, 'monaco-quick-open-widget');
-		this.container.appendChild(this.builder);
+		this.element = document.createElement('div');
+		DOM.addClass(this.element, 'monaco-quick-open-widget');
+		this.container.appendChild(this.element);
 
-		this._register(DOM.addDisposableListener(this.builder, DOM.EventType.CONTEXT_MENU, e => DOM.EventHelper.stop(e, true))); // Do this to fix an issue on Mac where the menu goes into the way
-		this._register(DOM.addDisposableListener(this.builder, DOM.EventType.FOCUS, e => this.gainingFocus(), true));
-		this._register(DOM.addDisposableListener(this.builder, DOM.EventType.BLUR, e => this.loosingFocus(e), true));
-		this._register(DOM.addDisposableListener(this.builder, DOM.EventType.KEY_DOWN, e => {
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CONTEXT_MENU, e => DOM.EventHelper.stop(e, true))); // Do this to fix an issue on Mac where the menu goes into the way
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.FOCUS, e => this.gainingFocus(), true));
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.BLUR, e => this.loosingFocus(e), true));
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.KEY_DOWN, e => {
 			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
 			if (keyboardEvent.keyCode === KeyCode.Escape) {
 				DOM.EventHelper.stop(e, true);
@@ -170,13 +170,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}));
 
 		// Progress Bar
-		this.progressBar = this._register(new ProgressBar(this.builder, { progressBarBackground: this.styles.progressBarBackground }));
+		this.progressBar = this._register(new ProgressBar(this.element, { progressBarBackground: this.styles.progressBarBackground }));
 		this.progressBar.hide();
 
 		// Input Field
 		this.inputContainer = document.createElement('div');
 		DOM.addClass(this.inputContainer, 'quick-open-input');
-		this.builder.appendChild(this.inputContainer);
+		this.element.appendChild(this.inputContainer);
 
 		this.inputBox = this._register(new InputBox(this.inputContainer, null, {
 			placeholder: this.options.inputPlaceHolder || '',
@@ -236,12 +236,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		DOM.addClass(this.resultCount, 'quick-open-result-count');
 		this.resultCount.setAttribute('aria-live', 'polite');
 		this.resultCount.setAttribute('aria-atomic', 'true');
-		this.builder.appendChild(this.resultCount);
+		this.element.appendChild(this.resultCount);
 
 		// Tree
 		this.treeContainer = document.createElement('div');
 		DOM.addClass(this.treeContainer, 'quick-open-tree');
-		this.builder.appendChild(this.treeContainer);
+		this.element.appendChild(this.treeContainer);
 
 		const createTree = this.options.treeCreator || ((container, config, opts) => new Tree(container, config, opts));
 
@@ -363,7 +363,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			}
 		}));
 
-		return this.builder;
+		return this.element;
 	}
 
 	style(styles: IQuickOpenStyles): void {
@@ -373,18 +373,18 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	}
 
 	protected applyStyles(): void {
-		if (this.builder) {
+		if (this.element) {
 			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
 			const background = this.styles.background ? this.styles.background.toString() : null;
 			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
 			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
 
-			this.builder.style.color = foreground;
-			this.builder.style.backgroundColor = background;
-			this.builder.style.borderColor = borderColor;
-			this.builder.style.borderWidth = borderColor ? '1px' : null;
-			this.builder.style.borderStyle = borderColor ? 'solid' : null;
-			this.builder.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : null;
+			this.element.style.color = foreground;
+			this.element.style.backgroundColor = background;
+			this.element.style.borderColor = borderColor;
+			this.element.style.borderWidth = borderColor ? '1px' : null;
+			this.element.style.borderStyle = borderColor ? 'solid' : null;
+			this.element.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : null;
 		}
 
 		if (this.progressBar) {
@@ -570,14 +570,14 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		// Adjust UI for quick navigate mode
 		if (this.quickNavigateConfiguration) {
 			DOM.hide(this.inputContainer);
-			DOM.show(this.builder);
+			DOM.show(this.element);
 			this.tree.domFocus();
 		}
 
 		// Otherwise use normal UI
 		else {
 			DOM.show(this.inputContainer);
-			DOM.show(this.builder);
+			DOM.show(this.element);
 			this.inputBox.focus();
 		}
 
@@ -786,8 +786,8 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 
 		this.visible = false;
-		DOM.hide(this.builder);
-		this.builder.blur();
+		DOM.hide(this.element);
+		this.element.blur();
 
 		// Clear input field and clear tree
 		this.inputBox.value = '';
@@ -878,9 +878,9 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		// when the input is changing in quick open, we indicate this as CSS class to the widget
 		// for a certain timeout. this helps reducing some hectic UI updates when input changes quickly
-		DOM.addClass(this.builder, 'content-changing');
+		DOM.addClass(this.element, 'content-changing');
 		this.inputChangingTimeoutHandle = setTimeout(() => {
-			DOM.removeClass(this.builder, 'content-changing');
+			DOM.removeClass(this.element, 'content-changing');
 		}, 500);
 	}
 
@@ -924,16 +924,16 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 	}
 
 	setExtraClass(clazz: string): void {
-		const previousClass = this.builder.getAttribute('quick-open-extra-class');
+		const previousClass = this.element.getAttribute('quick-open-extra-class');
 		if (previousClass) {
-			DOM.removeClasses(this.builder, previousClass);
+			DOM.removeClasses(this.element, previousClass);
 		}
 
 		if (clazz) {
-			DOM.addClasses(this.builder, clazz);
-			this.builder.setAttribute('quick-open-extra-class', clazz);
+			DOM.addClasses(this.element, clazz);
+			this.element.setAttribute('quick-open-extra-class', clazz);
 		} else if (previousClass) {
-			this.builder.removeAttribute('quick-open-extra-class');
+			this.element.removeAttribute('quick-open-extra-class');
 		}
 	}
 
@@ -946,11 +946,11 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		// Apply to quick open width (height is dynamic by number of items to show)
 		const quickOpenWidth = Math.min(this.layoutDimensions.width * 0.62 /* golden cut */, QuickOpenWidget.MAX_WIDTH);
-		if (this.builder) {
+		if (this.element) {
 
 			// quick open
-			this.builder.style.width = `${quickOpenWidth}px`;
-			this.builder.style.marginLeft = `-${quickOpenWidth / 2}px`;
+			this.element.style.width = `${quickOpenWidth}px`;
+			this.element.style.marginLeft = `-${quickOpenWidth / 2}px`;
 
 			// input field
 			this.inputContainer.style.width = `${quickOpenWidth - 12}px`;
@@ -967,7 +967,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		}
 
 		const relatedTarget = e.relatedTarget as HTMLElement;
-		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.builder)) {
+		if (!this.quickNavigateConfiguration && DOM.isAncestor(relatedTarget, this.element)) {
 			return; // user clicked somewhere into quick open widget, do not close thereby
 		}
 
