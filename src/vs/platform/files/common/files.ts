@@ -293,8 +293,10 @@ export class FileChangesEvent {
 			return false;
 		}
 
+		const checkForChangeType = !isUndefinedOrNull(type);
+
 		return this._changes.some(change => {
-			if (!isUndefinedOrNull(type) && change.type !== type) {
+			if (checkForChangeType && change.type !== type) {
 				return false;
 			}
 
