@@ -13,6 +13,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { rimraf, exists } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { createCancelablePromise } from 'vs/base/common/async';
 
 const fixtures = getPathFromAmdModule(require, './fixtures');
 
@@ -22,9 +23,9 @@ suite('Zip', () => {
 		const fixture = path.join(fixtures, 'extract.zip');
 		const target = path.join(os.tmpdir(), generateUuid());
 
-		return extract(fixture, target, {}, new NullLogService())
+		return createCancelablePromise(token => extract(fixture, target, {}, new NullLogService(), token)
 			.then(() => exists(path.join(target, 'extension')))
 			.then(exists => assert(exists))
-			.then(() => rimraf(target));
+			.then(() => rimraf(target)));
 	});
 });

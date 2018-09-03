@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
-import { nfcall, ninvoke, SimpleThrottler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { nfcall, ninvoke, SimpleThrottler, createCancelablePromise } from 'vs/base/common/async';
 import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
@@ -103,64 +103,61 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 	}));
 }
 
-function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService): CancelablePromise<void> {
+function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, logService: ILogService, token: CancellationToken): Promise<void> {
 	let last = createCancelablePromise(() => Promise.resolve(null));
 	let extractedEntriesCount = 0;
 
-	return createCancelablePromise(token => {
+	once(token.onCancellationRequested)(() => {
+		logService.debug(targetPath, 'Cancelled.');
+		last.cancel();
+		zipfile.close();
+	});
 
-		once(token.onCancellationRequested)(() => {
-			logService.debug(targetPath, 'Cancelled.');
-			last.cancel();
-			zipfile.close();
-		});
+	return new Promise((c, e) => {
+		const throttler = new SimpleThrottler();
 
-		return new TPromise((c, e) => {
-			const throttler = new SimpleThrottler();
+		const readNextEntry = (token: CancellationToken) => {
+			if (token.isCancellationRequested) {
+				return;
+			}
 
-			const readNextEntry = (token: CancellationToken) => {
-				if (token.isCancellationRequested) {
-					return;
-				}
-
-				extractedEntriesCount++;
-				zipfile.readEntry();
-			};
-
-			zipfile.once('error', e);
-			zipfile.once('close', () => last.then(() => {
-				if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
-					c(null);
-				} else {
-					e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
-				}
-			}, e));
+			extractedEntriesCount++;
 			zipfile.readEntry();
-			zipfile.on('entry', (entry: Entry) => {
+		};
 
-				if (token.isCancellationRequested) {
-					return;
-				}
+		zipfile.once('error', e);
+		zipfile.once('close', () => last.then(() => {
+			if (token.isCancellationRequested || zipfile.entryCount === extractedEntriesCount) {
+				c(null);
+			} else {
+				e(new ExtractError('Incomplete', new Error(nls.localize('incompleteExtract', "Incomplete. Found {0} of {1} entries", extractedEntriesCount, zipfile.entryCount))));
+			}
+		}, e));
+		zipfile.readEntry();
+		zipfile.on('entry', (entry: Entry) => {
 
-				if (!options.sourcePathRegex.test(entry.fileName)) {
-					readNextEntry(token);
-					return;
-				}
+			if (token.isCancellationRequested) {
+				return;
+			}
 
-				const fileName = entry.fileName.replace(options.sourcePathRegex, '');
+			if (!options.sourcePathRegex.test(entry.fileName)) {
+				readNextEntry(token);
+				return;
+			}
 
-				// directory file names end with '/'
-				if (/\/$/.test(fileName)) {
-					const targetFileName = path.join(targetPath, fileName);
-					last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)));
-					return;
-				}
+			const fileName = entry.fileName.replace(options.sourcePathRegex, '');
 
-				const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
-				const mode = modeFromEntry(entry);
+			// directory file names end with '/'
+			if (/\/$/.test(fileName)) {
+				const targetFileName = path.join(targetPath, fileName);
+				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)));
+				return;
+			}
 
-				last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))));
-			});
+			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
+			const mode = modeFromEntry(entry);
+
+			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))));
 		});
 	});
 }
@@ -191,7 +188,7 @@ export function zip(zipPath: string, files: IFile[]): TPromise<string> {
 	});
 }
 
-export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService): TPromise<void> {
+export function extract(zipPath: string, targetPath: string, options: IExtractOptions = {}, logService: ILogService, token: CancellationToken): TPromise<void> {
 	const sourcePathRegex = new RegExp(options.sourcePath ? `^${options.sourcePath}` : '');
 
 	let promise = openZip(zipPath, true);
@@ -200,7 +197,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
 	}
 
-	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, logService));
+	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, logService, token));
 }
 
 function read(zipPath: string, filePath: string): TPromise<Readable> {
