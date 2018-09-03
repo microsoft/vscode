@@ -99,32 +99,9 @@ function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][
 		}
 
 		if (isPrimaryGroup(group)) {
+			const to = Array.isArray<IAction>(target) ? target : target.primary;
 
-			const head = Array.isArray<IAction>(target) ? target : target.primary;
-
-			// split contributed actions at the point where order
-			// changes form lt zero to gte
-			let pivot = 0;
-			for (; pivot < actions.length; pivot++) {
-				if ((<MenuItemAction>actions[pivot]).order >= 0) {
-					break;
-				}
-			}
-			// prepend contributed actions with order lte zero
-			head.unshift(...actions.slice(0, pivot));
-
-			// find the first separator which marks the end of the
-			// navigation group - might be the whole array length
-			let sep = 0;
-			while (sep < head.length) {
-				if (head[sep] instanceof Separator) {
-					break;
-				}
-				sep++;
-			}
-			// append contributed actions with order gt zero
-			head.splice(sep, 0, ...actions.slice(pivot));
-
+			to.unshift(...actions);
 		} else {
 			const to = Array.isArray<IAction>(target) ? target : target.secondary;
 

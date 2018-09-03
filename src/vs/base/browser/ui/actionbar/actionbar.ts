@@ -216,12 +216,11 @@ export class Separator extends Action {
 
 	public static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string, order?: number) {
+	constructor(label?: string) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
 		this.radio = false;
 		this.enabled = false;
-		this.order = order;
 	}
 }
 
