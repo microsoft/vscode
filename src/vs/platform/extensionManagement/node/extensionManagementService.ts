@@ -12,7 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten } from 'vs/base/common/arrays';
-import { extract, buffer, ExtractError, zip, IFile } from 'vs/base/node/zip';
+import { extract, buffer, ExtractError, zip, IFile } from 'vs/platform/node/zip';
 import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,

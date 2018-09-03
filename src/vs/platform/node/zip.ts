@@ -12,8 +12,6 @@ import { mkdirp, rimraf } from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
-// TODO@sandeep bad layering
-// tslint:disable-next-line:import-patterns
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { once } from 'vs/base/common/event';

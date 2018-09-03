@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
-import { extract } from 'vs/base/node/zip';
+import { extract } from 'vs/platform/node/zip';
 import { generateUuid } from 'vs/base/common/uuid';
 import { rimraf, exists } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
