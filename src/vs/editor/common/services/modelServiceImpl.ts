@@ -74,8 +74,8 @@ class ModelMarkerHandler {
 
 		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
-				range: this._createDecorationRange(modelData.model, marker),
-				options: this._createDecorationOption(marker)
+				range: ModelMarkerHandler._createDecorationRange(modelData.model, marker),
+				options: ModelMarkerHandler._createDecorationOption(marker)
 			};
 		});
 
@@ -89,9 +89,7 @@ class ModelMarkerHandler {
 		if (rawMarker.severity === MarkerSeverity.Hint) {
 			// * never render hints on multiple lines
 			// * make enough space for three dots
-			if (Range.spansMultipleLines(ret) || ret.endColumn - ret.startColumn < 2) {
-				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
-			}
+			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
 		}
 
 		ret = model.validateRange(ret);
