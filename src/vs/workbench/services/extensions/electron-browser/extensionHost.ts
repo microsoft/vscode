@@ -315,9 +315,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		});
 	}
 
-	private _tryExtHostHandshake(): Promise<IMessagePassingProtocol> {
+	private _tryExtHostHandshake(): TPromise<IMessagePassingProtocol> {
 
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+		return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
 
 			// Wait for the extension host to connect to our named pipe
 			// and wrap the socket in the message passing protocol
@@ -339,7 +339,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 			// 1) wait for the incoming `ready` event and send the initialization data.
 			// 2) wait for the incoming `initialized` event.
-			return new Promise<IMessagePassingProtocol>((resolve, reject) => {
+			return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
 
 				let handle = setTimeout(() => {
 					reject('timeout');
