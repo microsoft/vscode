@@ -35,6 +35,7 @@ import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/qui
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { untildify } from 'vs/base/common/labels';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -138,7 +139,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, maxSortedResults?: number, token?: CancellationToken): TPromise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
@@ -150,23 +151,29 @@ export class OpenFileHandler extends QuickOpenHandler {
 		query.value = untildify(query.value, this.environmentService.userHome);
 
 		// Do find results
-		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults);
+		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults, token);
 	}
 
-	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number, token?: CancellationToken): TPromise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
+
 		let iconClass: string;
 		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
 		return this.getAbsolutePathResult(query).then(result => {
+			if (token.isCancellationRequested) {
+				return TPromise.wrap(<ISearchComplete>{ results: [] });
+			}
+
 			// If the original search value is an existing file on disk, return it immediately and bypass the search service
 			if (result) {
 				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
-			} else {
-				return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions));
 			}
+
+			// TODO@Rob support cancellation
+			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions));
 		}).then(complete => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
@@ -185,10 +192,11 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private getAbsolutePathResult(query: IPreparedQuery): TPromise<URI> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
+
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
-		} else {
-			return TPromise.as(null);
 		}
+
+		return TPromise.as(null);
 	}
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IQueryOptions {

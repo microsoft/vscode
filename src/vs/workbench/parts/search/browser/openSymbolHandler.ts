@@ -24,6 +24,7 @@ import { IWorkspaceSymbolProvider, getWorkspaceSymbols, IWorkspaceSymbol } from 
 import { basename } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -149,21 +150,21 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string, token?: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		let promise: TPromise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
-			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
+			promise = this.delayer.trigger(() => this.doGetResults(searchValue, token)); // Run search with delay as needed
 		} else {
-			promise = this.doGetResults(searchValue);
+			promise = this.doGetResults(searchValue, token);
 		}
 
 		return promise.then(e => new QuickOpenModel(e));
 	}
 
-	private doGetResults(searchValue: string): TPromise<SymbolEntry[]> {
-		return getWorkspaceSymbols(searchValue).then(tuples => {
+	private doGetResults(searchValue: string, token?: CancellationToken): TPromise<SymbolEntry[]> {
+		return getWorkspaceSymbols(searchValue, token).then(tuples => {
 			const result: SymbolEntry[] = [];
 			for (let tuple of tuples) {
 				const [provider, bearings] = tuple;
@@ -174,9 +175,9 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 			if (!this.options.skipSorting) {
 				searchValue = searchValue ? strings.stripWildcards(searchValue.toLowerCase()) : searchValue;
 				return result.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
-			} else {
-				return result;
 			}
+
+			return result;
 		});
 	}
 

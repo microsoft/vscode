@@ -14,6 +14,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -55,11 +56,12 @@ export namespace WorkspaceSymbolProviderRegistry {
 	}
 }
 
-export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
+export function getWorkspaceSymbols(query: string, token?: CancellationToken): TPromise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
 
 	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
 
 	const promises = WorkspaceSymbolProviderRegistry.all().map(support => {
+		// TODO@Joh support cancellation
 		return support.provideWorkspaceSymbols(query).then(value => {
 			if (Array.isArray(value)) {
 				result.push([support, value]);
