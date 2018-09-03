@@ -139,7 +139,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, maxSortedResults?: number, token?: CancellationToken): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, maxSortedResults?: number, token: CancellationToken = CancellationToken.None): TPromise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search

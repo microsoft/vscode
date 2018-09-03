@@ -150,12 +150,18 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	public getResults(searchValue: string, token?: CancellationToken): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string, token: CancellationToken = CancellationToken.None): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		let promise: TPromise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
-			promise = this.delayer.trigger(() => this.doGetResults(searchValue, token)); // Run search with delay as needed
+			promise = this.delayer.trigger(() => {
+				if (token.isCancellationRequested) {
+					return TPromise.wrap([]);
+				}
+
+				return this.doGetResults(searchValue, token);
+			});
 		} else {
 			promise = this.doGetResults(searchValue, token);
 		}
