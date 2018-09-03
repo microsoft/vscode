@@ -28,7 +28,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -54,9 +54,10 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
 		// Clear view state for deleted files
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));

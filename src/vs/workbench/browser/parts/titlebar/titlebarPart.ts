@@ -30,7 +30,7 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
@@ -95,8 +95,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
-		this._register(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
+		this._register(this.windowService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));

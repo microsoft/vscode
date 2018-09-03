@@ -455,7 +455,7 @@ export class MenubarControl extends Disposable {
 			this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
 
 			// Listen for alt key presses
-			this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+			this._register(ModifierKeyEmitter.getInstance(this.windowService).event(this.onModifierKeyToggled, this));
 
 			// Listen for window focus changes
 			this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
@@ -1291,7 +1291,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
-	private constructor() {
+	private constructor(windowService: IWindowService) {
 		super();
 
 		this._keyStatus = {
@@ -1350,20 +1350,22 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(window, 'blur')(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-			this._keyStatus.lastKeyReleased = undefined;
-			this._keyStatus.altKey = false;
-			this._keyStatus.shiftKey = false;
-			this._keyStatus.shiftKey = false;
+		this._subscriptions.push(windowService.onDidChangeFocus(focused => {
+			if (!focused) {
+				this._keyStatus.lastKeyPressed = undefined;
+				this._keyStatus.lastKeyReleased = undefined;
+				this._keyStatus.altKey = false;
+				this._keyStatus.shiftKey = false;
+				this._keyStatus.shiftKey = false;
 
-			this.fire(this._keyStatus);
+				this.fire(this._keyStatus);
+			}
 		}));
 	}
 
-	static getInstance() {
+	static getInstance(windowService: IWindowService) {
 		if (!ModifierKeyEmitter.instance) {
-			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
+			ModifierKeyEmitter.instance = new ModifierKeyEmitter(windowService);
 		}
 
 		return ModifierKeyEmitter.instance;

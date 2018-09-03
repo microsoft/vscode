@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -21,6 +20,7 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -43,7 +43,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IPartService private readonly _partService: IPartService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
@@ -82,8 +83,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		// Make sure we restore focus when switching back to a VS Code window
-		this._onFocusWindowHandler = domEvent(window, 'focus')(() => {
-			if (this._editorService.activeControl === this) {
+		this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
+			if (focused && this._editorService.activeControl === this) {
 				this.focus();
 			}
 		});
