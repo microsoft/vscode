@@ -14,7 +14,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, removeClass, addClass, append, $, removeNode, addDisposableListener, addClasses } from 'vs/base/browser/dom';
+import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 
 export interface ILabelRenderer {
@@ -112,17 +112,17 @@ export class BaseDropdown extends ActionRunner {
 		this._toDispose = dispose(this.toDispose);
 
 		if (this.boxContainer) {
-			removeNode(this.boxContainer);
+			this.boxContainer.remove();
 			this.boxContainer = null;
 		}
 
 		if (this.contents) {
-			removeNode(this.contents);
+			this.contents.remove();
 			this.contents = null;
 		}
 
 		if (this._label) {
-			removeNode(this._label);
+			this._label.remove();
 			this._label = null;
 		}
 	}
