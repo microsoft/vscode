@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
-import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -65,46 +64,6 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 		});
 	}
 	return toDisposable(() => { });
-}
-
-const fileWatchers: Map<string, any[]> = new Map<string, any[]>();
-function watchFile(file: string, callback: () => void): IDisposable {
-
-	const onFileChange = (file: string) => {
-		for (const callback of fileWatchers.get(file)) {
-			callback();
-		}
-	};
-
-	let callbacks = fileWatchers.get(file);
-	if (!callbacks) {
-		callbacks = [];
-		fileWatchers.set(file, callbacks);
-		fs.watchFile(file, { interval: 1000 }, (current, previous) => {
-			if ((previous && !current) || (!previous && !current)) {
-				onFileChange(file);
-				return;
-			}
-			if (previous && current && previous.mtime !== current.mtime) {
-				onFileChange(file);
-				return;
-			}
-		});
-	}
-	callbacks.push(callback);
-	return toDisposable(() => {
-		let allCallbacks = fileWatchers.get(file);
-		allCallbacks.splice(allCallbacks.indexOf(callback), 1);
-		if (!allCallbacks.length) {
-			fs.unwatchFile(file);
-			fileWatchers.delete(file);
-		}
-	});
-}
-
-function unWatchAllFiles(): void {
-	fileWatchers.forEach((value, file) => fs.unwatchFile(file));
-	fileWatchers.clear();
 }
 
 interface OutputChannel extends IOutputChannel {
@@ -323,19 +282,26 @@ class OutputFileListener extends Disposable {
 
 	constructor(
 		private readonly file: URI,
+		private readonly fileService: IFileService
 	) {
 		super();
 	}
 
 	watch(): void {
 		if (!this.watching) {
-			this.disposables.push(watchFile(this.file.fsPath, () => this._onDidChange.fire()));
+			this.fileService.watchFileChanges(this.file);
+			this.disposables.push(this.fileService.onFileChanges(e => {
+				if (e.contains(this.file)) {
+					this._onDidChange.fire();
+				}
+			}));
 			this.watching = true;
 		}
 	}
 
 	unwatch(): void {
 		if (this.watching) {
+			this.fileService.unwatchFileChanges(this.file);
 			this.disposables = dispose(this.disposables);
 			this.watching = false;
 		}
@@ -366,7 +332,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	) {
 		super(outputChannelIdentifier, modelUri, LOG_MIME, fileService, modelService, modeService);
 
-		this.fileHandler = this._register(new OutputFileListener(this.file));
+		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
 		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
@@ -457,8 +423,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
 		panelService.onDidPanelClose(this.onDidPanelClose, this);
-
-		this._register(toDisposable(() => unWatchAllFiles()));
 
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
