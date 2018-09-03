@@ -24,6 +24,7 @@ function options(custom?: Partial<IBestWindowOrFolderOptions<ISimpleWindow>>): I
 	return {
 		windows: [],
 		newWindow: false,
+		newWindowUnlessFolder: false,
 		reuseWindow: false,
 		context: OpenContext.CLI,
 		codeSettingsFolder: '_vscode',
@@ -73,6 +74,24 @@ suite('WindowsFinder', () => {
 			windows,
 			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
 			newWindow: true
+		})), null);
+	});
+
+	test('New window unless window exists which has corresponding folder for the file open', () => {
+		assert.equal(findBestWindowOrFolderForFile(options({
+			windows,
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
+			newWindow: true,
+			newWindowUnlessFolder: true,
+		})), null);
+	});
+
+	test('New window irregardless if window exists which has corresponding folder for the file open ', () => {
+		assert.equal(findBestWindowOrFolderForFile(options({
+			windows,
+			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
+			newWindow: true,
+			newWindowUnlessFolder: false,
 		})), null);
 	});
 
