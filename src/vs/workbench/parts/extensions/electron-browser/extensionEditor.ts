@@ -499,6 +499,7 @@ export class ExtensionEditor extends BaseEditor {
 					}
 				}, null, this.contentDisposables);
 				this.contentDisposables.push(this.activeWebview);
+				this.activeWebview.focus();
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p.nocontent'));
@@ -515,9 +516,9 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openContributions(): void {
+		const content = $('div', { class: 'subcontent', tabindex: '0' });
 		this.loadContents(() => this.extensionManifest.get())
 			.then(manifest => {
-				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, {});
 
 				const layout = () => scrollableContent.scanDomNode();
@@ -542,14 +543,17 @@ export class ExtensionEditor extends BaseEditor {
 				scrollableContent.scanDomNode();
 
 				if (isEmpty) {
-					append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-					return;
+					append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+					append(this.content, content);
 				} else {
 					append(this.content, scrollableContent.getDomNode());
 					this.contentDisposables.push(scrollableContent);
 				}
+				content.focus();
 			}, () => {
-				append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+				append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+				append(this.content, content);
+				content.focus();
 			});
 	}
 
@@ -577,6 +581,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				this.contentDisposables.push(dependenciesTree);
 				scrollableContent.scanDomNode();
+				dependenciesTree.domFocus();
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
 				this.notificationService.error(error);
@@ -618,17 +623,18 @@ export class ExtensionEditor extends BaseEditor {
 		append(this.content, scrollableContent.getDomNode());
 		this.contentDisposables.push(scrollableContent);
 
-		const dependenciesTree = this.renderExtensionPack(content, extension);
+		const extensionsPackTree = this.renderExtensionPack(content, extension);
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
-			dependenciesTree.layout(scrollDimensions.height);
+			extensionsPackTree.layout(scrollDimensions.height);
 		};
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-		this.contentDisposables.push(dependenciesTree);
+		this.contentDisposables.push(extensionsPackTree);
 		scrollableContent.scanDomNode();
+		extensionsPackTree.domFocus();
 	}
 
 	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
