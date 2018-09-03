@@ -280,7 +280,7 @@ export async function main(argv: string[]): Promise<any> {
 
 					// wait for the renderer to delete the
 					// marker file
-					whenDeleted(filenamePrefix);
+					await whenDeleted(filenamePrefix);
 
 					let profileMain = await main.stop();
 					let profileRenderer = await renderer.stop();
@@ -302,6 +302,9 @@ export async function main(argv: string[]): Promise<any> {
 					await profiler.writeProfile(profileMain, `${filenamePrefix}-main.cpuprofile${suffix}`);
 					await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
 					await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
+
+					// re-create the marker file to signal that profiling is done
+					fs.writeFileSync(filenamePrefix, '');
 
 				} catch (e) {
 					console.error('Failed to profile startup. Make sure to quit Code first.');
