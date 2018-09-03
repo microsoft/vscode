@@ -139,6 +139,10 @@ export class ResourceLabel extends IconLabel {
 			return true; // same resource but different kind (file, folder)
 		}
 
+		if (newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource)) {
+			return true;
+		}
+
 		if (newResource && oldResource) {
 			return newResource.toString() !== oldResource.toString();
 		}

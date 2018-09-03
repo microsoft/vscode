@@ -321,10 +321,12 @@ export class ActionItem extends BaseActionItem {
 
 	public _updateEnabled(): void {
 		if (this.getAction().enabled) {
+			this.label.removeAttribute('aria-disabled');
 			DOM.removeClass(this.element, 'disabled');
 			DOM.removeClass(this.label, 'disabled');
 			this.label.tabIndex = 0;
 		} else {
+			this.label.setAttribute('aria-disabled', 'true');
 			DOM.addClass(this.element, 'disabled');
 			DOM.addClass(this.label, 'disabled');
 			DOM.removeTabIndexAndUpdateFocus(this.label);
