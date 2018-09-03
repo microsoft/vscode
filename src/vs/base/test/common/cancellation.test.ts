@@ -96,4 +96,17 @@ suite('CancellationToken', function () {
 		source.cancel();
 		assert.equal(count, 0);
 	});
+
+	test('throwIfCancellationRequested throws only after cancellation', function () {
+		let source = new CancellationTokenSource();
+		source.token.throwIfCancellationRequested();
+		source.cancel();
+		assert.throws(() => source.token.throwIfCancellationRequested(), err => assert(CancellationToken.isCanceledError(err)));
+	});
+
+	test('cancellation error is recognizable', function () {
+		assert.notEqual(null, CancellationToken.canceledError());
+		assert(CancellationToken.isCanceledError(CancellationToken.canceledError()));
+		assert(!CancellationToken.isCanceledError(new Error('hi')));
+	});
 });
