@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';

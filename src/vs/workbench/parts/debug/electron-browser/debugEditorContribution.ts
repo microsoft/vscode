@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { visit } from 'vs/base/common/json';
 import severity from 'vs/base/common/severity';
 import { Constants } from 'vs/editor/common/core/uint';

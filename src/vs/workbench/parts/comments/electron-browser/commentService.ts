@@ -9,7 +9,7 @@ import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, Comm
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asWinJsPromise } from 'vs/base/common/async';

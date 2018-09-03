@@ -5,7 +5,7 @@
 'use strict';
 
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 

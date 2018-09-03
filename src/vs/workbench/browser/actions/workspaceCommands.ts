@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { dirname } from 'vs/base/common/paths';

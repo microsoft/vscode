@@ -13,7 +13,7 @@ import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common
 import { IOutputService, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import * as Constants from 'vs/workbench/parts/logs/common/logConstants';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ILabelService } from 'vs/platform/label/common/label';

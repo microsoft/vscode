@@ -12,7 +12,7 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { ICachedSearchStats, IFileMatch, IFolderQuery, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, IFileSearchStats, IFileIndexProviderStats } from 'vs/platform/search/common/search';

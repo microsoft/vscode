@@ -10,7 +10,7 @@ import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs
 import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 interface QuickInputSession {
 	input: IQuickInput;

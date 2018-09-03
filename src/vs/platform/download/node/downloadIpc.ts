@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
 import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';

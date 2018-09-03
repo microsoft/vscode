@@ -34,7 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath } from 'vs/base/common/resources';

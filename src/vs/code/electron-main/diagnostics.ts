@@ -16,7 +16,7 @@ import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
 import { basename } from 'path';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface VersionInfo {
 	vscodeVersion: string;

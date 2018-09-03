@@ -17,7 +17,7 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;

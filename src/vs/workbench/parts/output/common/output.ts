@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Mime type used by the output editor.

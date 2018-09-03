@@ -12,7 +12,7 @@ import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { collapseAll, expandAll } from 'vs/base/parts/tree/browser/treeUtils';

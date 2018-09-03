@@ -9,7 +9,7 @@ import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/
 import { extname, basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { TPromise } from 'vs/base/common/winjs.base';

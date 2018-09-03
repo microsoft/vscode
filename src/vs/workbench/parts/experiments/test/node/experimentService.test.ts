@@ -27,7 +27,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 let experimentData = {
 	experiments: []

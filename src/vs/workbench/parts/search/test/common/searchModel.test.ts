@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { timeout } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DeferredTPromise } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';

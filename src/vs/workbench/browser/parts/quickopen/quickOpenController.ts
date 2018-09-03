@@ -10,7 +10,7 @@ import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as types from 'vs/base/common/types';

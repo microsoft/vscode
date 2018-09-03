@@ -12,7 +12,7 @@ import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Token } from 'vs/editor/common/core/token';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 // --------------------------------------------
 // This is repeated here so it can be exported

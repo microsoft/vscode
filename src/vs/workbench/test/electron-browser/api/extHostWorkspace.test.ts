@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename } from 'path';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TestRPCProtocol } from './testRPCProtocol';

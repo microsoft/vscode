@@ -11,7 +11,7 @@ import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.ba
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IMode } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
