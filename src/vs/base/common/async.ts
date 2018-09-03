@@ -24,14 +24,6 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	}
 }
 
-export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
-	if (arg instanceof TPromise) {
-		return arg;
-	}
-
-	return new TPromise((resolve, reject) => arg.then(resolve, reject));
-}
-
 export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
 }

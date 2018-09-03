@@ -18,7 +18,6 @@ import { OS } from 'vs/base/common/platform';
 import { Emitter, toPromise } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { toWinJsPromise } from 'vs/base/common/async';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 class WindowRouter implements IClientRouter {
@@ -203,7 +202,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	private whenUnfrozen(windowId: number): TPromise<void> {
-		return toWinJsPromise(this._whenUnfrozen(windowId));
+		return TPromise.wrap(this._whenUnfrozen(windowId));
 	}
 
 	private async _whenUnfrozen(windowId: number): Promise<void> {
