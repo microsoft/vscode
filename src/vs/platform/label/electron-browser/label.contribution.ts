@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO@Isidor bad layering
+// tslint:disable-next-line:import-patterns
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ipcRenderer as ipc } from 'electron';

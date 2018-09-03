@@ -19,7 +19,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { LaunchService, LaunchChannel, ILaunchService } from './launch';
+import { LaunchService, LaunchChannel, ILaunchService } from 'vs/code/electron-main/launch';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -37,7 +37,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { ProxyAuthHandler } from './auth';
+import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from 'vs/base/common/winjs.base';

@@ -6,6 +6,8 @@
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+// TODO@Joao bad layering
+// tslint:disable-next-line:import-patterns
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';

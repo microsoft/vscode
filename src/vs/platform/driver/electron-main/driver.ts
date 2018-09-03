@@ -19,7 +19,9 @@ import { Emitter, toPromise } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // TODO@joao: bad layering!
+// tslint:disable-next-line:import-patterns
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+// tslint:disable-next-line:import-patterns
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { toWinJsPromise } from 'vs/base/common/async';
 
