@@ -768,7 +768,8 @@ var AMDLoader;
                     }
                     contents = nodeInstrumenter(contents, normalizedScriptSrc);
                     if (!opts.nodeCachedDataDir) {
-                        _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, { filename: vmScriptSrc }, recorder, callback, errorback);
+                        _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, { filename: vmScriptSrc }, recorder);
+                        callback();
                     }
                     else {
                         var cachedDataPath_1 = _this._getCachedDataPath(opts.nodeCachedDataDir, scriptSrc);
@@ -779,33 +780,22 @@ var AMDLoader;
                                 produceCachedData: typeof cachedData === 'undefined',
                                 cachedData: cachedData
                             };
-                            var script = _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder, callback, errorback);
+                            var script = _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder);
+                            callback();
                             _this._processCachedData(moduleManager, script, cachedDataPath_1);
                         });
                     }
                 });
             }
         };
-        NodeScriptLoader.prototype._loadAndEvalScript = function (moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder, callback, errorback) {
+        NodeScriptLoader.prototype._loadAndEvalScript = function (moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder) {
             // create script, run script
             recorder.record(31 /* NodeBeginEvaluatingScript */, scriptSrc);
             var script = new this._vm.Script(contents, options);
             var r = script.runInThisContext(options);
-            var globalDefineFunc = moduleManager.getGlobalAMDDefineFunc();
-            var receivedDefineCall = false;
-            var localDefineFunc = function () {
-                receivedDefineCall = true;
-                return globalDefineFunc.apply(null, arguments);
-            };
-            r.call(AMDLoader.global, moduleManager.getGlobalAMDRequireFunc(), localDefineFunc, vmScriptSrc, this._path.dirname(scriptSrc));
+            r.call(AMDLoader.global, moduleManager.getGlobalAMDRequireFunc(), moduleManager.getGlobalAMDDefineFunc(), vmScriptSrc, this._path.dirname(scriptSrc));
             // signal done
             recorder.record(32 /* NodeEndEvaluatingScript */, scriptSrc);
-            if (receivedDefineCall) {
-                callback();
-            }
-            else {
-                errorback(new Error("Didn't receive define call in " + scriptSrc + "!"));
-            }
             return script;
         };
         NodeScriptLoader.prototype._getCachedDataPath = function (basedir, filename) {
