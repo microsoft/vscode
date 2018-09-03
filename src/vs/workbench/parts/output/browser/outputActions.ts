@@ -20,7 +20,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { Registry } from 'vs/platform/registry/common/platform';
 import { groupBy } from 'vs/base/common/arrays';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class ToggleOutputAction extends TogglePanelAction {
 

@@ -17,7 +17,7 @@ import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { groupByExtension, getGalleryExtensionId, getLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 const MANIFEST_FILE = 'package.json';
 

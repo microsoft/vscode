@@ -37,7 +37,7 @@ import { IProgressService2 } from 'vs/workbench/services/progress/common/progres
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 

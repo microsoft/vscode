@@ -8,7 +8,7 @@ import { LabelService } from 'vs/platform/label/common/label';
 import { TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 

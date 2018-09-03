@@ -21,7 +21,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 class ExtensionMemento implements IExtensionMemento {
 

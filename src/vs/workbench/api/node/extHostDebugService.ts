@@ -6,7 +6,7 @@
 
 import * as paths from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';

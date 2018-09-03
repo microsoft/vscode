@@ -5,7 +5,7 @@
 'use strict';
 
 import { ShallowCancelThenPromise } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';

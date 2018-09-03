@@ -5,7 +5,7 @@
 'use strict';
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';

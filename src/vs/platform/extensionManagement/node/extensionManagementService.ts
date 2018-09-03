@@ -29,7 +29,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Limiter, always } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import pkg from 'vs/platform/node/package';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';

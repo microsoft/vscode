@@ -7,7 +7,7 @@ import { ExtHostContext, IExtHostContext, MainContext, MainThreadUrlsShape, ExtH
 import { extHostNamedCustomer } from './extHostCustomers';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 

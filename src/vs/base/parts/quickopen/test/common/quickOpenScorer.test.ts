@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename, dirname, nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 

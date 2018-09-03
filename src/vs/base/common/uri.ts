@@ -355,8 +355,6 @@ export class URI implements UriComponents {
 	}
 }
 
-export default URI;
-
 export interface UriComponents {
 	scheme: string;
 	authority: string;

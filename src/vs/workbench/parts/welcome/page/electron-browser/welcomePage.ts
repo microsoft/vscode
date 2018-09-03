@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/css!./welcomePage';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';

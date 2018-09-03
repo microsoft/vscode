@@ -12,7 +12,7 @@ import pkg from 'vs/platform/node/package';
 import * as path from 'path';
 import * as os from 'os';
 import * as pfs from 'vs/base/node/pfs';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';

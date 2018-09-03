@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeAction, CodeActionContext, CodeActionProvider, CodeActionProviderRegistry, Command, LanguageIdentifier, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
