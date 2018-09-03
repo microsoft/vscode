@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
 import { Promise as WinJSPromise } from 'vs/base/common/winjs.base';
+import { PolyfillPromise } from 'vs/base/common/winjs.polyfill.promise';
 
 suite('Polyfill Promise', function () {
 
@@ -85,6 +85,13 @@ suite('Polyfill Promise', function () {
 			assert.equal(typeof arguments[1], 'function');
 
 			arguments[0]();
+		});
+	});
+
+	test('Promises polyfill does not support chaining then and catch #57722', function () {
+		this.skip();
+		return PolyfillPromise.resolve(1).then(function (x) { return x + 1; }).then(function (x) {
+			assert.equal(x, 2);
 		});
 	});
 
