@@ -5,28 +5,28 @@
 
 'use strict';
 
-import 'vs/css!./goToDefinitionMouse';
-import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
+import 'vs/css!./goToDefinitionMouse';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { getDefinitionsAtPosition } from './goToDefinition';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { DefinitionLink, DefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
+import * as nls from 'vs/nls';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { getDefinitionsAtPosition } from './goToDefinition';
+import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
@@ -159,7 +159,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					ref.dispose();
 				});
 			}
-		}).done(undefined, onUnexpectedError);
+		});
 	}
 
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {

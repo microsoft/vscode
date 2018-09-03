@@ -17,13 +17,9 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { OS } from 'vs/base/common/platform';
 import { Emitter, toPromise } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-// TODO@joao: bad layering!
-// tslint:disable-next-line:import-patterns
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-// tslint:disable-next-line:import-patterns
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { toWinJsPromise } from 'vs/base/common/async';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 class WindowRouter implements IClientRouter {
 
@@ -92,7 +88,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
 		return this.whenUnfrozen(windowId).then(() => {
-			const [first, second] = KeybindingIO._readUserBinding(keybinding);
+			const [first, second] = KeybindingParser.parseUserBinding(keybinding);
 
 			return this._dispatchKeybinding(windowId, first).then(() => {
 				if (second) {

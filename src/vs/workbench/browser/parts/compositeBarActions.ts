@@ -313,7 +313,7 @@ export class ActivityActionItem extends BaseActionItem {
 			clearTimeout(this.mouseUpTimeout);
 		}
 
-		dom.removeNode(this.badge);
+		this.badge.remove();
 	}
 }
 
@@ -622,7 +622,7 @@ export class CompositeActionItem extends ActivityActionItem {
 
 		this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
 
-		dom.removeNode(this.label);
+		this.label.remove();
 	}
 }
 

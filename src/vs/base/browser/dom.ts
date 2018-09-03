@@ -22,12 +22,6 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
-export function removeNode(node: HTMLElement): void {
-	if (node.parentNode) {
-		node.parentNode.removeChild(node);
-	}
-}
-
 export function isInDOM(node: Node): boolean {
 	while (node) {
 		if (node === document.body) {

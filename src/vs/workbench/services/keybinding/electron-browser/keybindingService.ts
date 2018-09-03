@@ -37,6 +37,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { release } from 'os';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -438,7 +439,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		const [firstPart, chordPart] = KeybindingIO._readUserBinding(userBinding);
+		const [firstPart, chordPart] = KeybindingParser.parseUserBinding(userBinding);
 		return this._keyboardMapper.resolveUserBinding(firstPart, chordPart);
 	}
 
@@ -494,10 +495,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			id: command,
 			when: ContextKeyExpr.deserialize(when),
 			weight: weight,
-			primary: KeybindingIO.readKeybinding(key, OS),
-			mac: mac && { primary: KeybindingIO.readKeybinding(mac, OS) },
-			linux: linux && { primary: KeybindingIO.readKeybinding(linux, OS) },
-			win: win && { primary: KeybindingIO.readKeybinding(win, OS) }
+			primary: KeybindingParser.parseKeybinding(key, OS),
+			mac: mac && { primary: KeybindingParser.parseKeybinding(mac, OS) },
+			linux: linux && { primary: KeybindingParser.parseKeybinding(linux, OS) },
+			win: win && { primary: KeybindingParser.parseKeybinding(win, OS) }
 		};
 
 		if (!desc.primary && !desc.mac && !desc.linux && !desc.win) {

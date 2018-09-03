@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as async from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 suite('Async', () => {
 
@@ -137,16 +137,6 @@ suite('Async', () => {
 
 		let result = await promise;
 		assert.equal(result, 1234);
-	});
-
-	test('asDisposablePromise', async function () {
-		let value = await async.asDisposablePromise(TPromise.as(1)).promise;
-		assert.equal(value, 1);
-
-		let disposablePromise = async.asDisposablePromise(TPromise.timeout(1000).then(_ => 1), 2);
-		disposablePromise.dispose();
-		value = await disposablePromise.promise;
-		assert.equal(value, 2);
 	});
 
 	test('Throttler - non async', function () {

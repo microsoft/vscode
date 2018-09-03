@@ -13,7 +13,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
-import { asDisposablePromise, createCancelablePromise, setDisposableTimeout, timeout } from 'vs/base/common/async';
+import { createCancelablePromise, setDisposableTimeout } from 'vs/base/common/async';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -502,11 +502,21 @@ export class OutlinePanel extends ViewletPanel {
 			let oldLength = newLength - event.changes.reduce((prev, value) => prev + value.rangeLength, 0);
 			let oldRatio = oldSize / oldLength;
 			if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
-				if (!await asDisposablePromise(
-					timeout(2000).then(_ => true),
-					false,
-					this._editorDisposables).promise
-				) {
+
+				let waitPromise = new Promise<boolean>(resolve => {
+					let handle = setTimeout(() => {
+						handle = undefined;
+						resolve(true);
+					}, 2000);
+					this._disposables.push({
+						dispose() {
+							clearTimeout(handle);
+							resolve(false);
+						}
+					});
+				});
+
+				if (!await waitPromise) {
 					return;
 				}
 			}

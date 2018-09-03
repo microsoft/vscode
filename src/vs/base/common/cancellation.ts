@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
@@ -23,6 +23,18 @@ const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
 } as Event<any>);
 
 export namespace CancellationToken {
+
+	export function isCancellationToken(thing: any): thing is CancellationToken {
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		if (thing instanceof MutableToken) {
+			return true;
+		}
+		return typeof (thing as CancellationToken).isCancellationRequested === 'boolean'
+			&& typeof (thing as CancellationToken).onCancellationRequested === 'function';
+	}
+
 
 	export const None: CancellationToken = Object.freeze({
 		isCancellationRequested: false,

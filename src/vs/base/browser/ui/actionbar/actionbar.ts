@@ -204,7 +204,7 @@ export class BaseActionItem extends lifecycle.Disposable implements IActionItem 
 
 	public dispose(): void {
 		if (this.element) {
-			DOM.removeNode(this.element);
+			this.element.remove();
 			this.element = null;
 		}
 
@@ -216,12 +216,11 @@ export class Separator extends Action {
 
 	public static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string, order?: number) {
+	constructor(label?: string) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
 		this.radio = false;
 		this.enabled = false;
-		this.order = order;
 	}
 }
 
@@ -752,7 +751,7 @@ export class ActionBar extends lifecycle.Disposable implements IActionRunner {
 		}
 		this.items = null;
 
-		DOM.removeNode(this.getContainer());
+		this.getContainer().remove();
 
 		super.dispose();
 	}
