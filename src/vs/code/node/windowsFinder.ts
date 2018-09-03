@@ -23,6 +23,7 @@ export interface ISimpleWindow {
 export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	windows: W[];
 	newWindow: boolean;
+	newWindowUnlessFolder: boolean;
 	reuseWindow: boolean;
 	context: OpenContext;
 	fileUri?: URI;
@@ -31,15 +32,42 @@ export interface IBestWindowOrFolderOptions<W extends ISimpleWindow> {
 	workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace;
 }
 
-export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, reuseWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W {
-	if (!newWindow && fileUri && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
-		const windowOnFilePath = findWindowOnFilePath(windows, fileUri, workspaceResolver);
-		if (windowOnFilePath) {
-			return windowOnFilePath;
+export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows, newWindow, newWindowUnlessFolder, reuseWindow, context, fileUri, workspaceResolver }: IBestWindowOrFolderOptions<W>): W {
+	if (newWindow) {
+		// If newWindow is true, then have to check newWindowUnlessFolder boolean to see if to open in a window containing the folder or a new window
+		if (newWindowUnlessFolder) {
+			if (fileUri && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
+				const windowOnFilePath = findWindowOnFilePath(windows, fileUri, workspaceResolver);
+				if (windowOnFilePath) {
+					return windowOnFilePath;
+				} else {
+					return null;
+				}
+			}
+			else {
+				return null;
+			}
+		}
+		else {
+			return null;
+		}
+	} else {
+		if (fileUri && (context === OpenContext.DESKTOP || context === OpenContext.CLI || context === OpenContext.DOCK)) {
+			const windowOnFilePath = findWindowOnFilePath(windows, fileUri, workspaceResolver);
+			if (windowOnFilePath) {
+				return windowOnFilePath;
+			}
+		}
+
+		// If newWindow is false, and no folder is found, open in the last active window
+		if (newWindowUnlessFolder) {
+			return getLastActiveWindow(windows);
+		}
+		else {
+			return getLastActiveWindow(windows);
 		}
 	}
-
-	return !newWindow ? getLastActiveWindow(windows) : null;
+	// return !newWindow ? getLastActiveWindow(windows) : null;
 }
 
 function findWindowOnFilePath<W extends ISimpleWindow>(windows: W[], fileUri: URI, workspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace): W {

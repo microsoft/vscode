@@ -678,10 +678,11 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'window.openFilesInNewWindow': {
 			'type': 'string',
-			'enum': ['on', 'off', 'default'],
+			'enum': ['on', 'off', 'default', 'correspondingFolderOrNewWindow'],
 			'enumDescriptions': [
 				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window."),
 				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window."),
+				nls.localize('window.openFilesInNewWindow.correspondingFolderOrNewWindow', "Opening a new file will open in a new window except if the file's folder is opened, in that case it will open in the file's folder window."),
 				isMacintosh ?
 					nls.localize('window.openFilesInNewWindow.defaultMac', "Files will open in the window with the files' folder open or the last active window unless opened via the Dock or from Finder.") :
 					nls.localize('window.openFilesInNewWindow.default', "Files will open in a new window unless picked from within the application (e.g. via the File menu).")

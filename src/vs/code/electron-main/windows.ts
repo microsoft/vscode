@@ -518,7 +518,7 @@ export class WindowsManager implements IWindowsMainService {
 		const usedWindows: ICodeWindow[] = [];
 
 		// Settings can decide if files/folders open in new window or not
-		let { openFolderInNewWindow, openFilesInNewWindow } = this.shouldOpenNewWindow(openConfig);
+		let { openFolderInNewWindow, openFilesInNewWindow, openFilesInNewWindowUnlessFolder } = this.shouldOpenNewWindow(openConfig);
 
 		// Handle folders to add by looking for the last active workspace (not on initial startup)
 		if (!openConfig.initialStartup && foldersToAdd.length > 0) {
@@ -540,6 +540,7 @@ export class WindowsManager implements IWindowsMainService {
 			let bestWindowOrFolder = findBestWindowOrFolderForFile({
 				windows: WindowsManager.WINDOWS,
 				newWindow: openFilesInNewWindow,
+				newWindowUnlessFolder: openFilesInNewWindowUnlessFolder,
 				reuseWindow: openConfig.forceReuseWindow,
 				context: openConfig.context,
 				fileUri: fileToCheck && fileToCheck.fileUri,
@@ -1081,7 +1082,7 @@ export class WindowsManager implements IWindowsMainService {
 		return null;
 	}
 
-	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
+	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; openFilesInNewWindowUnlessFolder: boolean; } {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
@@ -1095,14 +1096,18 @@ export class WindowsManager implements IWindowsMainService {
 
 		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
 		let openFilesInNewWindow: boolean;
+		let openFilesInNewWindowUnlessFolder: boolean;
+		openFilesInNewWindowUnlessFolder = false;
 		if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
 			openFilesInNewWindow = openConfig.forceNewWindow && !openConfig.forceReuseWindow;
+			openFilesInNewWindowUnlessFolder = false;
 		} else {
 
 			// macOS: by default we open files in a new window if this is triggered via DOCK context
 			if (isMacintosh) {
 				if (openConfig.context === OpenContext.DOCK) {
 					openFilesInNewWindow = true;
+					openFilesInNewWindowUnlessFolder = false;
 				}
 			}
 
@@ -1110,16 +1115,17 @@ export class WindowsManager implements IWindowsMainService {
 			else {
 				if (openConfig.context !== OpenContext.DIALOG && openConfig.context !== OpenContext.MENU) {
 					openFilesInNewWindow = true;
+					openFilesInNewWindowUnlessFolder = false;
 				}
 			}
 
 			// finally check for overrides of default
-			if (!openConfig.cli.extensionDevelopmentPath && (openFilesInNewWindowConfig === 'on' || openFilesInNewWindowConfig === 'off')) {
-				openFilesInNewWindow = (openFilesInNewWindowConfig === 'on');
+			if (!openConfig.cli.extensionDevelopmentPath && (openFilesInNewWindowConfig === 'on' || openFilesInNewWindowConfig === 'off' || openFilesInNewWindowConfig === 'correspondingFolderOrNewWindow')) {
+				openFilesInNewWindow = (openFilesInNewWindowConfig === 'on' || openFilesInNewWindowConfig === 'correspondingFolderOrNewWindow');
+				openFilesInNewWindowUnlessFolder = (openFilesInNewWindowConfig === 'correspondingFolderOrNewWindow');
 			}
 		}
-
-		return { openFolderInNewWindow, openFilesInNewWindow };
+		return { openFolderInNewWindow, openFilesInNewWindow, openFilesInNewWindowUnlessFolder };
 	}
 
 	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void {
