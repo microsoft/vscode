@@ -1182,7 +1182,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				}
 
 				return null;
-			}).done(null, errors.onUnexpectedError);
+			});
 
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
@@ -1336,7 +1336,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			const fileCount = this.viewModel.searchResult.fileCount();
 			if (visibleMatches !== fileCount) {
 				visibleMatches = fileCount;
-				this.tree.refresh().done(null, errors.onUnexpectedError);
+				this.tree.refresh();
 
 				this.updateSearchResultCount();
 			}

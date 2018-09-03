@@ -1022,7 +1022,7 @@ export class FileService extends Disposable implements IFileService {
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 				setTimeout(() => {
-					this.existsFile(resource).done(exists => {
+					this.existsFile(resource).then(exists => {
 
 						// File still exists, so reapply the watcher
 						if (exists) {

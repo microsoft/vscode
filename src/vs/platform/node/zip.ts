@@ -203,7 +203,7 @@ function read(zipPath: string, filePath: string): TPromise<Readable> {
 		return new TPromise<Readable>((c, e) => {
 			zipfile.on('entry', (entry: Entry) => {
 				if (entry.fileName === filePath) {
-					ninvoke<Readable>(zipfile, zipfile.openReadStream, entry).done(stream => c(stream), err => e(err));
+					ninvoke<Readable>(zipfile, zipfile.openReadStream, entry).then(stream => c(stream), err => e(err));
 				}
 			});
 

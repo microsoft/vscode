@@ -334,7 +334,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		// save all dirty when enabling auto save
 		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll().done(null, errors.onUnexpectedError);
+			this.saveAll();
 		}
 
 		// Check for change in files associations

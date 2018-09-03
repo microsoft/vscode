@@ -58,7 +58,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
-				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).done(() => {
+				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
 					this.removeDecorations();
 				}, (error: Error) => {
 					this.removeDecorations();

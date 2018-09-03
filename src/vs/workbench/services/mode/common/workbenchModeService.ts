@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import * as resources from 'vs/base/common/resources';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mime from 'vs/base/common/mime';
@@ -147,7 +146,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		});
 
 		this.onDidCreateMode((mode) => {
-			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);
+			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`);
 		});
 	}
 

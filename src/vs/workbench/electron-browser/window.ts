@@ -128,7 +128,7 @@ export class ElectronWindow extends Themable {
 				args.push({ from: request.from }); // TODO@telemetry this is a bit weird to send this to every action?
 			}
 
-			this.commandService.executeCommand(request.id, ...args).done(_ => {
+			this.commandService.executeCommand(request.id, ...args).then(_ => {
 				/* __GDPR__
 					"commandExecuted" : {
 						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -149,12 +149,13 @@ export class ElectronWindow extends Themable {
 			} catch (error) {
 				// should not happen
 			}
+
 			// Resolve keys using the keybinding service and send back to browser process
-			this.resolveKeybindings(actionIds).done(keybindings => {
+			this.resolveKeybindings(actionIds).then(keybindings => {
 				if (keybindings.length) {
 					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
 				}
-			}, () => errors.onUnexpectedError);
+			});
 		});
 
 		ipc.on('vscode:reportError', (event: any, error: string) => {
@@ -417,7 +418,7 @@ export class ElectronWindow extends Themable {
 
 		this.pendingFoldersToAdd = [];
 
-		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
+		this.workspaceEditingService.addFolders(foldersToAdd);
 	}
 
 	private onOpenFiles(request: IOpenFileRequest): void {
@@ -449,7 +450,7 @@ export class ElectronWindow extends Themable {
 			const unbind = this.editorService.onDidCloseEditor(() => {
 				if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
 					unbind.dispose();
-					this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+					this.fileService.del(waitMarkerFile);
 				}
 			});
 		}

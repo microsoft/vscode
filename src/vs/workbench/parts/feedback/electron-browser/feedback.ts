@@ -14,7 +14,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import product from 'vs/platform/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as errors from 'vs/base/common/errors';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -215,7 +214,7 @@ export class FeedbackDropdown extends Dropdown {
 			.on('click', event => {
 				dom.EventHelper.stop(event);
 				const actionId = 'workbench.action.openIssueReporter';
-				this.commandService.executeCommand(actionId).done(null, errors.onUnexpectedError);
+				this.commandService.executeCommand(actionId);
 				this.hide();
 
 				/* __GDPR__
@@ -372,7 +371,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 
 		if (this.hideButton && !this.hideButton.checked) {
-			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false).done(null, errors.onUnexpectedError);
+			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false);
 		}
 
 		super.hide();

@@ -8,7 +8,6 @@ import 'vs/css!./quickopen';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
-import * as errors from 'vs/base/common/errors';
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode, IKeyMods } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { ITree, ContextMenuEvent, IActionProvider, ITreeStyles, ITreeOptions, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
@@ -519,7 +518,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		// Reveal
 		newFocus = this.tree.getFocus();
 		if (newFocus) {
-			this.tree.reveal(newFocus).done(null, errors.onUnexpectedError);
+			this.tree.reveal(newFocus);
 		}
 	}
 
@@ -626,7 +625,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			this.inputElement.setAttribute('aria-haspopup', String(input && input.entries && input.entries.length > 0));
 
 			return this.tree.setInput(input);
-		}).done(() => {
+		}).then(() => {
 
 			// Indicate entries to tree
 			this.tree.layout();
@@ -638,7 +637,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			if (entries.length) {
 				this.autoFocus(input, entries, autoFocus);
 			}
-		}, errors.onUnexpectedError);
+		});
 	}
 
 	private isElementVisible<T>(input: IModel<T>, e: T): boolean {
@@ -675,7 +674,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			const entryToFocus = caseSensitiveMatch || caseInsensitiveMatch;
 			if (entryToFocus) {
 				this.tree.setFocus(entryToFocus);
-				this.tree.reveal(entryToFocus, 0.5).done(null, errors.onUnexpectedError);
+				this.tree.reveal(entryToFocus, 0.5);
 
 				return;
 			}
@@ -684,14 +683,14 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		// Second check for auto focus of first entry
 		if (autoFocus.autoFocusFirstEntry) {
 			this.tree.focusFirst();
-			this.tree.reveal(this.tree.getFocus()).done(null, errors.onUnexpectedError);
+			this.tree.reveal(this.tree.getFocus());
 		}
 
 		// Third check for specific index option
 		else if (typeof autoFocus.autoFocusIndex === 'number') {
 			if (entries.length > autoFocus.autoFocusIndex) {
 				this.tree.focusNth(autoFocus.autoFocusIndex);
-				this.tree.reveal(this.tree.getFocus()).done(null, errors.onUnexpectedError);
+				this.tree.reveal(this.tree.getFocus());
 			}
 		}
 
@@ -725,7 +724,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 
 		// Apply height & Refresh
 		this.treeContainer.style.height = `${this.getHeight(input)}px`;
-		this.tree.refresh().done(() => {
+		this.tree.refresh().then(() => {
 
 			// Indicate entries to tree
 			this.tree.layout();
@@ -739,7 +738,7 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 					this.autoFocus(input, entries, autoFocus);
 				}
 			}
-		}, errors.onUnexpectedError);
+		});
 	}
 
 	private getHeight(input: IModel<any>): number {

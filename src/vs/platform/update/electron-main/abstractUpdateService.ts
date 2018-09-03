@@ -75,8 +75,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.setState(State.Idle(this.getUpdateType()));
 
 		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000)
-			.done(null, err => this.logService.error(err));
+		this.scheduleCheckForUpdates(30 * 1000).then(null, err => this.logService.error(err));
 	}
 
 	private getProductQuality(): string {

@@ -913,19 +913,16 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): void {
-		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			promise = this.handleExternalDrop(tree, data, target, originalEvent);
+			this.handleExternalDrop(tree, data, target, originalEvent);
 		}
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			promise = this.handleExplorerDrop(tree, data, target, originalEvent);
+			this.handleExplorerDrop(tree, data, target, originalEvent);
 		}
-
-		promise.done(null, errors.onUnexpectedError);
 	}
 
 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {

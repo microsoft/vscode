@@ -94,7 +94,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 			});
 		};
 
-		mkdirp(target, stat.mode & 511).done(proceed, proceed);
+		mkdirp(target, stat.mode & 511).then(proceed, proceed);
 	});
 }
 

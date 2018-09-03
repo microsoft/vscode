@@ -41,7 +41,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	}
 
 	destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
-		modelPromise.done(model => {
+		modelPromise.then(model => {
 			if (model instanceof TextFileEditorModel) {
 				this.textFileService.models.disposeModel(model);
 			} else {

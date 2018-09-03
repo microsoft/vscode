@@ -319,7 +319,7 @@ function main() {
 			perf.mark('main/startup');
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)
-				.done(function () {
+				.then(function () {
 					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
 				}, function (error) {
 					onError(error, enableDeveloperTools);

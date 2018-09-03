@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/markers';
 
-import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
@@ -156,13 +155,13 @@ export class MarkersPanel extends Panel {
 					pinned,
 					revealIfVisible: true
 				},
-			}, sideByside ? SIDE_GROUP : ACTIVE_GROUP).done(editor => {
+			}, sideByside ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 				if (editor && preserveFocus) {
 					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
-			}, errors.onUnexpectedError);
+			});
 			return true;
 		} else {
 			this.rangeHighlightDecorations.removeHighlightRange();
@@ -379,7 +378,7 @@ export class MarkersPanel extends Panel {
 	private autoExpand(): void {
 		this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
 			if (!this.autoExpanded.has(resource.uri.toString())) {
-				this.tree.expand(resource).done(null, errors.onUnexpectedError);
+				this.tree.expand(resource);
 				this.autoExpanded.add(resource.uri.toString());
 			}
 		});

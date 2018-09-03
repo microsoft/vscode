@@ -553,7 +553,7 @@ export class Workbench extends Disposable implements IPartService {
 		// the wait marker file to signal to the outside that editing is done.
 		if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
 			listenerDispose.dispose();
-			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+			this.fileService.del(waitMarkerFile);
 		}
 	}
 
@@ -1240,8 +1240,8 @@ export class Workbench extends Disposable implements IPartService {
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 
-			this.setPanelHidden(true, true).done(void 0, errors.onUnexpectedError);
-			this.setSideBarHidden(true, true).done(void 0, errors.onUnexpectedError);
+			this.setPanelHidden(true, true);
+			this.setSideBarHidden(true, true);
 
 			if (config.hideActivityBar) {
 				this.setActivityBarHidden(true, true);
@@ -1263,11 +1263,11 @@ export class Workbench extends Disposable implements IPartService {
 		// Zen Mode Inactive
 		else {
 			if (this.zenMode.wasPanelVisible) {
-				this.setPanelHidden(false, true).done(void 0, errors.onUnexpectedError);
+				this.setPanelHidden(false, true);
 			}
 
 			if (this.zenMode.wasSideBarVisible) {
-				this.setSideBarHidden(false, true).done(void 0, errors.onUnexpectedError);
+				this.setSideBarHidden(false, true);
 			}
 
 			if (this.zenMode.transitionedToCenteredEditorLayout) {
@@ -1289,7 +1289,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		if (toggleFullScreen) {
-			this.windowService.toggleFullScreen().done(void 0, errors.onUnexpectedError);
+			this.windowService.toggleFullScreen();
 		}
 	}
 
@@ -1445,7 +1445,7 @@ export class Workbench extends Disposable implements IPartService {
 
 	setSideBarPosition(position: Position): void {
 		if (this.sideBarHidden) {
-			this.setSideBarHidden(false, true /* Skip Layout */).done(void 0, errors.onUnexpectedError);
+			this.setSideBarHidden(false, true /* Skip Layout */);
 		}
 
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';

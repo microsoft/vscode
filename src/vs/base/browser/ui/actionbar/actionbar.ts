@@ -729,7 +729,7 @@ export class ActionBar extends lifecycle.Disposable implements IActionRunner {
 		let actionItem = this.items[this.focusedItem];
 		if (actionItem instanceof BaseActionItem) {
 			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-			this.run(actionItem._action, context).done();
+			this.run(actionItem._action, context);
 		}
 	}
 
@@ -780,7 +780,7 @@ export class SelectActionItem extends BaseActionItem {
 
 	private registerListeners(): void {
 		this._register(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected)).done();
+			this.actionRunner.run(this._action, this.getActionContext(e.selected));
 		}));
 	}
 

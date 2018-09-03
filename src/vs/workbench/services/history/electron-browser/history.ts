@@ -380,7 +380,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			openEditorPromise = this.editorService.openEditor({ resource: (entry.input as IResourceInput).resource, options });
 		}
 
-		openEditorPromise.done(() => {
+		openEditorPromise.then(() => {
 			this.navigatingInStack = false;
 		}, error => {
 			this.navigatingInStack = false;

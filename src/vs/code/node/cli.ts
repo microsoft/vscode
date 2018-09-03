@@ -171,7 +171,7 @@ export async function main(argv: string[]): Promise<any> {
 				if (!stdinFileError) {
 
 					// Pipe into tmp file using terminals encoding
-					resolveTerminalEncoding(verbose).done(encoding => {
+					resolveTerminalEncoding(verbose).then(encoding => {
 						const converterStream = iconv.decodeStream(encoding);
 						process.stdin.pipe(converterStream).pipe(stdinFileStream);
 					});
@@ -339,7 +339,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.once('exit', () => c(null));
 
 				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath).done(c, c);
+				whenDeleted(waitMarkerFilePath).then(c, c);
 			}).then(() => {
 
 				// Make sure to delete the tmp stdin file if we have any
