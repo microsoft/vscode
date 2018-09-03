@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { $ } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -15,6 +14,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -57,17 +57,17 @@ export class CommentNode {
 		public comment: modes.Comment,
 		private markdownRenderer: MarkdownRenderer,
 	) {
-		this._domNode = $('div.review-comment').getHTMLElement();
+		this._domNode = dom.$('div.review-comment');
 		this._domNode.tabIndex = 0;
-		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
-		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
+		let avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
+		let img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
 		img.src = comment.gravatar;
-		let commentDetailsContainer = $('.review-comment-contents').appendTo(this._domNode).getHTMLElement();
+		let commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
-		let header = $('div').appendTo(commentDetailsContainer).getHTMLElement();
-		let author = $('strong.author').appendTo(header).getHTMLElement();
+		let header = dom.append(commentDetailsContainer, dom.$('div'));
+		let author = dom.append(header, dom.$('strong.author'));
 		author.innerText = comment.userName;
-		this._body = $('div.comment-body').appendTo(commentDetailsContainer).getHTMLElement();
+		this._body = dom.append(commentDetailsContainer, dom.$('div.comment-body'));
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
@@ -197,24 +197,22 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
-		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
+		this._headElement = <HTMLDivElement>dom.$('.head');
 		container.appendChild(this._headElement);
 		this._fillHead(this._headElement);
 
-		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();
+		this._bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(this._bodyElement);
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		var titleElement = $('.review-title').
-			appendTo(this._headElement).
-			getHTMLElement();
+		var titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
-		this._headingLabel = $('span.filename').appendTo(titleElement).getHTMLElement();
+		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
 		this.createThreadLabel();
 
-		const actionsContainer = $('.review-actions').appendTo(this._headElement);
-		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
+		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
+		this._actionbarWidget = new ActionBar(actionsContainer, {});
 		this._disposables.push(this._actionbarWidget);
 
 		this._toggleAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
@@ -306,7 +304,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
-		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
+		this._commentsElement = dom.append(this._bodyElement, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
 
 		this._commentElements = [];
@@ -317,7 +315,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		const hasExistingComments = this._commentThread.comments.length > 0;
-		this._commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
@@ -358,9 +356,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		}));
 
-		this._error = $('.validation-error.hidden').appendTo(this._commentForm).getHTMLElement();
+		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
-		const formActions = $('.form-actions').appendTo(this._commentForm).getHTMLElement();
+		const formActions = dom.append(this._commentForm, dom.$('.form-actions'));
 
 		const button = new Button(formActions);
 		attachButtonStyler(button, this.themeService);
@@ -457,12 +455,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 			label = nls.localize('startThread', "Start discussion");
 		}
 
-		$(this._headingLabel).safeInnerHtml(label);
+		this._headingLabel.innerHTML = strings.escape(label);
 		this._headingLabel.setAttribute('aria-label', label);
 	}
 
 	private createReplyButton() {
-		this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
+		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$('button.review-thread-reply-button'));
 		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
 		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
