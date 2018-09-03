@@ -115,7 +115,7 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
             filesStream.pipe(result);
         }
     }).catch(function (err) { return result.emit('error', err); });
-    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath), true));
+    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 exports.fromLocal = fromLocal;
 function error(err) {

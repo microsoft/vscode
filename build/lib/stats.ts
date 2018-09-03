@@ -12,8 +12,25 @@ import * as File from 'vinyl';
 class Entry {
 	constructor(readonly name: string, public totalCount: number, public totalSize: number) { }
 
-	toString(): string {
-		return `${this.name}: ${this.totalCount} files with ${this.totalSize} bytes`;
+	toString(pretty?: boolean): string {
+		if (!pretty) {
+			if (this.totalCount === 1) {
+				return `${this.name}: ${this.totalSize} bytes`;
+			} else {
+				return `${this.name}: ${this.totalCount} files with ${this.totalSize} bytes`;
+			}
+		} else {
+			if (this.totalCount === 1) {
+				return `Stats for '${util.colors.grey(this.name)}': ${Math.round(this.totalSize / 1204)}KB`;
+
+			} else {
+				let count = this.totalCount < 100
+					? util.colors.green(this.totalCount.toString())
+					: util.colors.red(this.totalCount.toString());
+
+				return `Stats for '${util.colors.grey(this.name)}': ${count} files, ${Math.round(this.totalSize / 1204)}KB`;
+			}
+		}
 	}
 }
 
@@ -53,4 +70,22 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 
 		this.emit('end');
 	});
+}
+
+export function submitAllStats(): void {
+	let sorted: Entry[] = [];
+	// move entries for single files to the
+	// front
+	_entries.forEach(value => {
+		if (value.totalCount === 1) {
+			sorted.unshift(value);
+		} else {
+			sorted.push(value);
+		}
+	});
+	// todo@ramya/joh - send the data as telemetry event
+	// so that it can be stored in the datawarehouse
+	for (const entry of sorted) {
+		console.log(entry.toString(true));
+	}
 }

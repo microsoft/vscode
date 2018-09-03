@@ -12,8 +12,26 @@ var Entry = /** @class */ (function () {
         this.totalCount = totalCount;
         this.totalSize = totalSize;
     }
-    Entry.prototype.toString = function () {
-        return this.name + ": " + this.totalCount + " files with " + this.totalSize + " bytes";
+    Entry.prototype.toString = function (pretty) {
+        if (!pretty) {
+            if (this.totalCount === 1) {
+                return this.name + ": " + this.totalSize + " bytes";
+            }
+            else {
+                return this.name + ": " + this.totalCount + " files with " + this.totalSize + " bytes";
+            }
+        }
+        else {
+            if (this.totalCount === 1) {
+                return "Stats for '" + util.colors.grey(this.name) + "': " + Math.round(this.totalSize / 1204) + "KB";
+            }
+            else {
+                var count = this.totalCount < 100
+                    ? util.colors.green(this.totalCount.toString())
+                    : util.colors.red(this.totalCount.toString());
+                return "Stats for '" + util.colors.grey(this.name) + "': " + count + " files, " + Math.round(this.totalSize / 1204) + "KB";
+            }
+        }
     };
     return Entry;
 }());
@@ -52,3 +70,23 @@ function createStatsStream(group, log) {
     });
 }
 exports.createStatsStream = createStatsStream;
+function submitAllStats() {
+    var sorted = [];
+    // move entries for single files to the
+    // front
+    _entries.forEach(function (value) {
+        if (value.totalCount === 1) {
+            sorted.unshift(value);
+        }
+        else {
+            sorted.push(value);
+        }
+    });
+    // todo@ramya/joh - send the data as telemetry event
+    // so that it can be stored in the datawarehouse
+    for (var _i = 0, sorted_1 = sorted; _i < sorted_1.length; _i++) {
+        var entry = sorted_1[_i];
+        console.log(entry.toString(true));
+    }
+}
+exports.submitAllStats = submitAllStats;

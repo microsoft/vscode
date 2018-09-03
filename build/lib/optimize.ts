@@ -123,7 +123,7 @@ function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.
 	return es.readArray(treatedSources)
 		.pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
 		.pipe(concat(dest))
-		.pipe(createStatsStream(dest, true));
+		.pipe(createStatsStream(dest));
 }
 
 function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.IConcatFile[]): NodeJS.ReadWriteStream {

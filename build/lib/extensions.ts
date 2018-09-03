@@ -132,7 +132,7 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 
 	}).catch(err => result.emit('error', err));
 
-	return result.pipe(createStatsStream(path.basename(extensionPath), true));
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
 function error(err: any): Stream {

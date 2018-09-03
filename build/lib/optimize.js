@@ -103,7 +103,7 @@ function toConcatStream(src, bundledFileHeader, sources, dest) {
     return es.readArray(treatedSources)
         .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
         .pipe(concat(dest))
-        .pipe(stats_1.createStatsStream(dest, true));
+        .pipe(stats_1.createStatsStream(dest));
 }
 function toBundleStream(src, bundledFileHeader, bundles) {
     return es.merge(bundles.map(function (bundle) {
