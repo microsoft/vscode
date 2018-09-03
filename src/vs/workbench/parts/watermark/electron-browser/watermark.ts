@@ -184,7 +184,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private destroy(): void {
 		if (this.watermark) {
-			dom.removeNode(this.watermark);
+			this.watermark.remove();
 			this.partService.getContainer(Parts.EDITOR_PART).classList.remove('has-watermark');
 			this.dispose();
 		}
