@@ -17,7 +17,7 @@ import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient } from 'vs/code/electron-main/launch';
+import { ILaunchChannel, LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -44,7 +44,7 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
+import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -77,6 +77,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IURLService, new SyncDescriptor(URLService));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
+	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 	return new InstantiationService(services, true);
 }
@@ -114,6 +115,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
+	const diagnosticsService = accessor.get(IDiagnosticsService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -201,7 +203,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Process Info
 					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
-							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
+							return diagnosticsService.printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
 						});
 					}
 

@@ -11,10 +11,8 @@ import * as objects from 'vs/base/common/objects';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, Event } from 'electron';
-// tslint:disable-next-line:import-patterns
-import { ILaunchService } from 'vs/code/electron-main/launch';
-// tslint:disable-next-line:import-patterns
-import { getPerformanceInfo, PerformanceInfo, getSystemInfo, SystemInfo } from 'vs/code/electron-main/diagnostics';
+import { ILaunchService } from 'vs/platform/launch/electron-main/launchService';
+import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -33,6 +31,7 @@ export class IssueService implements IIssueService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILaunchService private launchService: ILaunchService,
 		@ILogService private logService: ILogService,
+		@IDiagnosticsService private diagnosticsService: IDiagnosticsService
 	) { }
 
 	openReporter(data: IssueReporterData): TPromise<void> {
@@ -229,7 +228,7 @@ export class IssueService implements IIssueService {
 	private getSystemInformation(): TPromise<SystemInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
-				resolve(getSystemInfo(info));
+				resolve(this.diagnosticsService.getSystemInfo(info));
 			});
 		});
 	}
@@ -237,7 +236,7 @@ export class IssueService implements IIssueService {
 	private getPerformanceInfo(): TPromise<PerformanceInfo> {
 		return new Promise((resolve, reject) => {
 			this.launchService.getMainProcessInfo().then(info => {
-				getPerformanceInfo(info)
+				this.diagnosticsService.getPerformanceInfo(info)
 					.then(diagnosticInfo => {
 						resolve(diagnosticInfo);
 					})
