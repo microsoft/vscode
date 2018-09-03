@@ -106,6 +106,6 @@ export class LinkDetector {
 					startColumn: column
 				}
 			}
-		}, group).done(null, errors.onUnexpectedError);
+		}, group).then(null, errors.onUnexpectedError);
 	}
 }

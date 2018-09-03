@@ -251,7 +251,7 @@ export class ExtensionHostMain {
 				// the file was found
 				return (
 					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
-						.done(null, err => console.error(err))
+						.then(null, err => console.error(err))
 				);
 			}
 		}
@@ -295,7 +295,7 @@ export class ExtensionHostMain {
 			// a file was found matching one of the glob patterns
 			return (
 				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
-					.done(null, err => console.error(err))
+					.then(null, err => console.error(err))
 			);
 		}
 

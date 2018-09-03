@@ -110,7 +110,7 @@ export class ModeServiceImpl implements IModeService {
 			let r: IMode = null;
 			this.getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds).then((mode) => {
 				r = mode;
-			}).done(null, onUnexpectedError);
+			}, onUnexpectedError);
 			return r;
 		}
 		return null;
