@@ -5,7 +5,6 @@
 'use strict';
 
 import 'vs/css!./watermark';
-import { $, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -27,6 +26,9 @@ import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants'
 import { escape } from 'vs/base/common/strings';
 import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import * as dom from 'vs/base/browser/dom';
+
+const $ = dom.$;
 
 interface WatermarkEntry {
 	text: string;
@@ -104,7 +106,7 @@ const WORKBENCH_TIPS_ENABLED_KEY = 'workbench.tips.enabled';
 export class WatermarkContribution implements IWorkbenchContribution {
 
 	private toDispose: IDisposable[] = [];
-	private watermark: Builder;
+	private watermark: HTMLElement;
 	private enabled: boolean;
 	private workbenchState: WorkbenchState;
 
@@ -149,35 +151,31 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
 		container.classList.add('has-watermark');
 
-		this.watermark = $()
-			.div({ 'class': 'watermark' });
-		const box = $(this.watermark)
-			.div({ 'class': 'watermark-box' });
+		this.watermark = $('.watermark');
+		const box = dom.append(this.watermark, $('.watermark-box'));
 		const folder = this.workbenchState !== WorkbenchState.EMPTY;
 		const selected = folder ? folderEntries : noFolderEntries
 			.filter(entry => !('mac' in entry) || entry.mac === isMacintosh);
 		const update = () => {
-			const builder = $(box);
-			builder.clearChildren();
+			dom.clearNode(box);
 			selected.map(entry => {
-				builder.element('dl', {}, dl => {
-					dl.element('dt', {}, dt => dt.text(entry.text));
-					dl.element('dd', {}, dd => dd.innerHtml(
-						entry.ids
-							.map(id => {
-								let k = this.keybindingService.lookupKeybinding(id);
-								if (k) {
-									return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
-								}
-								return `<span class="unbound">${escape(UNBOUND)}</span>`;
-							})
-							.join(' / ')
-					));
-				});
+				const dl = dom.append(box, $('dl'));
+				const dt = dom.append(dl, $('dt'));
+				dt.textContent = entry.text;
+				const dd = dom.append(dl, $('dd'));
+				dd.innerHTML = entry.ids
+					.map(id => {
+						let k = this.keybindingService.lookupKeybinding(id);
+						if (k) {
+							return `<span class="shortcuts">${escape(k.getLabel())}</span>`;
+						}
+						return `<span class="unbound">${escape(UNBOUND)}</span>`;
+					})
+					.join(' / ');
 			});
 		};
 		update();
-		this.watermark.build(container.firstElementChild as HTMLElement, 0);
+		dom.prepend(container.firstElementChild as HTMLElement, this.watermark);
 		this.toDispose.push(this.keybindingService.onDidUpdateKeybindings(update));
 		this.toDispose.push(this.partService.onEditorLayout(({ height }: IDimension) => {
 			container.classList[height <= 478 ? 'add' : 'remove']('max-height-478px');
@@ -186,7 +184,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 
 	private destroy(): void {
 		if (this.watermark) {
-			this.watermark.destroy();
+			dom.removeNode(this.watermark);
 			this.partService.getContainer(Parts.EDITOR_PART).classList.remove('has-watermark');
 			this.dispose();
 		}
