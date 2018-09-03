@@ -844,6 +844,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+		},
+		'editor.restoreViewState': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.restoreViewState,
+			'markdownDescription': nls.localize('restoreViewState', "Restores the previous scroll position when re-opening files.")
 		}
 	}
 };

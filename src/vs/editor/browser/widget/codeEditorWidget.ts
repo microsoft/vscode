@@ -798,6 +798,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+		if (!this._configuration.editor.restoreViewState) {
+			return;
+		}
 		if (!this.cursor || !this.hasView) {
 			return;
 		}

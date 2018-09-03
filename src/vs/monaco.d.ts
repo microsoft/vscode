@@ -2658,6 +2658,11 @@ declare namespace monaco.editor {
 		 */
 		readOnly?: boolean;
 		/**
+		 * Restore the previous scroll position on file open.
+		 * Defaults to true.
+		 */
+		restoreViewState?: boolean;
+		/**
 		 * Control the behavior and rendering of the scrollbars.
 		 */
 		scrollbar?: IEditorScrollbarOptions;
@@ -3303,6 +3308,7 @@ declare namespace monaco.editor {
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
+		readonly restoreViewState: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly multiCursorMergeOverlapping: boolean;
 		readonly showUnused: boolean;
