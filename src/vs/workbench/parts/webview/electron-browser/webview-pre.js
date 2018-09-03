@@ -138,6 +138,14 @@
 			});
 		});
 
+		// propagate focus
+		ipcRenderer.on('focus', () => {
+			const target = getActiveFrame();
+			if (target) {
+				target.contentWindow.focus();
+			}
+		});
+
 		// update iframe-contents
 		ipcRenderer.on('content', (_event, data) => {
 			const options = data.options;

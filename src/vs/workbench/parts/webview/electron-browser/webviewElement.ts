@@ -314,6 +314,8 @@ export class WebviewElement extends Disposable {
 		// TODO@Ben use webview.focus() once available (see https://github.com/electron/electron/issues/14259#issuecomment-417932015)
 		(<any>this._webview).contentWindow.focus();
 
+		this._send('focus');
+
 		// Handle focus change programmatically (do not rely on event from <webview>)
 		this.handleFocusChange(true);
 	}
