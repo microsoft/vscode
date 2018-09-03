@@ -8,7 +8,6 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -18,9 +17,10 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 import { URI } from 'vs/base/common/uri';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode } from 'vs/base/browser/dom';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { dispose } from 'vs/base/common/lifecycle';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => void;
@@ -37,7 +37,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	private callbacks: IOpenCallbacks;
 	private metadata: string;
-	private binaryContainer: Builder;
+	private binaryContainer: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private resourceViewerContext: ResourceViewerContext;
 
@@ -60,14 +60,13 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	protected createEditor(parent: HTMLElement): void {
 
 		// Container for Binary
-		const binaryContainerElement = document.createElement('div');
-		binaryContainerElement.className = 'binary-container';
-		this.binaryContainer = $(binaryContainerElement);
-		this.binaryContainer.style('outline', 'none');
-		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
+		this.binaryContainer = document.createElement('div');
+		this.binaryContainer.className = 'binary-container';
+		this.binaryContainer.style.outline = 'none';
+		this.binaryContainer.tabIndex = 0; // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
-		this.scrollbar = this._register(new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
+		this.scrollbar = this._register(new DomScrollableElement(this.binaryContainer, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
@@ -89,7 +88,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
 					this._fileService,
-					this.binaryContainer.getHTMLElement(),
+					this.binaryContainer,
 					this.scrollbar,
 					resource => this.callbacks.openInternal(input, options),
 					resource => this.callbacks.openExternal(resource),
@@ -116,8 +115,9 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		// Clear Meta
 		this.handleMetadataChanged(null);
 
-		// Empty HTML Container
-		$(this.binaryContainer).empty();
+		// Clear Resource Viewer
+		clearNode(this.binaryContainer);
+		this.resourceViewerContext = dispose(this.resourceViewerContext);
 
 		super.clearInput();
 	}
@@ -125,21 +125,21 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	layout(dimension: Dimension): void {
 
 		// Pass on to Binary Container
-		this.binaryContainer.size(dimension.width, dimension.height);
+		size(this.binaryContainer, dimension.width, dimension.height);
 		this.scrollbar.scanDomNode();
-		if (this.resourceViewerContext) {
+		if (this.resourceViewerContext && this.resourceViewerContext.layout) {
 			this.resourceViewerContext.layout(dimension);
 		}
 	}
 
 	focus(): void {
-		this.binaryContainer.domFocus();
+		this.binaryContainer.focus();
 	}
 
 	dispose(): void {
+		this.binaryContainer.remove();
 
-		// Destroy Container
-		this.binaryContainer.destroy();
+		this.resourceViewerContext = dispose(this.resourceViewerContext);
 
 		super.dispose();
 	}
