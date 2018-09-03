@@ -32,7 +32,6 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -50,6 +49,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -1057,7 +1057,7 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
+		const keyBinding = KeybindingParser.parseKeybinding(key || rawKeyBinding.key, OS);
 		if (!keyBinding) {
 			return null;
 		}

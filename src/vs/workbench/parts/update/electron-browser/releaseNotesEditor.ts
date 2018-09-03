@@ -25,8 +25,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 function renderBody(
 	body: string,
@@ -135,7 +135,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingIO.readKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
 
 				if (!keybinding) {
 					return unassigned;
