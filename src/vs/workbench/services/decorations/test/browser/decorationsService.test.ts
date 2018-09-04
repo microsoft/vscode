@@ -11,7 +11,6 @@ import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/dec
 import { URI } from 'vs/base/common/uri';
 import { Event, toPromise, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('DecorationsService', function () {
@@ -185,19 +184,17 @@ suite('DecorationsService', function () {
 
 			label: string = 'foo';
 
-			provideDecorations(uri: URI, token: CancellationToken): TPromise<IDecorationData> {
+			provideDecorations(uri: URI, token: CancellationToken): Promise<IDecorationData> {
 
 				token.onCancellationRequested(() => {
 					cancelCount += 1;
 				});
 
-				return new TPromise(resolve => {
+				return new Promise(resolve => {
 					callCount += 1;
 					setTimeout(() => {
 						resolve({ letter: 'foo' });
 					}, 10);
-				}, () => {
-					winjsCancelCount += 1;
 				});
 			}
 		};
