@@ -714,7 +714,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': isMacintosh ? 'off' : 'on',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+			'markdownDescription': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
