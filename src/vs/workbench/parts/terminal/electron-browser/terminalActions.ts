@@ -237,52 +237,7 @@ export class SendSequenceTerminalCommand extends Command {
 		if (!terminalInstance) {
 			return;
 		}
-		const text = args.text.split(' ');
-		let terminalText;
-		for (let i = 0; i < text.length; i++) {
-			terminalText = ' ' + this.prepareTerminalText(text[i]);
-			terminalInstance.sendText(terminalText, false);
-		}
-	}
-
-	private prepareTerminalText(text: string): string {
-		// Hexcodes and excape char
-		if (text.substring(0, 2).toLowerCase() === '\\x') {
-			// Valid hex with 2 digits
-			if (/^\\x[0-9a-f]{2}$/i.test(text)) {
-				return String.fromCharCode(parseInt(text.substring(2), 16));
-			}
-		}
-
-		// ctrl modifier with single char
-		if (text.indexOf('+') >= 0) {
-			const text1 = text.split('+');
-			if (text1[0].toLowerCase() === 'ctrl') {
-				if (text1[1].length === 1) {
-					return String.fromCharCode(text1[1].toUpperCase().charCodeAt(0) - 64);
-				}
-			}
-		}
-		// handle enter
-		if (text.toLowerCase() === 'enter') {
-			return '\n';
-		}
-
-		// Arrow keys
-		if (text.toLowerCase() === 'down') {
-			return String.fromCharCode(15);
-		}
-		if (text.toLowerCase() === 'up') {
-			return String.fromCharCode(16);
-		}
-		if (text.toLowerCase() === 'right') {
-			return String.fromCharCode(17);
-		}
-		if (text.toLowerCase() === 'left') {
-			return String.fromCharCode(18);
-		}
-
-		return text;
+		terminalInstance.sendText(args.text, false);
 	}
 }
 
