@@ -485,7 +485,7 @@ export class WindowsManager implements IWindowsMainService {
 		// used for the edit operation is closed or loaded to a different folder so that the waiting
 		// process can continue. We do this by deleting the waitMarkerFilePath.
 		if (openConfig.context === OpenContext.CLI && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
-			this.waitForWindowCloseOrLoad(usedWindows[0].id).done(() => fs.unlink(openConfig.cli.waitMarkerFilePath, error => void 0));
+			this.waitForWindowCloseOrLoad(usedWindows[0].id).then(() => fs.unlink(openConfig.cli.waitMarkerFilePath, error => void 0));
 		}
 
 		return usedWindows;
@@ -1279,7 +1279,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Only load when the window has not vetoed this
-		this.lifecycleService.unload(window, UnloadReason.LOAD).done(veto => {
+		this.lifecycleService.unload(window, UnloadReason.LOAD).then(veto => {
 			if (!veto) {
 
 				// Register window for backups
@@ -1434,7 +1434,7 @@ export class WindowsManager implements IWindowsMainService {
 	reload(win: ICodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
-		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
+		this.lifecycleService.unload(win, UnloadReason.RELOAD).then(veto => {
 			if (!veto) {
 				win.reload(void 0, cli);
 

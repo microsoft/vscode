@@ -141,12 +141,15 @@ if (!process.env['VSCODE_ALLOW_IO']) {
 }
 
 if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
+
 	// Handle uncaught exceptions
 	process.on('uncaughtException', function (err) {
-		console.error('Uncaught Exception: ', err.toString());
-		if (err.stack) {
-			console.error(err.stack);
-		}
+		console.error('Uncaught Exception: ', err);
+	});
+
+	// Handle unhandled promise rejections
+	process.on('unhandledRejection', function (reason) {
+		console.error('Unhandled Promise Rejection: ', reason);
 	});
 }
 

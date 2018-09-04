@@ -312,7 +312,7 @@ export class CodeWindow implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
-			this.marketplaceHeadersPromise.done(headers => {
+			this.marketplaceHeadersPromise.then(headers => {
 				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 			});
 		});
