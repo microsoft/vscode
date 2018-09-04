@@ -17,7 +17,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -687,26 +687,8 @@ export class DebugService implements IDebugService {
 						this.viewModel.setMultiSessionView(true);
 					}
 
-					/* __GDPR__
-						"debugSessionStart" : {
-							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-							"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
-							"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
-					*/
-					return this.telemetryService.publicLog('debugSessionStart', {
-						type: resolved.type,
-						breakpointCount: this.model.getBreakpoints().length,
-						exceptionBreakpoints: this.model.getExceptionBreakpoints(),
-						watchExpressionsCount: this.model.getWatchExpressions().length,
-						extensionName: dbgr.extensionDescription.id,
-						isBuiltin: dbgr.extensionDescription.isBuiltin,
-						launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
-					});
+					return this.telemetryDebugSessionStart(root, resolved.type, dbgr.extensionDescription);
+
 				}).then(() => session, (error: Error | string) => {
 					if (session) {
 						session.dispose();
@@ -717,15 +699,6 @@ export class DebugService implements IDebugService {
 						return TPromise.as(null);
 					}
 
-					const errorMessage = error instanceof Error ? error.message : error;
-					/* __GDPR__
-						"debugMisconfiguration" : {
-							"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('debugMisconfiguration', { type: resolved ? resolved.type : undefined, error: errorMessage });
-
 					// Show the repl if some error got logged there #5870
 					if (this.model.getReplElements().length > 0) {
 						this.panelService.openPanel(REPL_ID, false);
@@ -734,6 +707,8 @@ export class DebugService implements IDebugService {
 					if (resolved && resolved.request === 'attach' && resolved.__autoAttach) {
 						// ignore attach timeouts in auto attach mode
 					} else {
+						const errorMessage = error instanceof Error ? error.message : error;
+						this.telemetryDebugMisconfiguration(resolved ? resolved.type : undefined, errorMessage);
 						this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 					}
 					return undefined;
@@ -777,24 +752,7 @@ export class DebugService implements IDebugService {
 				});
 			}
 
-
-			const breakpoints = this.model.getBreakpoints();
-			/* __GDPR__
-				"debugSessionStop" : {
-					"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('debugSessionStop', {
-				type: session && session.configuration.type,
-				success: (<RawDebugSession>session.raw).emittedStopped || breakpoints.length === 0,
-				sessionLengthInSeconds: (<RawDebugSession>session.raw).getLengthInSeconds(),
-				breakpointCount: breakpoints.length,
-				watchExpressionsCount: this.model.getWatchExpressions().length
-			});
+			this.telemetryDebugSessionStop(session);
 
 			if (session.configuration.postDebugTask) {
 				this.doRunTask(session.getId(), session.root, session.configuration.postDebugTask).then(undefined, err =>
@@ -1159,5 +1117,65 @@ export class DebugService implements IDebugService {
 
 	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+	}
+
+	// telemetry
+
+	private telemetryDebugSessionStart(root: IWorkspaceFolder, type: string, extension: IExtensionDescription): TPromise<any> {
+		/* __GDPR__
+			"debugSessionStart" : {
+				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"exceptionBreakpoints": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"extensionName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true},
+				"launchJsonExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		return this.telemetryService.publicLog('debugSessionStart', {
+			type: type,
+			breakpointCount: this.model.getBreakpoints().length,
+			exceptionBreakpoints: this.model.getExceptionBreakpoints(),
+			watchExpressionsCount: this.model.getWatchExpressions().length,
+			extensionName: extension.id,
+			isBuiltin: extension.isBuiltin,
+			launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
+		});
+	}
+
+	private telemetryDebugSessionStop(session: ISession): TPromise<any> {
+
+		const breakpoints = this.model.getBreakpoints();
+
+		/* __GDPR__
+			"debugSessionStop" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"sessionLengthInSeconds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"breakpointCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"watchExpressionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		return this.telemetryService.publicLog('debugSessionStop', {
+			type: session && session.configuration.type,
+			success: (<RawDebugSession>session.raw).emittedStopped || breakpoints.length === 0,
+			sessionLengthInSeconds: (<RawDebugSession>session.raw).getLengthInSeconds(),
+			breakpointCount: breakpoints.length,
+			watchExpressionsCount: this.model.getWatchExpressions().length
+		});
+	}
+
+	private telemetryDebugMisconfiguration(debugType: string, message: string): TPromise<any> {
+		/* __GDPR__
+			"debugMisconfiguration" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"error": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
+			}
+		*/
+		return this.telemetryService.publicLog('debugMisconfiguration', {
+			type: debugType,
+			error: message
+		});
 	}
 }
