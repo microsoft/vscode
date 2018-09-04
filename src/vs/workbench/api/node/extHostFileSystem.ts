@@ -105,6 +105,11 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (typeof provider.copy === 'function') {
 			capabilites += files.FileSystemProviderCapabilities.FileFolderCopy;
 		}
+		if (typeof provider.open === 'function' && typeof provider.close === 'function'
+			&& typeof provider.read === 'function' && typeof provider.write === 'function'
+		) {
+			capabilites += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
+		}
 
 		this._proxy.$registerFileSystemProvider(handle, scheme, capabilites);
 
@@ -201,4 +206,21 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._watches.delete(session);
 		}
 	}
+
+	$open(handle: number, resource: UriComponents): TPromise<number> {
+		return asWinJsPromise(() => this._fsProvider.get(handle).open(URI.revive(resource)));
+	}
+
+	$close(handle: number, fd: number): TPromise<void> {
+		return asWinJsPromise(() => this._fsProvider.get(handle).close(fd));
+	}
+
+	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number> {
+		return asWinJsPromise(() => this._fsProvider.get(handle).read(fd, pos, data, offset, length));
+	}
+
+	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number> {
+		return asWinJsPromise(() => this._fsProvider.get(handle).write(fd, pos, data, offset, length));
+	}
+
 }

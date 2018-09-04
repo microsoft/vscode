@@ -92,6 +92,10 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	// --- forwarding calls
 
+	private static _asBuffer(data: Uint8Array): Buffer {
+		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+	}
+
 	stat(resource: URI): TPromise<IStat> {
 		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
 			throw err;
@@ -103,10 +107,7 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void> {
-		let encoded = Buffer.isBuffer(content)
-			? content
-			: Buffer.from(content.buffer, content.byteOffset, content.byteLength);
-		return this._proxy.$writeFile(this._handle, resource, encoded, opts);
+		return this._proxy.$writeFile(this._handle, resource, RemoteFileSystemProvider._asBuffer(content), opts);
 	}
 
 	delete(resource: URI, opts: FileDeleteOptions): TPromise<void> {
@@ -127,5 +128,21 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
+	}
+
+	open(resource: URI): TPromise<number> {
+		return this._proxy.$open(this._handle, resource);
+	}
+
+	close(fd: number): TPromise<void> {
+		return this._proxy.$close(this._handle, fd);
+	}
+
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number> {
+		return this._proxy.$read(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number> {
+		return this._proxy.$write(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
 	}
 }

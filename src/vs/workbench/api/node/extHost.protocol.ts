@@ -691,6 +691,10 @@ export interface ExtHostFileSystemShape {
 	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): TPromise<void>;
 	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
+	$open(handle: number, resource: UriComponents): TPromise<number>;
+	$close(handle: number, fd: number): TPromise<void>;
+	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number>;
+	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number>;
 }
 
 export interface ExtHostSearchShape {
