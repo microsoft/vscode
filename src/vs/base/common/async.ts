@@ -386,37 +386,20 @@ export function isWinJSPromise(candidate: any): candidate is TPromise {
  * the provided promise the provided function will always be called. This
  * method is comparable to a try-finally code block.
  * @param promise a promise
- * @param f a function that will be call in the success and error case.
+ * @param callback a function that will be call in the success and error case.
  */
-export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
-export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
-export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
-	if (isWinJSPromise(winjsPromiseOrThenable)) {
-		return new TPromise<T>((c, e) => {
-			winjsPromiseOrThenable.done((result) => {
-				try {
-					f(result);
-				} catch (e1) {
-					errors.onUnexpectedError(e1);
-				}
-				c(result);
-			}, (err) => {
-				try {
-					f(err);
-				} catch (e1) {
-					errors.onUnexpectedError(e1);
-				}
-				e(err);
-			});
-		}, () => {
-			winjsPromiseOrThenable.cancel();
-		});
-
-	} else {
-		// simple
-		winjsPromiseOrThenable.then(_ => f(), _ => f());
-		return winjsPromiseOrThenable;
+export function always<T>(thenable: TPromise<T>, callback: () => void): TPromise<T>;
+export function always<T>(promise: Thenable<T>, callback: () => void): Thenable<T>;
+export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => void) {
+	function safeCallback() {
+		try {
+			callback();
+		} catch (err) {
+			errors.onUnexpectedError(err);
+		}
 	}
+	winjsPromiseOrThenable.then(_ => safeCallback(), _ => safeCallback());
+	return winjsPromiseOrThenable;
 }
 
 /**
