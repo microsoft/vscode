@@ -89,7 +89,7 @@ class ModelMarkerHandler {
 		if (rawMarker.severity === MarkerSeverity.Hint) {
 			// * never render hints on multiple lines
 			// * make enough space for three dots
-			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
+			ret = ret.setEndPosition(ret.startLineNumber, Math.min(ret.endColumn, ret.startColumn + 2));
 		}
 
 		ret = model.validateRange(ret);
