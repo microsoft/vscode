@@ -309,7 +309,7 @@ function main() {
 		console.error(err.message);
 		app.exit(1);
 
-		return;
+		return void 0;
 	}
 
 	// We need to buffer the spdlog logs until we are sure
@@ -342,7 +342,7 @@ function main() {
 				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
 			});
-	}).done(null, err => instantiationService.invokeFunction(quit, err));
+	}).then(null, err => instantiationService.invokeFunction(quit, err));
 }
 
 main();

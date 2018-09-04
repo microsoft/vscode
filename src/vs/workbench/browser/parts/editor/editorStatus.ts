@@ -13,7 +13,6 @@ import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
 import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
@@ -493,13 +492,13 @@ export class EditorStatus implements IStatusbarItem {
 	private onModeClick(): void {
 		const action = this.instantiationService.createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
 
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
 	private onIndentationClick(): void {
 		const action = this.instantiationService.createInstance(ChangeIndentationAction, ChangeIndentationAction.ID, ChangeIndentationAction.LABEL);
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
@@ -525,14 +524,14 @@ export class EditorStatus implements IStatusbarItem {
 	private onEOLClick(): void {
 		const action = this.instantiationService.createInstance(ChangeEOLAction, ChangeEOLAction.ID, ChangeEOLAction.LABEL);
 
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
 	private onEncodingClick(): void {
 		const action = this.instantiationService.createInstance(ChangeEncodingAction, ChangeEncodingAction.ID, ChangeEncodingAction.LABEL);
 
-		action.run().done(null, errors.onUnexpectedError);
+		action.run();
 		action.dispose();
 	}
 
@@ -1000,7 +999,7 @@ export class ChangeModeAction extends Action {
 		});
 
 		setTimeout(() => {
-			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).done(language => {
+			this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || basename) }).then(language => {
 				if (language) {
 					const fileAssociationsConfig = this.configurationService.inspect(FILES_ASSOCIATIONS_CONFIG);
 
@@ -1027,7 +1026,7 @@ export class ChangeModeAction extends Action {
 
 					this.configurationService.updateValue(FILES_ASSOCIATIONS_CONFIG, currentAssociations, target);
 				}
-			}, error => errors.onUnexpectedError(error));
+			});
 		}, 50 /* quick open is sensitive to being opened so soon after another */);
 	}
 }

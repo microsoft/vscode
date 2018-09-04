@@ -107,6 +107,9 @@ export class BreadcrumbsWidget {
 
 	dispose(): void {
 		dispose(this._disposables);
+		this._onDidSelectItem.dispose();
+		this._onDidFocusItem.dispose();
+		this._onDidChangeFocus.dispose();
 		this._domNode.remove();
 		this._disposables.length = 0;
 		this._nodes.length = 0;

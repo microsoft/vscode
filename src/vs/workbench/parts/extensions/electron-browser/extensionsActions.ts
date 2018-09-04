@@ -948,7 +948,7 @@ export class ReloadAction extends Action {
 			}
 			return this.extensionService.getExtensions()
 				.then(runningExtensions => this.computeReloadState(runningExtensions));
-		}).done(() => {
+		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 		});
 	}

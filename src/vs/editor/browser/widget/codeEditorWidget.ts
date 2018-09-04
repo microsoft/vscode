@@ -929,7 +929,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (command) {
 			payload = payload || {};
 			payload.source = source;
-			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			TPromise.as(command.runEditorCommand(null, this, payload)).then(null, onUnexpectedError);
 			return true;
 		}
 

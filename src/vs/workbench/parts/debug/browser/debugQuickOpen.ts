@@ -11,7 +11,6 @@ import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import * as errors from 'vs/base/common/errors';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -38,7 +37,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.commandService.executeCommand('debug.addConfiguration', this.launch.uri.toString()).done(undefined, errors.onUnexpectedError);
+		this.commandService.executeCommand('debug.addConfiguration', this.launch.uri.toString());
 
 		return true;
 	}
@@ -68,7 +67,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch).done(undefined, e => this.notificationService.error(e));
+		this.debugService.startDebugging(this.launch).then(undefined, e => this.notificationService.error(e));
 
 		return true;
 	}

@@ -170,9 +170,9 @@ export class MenuItemActionItem extends ActionItem {
 			const wantsAltCommand = mouseOver && alternativeKeyDown;
 			if (wantsAltCommand !== this._wantsAltCommand) {
 				this._wantsAltCommand = wantsAltCommand;
-				this._updateLabel();
-				this._updateTooltip();
-				this._updateClass();
+				this.updateLabel();
+				this.updateTooltip();
+				this.updateClass();
 			}
 		};
 
@@ -192,13 +192,13 @@ export class MenuItemActionItem extends ActionItem {
 		}));
 	}
 
-	_updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	_updateTooltip(): void {
+	updateTooltip(): void {
 		const element = this.label;
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
@@ -208,7 +208,7 @@ export class MenuItemActionItem extends ActionItem {
 			: this._commandAction.label;
 	}
 
-	_updateClass(): void {
+	updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
 				this._updateItemClass(this._action.alt.item);

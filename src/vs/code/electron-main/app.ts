@@ -442,7 +442,7 @@ export class CodeApplication {
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
-		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
+		this.sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
 		const menubarChannel = new MenubarChannel(menubarService);
@@ -455,7 +455,7 @@ export class CodeApplication {
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
-		this.sharedProcessClient.done(client => client.registerChannel('loglevel', logLevelChannel));
+		this.sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
 
 		// Lifecycle
 		this.lifecycleService.ready();

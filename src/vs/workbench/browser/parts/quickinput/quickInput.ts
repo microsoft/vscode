@@ -849,7 +849,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			return;
 		}
 
-		const workbench = document.getElementById(this.partService.getWorkbenchElementId());
+		const workbench = this.partService.getWorkbenchElement();
 		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';

@@ -355,11 +355,11 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		}
 	}
 
-	protected _updateEnabled(): void {
+	protected updateEnabled(): void {
 		this.update();
 	}
 
-	protected _updateChecked(): void {
+	protected updateChecked(): void {
 		this.update();
 	}
 

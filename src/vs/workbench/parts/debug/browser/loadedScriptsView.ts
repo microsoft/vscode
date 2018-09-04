@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { normalize, isAbsolute, sep } from 'vs/base/common/paths';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -362,7 +361,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 				const source = element.getSource();
 				if (source && source.available) {
 					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
+					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 				}
 			}
 		}));

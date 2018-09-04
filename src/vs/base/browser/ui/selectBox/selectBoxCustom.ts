@@ -131,6 +131,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		}
 
 		this._onDidSelect = new Emitter<ISelectData>();
+		this.toDispose.push(this._onDidSelect);
 
 		this.styles = styles;
 

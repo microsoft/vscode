@@ -9,7 +9,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
@@ -49,8 +48,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 			return TPromise.as(null);
 		}
 
-		asWinJsPromise(_ => handler.handleUri(URI.revive(uri)))
-			.done(null, onUnexpectedError);
+		asWinJsPromise(_ => handler.handleUri(URI.revive(uri)));
 
 		return TPromise.as(null);
 	}

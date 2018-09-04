@@ -306,7 +306,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 		// Model reference
 		if (this.textModelReference) {
-			this.textModelReference.done(ref => ref.dispose());
+			this.textModelReference.then(ref => ref.dispose());
 			this.textModelReference = null;
 		}
 

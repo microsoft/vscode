@@ -20,7 +20,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 const ignore = () => { };
 
 const mkdirp = (path: string, mode: number, callback: (error) => void) => {
-	extfs.mkdirp(path, mode).done(() => callback(null), error => callback(error));
+	extfs.mkdirp(path, mode).then(() => callback(null), error => callback(error));
 };
 
 const chunkSize = 64 * 1024;

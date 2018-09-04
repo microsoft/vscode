@@ -50,7 +50,7 @@ export class ContextMenuHandler {
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
-		delegate.getActions().done((actions: IAction[]) => {
+		delegate.getActions().then((actions: IAction[]) => {
 			if (!actions.length) {
 				return; // Don't render an empty context menu
 			}

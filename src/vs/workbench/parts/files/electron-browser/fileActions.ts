@@ -14,7 +14,6 @@ import { sequence, ITask, always } from 'vs/base/common/async';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -207,11 +206,11 @@ class TriggerRenameFileAction extends BaseFileAction {
 			const unbind = this.tree.onDidChangeHighlight((e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
-					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
+					this.tree.refresh(stat);
 					unbind.dispose();
 				}
 			});
-		}).done(null, errors.onUnexpectedError);
+		});
 
 		return void 0;
 	}
@@ -397,7 +396,7 @@ export class BaseNewAction extends BaseFileAction {
 							const unbind = this.tree.onDidChangeHighlight((e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
-									this.tree.refresh(folder).done(null, errors.onUnexpectedError);
+									this.tree.refresh(folder);
 									unbind.dispose();
 								}
 							});
@@ -1393,7 +1392,7 @@ export class CollapseExplorerView extends Action {
 				const viewer = explorerView.getViewer();
 				if (viewer) {
 					const action = new CollapseAction(viewer, true, null);
-					action.run().done();
+					action.run();
 					action.dispose();
 				}
 			}

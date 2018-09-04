@@ -5,7 +5,6 @@
 
 import 'vs/css!../browser/media/breakpointWidget';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
@@ -183,7 +182,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage
-				}]).done(null, errors.onUnexpectedError);
+				}]);
 			}
 		}
 

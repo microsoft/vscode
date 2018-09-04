@@ -23,7 +23,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as DOM from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -290,7 +289,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
 			if (selectedElement) {
-				this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
+				this.tree.reveal(selectedElement, 0.5);
 			}
 
 			// Pass Focus to Viewer

@@ -88,7 +88,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 					request(assign({}, options, {
 						url: res.headers['location'],
 						followRedirects: followRedirects - 1
-					})).done(c, e);
+					})).then(c, e);
 				} else {
 					let stream: Stream = res;
 

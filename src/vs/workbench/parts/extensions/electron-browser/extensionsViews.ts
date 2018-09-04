@@ -547,7 +547,7 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	private openExtension(extension: IExtension): void {
-		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
+		this.extensionsWorkbenchService.open(extension).then(null, err => this.onError(err));
 	}
 
 	private pin(): void {

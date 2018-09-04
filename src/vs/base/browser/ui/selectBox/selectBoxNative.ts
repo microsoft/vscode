@@ -34,6 +34,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this._onDidSelect = new Emitter<ISelectData>();
+		this.toDispose.push(this._onDidSelect);
 
 		this.styles = styles;
 

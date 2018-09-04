@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
-import * as errors from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
@@ -244,7 +243,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (this.isVisible() && !this.isDisposed && this.contextService.isInsideWorkspace(activeFile)) {
 				const selection = this.hasSingleSelection(activeFile);
 				if (!selection) {
-					this.select(activeFile).done(null, errors.onUnexpectedError);
+					this.select(activeFile);
 				}
 
 				clearSelection = false;
@@ -294,7 +293,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		// Refresh viewer as needed if this originates from a config event
 		if (event && needsRefresh) {
-			this.doRefresh().done(null, errors.onUnexpectedError);
+			this.doRefresh();
 		}
 	}
 
@@ -308,7 +307,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			if (this.autoReveal) {
 				const selection = this.explorerViewer.getSelection();
 				if (selection.length > 0) {
-					this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
+					this.reveal(selection[0], 0.5);
 				}
 			}
 
@@ -512,7 +511,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 								// Focus new element
 								this.explorerViewer.setFocus(childElement);
 							});
-						}).done(null, errors.onUnexpectedError);
+						});
 					});
 				});
 			}
@@ -544,7 +543,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					modelElement.rename(newElement);
 
 					// Update Parent (View)
-					this.explorerViewer.refresh(modelElement.parent).done(() => {
+					this.explorerViewer.refresh(modelElement.parent).then(() => {
 
 						// Select in Viewer if set
 						if (restoreFocus) {
@@ -554,7 +553,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						if (isExpanded) {
 							this.explorerViewer.expand(modelElement);
 						}
-					}, errors.onUnexpectedError);
+					});
 				});
 			}
 
@@ -570,10 +569,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 						const oldParent = modelElement.parent;
 						modelElement.move(newParents[index], (callback: () => void) => {
 							// Update old parent
-							this.explorerViewer.refresh(oldParent).done(callback, errors.onUnexpectedError);
+							this.explorerViewer.refresh(oldParent).then(callback);
 						}, () => {
 							// Update new parent
-							this.explorerViewer.refresh(newParents[index], true).done(() => this.explorerViewer.expand(newParents[index]), errors.onUnexpectedError);
+							this.explorerViewer.refresh(newParents[index], true).then(() => this.explorerViewer.expand(newParents[index]));
 						});
 					});
 				}
@@ -591,13 +590,13 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 					// Refresh Parent (View)
 					const restoreFocus = this.explorerViewer.isDOMFocused();
-					this.explorerViewer.refresh(parent).done(() => {
+					this.explorerViewer.refresh(parent).then(() => {
 
 						// Ensure viewer has keyboard focus if event originates from viewer
 						if (restoreFocus) {
 							this.explorerViewer.domFocus();
 						}
-					}, errors.onUnexpectedError);
+					});
 				}
 			});
 		}
@@ -726,7 +725,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				}
 
 				return TPromise.as(null);
-			}).done(null, errors.onUnexpectedError);
+			});
 		} else {
 			this.shouldRefresh = true;
 		}

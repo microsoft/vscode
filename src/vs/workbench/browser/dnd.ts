@@ -15,7 +15,6 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -176,7 +175,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Make the window active to handle the drop properly within
-		return this.windowService.focusWindow().then(() => {
+		this.windowService.focusWindow().then(() => {
 
 			// Check for special things being dropped
 			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
@@ -207,7 +206,7 @@ export class ResourcesDropHandler {
 					afterDrop(targetGroup);
 				});
 			});
-		}).done(null, onUnexpectedError);
+		});
 	}
 
 	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {

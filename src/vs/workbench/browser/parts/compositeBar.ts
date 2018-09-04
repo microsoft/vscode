@@ -190,8 +190,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.updateCompositeSwitcher();
 
 			if (open) {
-				this.options.openComposite(compositeId)
-					.done(() => this.activateComposite(compositeId)); // Activate after opening
+				this.options.openComposite(compositeId).then(() => this.activateComposite(compositeId)); // Activate after opening
 			}
 		}
 	}

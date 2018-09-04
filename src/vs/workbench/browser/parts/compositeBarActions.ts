@@ -288,7 +288,7 @@ export class ActivityActionItem extends BaseActionItem {
 		this.updateTitle(title);
 	}
 
-	private updateLabel(): void {
+	protected updateLabel(): void {
 		if (this.activity.cssClass) {
 			dom.addClasses(this.label, this.activity.cssClass);
 		}
@@ -481,8 +481,8 @@ export class CompositeActionItem extends ActivityActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this._updateChecked();
-		this._updateEnabled();
+		this.updateChecked();
+		this.updateEnabled();
 
 		this._register(dom.addDisposableListener(this.container, dom.EventType.CONTEXT_MENU, e => {
 			dom.EventHelper.stop(e, true);
@@ -588,7 +588,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		this.container.focus();
 	}
 
-	protected _updateClass(): void {
+	protected updateClass(): void {
 		if (this.cssClass) {
 			dom.removeClasses(this.label, this.cssClass);
 		}
@@ -599,7 +599,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		}
 	}
 
-	protected _updateChecked(): void {
+	protected updateChecked(): void {
 		if (this.getAction().checked) {
 			dom.addClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
@@ -609,7 +609,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		}
 	}
 
-	protected _updateEnabled(): void {
+	protected updateEnabled(): void {
 		if (this.getAction().enabled) {
 			dom.removeClass(this.element, 'disabled');
 		} else {

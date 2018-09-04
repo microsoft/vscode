@@ -272,8 +272,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	/**
 	 * Start a server (`this._namedPipeServer`) that listens on a named pipe and return the named pipe name.
 	 */
-	private _tryListenOnPipe(): TPromise<string> {
-		return new TPromise<string>((resolve, reject) => {
+	private _tryListenOnPipe(): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
 			const pipeName = generateRandomPipeName();
 
 			this._namedPipeServer = createServer();
@@ -288,15 +288,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	/**
 	 * Find a free port if extension host debugging is enabled.
 	 */
-	private _tryFindDebugPort(): TPromise<{ expected: number; actual: number }> {
+	private _tryFindDebugPort(): Promise<{ expected: number; actual: number }> {
 		let expected: number;
 		let startPort = 9333;
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
 		} else {
-			return TPromise.as({ expected: undefined, actual: 0 });
+			return Promise.resolve({ expected: undefined, actual: 0 });
 		}
-		return new TPromise((c, e) => {
+		return new Promise(resolve => {
 			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
@@ -310,7 +310,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
 					}
 				}
-				return c({ expected, actual: port });
+				return resolve({ expected, actual: port });
 			});
 		});
 	}

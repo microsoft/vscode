@@ -354,9 +354,9 @@ suite('Debug - Model', () => {
 		session['_raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		model.addReplExpression(session, stackFrame, 'myVariable').done();
-		model.addReplExpression(session, stackFrame, 'myVariable').done();
-		model.addReplExpression(session, stackFrame, 'myVariable').done();
+		model.addReplExpression(session, stackFrame, 'myVariable').then();
+		model.addReplExpression(session, stackFrame, 'myVariable').then();
+		model.addReplExpression(session, stackFrame, 'myVariable').then();
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {

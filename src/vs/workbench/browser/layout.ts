@@ -5,7 +5,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -294,7 +293,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout({ source: Parts.SIDEBAR_PART }), errors.onUnexpectedError);
+				promise.then(() => this.layout({ source: Parts.SIDEBAR_PART }));
 			}
 		}));
 
@@ -332,7 +331,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout({ source: Parts.PANEL_PART }), errors.onUnexpectedError);
+				promise.then(() => this.layout({ source: Parts.PANEL_PART }));
 			}
 		}));
 
@@ -370,7 +369,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout({ source: Parts.PANEL_PART }), errors.onUnexpectedError);
+				promise.then(() => this.layout({ source: Parts.PANEL_PART }));
 			}
 		}));
 
@@ -397,7 +396,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(optimalWidth, DEFAULT_SIDEBAR_PART_WIDTH);
 			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
-			this.partService.setSideBarHidden(false).done(() => this.layout(), errors.onUnexpectedError);
+			this.partService.setSideBarHidden(false).then(() => this.layout());
 		}));
 
 		this._register(this.sashXTwo.onDidReset(() => {

@@ -5,22 +5,20 @@
 
 'use strict';
 
+import { dirname, join } from 'path';
+import { basename } from 'vs/base/common/paths';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { join, dirname } from 'path';
-import { localize } from 'vs/nls';
-import { readdir, del, readFile } from 'vs/base/node/pfs';
-import { basename } from 'vs/base/common/paths';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { timeout } from 'vs/base/common/async';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ReportPerformanceIssueAction } from 'vs/workbench/parts/performance/electron-browser/actions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 class StartupProfiler implements IWorkbenchContribution {
 
@@ -53,8 +51,20 @@ class StartupProfiler implements IWorkbenchContribution {
 
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
-			.then(() => del(profileFilenamePrefix))
-			.then(() => timeout(1000));
+			.then(() => del(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
+			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
+				const check = () => {
+					exists(profileFilenamePrefix).then(exists => {
+						if (exists) {
+							resolve();
+						} else {
+							setTimeout(check, 500);
+						}
+					});
+				};
+				check();
+			}))
+			.then(() => del(profileFilenamePrefix)); // (3) finally delete the file again
 
 		markerFile.then(() => {
 			return readdir(dir).then(files => files.filter(value => value.indexOf(prefix) === 0));

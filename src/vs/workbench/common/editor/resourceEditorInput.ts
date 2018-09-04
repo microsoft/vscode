@@ -118,7 +118,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	dispose(): void {
 		if (this.modelReference) {
-			this.modelReference.done(ref => ref.dispose());
+			this.modelReference.then(ref => ref.dispose());
 			this.modelReference = null;
 		}
 
