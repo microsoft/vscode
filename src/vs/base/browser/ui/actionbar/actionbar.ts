@@ -775,11 +775,11 @@ export class SelectActionItem extends BaseActionItem {
 
 	private registerListeners(): void {
 		this._register(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected));
+			this.actionRunner.run(this._action, this.getActionContext(e.selected, e.index));
 		}));
 	}
 
-	protected getActionContext(option: string) {
+	protected getActionContext(option: string, index: number) {
 		return option;
 	}
 

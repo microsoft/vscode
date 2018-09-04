@@ -112,6 +112,9 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	private static readonly SEPARATOR = '─────────';
 
+	private normalChannels: IOutputChannelIdentifier[];
+	private fileChannels: IOutputChannelIdentifier[];
+
 	constructor(
 		action: IAction,
 		@IOutputService private outputService: IOutputService,
@@ -129,8 +132,8 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		this.updateOtions(this.outputService.getActiveChannel().id);
 	}
 
-	protected getActionContext(option: string): string {
-		const channel = this.outputService.getChannels().filter(channelData => channelData.label === option).pop();
+	protected getActionContext(option: string, index: number): string {
+		const channel = index < this.normalChannels.length ? this.normalChannels[index] : this.fileChannels[index - this.normalChannels.length - 1];
 		return channel ? channel.id : option;
 	}
 
@@ -144,16 +147,16 @@ export class SwitchOutputActionItem extends SelectActionItem {
 			}
 			return 0;
 		});
-		const channels = groups[0] || [];
-		const fileChannels = groups[1] || [];
-		const showSeparator = channels.length && fileChannels.length;
-		const separatorIndex = showSeparator ? channels.length : -1;
-		const options: string[] = [...channels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...fileChannels.map(c => c.label)];
+		this.normalChannels = groups[0] || [];
+		this.fileChannels = groups[1] || [];
+		const showSeparator = this.normalChannels.length && this.fileChannels.length;
+		const separatorIndex = showSeparator ? this.normalChannels.length : -1;
+		const options: string[] = [...this.normalChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.fileChannels.map(c => c.label)];
 		let selected = 0;
 		if (selectedChannel) {
-			selected = channels.map(c => c.id).indexOf(selectedChannel);
+			selected = this.normalChannels.map(c => c.id).indexOf(selectedChannel);
 			if (selected === -1) {
-				selected = separatorIndex + 1 + fileChannels.map(c => c.id).indexOf(selectedChannel);
+				selected = separatorIndex + 1 + this.fileChannels.map(c => c.id).indexOf(selectedChannel);
 			}
 		}
 		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
