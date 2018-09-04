@@ -188,7 +188,7 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			TPromise.any<void>([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
 	}
 
