@@ -6,7 +6,6 @@
 
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import { ILink } from 'vs/editor/common/modes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -57,7 +56,7 @@ export class OutputLinkComputer {
 		return null;
 	}
 
-	public computeLinks(uri: string): TPromise<ILink[]> {
+	public computeLinks(uri: string): ILink[] {
 		const model = this.getModel(uri);
 		if (!model) {
 			return void 0;
@@ -83,7 +82,7 @@ export class OutputLinkComputer {
 			}
 		});
 
-		return TPromise.as(links);
+		return links;
 	}
 
 	public static createPatterns(workspaceFolder: URI): RegExp[] {
