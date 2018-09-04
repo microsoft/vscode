@@ -272,11 +272,11 @@ class MenuActionItem extends BaseActionItem {
 			this.onClick(e);
 		}));
 
-		this._updateClass();
-		this._updateLabel();
-		this._updateTooltip();
-		this._updateEnabled();
-		this._updateChecked();
+		this.updateClass();
+		this.updateLabel();
+		this.updateTooltip();
+		this.updateEnabled();
+		this.updateChecked();
 	}
 
 	focus(): void {
@@ -284,7 +284,7 @@ class MenuActionItem extends BaseActionItem {
 		this.item.focus();
 	}
 
-	_updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
 			if (label) {
@@ -307,7 +307,7 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	_updateTooltip(): void {
+	updateTooltip(): void {
 		let title: string = null;
 
 		if (this.getAction().tooltip) {
@@ -326,7 +326,7 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	_updateClass(): void {
+	updateClass(): void {
 		if (this.cssClass) {
 			removeClasses(this.item, this.cssClass);
 		}
@@ -336,13 +336,13 @@ class MenuActionItem extends BaseActionItem {
 			if (this.cssClass) {
 				addClasses(this.label, this.cssClass);
 			}
-			this._updateEnabled();
+			this.updateEnabled();
 		} else {
 			removeClass(this.label, 'icon');
 		}
 	}
 
-	_updateEnabled(): void {
+	updateEnabled(): void {
 		if (this.getAction().enabled) {
 			removeClass(this.element, 'disabled');
 			removeClass(this.item, 'disabled');
@@ -354,7 +354,7 @@ class MenuActionItem extends BaseActionItem {
 		}
 	}
 
-	_updateChecked(): void {
+	updateChecked(): void {
 		if (this.getAction().checked) {
 			addClass(this.item, 'checked');
 			this.item.setAttribute('role', 'menuitemcheckbox');
