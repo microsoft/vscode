@@ -25,11 +25,14 @@ const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
 export namespace CancellationToken {
 
 	export function isCancellationToken(thing: any): thing is CancellationToken {
-		if (!thing || typeof thing !== 'object') {
-			return false;
+		if (thing === CancellationToken.None || thing === CancellationToken.Cancelled) {
+			return true;
 		}
 		if (thing instanceof MutableToken) {
 			return true;
+		}
+		if (!thing || typeof thing !== 'object') {
+			return false;
 		}
 		return typeof (thing as CancellationToken).isCancellationRequested === 'boolean'
 			&& typeof (thing as CancellationToken).onCancellationRequested === 'function';
