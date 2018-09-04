@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent, toPromise, Relay } from 'vs/base/common/event';
 import { always } from 'vs/base/common/async';
@@ -203,7 +203,7 @@ export class ChannelServer implements IChannelServer, IDisposable {
 
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
-		let promise: Promise;
+		let promise: TPromise<any>;
 
 		try {
 			promise = channel.call(request.name, request.arg);
