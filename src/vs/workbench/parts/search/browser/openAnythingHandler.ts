@@ -45,8 +45,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
-	private pendingSearch: TPromise<QuickOpenModel>;
-	private pendingSearchTokenSource: CancellationTokenSource;
+	private pendingSearch: CancellationTokenSource;
 	private isClosed: boolean;
 	private scorerCache: ScorerCache;
 	private includeSymbols: boolean;
@@ -107,23 +106,22 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// The throttler needs a factory for its promises
 		const promiseFactory = () => {
-			this.pendingSearchTokenSource = new CancellationTokenSource();
+			this.pendingSearch = new CancellationTokenSource();
 
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			const filePromise = this.openFileHandler.getResults(query.original, OpenAnythingHandler.MAX_DISPLAYED_RESULTS, this.pendingSearchTokenSource.token);
+			const filePromise = this.openFileHandler.getResults(query.original, OpenAnythingHandler.MAX_DISPLAYED_RESULTS, this.pendingSearch.token);
 			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
-				resultPromises.push(this.openSymbolHandler.getResults(query.original, this.pendingSearchTokenSource.token));
+				resultPromises.push(this.openSymbolHandler.getResults(query.original, this.pendingSearch.token));
 			}
 
 			// Join and sort unified
-			this.pendingSearch = TPromise.join(resultPromises).then(results => {
-				this.pendingSearch = null;
-				this.pendingSearchTokenSource.dispose();
+			return TPromise.join(resultPromises).then(results => {
+				this.pendingSearch.dispose();
 
 				// If the quick open widget has been closed meanwhile, ignore the result
 				if (this.isClosed) {
@@ -149,8 +147,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, error => {
-				this.pendingSearch = null;
-				this.pendingSearchTokenSource.dispose();
+				this.pendingSearch.dispose();
 
 				if (!isPromiseCanceledError(error)) {
 					if (error && error[0] && error[0].message) {
@@ -162,8 +159,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				return null;
 			});
-
-			return this.pendingSearch;
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
@@ -266,13 +261,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private cancelPendingSearch(): void {
 		if (this.pendingSearch) {
 			this.pendingSearch.cancel();
+			this.pendingSearch.dispose();
 			this.pendingSearch = null;
-		}
-
-		if (this.pendingSearchTokenSource) {
-			this.pendingSearchTokenSource.cancel();
-			this.pendingSearchTokenSource.dispose();
-			this.pendingSearchTokenSource = null;
 		}
 	}
 }
