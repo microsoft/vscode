@@ -162,8 +162,11 @@ export interface ISession extends ITreeElement, IDisposable {
 	/**
 	 * Allows to register on custom DAP events.
 	 */
-	onDidCustomEvent: Event<DebugEvent>;
+	onDidCustomEvent: Event<DebugProtocol.Event>;
 
+	/**
+	 * Allows to register on DA events.
+	 */
 	onDidExitAdapter: Event<void>;
 }
 
@@ -582,10 +585,6 @@ export interface ILaunch {
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 
-export interface DebugEvent extends DebugProtocol.Event {
-	sessionId?: string;
-}
-
 export interface LoadedSourceEvent {
 	reason: string;
 	source: Source;
@@ -736,6 +735,11 @@ export interface IDebugService {
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
 	 */
 	sourceIsNotAvailable(uri: uri): void;
+
+	/**
+	 * returns Session with the given ID (or undefined if ID is not found)
+	 */
+	getSession(sessionId: string): ISession;
 
 	/**
 	 * Gets the current debug model.

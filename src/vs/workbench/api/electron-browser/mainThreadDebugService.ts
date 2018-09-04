@@ -6,7 +6,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, ISession } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -28,7 +28,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _breakpointEventsActive: boolean;
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
-	private _sessions: Map<DebugSessionUUID, ISession>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -39,19 +38,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.push(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
 		}));
-		this._sessions = new Map();
+		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.push(debugService.onWillNewSession(session => {
-			this._sessions.set(session.getId(), session);
-			// Need to start listening early to new session events because a custom event can come while a session is initialising
-			this._toDispose.push(session.onDidCustomEvent(event => {
-				if (event && event.sessionId) {
-					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
-				}
-			}));
+			this._toDispose.push(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(session.getId(), session.configuration.type, session.configuration.name, event)));
 		}));
 		this._toDispose.push(debugService.onDidEndSession(session => {
 			this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
-			this._sessions.delete(<DebugSessionUUID>session.getId());
 		}));
 		this._toDispose.push(debugService.getViewModel().onDidFocusSession(proc => {
 			if (proc) {
@@ -226,7 +218,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const session = this._sessions.get(sessionId);
+		const session = this.debugService.getSession(sessionId);
 		if (session) {
 			return session.raw.custom(request, args).then(response => {
 				if (response && response.success) {

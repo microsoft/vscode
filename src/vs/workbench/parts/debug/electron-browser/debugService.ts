@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
-import { generateUuid } from 'vs/base/common/uuid';
 import { URI as uri } from 'vs/base/common/uri';
 import { first, distinct } from 'vs/base/common/arrays';
 import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
@@ -129,7 +128,7 @@ export class DebugService implements IDebugService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
-			const session = <Session>this.allSessions.get(broadcast.payload.debugId);
+			const session = <Session>this.getSession(broadcast.payload.debugId);
 			if (session) {
 				switch (broadcast.channel) {
 
@@ -158,6 +157,10 @@ export class DebugService implements IDebugService {
 			this.model.setBreakpointsSessionId(id);
 			this.onStateChange();
 		}));
+	}
+
+	getSession(sessionId: string): ISession {
+		return this.allSessions.get(sessionId);
 	}
 
 	getModel(): IModel {
@@ -236,12 +239,15 @@ export class DebugService implements IDebugService {
 
 	//---- life cycle management
 
+	/**
+	 * main entry point
+	 */
 	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfiguration?: IConfig, ): TPromise<void> {
-		const sessionId = generateUuid();
 
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
 			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+
 				if (this.model.getSessions().length === 0) {
 					this.removeReplExpressions();
 					this.allSessions.clear();
@@ -328,7 +334,7 @@ export class DebugService implements IDebugService {
 					this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 						// a falsy config indicates an aborted launch
 						if (config && config.type) {
-							return this.createSession(launch, config, unresolvedConfiguration, sessionId);
+							return this.createSession(launch, config, unresolvedConfiguration);
 						}
 
 						if (launch && type) {
@@ -342,7 +348,7 @@ export class DebugService implements IDebugService {
 		)));
 	}
 
-	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, sessionId: string): TPromise<void> {
+	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig): TPromise<void> {
 
 		this.startInitializing();
 
@@ -369,12 +375,12 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
+				return this.runTask(workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
 					if (!success) {
 						return undefined;
 					}
 
-					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
+					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
 				});
 			}, err => {
 				if (err && err.message) {
@@ -395,78 +401,88 @@ export class DebugService implements IDebugService {
 	}
 
 	private attachExtensionHost(session: Session, port: number): TPromise<void> {
+
 		session.configuration.request = 'attach';
 		session.configuration.port = port;
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
+
 		return session.initialize(dbgr).then(() => {
-			(<RawDebugSession>session.raw).attach(session.configuration);
-			this.focusStackFrame(undefined, undefined, session);
+			(<RawDebugSession>session.raw).attach(session.configuration).then(result => {
+				this.focusStackFrame(undefined, undefined, session);
+			});
 		});
 	}
 
-	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }, sessionId: string): TPromise<any> {
+	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<any> {
+
+		const session = this.instantiationService.createInstance(Session, configuration, root, this.model);
+		this.allSessions.set(session.getId(), session);
+
+		this._onWillNewSession.fire(session);
 
 		const resolved = configuration.resolved;
-		resolved.__sessionId = sessionId;
-
+		resolved.__sessionId = session.getId();
 		const dbgr = this.configurationManager.getDebugger(resolved.type);
-		const session = this.instantiationService.createInstance(Session, sessionId, configuration, root, this.model);
-		this._onWillNewSession.fire(session);
-		this.allSessions.set(sessionId, session);
+
 		return session.initialize(dbgr).then(() => {
+
 			this.registerSessionListeners(session);
+
 			const raw = <RawDebugSession>session.raw;
-			return (resolved.request === 'attach' ? raw.attach(resolved) : raw.launch(resolved))
-				.then((result: DebugProtocol.Response) => {
-					if (raw.disconnected) {
-						return TPromise.as(null);
-					}
-					this.focusStackFrame(undefined, undefined, session);
-					this._onDidNewSession.fire(session);
 
-					const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-					if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
-						this.panelService.openPanel(REPL_ID, false);
-					}
+			return (resolved.request === 'attach' ? raw.attach(resolved) : raw.launch(resolved)).then(result => {
 
-					const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-					// Open debug viewlet based on the visibility of the side bar and openDebug setting
-					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
-						this.viewletService.openViewlet(VIEWLET_ID);
-					}
-					this.viewModel.firstSessionStart = false;
+				if (raw.disconnected) {
+					return TPromise.as(null);
+				}
 
-					this.debugType.set(resolved.type);
-					if (this.model.getSessions().length > 1) {
-						this.viewModel.setMultiSessionView(true);
-					}
+				this.focusStackFrame(undefined, undefined, session);
 
-					return this.telemetryDebugSessionStart(root, resolved.type, dbgr.extensionDescription);
+				this._onDidNewSession.fire(session);
 
-				}).then(() => session, (error: Error | string) => {
-					if (session) {
-						session.dispose();
-					}
+				const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
+				if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
+					this.panelService.openPanel(REPL_ID, false);
+				}
 
-					if (errors.isPromiseCanceledError(error)) {
-						// Do not show 'canceled' error messages to the user #7906
-						return TPromise.as(null);
-					}
+				const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
+				// Open debug viewlet based on the visibility of the side bar and openDebug setting
+				if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
+					this.viewletService.openViewlet(VIEWLET_ID);
+				}
+				this.viewModel.firstSessionStart = false;
 
-					// Show the repl if some error got logged there #5870
-					if (this.model.getReplElements().length > 0) {
-						this.panelService.openPanel(REPL_ID, false);
-					}
+				this.debugType.set(resolved.type);
+				if (this.model.getSessions().length > 1) {
+					this.viewModel.setMultiSessionView(true);
+				}
 
-					if (resolved && resolved.request === 'attach' && resolved.__autoAttach) {
-						// ignore attach timeouts in auto attach mode
-					} else {
-						const errorMessage = error instanceof Error ? error.message : error;
-						this.telemetryDebugMisconfiguration(resolved ? resolved.type : undefined, errorMessage);
-						this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
-					}
-					return undefined;
-				});
+				return this.telemetryDebugSessionStart(root, resolved.type, dbgr.extensionDescription);
+
+			}).then(() => session, (error: Error | string) => {
+				if (session) {
+					session.dispose();
+				}
+
+				if (errors.isPromiseCanceledError(error)) {
+					// Do not show 'canceled' error messages to the user #7906
+					return TPromise.as(null);
+				}
+
+				// Show the repl if some error got logged there #5870
+				if (this.model.getReplElements().length > 0) {
+					this.panelService.openPanel(REPL_ID, false);
+				}
+
+				if (resolved && resolved.request === 'attach' && resolved.__autoAttach) {
+					// ignore attach timeouts in auto attach mode
+				} else {
+					const errorMessage = error instanceof Error ? error.message : error;
+					this.telemetryDebugMisconfiguration(resolved ? resolved.type : undefined, errorMessage);
+					this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				}
+				return undefined;
+			});
 		}).then(undefined, err => {
 
 			if (session) {
@@ -499,7 +515,7 @@ export class DebugService implements IDebugService {
 			this.telemetryDebugSessionStop(session);
 
 			if (session.configuration.postDebugTask) {
-				this.doRunTask(session.getId(), session.root, session.configuration.postDebugTask).then(undefined, err =>
+				this.doRunTask(session.root, session.configuration.postDebugTask).then(undefined, err =>
 					this.notificationService.error(err)
 				);
 			}
@@ -527,8 +543,8 @@ export class DebugService implements IDebugService {
 		return this.textFileService.saveAll().then(() => {
 			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.capabilities.supportsRestartRequest) {
-				return this.runTask(session.getId(), session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
-					.then(success => success ? this.runTask(session.getId(), session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
+				return this.runTask(session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
+					.then(success => success ? this.runTask(session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
 						.then(success => success ? session.raw.custom('restart', null) : undefined) : TPromise.as(<any>undefined));
 			}
 
@@ -580,6 +596,7 @@ export class DebugService implements IDebugService {
 	}
 
 	stopSession(session: ISession): TPromise<any> {
+
 		if (session) {
 			return session.raw.terminate();
 		}
@@ -629,12 +646,13 @@ export class DebugService implements IDebugService {
 
 	//---- task management
 
-	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig): TPromise<boolean> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig): TPromise<boolean> {
+
 		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
-			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig }, sessionId);
+			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig });
 		});
 
-		return this.doRunTask(sessionId, root, taskId).then((taskSummary: ITaskSummary) => {
+		return this.doRunTask(root, taskId).then((taskSummary: ITaskSummary) => {
 			const errorCount = config.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
@@ -656,7 +674,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private doRunTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
+	private doRunTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId || this.skipRunningTask) {
 			this.skipRunningTask = false;
 			return TPromise.as(null);

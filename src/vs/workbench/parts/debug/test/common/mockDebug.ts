@@ -8,13 +8,17 @@ import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ISuggestion } from 'vs/editor/common/modes';
 
 export class MockDebugService implements IDebugService {
 
 	public _serviceBrand: any;
+
+	getSession(sessionId: string): ISession {
+		return undefined;
+	}
 
 	public get state(): State {
 		return null;
@@ -145,7 +149,7 @@ export class MockSession implements ISession {
 		return null;
 	}
 
-	get onDidCustomEvent(): Event<DebugEvent> {
+	get onDidCustomEvent(): Event<DebugProtocol.Event> {
 		return null;
 	}
 

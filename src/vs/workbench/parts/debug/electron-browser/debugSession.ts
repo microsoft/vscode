@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { ISession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, IRawSession, LoadedSourceEvent, DebugEvent } from 'vs/workbench/parts/debug/common/debug';
+import { ISession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, IRawSession, LoadedSourceEvent } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, Model } from 'vs/workbench/parts/debug/common/debugModel';
@@ -30,6 +30,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class Session implements ISession {
 
+	private id: string;
+
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
@@ -37,12 +39,11 @@ export class Session implements ISession {
 	private _raw: RawDebugSession;
 	private _state: State;
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
-	private readonly _onDidCustomEvent = new Emitter<DebugEvent>();
+	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 	private readonly _onDidChangeState = new Emitter<State>();
 	private readonly _onDidExitAdapter = new Emitter<void>();
 
 	constructor(
-		private id: string,
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
 		private model: Model,
@@ -51,7 +52,12 @@ export class Session implements ISession {
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
+		this.id = generateUuid();
 		this.state = State.Initializing;
+	}
+
+	getId(): string {
+		return this.id;
 	}
 
 	get raw(): IRawSession {
@@ -85,10 +91,6 @@ export class Session implements ISession {
 
 	get onDidChangeState(): Event<State> {
 		return this._onDidChangeState.event;
-	}
-
-	getId(): string {
-		return this.id;
 	}
 
 	getSourceForUri(modelUri: uri): Source {
@@ -133,7 +135,7 @@ export class Session implements ISession {
 		return this._onDidLoadedSource.event;
 	}
 
-	get onDidCustomEvent(): Event<DebugEvent> {
+	get onDidCustomEvent(): Event<DebugProtocol.Event> {
 		return this._onDidCustomEvent.event;
 	}
 
@@ -233,7 +235,7 @@ export class Session implements ISession {
 		}
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
-			this._raw = this.instantiationService.createInstance(RawDebugSession, this.id, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
+			this._raw = this.instantiationService.createInstance(RawDebugSession, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
 			this.registerListeners();
 
 			return this._raw.initialize({
