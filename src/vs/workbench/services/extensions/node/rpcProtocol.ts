@@ -85,9 +85,14 @@ function transformIncomingURIs(obj: any, transformer: IURITransformer): any {
 	return result;
 }
 
+export const enum RequestInitiator {
+	LocalSide = 0,
+	OtherSide = 1
+}
+
 export interface IRPCProtocolLogger {
-	logIncoming(msgLength: number, str: string, data?: any): void;
-	logOutgoing(msgLength: number, str: string, data?: any): void;
+	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
+	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
 }
 
 export class RPCProtocol implements IRPCProtocol {
@@ -225,11 +230,11 @@ export class RPCProtocol implements IRPCProtocol {
 				if (this._uriTransformer) {
 					err = transformIncomingURIs(err, this._uriTransformer);
 				}
-				this._receiveReplyErr(req, err);
+				this._receiveReplyErr(msgLength, req, err);
 				break;
 			}
 			case MessageType.ReplyErrEmpty: {
-				this._receiveReplyErr(req, undefined);
+				this._receiveReplyErr(msgLength, req, undefined);
 				break;
 			}
 		}
@@ -237,7 +242,7 @@ export class RPCProtocol implements IRPCProtocol {
 
 	private _receiveRequest(msgLength: number, req: number, rpcId: number, method: string, args: any[]): void {
 		if (this._logger) {
-			this._logger.logIncoming(msgLength, `receiveRequest ${req}, ${getStringIdentifierForProxy(rpcId)}.${method}:`, args);
+			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${getStringIdentifierForProxy(rpcId)}.${method}(`, args);
 		}
 		const callId = String(req);
 
@@ -250,14 +255,14 @@ export class RPCProtocol implements IRPCProtocol {
 			}
 			const msg = MessageIO.serializeReplyOK(req, r);
 			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, `replyOK ${req}:`, r);
+				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `reply:`, r);
 			}
 			this._protocol.send(msg);
 		}, (err) => {
 			delete this._invokedHandlers[callId];
 			const msg = MessageIO.serializeReplyErr(req, err);
 			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, `replyErr ${req}:`, err);
+				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `replyErr:`, err);
 			}
 			this._protocol.send(msg);
 		});
@@ -265,7 +270,7 @@ export class RPCProtocol implements IRPCProtocol {
 
 	private _receiveCancel(msgLength: number, req: number): void {
 		if (this._logger) {
-			this._logger.logIncoming(msgLength, `receiveCancel ${req}`);
+			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveCancel`);
 		}
 		const callId = String(req);
 		if (this._invokedHandlers[callId]) {
@@ -275,7 +280,7 @@ export class RPCProtocol implements IRPCProtocol {
 
 	private _receiveReply(msgLength: number, req: number, value: any): void {
 		if (this._logger) {
-			this._logger.logIncoming(msgLength, `receiveReply ${req}:`, value);
+			this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReply:`, value);
 		}
 		const callId = String(req);
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
@@ -288,7 +293,11 @@ export class RPCProtocol implements IRPCProtocol {
 		pendingReply.resolveOk(value);
 	}
 
-	private _receiveReplyErr(req: number, value: any): void {
+	private _receiveReplyErr(msgLength: number, req: number, value: any): void {
+		if (this._logger) {
+			this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReplyErr:`, value);
+		}
+
 		const callId = String(req);
 		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
 			return;
@@ -337,7 +346,7 @@ export class RPCProtocol implements IRPCProtocol {
 		const result = new LazyPromise(() => {
 			const msg = MessageIO.serializeCancel(req);
 			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, `cancel ${req}`);
+				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
 			}
 			this._protocol.send(MessageIO.serializeCancel(req));
 		});
@@ -348,7 +357,7 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 		const msg = MessageIO.serializeRequest(req, rpcId, methodName, args);
 		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, `request ${req}: ${getStringIdentifierForProxy(rpcId)}.${methodName}:`, args);
+			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
 		}
 		this._protocol.send(msg);
 		return result;

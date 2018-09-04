@@ -39,7 +39,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
-import { RPCProtocol, IRPCProtocolLogger } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { RPCProtocol, IRPCProtocolLogger, RequestInitiator } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
@@ -48,6 +48,7 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
+const LOG_USE_COLORS = true;
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
@@ -955,19 +956,59 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 }
 
+const colorTables = [
+	['#2977B1', '#FC802D', '#34A13A', '#D3282F', '#9366BA'],
+	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
+];
+
+function prettyWithoutArrays(data: any): any {
+	if (Array.isArray(data)) {
+		return data;
+	}
+	if (data && typeof data === 'object' && typeof data.toString === 'function') {
+		let result = data.toString();
+		if (result !== '[object Object]') {
+			return result;
+		}
+	}
+	return data;
+}
+
+function pretty(data: any): any {
+	if (Array.isArray(data)) {
+		return data.map(prettyWithoutArrays);
+	}
+	return prettyWithoutArrays(data);
+}
+
 class RPCLogger implements IRPCProtocolLogger {
 
 	private _totalIncoming = 0;
 	private _totalOutgoing = 0;
 
-	logIncoming(msgLength: number, str: string, data?: any): void {
-		this._totalIncoming += msgLength;
-		console.log(`%c[Extension \u2192 Window]%c[${strings.pad(this._totalIncoming, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
+	private _log(direction: string, totalLength, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+		data = pretty(data);
+
+		const colorTable = colorTables[initiator];
+		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
+		let args = [`%c[${direction}]%c[${strings.pad(totalLength, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]%c${strings.pad(req, 5, ' ')} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
+		if (/\($/.test(str)) {
+			args = args.concat(data);
+			args.push(')');
+		} else {
+			args.push(data);
+		}
+		console.log.apply(console, args);
 	}
 
-	logOutgoing(msgLength: number, str: string, data?: any): void {
+	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
+		this._totalIncoming += msgLength;
+		this._log('Ext \u2192 Win', this._totalIncoming, msgLength, req, initiator, str, data);
+	}
+
+	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
 		this._totalOutgoing += msgLength;
-		console.log(`%c[Window \u2192 Extension]%c[${strings.pad(this._totalOutgoing, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]`, 'color: darkgreen', 'color: grey', 'color: grey', str, data);
+		this._log('Win \u2192 Ext', this._totalOutgoing, msgLength, req, initiator, str, data);
 	}
 }
 
