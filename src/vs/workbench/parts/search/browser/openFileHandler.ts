@@ -172,8 +172,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
 			}
 
-			// TODO@Rob support cancellation
-			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions));
+			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
 		}).then(complete => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {

@@ -13,6 +13,7 @@ import { URI as uri, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEW_ID = 'workbench.view.search';
 
@@ -24,7 +25,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  */
 export interface ISearchService {
 	_serviceBrand: any;
-	search(query: ISearchQuery, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
+	search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
 	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable;
@@ -55,7 +56,7 @@ export enum SearchProviderType {
 }
 
 export interface ISearchResultProvider {
-	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete>;
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
 }
 

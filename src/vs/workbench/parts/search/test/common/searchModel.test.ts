@@ -20,6 +20,7 @@ import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchPro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const nullEvent = new class {
 
@@ -83,7 +84,7 @@ suite('SearchModel', () => {
 
 	function searchServiceWithResults(results: IFileMatch[], complete: ISearchComplete = null): ISearchService {
 		return <ISearchService>{
-			search(query: ISearchQuery, onProgress: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 				return new TPromise(resolve => {
 					process.nextTick(() => {
 						results.forEach(onProgress);
@@ -96,9 +97,25 @@ suite('SearchModel', () => {
 
 	function searchServiceWithError(error: Error): ISearchService {
 		return <ISearchService>{
-			search(query: ISearchQuery, onProgress: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
 				return new TPromise((resolve, reject) => {
 					reject(error);
+				});
+			}
+		};
+	}
+
+	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
+		return <ISearchService>{
+			search(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+				if (token) {
+					token.onCancellationRequested(() => tokenSource.cancel());
+				}
+
+				return new TPromise(resolve => {
+					process.nextTick(() => {
+						resolve(<any>{});
+					});
 				});
 			}
 		};
@@ -257,15 +274,15 @@ suite('SearchModel', () => {
 	});
 
 	test('Search Model: Previous search is cancelled when new search is called', async () => {
-		let target = sinon.spy();
-		instantiationService.stub(ISearchService, 'search', new DeferredTPromise(target));
-		let testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		const tokenSource = new CancellationTokenSource();
+		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
+		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
 
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
-		assert.ok(target.calledOnce);
+		assert.ok(tokenSource.token.isCancellationRequested);
 	});
 
 	test('getReplaceString returns proper replace string for regExpressions', async () => {

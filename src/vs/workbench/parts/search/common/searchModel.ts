@@ -24,6 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class Match {
 
@@ -733,7 +734,7 @@ export class SearchModel extends Disposable {
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
-	private currentRequest: TPromise<ISearchComplete>;
+	private currentCancelTokenSource: CancellationTokenSource;
 
 	constructor(@ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -778,7 +779,8 @@ export class SearchModel extends Disposable {
 		const progressEmitter = new Emitter<void>();
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		this.currentRequest = this.searchService.search(this._searchQuery, p => {
+		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
+		const currentRequest = this.searchService.search(this._searchQuery, this.currentCancelTokenSource.token, p => {
 			progressEmitter.fire();
 			this.onSearchProgress(p);
 
@@ -787,7 +789,10 @@ export class SearchModel extends Disposable {
 			}
 		});
 
-		const onDone = fromPromise(this.currentRequest);
+		const dispose = () => tokenSource.dispose();
+		currentRequest.then(dispose, dispose);
+
+		const onDone = fromPromise(currentRequest);
 		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
@@ -807,18 +812,14 @@ export class SearchModel extends Disposable {
 		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
-		const currentRequest = this.currentRequest;
-		this.currentRequest.then(
+		currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
 
-		// this.currentRequest may be completed (and nulled) immediately
 		return currentRequest;
 	}
 
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
-		this.currentRequest = null;
-
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 
@@ -866,9 +867,8 @@ export class SearchModel extends Disposable {
 	}
 
 	public cancelSearch(): boolean {
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-			this.currentRequest = null;
+		if (this.currentCancelTokenSource) {
+			this.currentCancelTokenSource.cancel();
 			return true;
 		}
 		return false;

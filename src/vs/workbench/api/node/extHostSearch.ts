@@ -98,19 +98,15 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			});
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
-			if (indexProvider) {
-				return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
-					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}).then(null, err => {
-					if (!isPromiseCanceledError(err)) {
-						throw err;
-					}
+			return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+			}).then(null, err => {
+				if (!isPromiseCanceledError(err)) {
+					throw err;
+				}
 
-					return null;
-				});
-			} else {
-				throw new Error('something went wrong');
-			}
+				return null;
+			});
 		}
 	}
 
@@ -300,36 +296,31 @@ class BatchedCollector<T> {
 
 class TextSearchEngine {
 
-	private activeCancellationTokens = new Set<CancellationTokenSource>();
 	private collector: TextSearchResultsCollector;
 
 	private isLimitHit: boolean;
 	private resultCount = 0;
-	private isCanceled: boolean;
 
 	constructor(private pattern: IPatternInfo, private config: ISearchQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
 	}
 
-	public cancel(): void {
-		this.isCanceled = true;
-		this.activeCancellationTokens.forEach(t => t.cancel());
-		this.activeCancellationTokens = new Set();
-	}
-
 	public search(onProgress: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
 		const folderQueries = this.config.folderQueries;
+		const tokenSource = new CancellationTokenSource();
 
 		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
+			let isCanceled = false;
 			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
-				if (this.isCanceled) {
+				if (isCanceled) {
 					return;
 				}
 
 				if (this.resultCount >= this.config.maxResults) {
 					this.isLimitHit = true;
-					this.cancel();
+					isCanceled = true;
+					tokenSource.cancel();
 				}
 
 				if (!this.isLimitHit) {
@@ -340,8 +331,9 @@ class TextSearchEngine {
 
 			// For each root folder
 			TPromise.join(folderQueries.map((fq, i) => {
-				return this.searchInFolder(fq, r => onResult(r, i));
+				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
 			})).then(() => {
+				tokenSource.dispose();
 				this.collector.flush();
 				resolve({
 					limitHit: this.isLimitHit,
@@ -350,17 +342,20 @@ class TextSearchEngine {
 					}
 				});
 			}, (errs: Error[]) => {
+				tokenSource.dispose();
 				const errMsg = errs
 					.map(err => toErrorMessage(err))
 					.filter(msg => !!msg)[0];
 
 				reject(new Error(errMsg));
 			});
+		}, () => {
+			// From IPC
+			tokenSource.cancel();
 		});
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void): TPromise<void> {
-		let cancellation = new CancellationTokenSource();
+	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<void> {
 		return new TPromise((resolve, reject) => {
 
 			const queryTester = new QueryGlobTester(this.config, folderQuery);
@@ -385,22 +380,14 @@ class TextSearchEngine {
 			const searchOptions = this.getSearchOptionsForFolder(folderQuery);
 			new TPromise(resolve => process.nextTick(resolve))
 				.then(() => {
-					this.activeCancellationTokens.add(cancellation);
-					return this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, cancellation.token);
+					return this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, token);
 				})
 				.then(() => {
-					this.activeCancellationTokens.delete(cancellation);
 					return TPromise.join(testingPs);
 				})
 				.then(
-					() => {
-						cancellation.dispose();
-						resolve(null);
-					},
-					err => {
-						cancellation.dispose();
-						reject(err);
-					});
+					() => resolve(null),
+					reject);
 		});
 	}
 
