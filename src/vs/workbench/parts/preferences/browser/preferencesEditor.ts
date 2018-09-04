@@ -247,7 +247,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.done(value => {
+		promise.then(value => {
 			if (target === ConfigurationTarget.USER) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {

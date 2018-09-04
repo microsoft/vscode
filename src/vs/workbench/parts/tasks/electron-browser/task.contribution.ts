@@ -1334,7 +1334,7 @@ class TaskService implements ITaskService {
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
-						provider.provideTasks(validTypes).done(done, error);
+						provider.provideTasks(validTypes).then(done, error);
 					});
 				} else {
 					resolve(result);

@@ -7,7 +7,6 @@ import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -261,24 +260,26 @@ export class Session implements ISession {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
 				if (this._raw && this._raw.capabilities.supportsConfigurationDoneRequest) {
-					return this._raw.configurationDone().done(null, e => {
+					return this._raw.configurationDone().then(null, e => {
 						// Disconnect the debug session on configuration done error #10596
 						if (this._raw) {
-							this._raw.disconnect().done(undefined, errors.onUnexpectedError);
+							this._raw.disconnect();
 						}
 						this.notificationService.error(e.message);
 					});
 				}
+
+				return undefined;
 			};
 
 			// Send all breakpoints
 			this.debugService.sendAllBreakpoints(this).then(sendConfigurationDone, sendConfigurationDone)
-				.done(() => this.fetchThreads(), errors.onUnexpectedError);
+				.then(() => this.fetchThreads());
 		}));
 
 		this.rawListeners.push(this._raw.onDidStop(event => {
 			this.state = State.Stopped;
-			this.fetchThreads(event.body).done(() => {
+			this.fetchThreads(event.body).then(() => {
 				const thread = this.getThread(event.body.threadId);
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
@@ -287,7 +288,7 @@ export class Session implements ISession {
 						return !event.body.preserveFocusHint ? this.debugService.tryToAutoFocusStackFrame(thread) : undefined;
 					});
 				}
-			}, errors.onUnexpectedError);
+			});
 		}));
 
 		this.rawListeners.push(this._raw.onDidThread(event => {
@@ -295,7 +296,7 @@ export class Session implements ISession {
 				// debounce to reduce threadsRequest frequency and improve performance
 				if (!this.fetchThreadsScheduler) {
 					this.fetchThreadsScheduler = new RunOnceScheduler(() => {
-						this.fetchThreads().done(undefined, errors.onUnexpectedError);
+						this.fetchThreads();
 					}, 100);
 					this.rawListeners.push(this.fetchThreadsScheduler);
 				}
@@ -310,9 +311,9 @@ export class Session implements ISession {
 		this.rawListeners.push(this._raw.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
-				this.debugService.restartSession(this, event.body.restart).done(null, err => this.notificationService.error(err.message));
+				this.debugService.restartSession(this, event.body.restart).then(null, err => this.notificationService.error(err.message));
 			} else {
-				this._raw.disconnect().done(undefined, errors.onUnexpectedError);
+				this._raw.disconnect();
 			}
 		}));
 
@@ -436,7 +437,7 @@ export class Session implements ISession {
 		this.model.removeSession(this.getId());
 		this.fetchThreadsScheduler = undefined;
 		if (!this._raw.disconnected) {
-			this._raw.disconnect().done(undefined, errors.onUnexpectedError);
+			this._raw.disconnect();
 		}
 		this._raw = undefined;
 	}

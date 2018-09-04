@@ -419,7 +419,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			}
 		}, this, this.disposables);
 
-		this.queryLocal().done(() => this.eventuallySyncWithGallery(true));
+		this.queryLocal().then(() => this.eventuallySyncWithGallery(true));
 	}
 
 	get local(): IExtension[] {
@@ -613,7 +613,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
 		this.syncDelayer.trigger(loop, delay)
-			.done(null, err => null);
+			.then(null, err => null);
 	}
 
 	private syncWithGallery(): TPromise<void> {
@@ -641,7 +641,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 	private eventuallyAutoUpdateExtensions(): void {
 		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
-			.done(null, err => null);
+			.then(null, err => null);
 	}
 
 	private autoUpdateExtensions(): TPromise<any> {
@@ -1022,13 +1022,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 							nls.localize('installConfirmation', "Would you like to install the '{0}' extension?", extension.displayName, extension.publisher),
 							[{
 								label: nls.localize('install', "Install"),
-								run: () => this.install(extension).done(undefined, error => this.onError(error))
+								run: () => this.install(extension).then(undefined, error => this.onError(error))
 							}]
 						);
 					});
 				});
 			});
-		}).done(undefined, error => this.onError(error));
+		}).then(undefined, error => this.onError(error));
 	}
 
 	dispose(): void {

@@ -519,7 +519,7 @@ export class RawDebugSession implements IRawSession {
 
 	private onDebugAdapterError(err: Error): void {
 		this.notificationService.error(err.message || err.toString());
-		this.stopServer().done(null, errors.onUnexpectedError);
+		this.stopServer();
 	}
 
 	private onDebugAdapterExit(): void {

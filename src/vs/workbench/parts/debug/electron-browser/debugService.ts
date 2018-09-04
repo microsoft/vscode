@@ -157,7 +157,7 @@ export class DebugService implements IDebugService {
 
 		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
 			if (session.raw) {
-				session.raw.terminate().done(undefined, errors.onUnexpectedError);
+				session.raw.terminate();
 			}
 			return;
 		}
@@ -258,7 +258,7 @@ export class DebugService implements IDebugService {
 		this.focusStackFrame(stackFrameToFocus);
 		if (thread.stoppedDetails) {
 			if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
-				this.viewletService.openViewlet(VIEWLET_ID).done(undefined, errors.onUnexpectedError);
+				this.viewletService.openViewlet(VIEWLET_ID);
 			}
 			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
@@ -565,8 +565,10 @@ export class DebugService implements IDebugService {
 						}
 
 						if (launch && type) {
-							return launch.openConfigFile(false, true, type).done(undefined, errors.onUnexpectedError);
+							return launch.openConfigFile(false, true, type).then(() => undefined);
 						}
+
+						return undefined;
 					})
 				).then(() => undefined);
 			})
@@ -670,7 +672,7 @@ export class DebugService implements IDebugService {
 
 					const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
 					if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
-						this.panelService.openPanel(REPL_ID, false).done(undefined, errors.onUnexpectedError);
+						this.panelService.openPanel(REPL_ID, false);
 					}
 
 					const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
@@ -726,7 +728,7 @@ export class DebugService implements IDebugService {
 
 					// Show the repl if some error got logged there #5870
 					if (this.model.getReplElements().length > 0) {
-						this.panelService.openPanel(REPL_ID, false).done(undefined, errors.onUnexpectedError);
+						this.panelService.openPanel(REPL_ID, false);
 					}
 
 					if (resolved && resolved.request === 'attach' && resolved.__autoAttach) {
@@ -795,7 +797,7 @@ export class DebugService implements IDebugService {
 			});
 
 			if (session.configuration.postDebugTask) {
-				this.doRunTask(session.getId(), session.root, session.configuration.postDebugTask).done(undefined, err =>
+				this.doRunTask(session.getId(), session.root, session.configuration.postDebugTask).then(undefined, err =>
 					this.notificationService.error(err)
 				);
 			}
@@ -812,7 +814,7 @@ export class DebugService implements IDebugService {
 				this.viewModel.setMultiSessionView(false);
 
 				if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
-					this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
+					this.viewletService.openViewlet(EXPLORER_VIEWLET_ID);
 				}
 			}
 
@@ -1114,7 +1116,7 @@ export class DebugService implements IDebugService {
 		fileChangesEvent.getUpdated().forEach(event => {
 
 			if (this.breakpointsToSendOnResourceSaved.delete(event.resource.toString())) {
-				this.sendBreakpoints(event.resource, true).done(null, errors.onUnexpectedError);
+				this.sendBreakpoints(event.resource, true);
 			}
 		});
 	}

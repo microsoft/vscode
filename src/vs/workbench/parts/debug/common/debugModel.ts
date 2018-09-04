@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
 import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
@@ -836,7 +835,7 @@ export class Model implements IModel {
 			return thread.fetchCallStack(1).then(() => {
 				if (!this.schedulers.has(thread.getId())) {
 					this.schedulers.set(thread.getId(), new RunOnceScheduler(() => {
-						thread.fetchCallStack(19).done(() => this._onDidChangeCallStack.fire(), errors.onUnexpectedError);
+						thread.fetchCallStack(19).then(() => this._onDidChangeCallStack.fire());
 					}, 420));
 				}
 

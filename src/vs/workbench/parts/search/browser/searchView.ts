@@ -1246,11 +1246,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 						dom.EventHelper.stop(e, false);
 
 						let editorPromise = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
-						editorPromise.done(editor => {
+						editorPromise.then(editor => {
 							if (editor instanceof PreferencesEditor) {
 								editor.focusSearch('.exclude');
 							}
-						}, errors.onUnexpectedError);
+						});
 					}));
 				}
 
@@ -1347,7 +1347,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.searchWidget.setReplaceAllActionState(false);
 
-		this.viewModel.search(query, onProgress).done(onComplete, onError);
+		this.viewModel.search(query, onProgress).then(onComplete, onError);
 	}
 
 	private updateSearchResultCount(): void {
@@ -1392,7 +1392,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
-			this.actionRunner.run(action).done(() => {
+			this.actionRunner.run(action).then(() => {
 				action.dispose();
 			}, err => {
 				action.dispose();
