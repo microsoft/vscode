@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
-import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier, IRPCProtocol, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
 import { URI } from 'vs/base/common/uri';
 import { MarshalledObject } from 'vs/base/common/marshalling';
@@ -96,8 +96,8 @@ export class RPCProtocol implements IRPCProtocol {
 	private readonly _logger: IRPCProtocolLogger;
 	private readonly _uriTransformer: IURITransformer;
 	private _isDisposed: boolean;
-	private readonly _locals: { [id: string]: any; };
-	private readonly _proxies: { [id: string]: any; };
+	private readonly _locals: any[];
+	private readonly _proxies: any[];
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
@@ -107,8 +107,12 @@ export class RPCProtocol implements IRPCProtocol {
 		this._logger = logger;
 		this._uriTransformer = transformer;
 		this._isDisposed = false;
-		this._locals = Object.create(null);
-		this._proxies = Object.create(null);
+		this._locals = [];
+		this._proxies = [];
+		for (let i = 0, len = ProxyIdentifier.count; i < len; i++) {
+			this._locals[i] = null;
+			this._proxies[i] = null;
+		}
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
@@ -133,18 +137,19 @@ export class RPCProtocol implements IRPCProtocol {
 	}
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id);
+		const rpcId = identifier.nid;
+		if (!this._proxies[rpcId]) {
+			this._proxies[rpcId] = this._createProxy(rpcId);
 		}
-		return this._proxies[identifier.id];
+		return this._proxies[rpcId];
 	}
 
-	private _createProxy<T>(proxyId: string): T {
+	private _createProxy<T>(rpcId: number): T {
 		let handler = {
 			get: (target: any, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
-						return this._remoteCall(proxyId, name, myArgs);
+						return this._remoteCall(rpcId, name, myArgs);
 					};
 				}
 				return target[name];
@@ -154,15 +159,15 @@ export class RPCProtocol implements IRPCProtocol {
 	}
 
 	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		this._locals[identifier.id] = value;
+		this._locals[identifier.nid] = value;
 		return value;
 	}
 
 	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
 		for (let i = 0, len = identifiers.length; i < len; i++) {
 			const identifier = identifiers[i];
-			if (!this._locals[identifier.id]) {
-				throw new Error(`Missing actor ${identifier.id} (isMain: ${identifier.isMain})`);
+			if (!this._locals[identifier.nid]) {
+				throw new Error(`Missing actor ${identifier.sid} (isMain: ${identifier.isMain})`);
 			}
 		}
 	}
@@ -230,9 +235,9 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 	}
 
-	private _receiveRequest(msgLength: number, req: number, rpcId: string, method: string, args: any[]): void {
+	private _receiveRequest(msgLength: number, req: number, rpcId: number, method: string, args: any[]): void {
 		if (this._logger) {
-			this._logger.logIncoming(msgLength, `receiveRequest ${req}, ${rpcId}.${method}:`, args);
+			this._logger.logIncoming(msgLength, `receiveRequest ${req}, ${getStringIdentifierForProxy(rpcId)}.${method}:`, args);
 		}
 		const callId = String(req);
 
@@ -302,27 +307,27 @@ export class RPCProtocol implements IRPCProtocol {
 		pendingReply.resolveErr(err);
 	}
 
-	private _invokeHandler(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+	private _invokeHandler(rpcId: number, methodName: string, args: any[]): TPromise<any> {
 		try {
-			return TPromise.as(this._doInvokeHandler(proxyId, methodName, args));
+			return TPromise.as(this._doInvokeHandler(rpcId, methodName, args));
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}
 	}
 
-	private _doInvokeHandler(proxyId: string, methodName: string, args: any[]): any {
-		if (!this._locals[proxyId]) {
-			throw new Error('Unknown actor ' + proxyId);
+	private _doInvokeHandler(rpcId: number, methodName: string, args: any[]): any {
+		const actor = this._locals[rpcId];
+		if (!actor) {
+			throw new Error('Unknown actor ' + getStringIdentifierForProxy(rpcId));
 		}
-		let actor = this._locals[proxyId];
 		let method = actor[methodName];
 		if (typeof method !== 'function') {
-			throw new Error('Unknown method ' + methodName + ' on actor ' + proxyId);
+			throw new Error('Unknown method ' + methodName + ' on actor ' + getStringIdentifierForProxy(rpcId));
 		}
 		return method.apply(actor, args);
 	}
 
-	private _remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+	private _remoteCall(rpcId: number, methodName: string, args: any[]): TPromise<any> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
@@ -341,9 +346,9 @@ export class RPCProtocol implements IRPCProtocol {
 		if (this._uriTransformer) {
 			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
-		const msg = MessageIO.serializeRequest(req, proxyId, methodName, args);
+		const msg = MessageIO.serializeRequest(req, rpcId, methodName, args);
 		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, `request ${req}: ${proxyId}.${methodName}:`, args);
+			this._logger.logOutgoing(msg.byteLength, `request ${req}: ${getStringIdentifierForProxy(rpcId)}.${methodName}:`, args);
 		}
 		this._protocol.send(msg);
 		return result;
@@ -373,6 +378,10 @@ class MessageBuffer {
 	private constructor(buff: Buffer, offset: number) {
 		this._buff = buff;
 		this._offset = offset;
+	}
+
+	public static sizeUInt8(): number {
+		return 1;
 	}
 
 	public writeUInt8(n: number): void {
@@ -495,7 +504,7 @@ class MessageIO {
 		return false;
 	}
 
-	public static serializeRequest(req: number, rpcId: string, method: string, args: any[]): Buffer {
+	public static serializeRequest(req: number, rpcId: number, method: string, args: any[]): Buffer {
 		if (this._arrayContainsBuffer(args)) {
 			let massagedArgs: (string | Buffer)[] = new Array(args.length);
 			let argsLengths: number[] = new Array(args.length);
@@ -514,25 +523,24 @@ class MessageIO {
 		return this._requestJSONArgs(req, rpcId, method, JSON.stringify(args));
 	}
 
-	private static _requestJSONArgs(req: number, rpcId: string, method: string, args: string): Buffer {
-		const rpcIdByteLength = Buffer.byteLength(rpcId, 'utf8');
+	private static _requestJSONArgs(req: number, rpcId: number, method: string, args: string): Buffer {
 		const methodByteLength = Buffer.byteLength(method, 'utf8');
 		const argsByteLength = Buffer.byteLength(args, 'utf8');
 
 		let len = 0;
-		len += MessageBuffer.sizeShortString(rpcId, rpcIdByteLength);
+		len += MessageBuffer.sizeUInt8();
 		len += MessageBuffer.sizeShortString(method, methodByteLength);
 		len += MessageBuffer.sizeLongString(args, argsByteLength);
 
 		let result = MessageBuffer.alloc(MessageType.RequestJSONArgs, req, len);
-		result.writeShortString(rpcId, rpcIdByteLength);
+		result.writeUInt8(rpcId);
 		result.writeShortString(method, methodByteLength);
 		result.writeLongString(args, argsByteLength);
 		return result.buffer;
 	}
 
-	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: string; method: string; args: any[]; } {
-		const rpcId = buff.readShortString();
+	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
+		const rpcId = buff.readUInt8();
 		const method = buff.readShortString();
 		const args = buff.readLongString();
 		return {
@@ -542,24 +550,23 @@ class MessageIO {
 		};
 	}
 
-	private static _requestMixedArgs(req: number, rpcId: string, method: string, args: (string | Buffer)[], argsLengths: number[]): Buffer {
-		const rpcIdByteLength = Buffer.byteLength(rpcId, 'utf8');
+	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: (string | Buffer)[], argsLengths: number[]): Buffer {
 		const methodByteLength = Buffer.byteLength(method, 'utf8');
 
 		let len = 0;
-		len += MessageBuffer.sizeShortString(rpcId, rpcIdByteLength);
+		len += MessageBuffer.sizeUInt8();
 		len += MessageBuffer.sizeShortString(method, methodByteLength);
 		len += MessageBuffer.sizeMixedArray(args, argsLengths);
 
 		let result = MessageBuffer.alloc(MessageType.RequestMixedArgs, req, len);
-		result.writeShortString(rpcId, rpcIdByteLength);
+		result.writeUInt8(rpcId);
 		result.writeShortString(method, methodByteLength);
 		result.writeMixedArray(args, argsLengths);
 		return result.buffer;
 	}
 
-	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: string; method: string; args: any[]; } {
-		const rpcId = buff.readShortString();
+	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
+		const rpcId = buff.readUInt8();
 		const method = buff.readShortString();
 		const rawargs = buff.readMixedArray();
 		const args: any[] = new Array(rawargs.length);

@@ -46,6 +46,9 @@ import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isEqualOrParent } from 'vs/base/common/resources';
 
+// Enable to see detailed message communication between window and extension host
+const LOG_EXTENSION_HOST_COMMUNICATION = false;
+
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
@@ -96,9 +99,6 @@ class ExtraBuiltInExtensionResolver implements IExtensionResolver {
 		return TPromise.as(result);
 	}
 }
-
-// Enable to see detailed message communication between window and extension host
-const logExtensionHostCommunication = false;
 
 function messageWithSource(source: string, message: string): string {
 	if (source) {
@@ -181,7 +181,7 @@ export class ExtensionHostProcessManager extends Disposable {
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
 		let logger: IRPCProtocolLogger = null;
-		if (logExtensionHostCommunication || this._environmentService.logExtensionHostCommunication) {
+		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
 			logger = new RPCLogger();
 		}
 
