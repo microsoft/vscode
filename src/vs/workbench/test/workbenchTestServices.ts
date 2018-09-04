@@ -824,16 +824,16 @@ export class TestFileService implements IFileService {
 	}
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		return TPromise.timeout(1).then(() => {
-			return {
+		return new TPromise(c => {
+			setTimeout(() => c({
 				resource,
 				etag: 'index.txt',
 				encoding: 'utf8',
 				mtime: Date.now(),
 				isDirectory: false,
 				name: paths.basename(resource.fsPath)
-			};
-		});
+			}), 0);
+		}).then();
 	}
 
 	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {

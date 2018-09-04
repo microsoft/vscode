@@ -35,7 +35,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { URI } from 'vs/base/common/uri';
-import { Queue } from 'vs/base/common/async';
+import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
@@ -1511,7 +1511,7 @@ export class WindowsManager implements IWindowsMainService {
 			// might be related to the fact that the untitled workspace prompt shows up async and this
 			// code can execute before the dialog is fully closed which then blocks the window from closing.
 			// Issue: https://github.com/Microsoft/vscode/issues/41989
-			return TPromise.timeout(0).then(() => veto);
+			return timeout(0).then(() => veto);
 		}));
 	}
 
