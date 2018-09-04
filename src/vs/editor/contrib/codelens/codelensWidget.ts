@@ -5,21 +5,21 @@
 
 'use strict';
 
-import * as dom from 'vs/base/browser/dom';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { escape, format } from 'vs/base/common/strings';
 import 'vs/css!./codelensWidget';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { Command, ICodeLensSymbol } from 'vs/editor/common/modes';
-import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { format, escape } from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Range } from 'vs/editor/common/core/range';
+import { ICodeLensSymbol, Command } from 'vs/editor/common/modes';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeLensData } from './codelens';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
 
@@ -93,7 +93,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				let command = this._commands[element.id];
 				if (command) {
 					editor.focus();
-					commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
+					commandService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
 						notificationService.error(err);
 					});
 				}
