@@ -78,7 +78,7 @@ new Book("The Martian", "Andy Weir");
 /**
  * Represents a book.
  */
-Book = (title, author) => {
+function Book(title, author) {
 	this.title = title;
 	this.author = author;
 }
@@ -91,10 +91,10 @@ Book = (title, author) => {
 Sometimes you want to refactor already written code into a separate function or constant to reuse it later. Select the lines you want to refactor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to refactor out.
 
 ```js
-findFirstEvenNumber = (arr) => {
-    for (const i in arr) {
-        if (typeof arr[i] === 'number' && arr[i] % 2 === 0) {
-            return arr[i];
+function findFirstEvenNumber(arr) {
+    for (const el of arr) {
+        if (typeof el === 'number' && el % 2 === 0) {
+            return el;
         }
     }
     return null;
@@ -108,9 +108,9 @@ Keeping your code looking great is hard without a good formatter.  Luckily it's 
 ```js
 const cars = ["🚗", "🚙", "🚕"];
 
-for (const i in cars){
-// Drive the car
-console.log(`This is the car ${cars[i]}`);
+for (const car of cars){
+    // Drive the car
+    console.log(`This is the car ${car}`);
 }
 ```
 
@@ -144,7 +144,7 @@ Errors and warnings are highlighted as you edit your code with squiggles.  In th
 Console.log(add(1, 1.5));
 
 
-Add = (a : Number, b : Number) : Int => {
+function Add(a : Number, b : Number) : Int {
     return a + b;
 }
 ```
