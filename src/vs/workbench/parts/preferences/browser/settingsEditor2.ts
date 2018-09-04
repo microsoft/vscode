@@ -231,19 +231,16 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	focusSearch(): void {
+	focusSearch(filter?: string): void {
+		if (filter && this.searchWidget) {
+			this.searchWidget.setValue(filter);
+		}
+
 		this.searchWidget.focus();
 	}
 
 	clearSearchResults(): void {
 		this.searchWidget.setValue('');
-	}
-
-	search(text: string): void {
-		if (this.searchWidget) {
-			this.searchWidget.focus();
-			this.searchWidget.setValue(text);
-		}
 	}
 
 	private createHeader(parent: HTMLElement): void {
@@ -1143,7 +1140,7 @@ class FilterByTagAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		this.settingsEditor.search(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `);
+		this.settingsEditor.focusSearch(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `);
 		return TPromise.as(null);
 	}
 }
