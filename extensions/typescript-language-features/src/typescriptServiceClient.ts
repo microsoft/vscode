@@ -734,6 +734,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (!wasCancelled) {
 					this.error(`'${command}' request failed with error.`, err);
 					const properties = this.parseErrorText(err && err.message, command);
+					/* __GDPR__
+						"languageServiceErrorResponse" : {
+							"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"message" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+							"stack" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+							"errortext" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+							"${include}": [
+								"${TypeScriptCommonProperties}"
+							]
+						}
+					*/
 					this.logTelemetry('languageServiceErrorResponse', properties);
 				}
 				throw err;
