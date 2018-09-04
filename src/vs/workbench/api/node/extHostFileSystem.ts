@@ -5,12 +5,10 @@
 'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape, IFileChangeDto } from './extHost.protocol';
 import * as vscode from 'vscode';
 import * as files from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { values } from 'vs/base/common/map';
 import { Range, FileChangeType } from 'vs/workbench/api/node/extHostTypes';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -156,47 +154,43 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		return { type, ctime, mtime, size };
 	}
 
-	$stat(handle: number, resource: UriComponents): TPromise<files.IStat> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
+	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
+		return Promise.resolve(this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
 	}
 
-	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.FileType][]> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
+	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {
+		return Promise.resolve(this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
 	}
 
-	$readFile(handle: number, resource: UriComponents): TPromise<Buffer> {
-		return asWinJsPromise(() => {
-			return this._fsProvider.get(handle).readFile(URI.revive(resource));
-		}).then(data => {
+	$readFile(handle: number, resource: UriComponents): Promise<Buffer> {
+		return Promise.resolve(this._fsProvider.get(handle).readFile(URI.revive(resource))).then(data => {
 			return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 		});
 	}
 
-	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).writeFile(URI.revive(resource), content, opts));
+	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: files.FileWriteOptions): Promise<void> {
+		return Promise.resolve(this._fsProvider.get(handle).writeFile(URI.revive(resource), content, opts));
 	}
 
-	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).delete(URI.revive(resource), opts));
+	$delete(handle: number, resource: UriComponents, opts: files.FileDeleteOptions): Promise<void> {
+		return Promise.resolve(this._fsProvider.get(handle).delete(URI.revive(resource), opts));
 	}
 
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
+	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
+		return Promise.resolve(this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): Promise<void> {
+		return Promise.resolve(this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$mkdir(handle: number, resource: UriComponents): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
+	$mkdir(handle: number, resource: UriComponents): Promise<void> {
+		return Promise.resolve(this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {
-		asWinJsPromise(() => {
-			let subscription = this._fsProvider.get(handle).watch(URI.revive(resource), opts);
-			this._watches.set(session, subscription);
-		});
+		let subscription = this._fsProvider.get(handle).watch(URI.revive(resource), opts);
+		this._watches.set(session, subscription);
 	}
 
 	$unwatch(session: number): void {
@@ -207,20 +201,20 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	$open(handle: number, resource: UriComponents): TPromise<number> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).open(URI.revive(resource)));
+	$open(handle: number, resource: UriComponents): Promise<number> {
+		return Promise.resolve(this._fsProvider.get(handle).open(URI.revive(resource)));
 	}
 
-	$close(handle: number, fd: number): TPromise<void> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).close(fd));
+	$close(handle: number, fd: number): Promise<void> {
+		return Promise.resolve(this._fsProvider.get(handle).close(fd));
 	}
 
-	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).read(fd, pos, data, offset, length));
+	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+		return Promise.resolve(this._fsProvider.get(handle).read(fd, pos, data, offset, length));
 	}
 
-	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number> {
-		return asWinJsPromise(() => this._fsProvider.get(handle).write(fd, pos, data, offset, length));
+	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Promise<number> {
+		return Promise.resolve(this._fsProvider.get(handle).write(fd, pos, data, offset, length));
 	}
 
 }

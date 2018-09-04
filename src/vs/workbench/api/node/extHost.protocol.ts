@@ -681,20 +681,20 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemShape {
-	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
-	$readdir(handle: number, resource: UriComponents): TPromise<[string, FileType][]>;
-	$readFile(handle: number, resource: UriComponents): TPromise<Buffer>;
-	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: FileWriteOptions): TPromise<void>;
-	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<void>;
-	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<void>;
-	$mkdir(handle: number, resource: UriComponents): TPromise<void>;
-	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): TPromise<void>;
+	$stat(handle: number, resource: UriComponents): Thenable<IStat>;
+	$readdir(handle: number, resource: UriComponents): Thenable<[string, FileType][]>;
+	$readFile(handle: number, resource: UriComponents): Thenable<Buffer>;
+	$writeFile(handle: number, resource: UriComponents, content: Buffer, opts: FileWriteOptions): Thenable<void>;
+	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Thenable<void>;
+	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Thenable<void>;
+	$mkdir(handle: number, resource: UriComponents): Thenable<void>;
+	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): Thenable<void>;
 	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
-	$open(handle: number, resource: UriComponents): TPromise<number>;
-	$close(handle: number, fd: number): TPromise<void>;
-	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number>;
-	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): TPromise<number>;
+	$open(handle: number, resource: UriComponents): Thenable<number>;
+	$close(handle: number, fd: number): Thenable<void>;
+	$read(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Thenable<number>;
+	$write(handle: number, fd: number, pos: number, data: Buffer, offset: number, length: number): Thenable<number>;
 }
 
 export interface ExtHostSearchShape {

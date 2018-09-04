@@ -7,7 +7,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IFileSystemProvider, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../node/extHost.protocol';
@@ -96,53 +95,53 @@ class RemoteFileSystemProvider implements IFileSystemProvider {
 		return Buffer.isBuffer(data) ? data : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 	}
 
-	stat(resource: URI): TPromise<IStat> {
+	stat(resource: URI): Thenable<IStat> {
 		return this._proxy.$stat(this._handle, resource).then(undefined, err => {
 			throw err;
 		});
 	}
 
-	readFile(resource: URI): TPromise<Uint8Array> {
+	readFile(resource: URI): Thenable<Uint8Array> {
 		return this._proxy.$readFile(this._handle, resource);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void> {
 		return this._proxy.$writeFile(this._handle, resource, RemoteFileSystemProvider._asBuffer(content), opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): TPromise<void> {
+	delete(resource: URI, opts: FileDeleteOptions): Thenable<void> {
 		return this._proxy.$delete(this._handle, resource, opts);
 	}
 
-	mkdir(resource: URI): TPromise<void> {
+	mkdir(resource: URI): Thenable<void> {
 		return this._proxy.$mkdir(this._handle, resource);
 	}
 
-	readdir(resource: URI): TPromise<[string, FileType][]> {
+	readdir(resource: URI): Thenable<[string, FileType][]> {
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
+	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): TPromise<void> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Thenable<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 
-	open(resource: URI): TPromise<number> {
+	open(resource: URI): Thenable<number> {
 		return this._proxy.$open(this._handle, resource);
 	}
 
-	close(fd: number): TPromise<void> {
+	close(fd: number): Thenable<void> {
 		return this._proxy.$close(this._handle, fd);
 	}
 
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number> {
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number> {
 		return this._proxy.$read(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number> {
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number> {
 		return this._proxy.$write(this._handle, fd, pos, RemoteFileSystemProvider._asBuffer(data), offset, length);
 	}
 }
