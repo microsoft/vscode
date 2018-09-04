@@ -825,33 +825,33 @@ export interface CodeActionDto {
 }
 
 export interface ExtHostLanguageFeaturesShape {
-	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<modes.DocumentSymbol[]>;
-	$provideCodeLenses(handle: number, resource: UriComponents): TPromise<modes.ICodeLensSymbol[]>;
-	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol>;
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<DefinitionLinkDto[]>;
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<DefinitionLinkDto[]>;
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<DefinitionLinkDto[]>;
+	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.DocumentSymbol[]>;
+	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.ICodeLensSymbol[]>;
+	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol, token: CancellationToken): Thenable<modes.ICodeLensSymbol>;
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<DefinitionLinkDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.Hover>;
-	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
-	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<LocationDto[]>;
-	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]>;
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]>;
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<WorkspaceSymbolsDto>;
-	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto): TPromise<WorkspaceSymbolDto>;
+	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]>;
+	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<LocationDto[]>;
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Thenable<CodeActionDto[]>;
+	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]>;
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]>;
+	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]>;
+	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Thenable<WorkspaceSymbolsDto>;
+	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto, token: CancellationToken): Thenable<WorkspaceSymbolDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
-	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
-	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.RenameLocation>;
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
+	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string, token: CancellationToken): Thenable<WorkspaceEditDto>;
+	$resolveRenameLocation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation>;
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto>;
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.SignatureHelp>;
-	$provideDocumentLinks(handle: number, resource: UriComponents): TPromise<modes.ILink[]>;
-	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
-	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
-	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
-	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext): TPromise<modes.FoldingRange[]>;
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.SignatureHelp>;
+	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.ILink[]>;
+	$resolveDocumentLink(handle: number, link: modes.ILink, token: CancellationToken): Thenable<modes.ILink>;
+	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Thenable<IRawColorInfo[]>;
+	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo, token: CancellationToken): Thenable<modes.IColorPresentation[]>;
+	$provideFoldingRanges(handle: number, resource: UriComponents, context: modes.FoldingContext, token: CancellationToken): Thenable<modes.FoldingRange[]>;
 }
 
 export interface ExtHostQuickOpenShape {

@@ -87,11 +87,17 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	});
 }
 
-export function asThenable<T>(item: T | TPromise<T> | Thenable<T>): Thenable<T> {
-	if (item instanceof TPromise || isThenable<T>(item)) {
-		return item;
-	}
-	return TPromise.wrap(item);
+export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Thenable<T> {
+	return new TPromise<T>((resolve, reject) => {
+		let item = callback();
+		if (item instanceof TPromise) {
+			item.then(resolve, reject);
+		} else if (isThenable<T>(item)) {
+			item.then(resolve, reject);
+		} else {
+			resolve(item);
+		}
+	}, () => { /* not supported */ });
 }
 
 /**
