@@ -116,6 +116,8 @@ export class ExtensionPointContribution<T> {
 	}
 }
 
+export const ExtensionHostLogFileName = 'exthost';
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -150,6 +152,11 @@ export interface IExtensionService {
 	 * Return all registered extensions
 	 */
 	getExtensions(): TPromise<IExtensionDescription[]>;
+
+	/**
+	 * Return extension host log folder paths
+	 */
+	getLogsLocations(): TPromise<URI[]>;
 
 	/**
 	 * Read all contributions to an extension point.
