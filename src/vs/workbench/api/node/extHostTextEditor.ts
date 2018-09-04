@@ -322,6 +322,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _visibleRanges: Range[];
 	private _viewColumn: vscode.ViewColumn;
 	private _disposed: boolean = false;
+	private _hasDecorationsForKey: { [key: string]: boolean; };
 
 	get id(): string { return this._id; }
 
@@ -337,6 +338,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		this._options = new ExtHostTextEditorOptions(this._proxy, this._id, options);
 		this._visibleRanges = visibleRanges;
 		this._viewColumn = viewColumn;
+		this._hasDecorationsForKey = Object.create(null);
 	}
 
 	dispose() {
@@ -436,6 +438,16 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
+		const willBeEmpty = (ranges.length === 0);
+		if (willBeEmpty && !this._hasDecorationsForKey[decorationType.key]) {
+			// avoid no-op call to the renderer
+			return;
+		}
+		if (willBeEmpty) {
+			delete this._hasDecorationsForKey[decorationType.key];
+		} else {
+			this._hasDecorationsForKey[decorationType.key] = true;
+		}
 		this._runOnProxy(
 			() => {
 				if (TypeConverters.isDecorationOptionsArr(ranges)) {
