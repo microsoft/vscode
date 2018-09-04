@@ -365,11 +365,6 @@ export class RPCProtocol implements IRPCProtocol {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
 
-		if (cancellationToken && cancellationToken === CancellationToken.None) {
-			// This can never be canceled, so pretend we never even saw a cancelation token
-			cancellationToken = null;
-		}
-
 		const req = ++this._lastMessageId;
 		const callId = String(req);
 		const sendCancel = () => {

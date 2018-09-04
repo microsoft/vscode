@@ -129,7 +129,10 @@ suite('RPCProtocol', () => {
 	});
 
 	test('passing CancellationToken.None', function (done) {
-		delegate = (a1: number, a2: number) => a1 + 1;
+		delegate = (a1: number, token: CancellationToken) => {
+			assert.ok(!!token);
+			return a1 + 1;
+		};
 		bProxy.$m(4, CancellationToken.None).then((res: number) => {
 			assert.equal(res, 5);
 			done(null);
