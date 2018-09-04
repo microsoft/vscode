@@ -104,8 +104,8 @@ export interface MainThreadCommentsShape extends IDisposable {
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: UriComponents): TPromise<void>;
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: UriComponents): TPromise<void>;
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resource: UriComponents): Thenable<void>;
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resource: UriComponents): Thenable<void>;
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
@@ -146,9 +146,9 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
-	$tryCreateDocument(options?: { language?: string; content?: string; }): TPromise<UriComponents>;
-	$tryOpenDocument(uri: UriComponents): TPromise<void>;
-	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
+	$tryCreateDocument(options?: { language?: string; content?: string; }): Thenable<UriComponents>;
+	$tryOpenDocument(uri: UriComponents): Thenable<void>;
+	$trySaveDocument(uri: UriComponents): Thenable<boolean>;
 }
 
 export interface ITextEditorConfigurationUpdate {
@@ -189,26 +189,26 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface MainThreadTextEditorsShape extends IDisposable {
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Thenable<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
-	$tryShowEditor(id: string, position: EditorViewColumn): TPromise<void>;
-	$tryHideEditor(id: string): TPromise<void>;
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
-	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void>;
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
-	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): TPromise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
-	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
+	$tryShowEditor(id: string, position: EditorViewColumn): Thenable<void>;
+	$tryHideEditor(id: string): Thenable<void>;
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Thenable<void>;
+	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): Thenable<void>;
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Thenable<void>;
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Thenable<void>;
+	$trySetSelections(id: string, selections: ISelection[]): Thenable<void>;
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Thenable<boolean>;
+	$tryApplyWorkspaceEdit(workspaceEditDto: WorkspaceEditDto): Thenable<boolean>;
+	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): Thenable<boolean>;
+	$getDiffInformation(id: string): Thenable<editorCommon.ILineChange[]>;
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string): void;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): TPromise<void>;
-	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): TPromise<void>;
+	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): Thenable<void>;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -288,8 +288,8 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
-	$getLanguages(): TPromise<string[]>;
-	$changeLanguage(resource: UriComponents, languageId: string): TPromise<void>;
+	$getLanguages(): Thenable<string[]>;
+	$changeLanguage(resource: UriComponents, languageId: string): Thenable<void>;
 }
 
 export interface MainThreadMessageOptions {
@@ -302,12 +302,12 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(channelId: string, label: string, file?: UriComponents): TPromise<void>;
-	$append(channelId: string, value: string): TPromise<void>;
-	$clear(channelId: string): TPromise<void>;
-	$reveal(channelId: string, preserveFocus: boolean): TPromise<void>;
-	$close(channelId: string): TPromise<void>;
-	$dispose(channelId: string): TPromise<void>;
+	$register(channelId: string, label: string, file?: UriComponents): Thenable<void>;
+	$append(channelId: string, value: string): Thenable<void>;
+	$clear(channelId: string): Thenable<void>;
+	$reveal(channelId: string, preserveFocus: boolean): Thenable<void>;
+	$close(channelId: string): Thenable<void>;
+	$dispose(channelId: string): Thenable<void>;
 }
 
 export interface MainThreadProgressShape extends IDisposable {
@@ -318,8 +318,8 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number>;
-	$createTerminalRenderer(name: string): TPromise<number>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): Thenable<number>;
+	$createTerminalRenderer(name: string): Thenable<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
@@ -405,12 +405,12 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(options: IPickOptions<TransferQuickPickItems>): TPromise<number | number[]>;
-	$setItems(items: TransferQuickPickItems[]): TPromise<any>;
-	$setError(error: Error): TPromise<any>;
+	$show(options: IPickOptions<TransferQuickPickItems>): Thenable<number | number[]>;
+	$setItems(items: TransferQuickPickItems[]): Thenable<any>;
+	$setError(error: Error): Thenable<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
-	$createOrUpdate(params: TransferQuickInput): TPromise<void>;
-	$dispose(id: number): TPromise<void>;
+	$createOrUpdate(params: TransferQuickInput): Thenable<void>;
+	$dispose(id: number): Thenable<void>;
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
@@ -419,8 +419,8 @@ export interface MainThreadStatusBarShape extends IDisposable {
 }
 
 export interface MainThreadStorageShape extends IDisposable {
-	$getValue<T>(shared: boolean, key: string): TPromise<T>;
-	$setValue(shared: boolean, key: string, value: any): TPromise<void>;
+	$getValue<T>(shared: boolean, key: string): Thenable<T>;
+	$setValue(shared: boolean, key: string, value: any): Thenable<void>;
 }
 
 export interface MainThreadTelemetryShape extends IDisposable {
@@ -462,8 +462,8 @@ export interface ExtHostWebviewsShape {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
-	$registerUriHandler(handle: number, extensionId: string): TPromise<void>;
-	$unregisterUriHandler(handle: number): TPromise<void>;
+	$registerUriHandler(handle: number, extensionId: string): Thenable<void>;
+	$unregisterUriHandler(handle: number): Thenable<void>;
 }
 
 export interface ExtHostUrlsShape {
@@ -472,8 +472,8 @@ export interface ExtHostUrlsShape {
 
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<UriComponents[]>;
-	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void>;
-	$checkExists(query: ISearchQuery, requestId: number): TPromise<boolean>;
+	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number): Thenable<void>;
+	$checkExists(query: ISearchQuery, requestId: number): Thenable<boolean>;
 	$cancelSearch(requestId: number): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
@@ -502,11 +502,11 @@ export interface MainThreadSearchShape extends IDisposable {
 }
 
 export interface MainThreadTaskShape extends IDisposable {
-	$registerTaskProvider(handle: number): TPromise<void>;
-	$unregisterTaskProvider(handle: number): TPromise<void>;
-	$fetchTasks(filter?: TaskFilterDTO): TPromise<TaskDTO[]>;
-	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
-	$terminateTask(id: string): TPromise<void>;
+	$registerTaskProvider(handle: number): Thenable<void>;
+	$unregisterTaskProvider(handle: number): Thenable<void>;
+	$fetchTasks(filter?: TaskFilterDTO): Thenable<TaskDTO[]>;
+	$executeTask(task: TaskHandleDTO | TaskDTO): Thenable<TaskExecutionDTO>;
+	$terminateTask(id: string): Thenable<void>;
 	$registerTaskSystem(scheme: string, info: TaskSystemInfoDTO): void;
 }
 
@@ -578,18 +578,18 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<any>;
-	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
-	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
-	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
-	$appendDebugConsole(value: string): TPromise<any>;
-	$startBreakpointEvents(): TPromise<any>;
-	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void>;
-	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): Thenable<any>;
+	$unregisterDebugConfigurationProvider(handle: number): Thenable<any>;
+	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean>;
+	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Thenable<any>;
+	$appendDebugConsole(value: string): Thenable<any>;
+	$startBreakpointEvents(): Thenable<any>;
+	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void>;
+	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Thenable<void>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
-	$getWindowVisibility(): TPromise<boolean>;
+	$getWindowVisibility(): Thenable<boolean>;
 }
 
 // -- extension host
@@ -704,7 +704,7 @@ export interface ExtHostSearchShape {
 }
 
 export interface ExtHostExtensionServiceShape {
-	$activateByEvent(activationEvent: string): TPromise<void>;
+	$activateByEvent(activationEvent: string): Thenable<void>;
 }
 
 export interface FileSystemEvents {
@@ -889,10 +889,10 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents): TPromise<UriComponents>;
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void>;
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): Thenable<void>;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): TPromise<void>;
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void>;
 }
 
 export interface ExtHostTaskShape {
@@ -950,7 +950,7 @@ export interface ExtHostDebugServiceShape {
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): TPromise<void>;
 	$stopDASession(handle: number): TPromise<void>;
-	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void>;
+	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): TPromise<IConfig[]>;
 	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): TPromise<IAdapterExecutable>;
@@ -972,7 +972,7 @@ export type DecorationData = [number, boolean, string, string, ThemeColor, strin
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
-	$provideDecorations(requests: DecorationRequest[]): TPromise<DecorationReply>;
+	$provideDecorations(requests: DecorationRequest[]): Thenable<DecorationReply>;
 }
 
 export interface ExtHostWindowShape {
@@ -988,10 +988,10 @@ export interface ExtHostProgressShape {
 }
 
 export interface ExtHostCommentsShape {
-	$provideDocumentComments(handle: number, document: UriComponents): TPromise<modes.CommentInfo>;
-	$createNewCommentThread?(handle: number, document: UriComponents, range: IRange, text: string): TPromise<modes.CommentThread>;
-	$replyToCommentThread?(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): TPromise<modes.CommentThread>;
-	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]>;
+	$provideDocumentComments(handle: number, document: UriComponents): Thenable<modes.CommentInfo>;
+	$createNewCommentThread?(handle: number, document: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread>;
+	$replyToCommentThread?(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
+	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 
 // --- proxy identifiers

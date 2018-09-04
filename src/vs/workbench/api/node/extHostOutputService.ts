@@ -18,7 +18,7 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 	protected readonly _id: string;
 	private readonly _name: string;
 	protected readonly _proxy: MainThreadOutputServiceShape;
-	protected _registerationPromise: TPromise<void> = TPromise.as(null);
+	protected _registerationPromise: Thenable<void> = TPromise.as(null);
 	private _disposed: boolean;
 
 	constructor(name: string, proxy: MainThreadOutputServiceShape) {

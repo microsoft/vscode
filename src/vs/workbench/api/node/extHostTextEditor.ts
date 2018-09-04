@@ -485,7 +485,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		);
 	}
 
-	private _trySetSelection(): TPromise<vscode.TextEditor> {
+	private _trySetSelection(): Thenable<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.Selection.from);
 		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
 	}
@@ -506,7 +506,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		return this._applyEdit(edit);
 	}
 
-	private _applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
+	private _applyEdit(editBuilder: TextEditorEdit): Thenable<boolean> {
 		let editData = editBuilder.finalize();
 
 		// return when there is nothing to do
@@ -592,7 +592,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => TPromise<any>): TPromise<ExtHostTextEditor> {
+	private _runOnProxy(callback: () => Thenable<any>): Thenable<ExtHostTextEditor> {
 		if (this._disposed) {
 			console.warn('TextEditor is closed/disposed');
 			return TPromise.as(undefined);
@@ -606,7 +606,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	}
 }
 
-function warnOnError(promise: TPromise<any>): void {
+function warnOnError(promise: Thenable<any>): void {
 	promise.then(null, (err) => {
 		console.warn(err);
 	});

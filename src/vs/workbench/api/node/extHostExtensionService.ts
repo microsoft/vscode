@@ -29,7 +29,7 @@ class ExtensionMemento implements IExtensionMemento {
 	private readonly _shared: boolean;
 	private readonly _storage: ExtHostStorage;
 
-	private readonly _init: TPromise<ExtensionMemento>;
+	private readonly _init: Thenable<ExtensionMemento>;
 	private _value: { [n: string]: any; };
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
@@ -43,7 +43,7 @@ class ExtensionMemento implements IExtensionMemento {
 		});
 	}
 
-	get whenReady(): TPromise<ExtensionMemento> {
+	get whenReady(): Thenable<ExtensionMemento> {
 		return this._init;
 	}
 
