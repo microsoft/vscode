@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelIdentifier, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -20,7 +20,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { Registry } from 'vs/platform/registry/common/platform';
 import { groupBy } from 'vs/base/common/arrays';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { URI } from 'vs/base/common/uri';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -112,8 +111,8 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	private normalChannels: IOutputChannelIdentifier[];
-	private fileChannels: IOutputChannelIdentifier[];
+	private outputChannels: IOutputChannelDescriptor[];
+	private logChannels: IOutputChannelDescriptor[];
 
 	constructor(
 		action: IAction,
@@ -133,30 +132,30 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	}
 
 	protected getActionContext(option: string, index: number): string {
-		const channel = index < this.normalChannels.length ? this.normalChannels[index] : this.fileChannels[index - this.normalChannels.length - 1];
+		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
 		return channel ? channel.id : option;
 	}
 
 	private updateOtions(selectedChannel: string): void {
-		const groups = groupBy(this.outputService.getChannels(), (c1: IOutputChannelIdentifier, c2: IOutputChannelIdentifier) => {
-			if (!c1.file && c2.file) {
+		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
+			if (!c1.log && c2.log) {
 				return -1;
 			}
-			if (c1.file && !c2.file) {
+			if (c1.log && !c2.log) {
 				return 1;
 			}
 			return 0;
 		});
-		this.normalChannels = groups[0] || [];
-		this.fileChannels = groups[1] || [];
-		const showSeparator = this.normalChannels.length && this.fileChannels.length;
-		const separatorIndex = showSeparator ? this.normalChannels.length : -1;
-		const options: string[] = [...this.normalChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.fileChannels.map(c => c.label)];
+		this.outputChannels = groups[0] || [];
+		this.logChannels = groups[1] || [];
+		const showSeparator = this.outputChannels.length && this.logChannels.length;
+		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => c.label)];
 		let selected = 0;
 		if (selectedChannel) {
-			selected = this.normalChannels.map(c => c.id).indexOf(selectedChannel);
+			selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);
 			if (selected === -1) {
-				selected = separatorIndex + 1 + this.fileChannels.map(c => c.id).indexOf(selectedChannel);
+				selected = separatorIndex + 1 + this.logChannels.map(c => c.id).indexOf(selectedChannel);
 			}
 		}
 		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
@@ -180,17 +179,16 @@ export class OpenLogOutputFile extends Action {
 	}
 
 	private update(): void {
-		const logFile = this.getActiveLogChannelFile();
-		this.enabled = !!logFile;
+		this.enabled = this.isLogChannel();
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.getActiveLogChannelFile());
+		return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.isLogChannel());
 	}
 
-	private getActiveLogChannelFile(): URI {
+	private isLogChannel(): boolean {
 		const channel = this.outputService.getActiveChannel();
-		const identifier = channel ? this.outputService.getChannels().filter(c => c.id === channel.id)[0] : null;
-		return identifier ? identifier.file : null;
+		const descriptor = channel ? this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0] : null;
+		return descriptor && descriptor.log;
 	}
 }

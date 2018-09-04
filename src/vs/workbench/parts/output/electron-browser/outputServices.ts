@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelDescriptor, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,7 +31,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -39,6 +38,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { OutputAppender } from 'vs/platform/output/node/outputAppender';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -83,6 +83,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	protected _onDispose: Emitter<void> = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
+	private readonly mimeType: string;
 	protected modelUpdater: RunOnceScheduler;
 	protected model: ITextModel;
 	readonly file: URI;
@@ -91,25 +92,25 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	protected endOffset: number = 0;
 
 	constructor(
-		protected readonly outputChannelIdentifier: IOutputChannelIdentifier,
+		protected readonly outputChannelDescriptor: IOutputChannelDescriptor,
 		private readonly modelUri: URI,
-		private mimeType: string,
 		protected fileService: IFileService,
 		protected modelService: IModelService,
 		protected modeService: IModeService,
 	) {
 		super();
-		this.file = this.outputChannelIdentifier.file;
+		this.mimeType = outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME;
+		this.file = this.outputChannelDescriptor.file;
 		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
 		this._register(toDisposable(() => this.modelUpdater.cancel()));
 	}
 
 	get id(): string {
-		return this.outputChannelIdentifier.id;
+		return this.outputChannelDescriptor.id;
 	}
 
 	get label(): string {
-		return this.outputChannelIdentifier.label;
+		return this.outputChannelDescriptor.label;
 	}
 
 	clear(): void {
@@ -162,14 +163,14 @@ abstract class AbstractFileOutputChannel extends Disposable {
  */
 class OutputChannelBackedByFile extends AbstractFileOutputChannel implements OutputChannel {
 
-	private outputWriter: RotatingLogger;
+	private appender: OutputAppender;
 	private appendedMessage = '';
 	private loadingFromFileInProgress: boolean = false;
 	private resettingDelayer: ThrottledDelayer<void>;
 	private readonly rotatingFilePath: string;
 
 	constructor(
-		outputChannelIdentifier: IOutputChannelIdentifier,
+		outputChannelDescriptor: IOutputChannelDescriptor,
 		outputDir: string,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
@@ -177,12 +178,11 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService
 	) {
-		super({ ...outputChannelIdentifier, file: URI.file(paths.join(outputDir, `${outputChannelIdentifier.id}.log`)) }, modelUri, OUTPUT_MIME, fileService, modelService, modeService);
+		super({ ...outputChannelDescriptor, file: URI.file(paths.join(outputDir, `${outputChannelDescriptor.id}.log`)) }, modelUri, fileService, modelService, modeService);
 
 		// Use one rotating file to check for main file reset
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
-		this.outputWriter.clearFormatters();
-		this.rotatingFilePath = `${outputChannelIdentifier.id}.1.log`;
+		this.appender = new OutputAppender(this.id, this.file.fsPath);
+		this.rotatingFilePath = `${outputChannelDescriptor.id}.1.log`;
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 
 		this.resettingDelayer = new ThrottledDelayer<void>(50);
@@ -264,11 +264,11 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 
 	private write(content: string): void {
-		this.outputWriter.critical(content);
+		this.appender.append(content);
 	}
 
 	private flush(): void {
-		this.outputWriter.flush();
+		this.appender.flush();
 	}
 }
 
@@ -323,14 +323,14 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	private updateInProgress: boolean = false;
 
 	constructor(
-		outputChannelIdentifier: IOutputChannelIdentifier,
+		outputChannelDescriptor: IOutputChannelDescriptor,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService,
 	) {
-		super(outputChannelIdentifier, modelUri, LOG_MIME, fileService, modelService, modeService);
+		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
 		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
 		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
@@ -426,7 +426,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 		// Set active channel to first channel if not set
 		if (!this.activeChannel) {
-			const channels = this.getChannels();
+			const channels = this.getChannelDescriptors();
 			this.activeChannel = channels && channels.length > 0 ? this.getChannel(channels[0].id) : null;
 		}
 
@@ -461,7 +461,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return this.channels.get(id);
 	}
 
-	getChannels(): IOutputChannelIdentifier[] {
+	getChannelDescriptors(): IOutputChannelDescriptor[] {
 		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
 	}
 
@@ -521,7 +521,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		channel.onDispose(() => {
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
 			if (this.activeChannel === channel) {
-				const channels = this.getChannels();
+				const channels = this.getChannelDescriptors();
 				if (this.isPanelShown() && channels.length) {
 					this.doShowChannel(this.getChannel(channels[0].id), true);
 					this._onActiveOutputChannel.fire(channels[0].id);
@@ -610,7 +610,7 @@ export class LogContentProvider {
 		let channel = this.channels.get(id);
 		if (!channel) {
 			const channelDisposables: IDisposable[] = [];
-			channel = this.instantiationService.createInstance(FileOutputChannel, { id, label: '', file: resource.with({ scheme: Schemas.file }) }, resource);
+			channel = this.instantiationService.createInstance(FileOutputChannel, { id, label: '', file: resource.with({ scheme: Schemas.file }), log: true }, resource);
 			channel.onDispose(() => dispose(channelDisposables), channelDisposables);
 			this.channels.set(id, channel);
 		}

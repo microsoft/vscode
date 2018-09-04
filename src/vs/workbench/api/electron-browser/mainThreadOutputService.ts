@@ -11,6 +11,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MainThreadOutputServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { UriComponents, URI } from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService implements MainThreadOutputServiceShape {
@@ -34,28 +35,33 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		// Leave all the existing channels intact (e.g. might help with troubleshooting)
 	}
 
-	public $append(channelId: string, label: string, value: string): TPromise<void> {
-		this._getChannel(channelId, label).append(value);
-		return undefined;
+	public $register(id: string, label: string, file?: UriComponents): TPromise<void> {
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log: false });
+		return TPromise.as(null);
 	}
 
-	public $clear(channelId: string, label: string): TPromise<void> {
-		this._getChannel(channelId, label).clear();
-		return undefined;
-	}
-
-	public $reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void> {
-		const channel = this._getChannel(channelId, label);
-		this._outputService.showChannel(channel.id, preserveFocus);
-		return undefined;
-	}
-
-	private _getChannel(channelId: string, label: string): IOutputChannel {
-		if (!Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId)) {
-			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel(channelId, label);
+	public $append(channelId: string, value: string): TPromise<void> {
+		const channel = this._getChannel(channelId);
+		if (channel) {
+			channel.append(value);
 		}
+		return undefined;
+	}
 
-		return this._outputService.getChannel(channelId);
+	public $clear(channelId: string): TPromise<void> {
+		const channel = this._getChannel(channelId);
+		if (channel) {
+			channel.clear();
+		}
+		return undefined;
+	}
+
+	public $reveal(channelId: string, preserveFocus: boolean): TPromise<void> {
+		const channel = this._getChannel(channelId);
+		if (channel) {
+			this._outputService.showChannel(channel.id, preserveFocus);
+		}
+		return undefined;
 	}
 
 	public $close(channelId: string): TPromise<void> {
@@ -67,8 +73,15 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		return undefined;
 	}
 
-	public $dispose(channelId: string, label: string): TPromise<void> {
-		this._getChannel(channelId, label).dispose();
+	public $dispose(channelId: string): TPromise<void> {
+		const channel = this._getChannel(channelId);
+		if (channel) {
+			channel.dispose();
+		}
 		return undefined;
+	}
+
+	private _getChannel(channelId: string): IOutputChannel {
+		return this._outputService.getChannel(channelId);
 	}
 }

@@ -61,6 +61,8 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
+import { toLocalISOString } from 'vs/base/common/date';
+import { posix } from 'path';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -136,7 +138,8 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
-	const extHostOutputService = new ExtHostOutputService(rpcProtocol);
+	const outputDir = posix.join(initData.logsPath, `output_logging_${initData.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+	const extHostOutputService = new ExtHostOutputService(outputDir, rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands

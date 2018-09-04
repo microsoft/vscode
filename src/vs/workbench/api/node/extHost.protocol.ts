@@ -302,11 +302,12 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$append(channelId: string, label: string, value: string): TPromise<void>;
-	$clear(channelId: string, label: string): TPromise<void>;
-	$dispose(channelId: string, label: string): TPromise<void>;
-	$reveal(channelId: string, label: string, preserveFocus: boolean): TPromise<void>;
+	$register(channelId: string, label: string, file?: UriComponents): TPromise<void>;
+	$append(channelId: string, value: string): TPromise<void>;
+	$clear(channelId: string): TPromise<void>;
+	$reveal(channelId: string, preserveFocus: boolean): TPromise<void>;
 	$close(channelId: string): TPromise<void>;
+	$dispose(channelId: string): TPromise<void>;
 }
 
 export interface MainThreadProgressShape extends IDisposable {
