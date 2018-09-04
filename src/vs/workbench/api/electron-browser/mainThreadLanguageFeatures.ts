@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
@@ -250,17 +249,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerNavigateTypeSupport(handle: number): void {
 		let lastResultId: number;
 		this._registrations[handle] = search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string): TPromise<search.IWorkspaceSymbol[]> => {
-				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
+			provideWorkspaceSymbols: (search: string, token: CancellationToken): Thenable<search.IWorkspaceSymbol[]> => {
+				let promise = this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
 					if (lastResultId !== undefined) {
 						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
 					}
 					lastResultId = result._id;
 					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 				});
+				return wireCancellationToken(token, promise);
 			},
-			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol): TPromise<search.IWorkspaceSymbol> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item).then(i => MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i));
+			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol, token: CancellationToken): Thenable<search.IWorkspaceSymbol> => {
+				let promise = this._proxy.$resolveWorkspaceSymbol(handle, item).then(i => MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i));
+				return wireCancellationToken(token, promise);
 			}
 		});
 	}

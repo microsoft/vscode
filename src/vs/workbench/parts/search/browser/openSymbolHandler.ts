@@ -28,7 +28,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
-	private _bearingResolve: TPromise<this>;
+	private _bearingResolve: Thenable<this>;
 
 	constructor(
 		private _bearing: IWorkspaceSymbol,
@@ -76,7 +76,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			&& !this._bearing.location.range
 		) {
 
-			this._bearingResolve = this._provider.resolveWorkspaceSymbol(this._bearing).then(result => {
+			this._bearingResolve = Promise.resolve(this._provider.resolveWorkspaceSymbol(this._bearing, CancellationToken.None)).then(result => {
 				this._bearing = result || this._bearing;
 				return this;
 			}, onUnexpectedError);
