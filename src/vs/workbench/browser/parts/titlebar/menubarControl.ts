@@ -116,7 +116,6 @@ export class MenubarControl extends Disposable {
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	constructor(
-		id: string,
 		@IThemeService themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
