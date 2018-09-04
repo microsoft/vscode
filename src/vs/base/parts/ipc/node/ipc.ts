@@ -296,12 +296,12 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				const handler: IHandler = response => {
 					switch (response.type) {
 						case ResponseType.PromiseSuccess:
-							delete this.handlers[id];
+							this.handlers.delete(id);
 							c(response.data);
 							break;
 
 						case ResponseType.PromiseError:
-							delete this.handlers[id];
+							this.handlers.delete(id);
 							const error = new Error(response.data.message);
 							(<any>error).stack = response.data.stack;
 							error.name = response.data.name;
@@ -309,7 +309,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 							break;
 
 						case ResponseType.PromiseErrorObj:
-							delete this.handlers[id];
+							this.handlers.delete(id);
 							e(response.data);
 							break;
 					}
