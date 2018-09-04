@@ -159,7 +159,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					ref.dispose();
 				});
 			}
-		}).done(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
 	}
 
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
