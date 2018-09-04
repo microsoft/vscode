@@ -327,13 +327,15 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
-		// submit all stats that have been collected during
-		// the build phase
-		if (opts.stats) {
-			result.on('end', () => require('./lib/stats').submitAllStats());
-		}
+		return result.pipe(es.through(undefined, function () {
+			// submit all stats that have been collected during the build phase
+			if (!opts.stats) {
+				return this.emit('end');
+			}
+			const { submitAllStats } = require('./lib/stats');
+			submitAllStats(product).then(() => this.emit('end')).catch(() => this.emit('end'));
 
-		return result.pipe(vfs.dest(destination));
+		})).pipe(vfs.dest(destination));
 	};
 }
 

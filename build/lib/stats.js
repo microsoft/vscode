@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
 var util = require("gulp-util");
+var appInsights = require("applicationinsights");
 var Entry = /** @class */ (function () {
     function Entry(name, totalCount, totalSize) {
         this.name = name;
@@ -70,10 +71,9 @@ function createStatsStream(group, log) {
     });
 }
 exports.createStatsStream = createStatsStream;
-function submitAllStats() {
+function submitAllStats(productJson) {
     var sorted = [];
-    // move entries for single files to the
-    // front
+    // move entries for single files to the front
     _entries.forEach(function (value) {
         if (value.totalCount === 1) {
             sorted.unshift(value);
@@ -82,11 +82,32 @@ function submitAllStats() {
             sorted.push(value);
         }
     });
-    // todo@ramya/joh - send the data as telemetry event
-    // so that it can be stored in the datawarehouse
+    // print to console
     for (var _i = 0, sorted_1 = sorted; _i < sorted_1.length; _i++) {
         var entry = sorted_1[_i];
         console.log(entry.toString(true));
     }
+    // send data as telementry event when the
+    // product is configured to send telemetry
+    if (!productJson || !productJson.aiConfig || typeof productJson.aiConfig.asimovKey !== 'string') {
+        return Promise.resolve();
+    }
+    return new Promise(function (resolve) {
+        var measurements = Object.create(null);
+        for (var _i = 0, sorted_2 = sorted; _i < sorted_2.length; _i++) {
+            var entry = sorted_2[_i];
+            measurements[entry.name + ".size"] = entry.totalSize;
+            measurements[entry.name + ".count"] = entry.totalCount;
+        }
+        appInsights.setup(productJson.aiConfig.asimovKey)
+            .setAutoCollectConsole(false)
+            .setAutoCollectExceptions(false)
+            .setAutoCollectPerformance(false)
+            .setAutoCollectRequests(false)
+            .start();
+        appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+        appInsights.defaultClient.trackEvent("bundleStats", undefined, measurements);
+        appInsights.defaultClient.sendPendingData(function () { return resolve(); });
+    });
 }
 exports.submitAllStats = submitAllStats;

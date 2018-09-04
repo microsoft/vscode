@@ -8,6 +8,7 @@
 import * as es from 'event-stream';
 import * as util from 'gulp-util';
 import * as File from 'vinyl';
+import * as appInsights from 'applicationinsights';
 
 class Entry {
 	constructor(readonly name: string, public totalCount: number, public totalSize: number) { }
@@ -72,10 +73,10 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 	});
 }
 
-export function submitAllStats(): void {
+export function submitAllStats(productJson: any): Promise<void> {
+
 	let sorted: Entry[] = [];
-	// move entries for single files to the
-	// front
+	// move entries for single files to the front
 	_entries.forEach(value => {
 		if (value.totalCount === 1) {
 			sorted.unshift(value);
@@ -83,9 +84,36 @@ export function submitAllStats(): void {
 			sorted.push(value);
 		}
 	});
-	// todo@ramya/joh - send the data as telemetry event
-	// so that it can be stored in the datawarehouse
+
+	// print to console
 	for (const entry of sorted) {
 		console.log(entry.toString(true));
 	}
+
+	// send data as telementry event when the
+	// product is configured to send telemetry
+	if (!productJson || !productJson.aiConfig || typeof productJson.aiConfig.asimovKey !== 'string') {
+		return Promise.resolve();
+	}
+
+	return new Promise(resolve => {
+
+		const measurements = Object.create(null);
+		for (const entry of sorted) {
+			measurements[`${entry.name}.size`] = entry.totalSize;
+			measurements[`${entry.name}.count`] = entry.totalCount;
+		}
+
+		appInsights.setup(productJson.aiConfig.asimovKey)
+			.setAutoCollectConsole(false)
+			.setAutoCollectExceptions(false)
+			.setAutoCollectPerformance(false)
+			.setAutoCollectRequests(false)
+			.start();
+
+		appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		appInsights.defaultClient.trackEvent(`bundleStats`, undefined, measurements);
+		appInsights.defaultClient.sendPendingData(() => resolve());
+	});
+
 }
