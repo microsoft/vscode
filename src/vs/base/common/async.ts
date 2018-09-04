@@ -160,7 +160,7 @@ export class Throttler {
 				};
 
 				this.queuedPromise = new TPromise(c => {
-					this.activePromise.then(onComplete, onComplete).done(c);
+					this.activePromise.then(onComplete, onComplete).then(c);
 				}, () => {
 					this.activePromise.cancel();
 				});
@@ -176,7 +176,7 @@ export class Throttler {
 		this.activePromise = promiseFactory();
 
 		return new TPromise((c, e) => {
-			this.activePromise.done((result: any) => {
+			this.activePromise.then((result: any) => {
 				this.activePromise = null;
 				c(result);
 			}, (err: any) => {
@@ -378,7 +378,7 @@ export function timeout(n: number): CancelablePromise<void> {
  * @returns `true` if candidate is a `WinJS.Promise`
  */
 export function isWinJSPromise(candidate: any): candidate is TPromise {
-	return isThenable(candidate) && typeof (<TPromise>candidate).done === 'function';
+	return isThenable(candidate) && typeof (candidate as any).done === 'function';
 }
 
 /**
@@ -524,8 +524,8 @@ export class Limiter<T> {
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
-			promise.done(iLimitedTask.c, iLimitedTask.e);
-			promise.done(() => this.consumed(), () => this.consumed());
+			promise.then(iLimitedTask.c, iLimitedTask.e);
+			promise.then(() => this.consumed(), () => this.consumed());
 		}
 	}
 

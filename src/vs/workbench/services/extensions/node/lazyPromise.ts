@@ -91,14 +91,6 @@ export class LazyPromise implements TPromise<any> {
 		return this._ensureActual().then(success, error);
 	}
 
-	public done(success: any, error: any): void {
-		if (this._isCanceled) {
-			return;
-		}
-
-		this._ensureActual().done(success, error);
-	}
-
 	public cancel(): void {
 		if (this._hasValue || this._hasErr) {
 			return;

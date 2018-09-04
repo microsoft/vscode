@@ -334,7 +334,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		activeRequest
 			.then(null, _ => null)
-			.done(() => this.activeRequests = this.activeRequests.filter(el => el !== disposable));
+			.then(() => this.activeRequests = this.activeRequests.filter(el => el !== disposable));
 
 		return activeRequest;
 	}

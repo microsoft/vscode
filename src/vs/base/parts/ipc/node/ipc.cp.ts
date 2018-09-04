@@ -113,7 +113,7 @@ export class Client implements IChannelClient, IDisposable {
 		const request: TPromise<void> = channel.call(name, arg);
 
 		const result = new TPromise<void>((c, e) => {
-			request.then(c, e).done(() => {
+			request.then(c, e).then(() => {
 				if (!this.activeRequests) {
 					return;
 				}

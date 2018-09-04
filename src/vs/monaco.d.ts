@@ -53,10 +53,6 @@ declare namespace monaco {
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
-		public done(
-			onfulfilled?: (value: T) => void,
-			onrejected?: (reason: any) => void): void;
-
 		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
