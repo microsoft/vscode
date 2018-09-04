@@ -20,7 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IQueryOptions, IRawFileMatch2 } from 'vs/platform/search/common/search';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Range } from 'vs/workbench/api/node/extHostTypes';
+import { Range, RelativePattern } from 'vs/workbench/api/node/extHostTypes';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
@@ -345,7 +345,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: string | RelativePattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId}, entryPoint: findFiles`);
 
 		const requestId = this._requestIdProvider.getNext();
@@ -358,6 +358,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			} else {
 				includePattern = include.pattern;
 				includeFolder = include.base;
+				// TODO use include.baseFolder;
 			}
 		}
 

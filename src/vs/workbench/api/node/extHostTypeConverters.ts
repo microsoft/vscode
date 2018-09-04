@@ -19,7 +19,6 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
-import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
@@ -743,7 +742,11 @@ export namespace TextEditorOptions {
 
 export namespace GlobPattern {
 
-	export function from(pattern: vscode.GlobPattern): string | IRelativePattern {
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern {
+		if (pattern instanceof types.RelativePattern) {
+			return pattern;
+		}
+
 		if (typeof pattern === 'string') {
 			return pattern;
 		}
