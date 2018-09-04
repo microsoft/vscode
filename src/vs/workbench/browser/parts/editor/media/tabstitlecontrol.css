@@ -171,13 +171,10 @@
 	overflow: hidden; /* let the close button be pushed out of view when sizing is set to shrink to make more room... */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close:focus-within {
-	overflow: visible;/* fix invisible tab close button on focus: (fixes https://github.com/Microsoft/vscode/issues/41459) */
-}
-
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
-	overflow: visible; /* ...but still show the close button on hover and when dirty */
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close:focus-within {
+	overflow: visible; /* ...but still show the close button on hover, focus and when dirty */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off > .tab-close {
