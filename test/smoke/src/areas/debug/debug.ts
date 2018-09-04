@@ -23,7 +23,7 @@ const BREAKPOINT_GLYPH = '.debug-breakpoint';
 const PAUSE = `.debug-actions-widget .debug-action.pause`;
 const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
-const TOOLBAR_HIDDEN = `.debug-actions-widget.monaco-builder-hidden`;
+const TOOLBAR_HIDDEN = `.debug-actions-widget.debug-toolbar-hidden`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
 const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title*="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
