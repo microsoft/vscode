@@ -102,7 +102,7 @@ export class QuickKillTerminalAction extends Action {
 		if (instance) {
 			instance.dispose();
 		}
-		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+		return TPromise.wrap(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
 
