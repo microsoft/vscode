@@ -137,6 +137,10 @@
 	padding: 0;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label::after {
+	opacity: 0; /* when tab has the focus this shade breaks the tab border (fixes https://github.com/Microsoft/vscode/issues/57819) */
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-description-container {
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
@@ -165,6 +169,10 @@
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close {
 	flex: 0;
 	overflow: hidden; /* let the close button be pushed out of view when sizing is set to shrink to make more room... */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close:focus-within {
+	overflow: visible;/* fix invisible tab close button on focus: (fixes https://github.com/Microsoft/vscode/issues/41459) */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
