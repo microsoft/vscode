@@ -16,7 +16,7 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, asThenable } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter, WorkspaceEditDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -26,6 +26,7 @@ import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // --- adapter
 
@@ -202,12 +203,12 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
+	public provideHover(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.Hover> {
 
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
 
-		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
+		return asThenable(this._provider.provideHover(doc, pos, token)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
 				return undefined;
 			}
@@ -924,6 +925,14 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return callback(<any>adapter);
 	}
 
+	private _withAdapter2<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => Thenable<R>): Thenable<R> {
+		let adapter = this._adapter.get(handle);
+		if (!(adapter instanceof ctor)) {
+			return TPromise.wrapError<R>(new Error('no adapter found'));
+		}
+		return callback(<any>adapter);
+	}
+
 	private _addNewAdapter(adapter: Adapter): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, adapter);
@@ -1008,8 +1017,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover> {
-		return this._withAdapter(handle, HoverAdapter, adpater => adpater.provideHover(URI.revive(resource), position));
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.Hover> {
+		return this._withAdapter2(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token));
 	}
 
 	// --- occurrences

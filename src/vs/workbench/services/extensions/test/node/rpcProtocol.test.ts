@@ -11,6 +11,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 suite('RPCProtocol', () => {
 
@@ -114,6 +115,46 @@ suite('RPCProtocol', () => {
 			assert.fail('should not receive result');
 		});
 		p.cancel();
+	});
+
+	test('cancelling a call via CancellationToken before', function (done) {
+		delegate = (a1: number, a2: number) => a1 + a2;
+		let p = bProxy.$m(4, CancellationToken.Cancelled);
+		p.then((res: number) => {
+			assert.fail('should not receive result');
+		}, (err) => {
+			assert.ok(true);
+			done(null);
+		});
+	});
+
+	test('passing CancellationToken.None', function (done) {
+		delegate = (a1: number, a2: number) => a1 + 1;
+		bProxy.$m(4, CancellationToken.None).then((res: number) => {
+			assert.equal(res, 5);
+			done(null);
+		}, done);
+	});
+
+	test('cancelling a call via CancellationToken quickly', function (done) {
+		// this is an implementation which, when cancellation is triggered, will return 7
+		delegate = (a1: number, token: CancellationToken) => {
+			return new TPromise((resolve, reject) => {
+				token.onCancellationRequested((e) => {
+					resolve(7);
+				});
+			});
+		};
+		let tokenSource = new CancellationTokenSource();
+		let p = bProxy.$m(4, tokenSource.token);
+		p.then((res: number) => {
+			assert.equal(res, 7);
+			done(null);
+		}, (err) => {
+			assert.fail('should not receive error');
+			done();
+		});
+		tokenSource.cancel();
 	});
 
 	test('throwing an error', function (done) {

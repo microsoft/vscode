@@ -87,6 +87,13 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	});
 }
 
+export function asThenable<T>(item: T | TPromise<T> | Thenable<T>): Thenable<T> {
+	if (item instanceof TPromise || isThenable<T>(item)) {
+		return item;
+	}
+	return TPromise.wrap(item);
+}
+
 /**
  * Hook a cancellation token to a WinJS Promise
  */

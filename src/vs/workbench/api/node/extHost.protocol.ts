@@ -42,6 +42,7 @@ import { createExtHostContextProxyIdentifier as createExtId, createMainContextPr
 import { IProgressOptions, IProgressStep } from 'vs/workbench/services/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -825,7 +826,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<DefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<DefinitionLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<DefinitionLinkDto[]>;
-	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover>;
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.Hover>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<LocationDto[]>;
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]>;

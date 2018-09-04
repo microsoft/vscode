@@ -179,7 +179,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.HoverProvider>{
 			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.Hover> => {
-				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.uri, position));
+				return this._proxy.$provideHover(handle, model.uri, position, token);
 			}
 		});
 	}
