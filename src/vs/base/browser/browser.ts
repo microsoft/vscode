@@ -14,12 +14,20 @@ class WindowManager {
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
+	private _zoomLevelDefault: number = 5;
+	private _zoomLevelMin: number = -8;
+	private _zoomLevelMax: number = 9;
+
 	private _lastZoomLevelChangeTime: number = 0;
 	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 
 	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
+	}
+	public isZoomLevelValid(zoomLevel: number): boolean {
+		return zoomLevel <= this._zoomLevelMax &&
+			zoomLevel >= this._zoomLevelMin;
 	}
 	public getTimeSinceLastZoomLevelChanged(): number {
 		return Date.now() - this._lastZoomLevelChangeTime;
@@ -29,12 +37,15 @@ class WindowManager {
 			return;
 		}
 
+		if (!this.isZoomLevelValid(zoomLevel)) {
+			return;
+		}
+
 		this._zoomLevel = zoomLevel;
 		// See https://github.com/Microsoft/vscode/issues/26151
 		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
-
 
 	// --- Zoom Factor
 	private _zoomFactor: number = 0;
