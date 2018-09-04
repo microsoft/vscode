@@ -244,14 +244,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.isVisible = true;
 		dom.show(this.$el);
-		dom.removeClass(this.$el, 'debug-toolbar-hidden');
 		this.setCoordinates();
 	}
 
 	private hide(): void {
 		this.isVisible = false;
 		dom.hide(this.$el);
-		dom.addClass(this.$el, 'debug-toolbar-hidden');
 	}
 
 	public static getActions(allActions: AbstractDebugAction[], toDispose: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
