@@ -66,9 +66,8 @@ export interface IInitData {
 	extensions: IExtensionDescription[];
 	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
-	windowId: number;
 	logLevel: LogLevel;
-	logsPath: string;
+	logsLocation: URI;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {

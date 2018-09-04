@@ -138,8 +138,8 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
-	const outputDir = posix.join(initData.logsPath, `output_logging_${initData.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-	const extHostOutputService = new ExtHostOutputService(outputDir, rpcProtocol);
+	const outputPath = posix.join(initData.logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+	const extHostOutputService = new ExtHostOutputService(outputPath, rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands

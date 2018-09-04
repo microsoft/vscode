@@ -307,6 +307,7 @@ export class TestExtensionService implements IExtensionService {
 	activateByEvent(activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
 	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
 	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
+	getLogsLocations(): TPromise<URI[]> { return TPromise.as([]); }
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }

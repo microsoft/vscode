@@ -74,6 +74,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	constructor(
 		private readonly _extensions: TPromise<IExtensionDescription[]>,
+		private readonly _logsLocation: TPromise<URI>,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -375,34 +376,35 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	}
 
 	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions]).then(([telemetryInfo, extensionDescriptions]) => {
-			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
-			const workspace = this._contextService.getWorkspace();
-			const r: IInitData = {
-				parentPid: process.pid,
-				environment: {
-					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-					appRoot: this._environmentService.appRoot,
-					appSettingsHome: this._environmentService.appSettingsHome,
-					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-					extensionTestsPath: this._environmentService.extensionTestsPath
-				},
-				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
-					configuration: workspace.configuration,
-					folders: workspace.folders,
-					id: workspace.id,
-					name: this._labelService.getWorkspaceLabel(workspace)
-				},
-				extensions: extensionDescriptions,
-				// Send configurations scopes only in development mode.
-				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
-				telemetryInfo,
-				windowId: this._windowService.getCurrentWindowId(),
-				logLevel: this._logService.getLevel(),
-				logsPath: this._environmentService.logsPath
-			};
-			return r;
-		});
+		const promises: TPromise[] = [this._telemetryService.getTelemetryInfo(), this._extensions, this._logsLocation];
+		return TPromise.join(promises)
+			.then(([telemetryInfo, extensionDescriptions, logsLocation]) => {
+				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
+				const workspace = this._contextService.getWorkspace();
+				const r: IInitData = {
+					parentPid: process.pid,
+					environment: {
+						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
+						appRoot: this._environmentService.appRoot,
+						appSettingsHome: this._environmentService.appSettingsHome,
+						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
+						extensionTestsPath: this._environmentService.extensionTestsPath
+					},
+					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
+						configuration: workspace.configuration,
+						folders: workspace.folders,
+						id: workspace.id,
+						name: this._labelService.getWorkspaceLabel(workspace)
+					},
+					extensions: extensionDescriptions,
+					// Send configurations scopes only in development mode.
+					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
+					telemetryInfo,
+					logLevel: this._logService.getLevel(),
+					logsLocation
+				};
+				return r;
+			});
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
