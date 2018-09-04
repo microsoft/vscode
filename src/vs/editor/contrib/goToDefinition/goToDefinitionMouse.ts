@@ -7,7 +7,8 @@
 
 import 'vs/css!./goToDefinitionMouse';
 import * as nls from 'vs/nls';
-import { Throttler } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { getDefinitionsAtPosition } from './goToDefinition';
+import { getDefinitionsAtPosition2 } from './goToDefinition';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -37,7 +38,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition;
-	private throttler: Throttler;
+	private previousPromise: CancelablePromise<DefinitionLink[]>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -47,7 +48,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = [];
 		this.decorations = [];
 		this.editor = editor;
-		this.throttler = new Throttler();
+		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.push(linkGesture);
@@ -100,12 +101,14 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		// Find definition and decorate word if found
 		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-		this.throttler.queue(() => {
-			return state.validate(this.editor)
-				? this.findDefinition(mouseEvent.target)
-				: TPromise.wrap<DefinitionLink[]>(null);
+		if (this.previousPromise) {
+			this.previousPromise.cancel();
+			this.previousPromise = null;
+		}
 
-		}).then(results => {
+		this.previousPromise = createCancelablePromise(token => this.findDefinition(mouseEvent.target, token));
+
+		this.previousPromise.then(results => {
 			if (!results || !results.length || !state.validate(this.editor)) {
 				this.removeDecorations();
 				return;
@@ -275,13 +278,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<DefinitionLink[]> {
+	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
 		}
 
-		return getDefinitionsAtPosition(model, target.position);
+		return getDefinitionsAtPosition2(model, target.position, token);
 	}
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
