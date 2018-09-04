@@ -114,7 +114,8 @@ export class ExtHostOutputService {
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			return logging ? new ExtHostLoggingOutputChannel(name, this._outputDir, this._proxy) : new ExtHostOutputChannel(name, this._proxy);
+			// return logging ? new ExtHostLoggingOutputChannel(name, this._outputDir, this._proxy) : new ExtHostOutputChannel(name, this._proxy);
+			return new ExtHostLoggingOutputChannel(name, this._outputDir, this._proxy);
 		}
 	}
 }
