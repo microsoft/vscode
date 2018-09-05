@@ -485,3 +485,29 @@ export class SearchResultModel extends SettingsTreeModel {
 		return flatSettings;
 	}
 }
+
+export interface IParsedQuery {
+	tags: string[];
+	query: string;
+}
+
+const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
+export function parseQuery(query: string): IParsedQuery {
+	const tags: string[] = [];
+	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
+		tags.push(tag || quotedTag);
+		return '';
+	});
+
+	query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
+		tags.push(MODIFIED_SETTING_TAG);
+		return '';
+	});
+
+	query = query.trim();
+
+	return {
+		tags,
+		query
+	};
+}

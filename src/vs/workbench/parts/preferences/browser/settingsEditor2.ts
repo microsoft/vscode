@@ -39,7 +39,7 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement, parseQuery } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -98,8 +98,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchFocusContextKey: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
-
-	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
@@ -322,9 +320,9 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 		actions.push(new Action('settings.openSettingsJson', localize('openSettingsJsonLabel', "Open settings.json"), undefined, undefined, () => {
 			return this.openSettingsFile().then(editor => {
-				const currentSearch = this.searchWidget.getValue();
-				if (editor instanceof PreferencesEditor && currentSearch) {
-					editor.focusSearch(currentSearch);
+				const currentQuery = parseQuery(this.searchWidget.getValue());
+				if (editor instanceof PreferencesEditor && currentQuery) {
+					editor.focusSearch(currentQuery.query);
 				}
 			});
 		}));
@@ -874,17 +872,11 @@ export class SettingsEditor2 extends BaseEditor {
 	private triggerSearch(query: string): TPromise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
-			query = query.replace(this.tagRegex, (_, __, quotedTag, tag) => {
-				this.viewState.tagFilters.add(tag || quotedTag);
-				return '';
-			});
-			query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
-				this.viewState.tagFilters.add(MODIFIED_SETTING_TAG);
-				return '';
-			});
+			const parsedQuery = parseQuery(query);
+			query = parsedQuery.query;
+			parsedQuery.tags.forEach(tag => this.viewState.tagFilters.add(tag));
 		}
 
-		query = query.trim();
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
