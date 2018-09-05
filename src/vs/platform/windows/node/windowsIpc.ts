@@ -75,6 +75,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'openExternal', arg: string): TPromise<boolean>;
 	call(command: 'startCrashReporter', arg: CrashReporterStartOptions): TPromise<void>;
 	call(command: 'openAboutDialog'): TPromise<void>;
+	call(command: 'updateIntegrity', arg: boolean): TPromise<void>;
 }
 
 export class WindowsChannel implements IWindowsChannel {
@@ -180,6 +181,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'openExternal': return this.service.openExternal(arg);
 			case 'startCrashReporter': return this.service.startCrashReporter(arg);
 			case 'openAboutDialog': return this.service.openAboutDialog();
+			case 'updateIntegrity': return this.service.updateIntegrity(arg);
 		}
 		return undefined;
 	}
@@ -405,5 +407,9 @@ export class WindowsChannelClient implements IWindowsService {
 
 	openAboutDialog(): TPromise<void> {
 		return this.channel.call('openAboutDialog');
+	}
+
+	updateIntegrity(isPure: boolean): TPromise<void> {
+		return this.channel.call('updateIntegrity', isPure);
 	}
 }

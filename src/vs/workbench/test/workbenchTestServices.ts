@@ -1348,6 +1348,10 @@ export class TestWindowsService implements IWindowsService {
 	openAboutDialog(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	updateIntegrity(): TPromise<void> {
+		return TPromise.as(undefined);
+	}
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {

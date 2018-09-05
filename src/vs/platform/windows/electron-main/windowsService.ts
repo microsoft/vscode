@@ -33,6 +33,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	private disposables: IDisposable[] = [];
 
 	private _activeWindowId: number | undefined;
+	private _isPure: boolean = true;
 
 	readonly onWindowOpen: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowFocus: Event<number> = anyEvent(
@@ -508,7 +509,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		let version = app.getVersion();
 
 		if (product.target) {
-			version = `${version} (${product.target} setup)`;
+			version = `${version}${this._isPure ? '' : '-patched'} (${product.target} setup)`;
 		}
 
 		const detail = nls.localize('aboutDetail',
@@ -560,6 +561,11 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, urisToOpen });
 		return TPromise.wrap(true);
+	}
+
+	updateIntegrity(isPure: boolean): TPromise<void> {
+		this._isPure = isPure;
+		return TPromise.as(null);
 	}
 
 	dispose(): void {

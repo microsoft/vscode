@@ -40,7 +40,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	_serviceBrand: any;
 
-	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static readonly NLS_USER_IS_ADMIN = isWindows ? nls.localize('userIsAdmin', "[Administrator]") : nls.localize('userIsSudo', "[Superuser]");
 	private static readonly NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static readonly TITLE_DIRTY = '\u25cf ';
@@ -182,10 +181,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (this.properties.isAdmin) {
 			title = `${title} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
-		}
-
-		if (!this.properties.isPure) {
-			title = `${title} ${TitlebarPart.NLS_UNSUPPORTED}`;
 		}
 
 		// Extension Development Host gets a special title to identify itself

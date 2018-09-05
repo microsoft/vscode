@@ -175,6 +175,7 @@ export interface IWindowsService {
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
 	openAboutDialog(): TPromise<void>;
+	updateIntegrity(isPure: boolean): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');

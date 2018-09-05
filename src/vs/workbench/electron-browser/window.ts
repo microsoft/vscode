@@ -287,7 +287,10 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Integrity warning
-		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+		this.integrityService.isPure().then(res => {
+			this.titleService.updateProperties({ isPure: res.isPure });
+			this.windowsService.updateIntegrity(res.isPure);
+		});
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
