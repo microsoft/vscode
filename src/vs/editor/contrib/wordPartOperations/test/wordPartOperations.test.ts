@@ -7,10 +7,7 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import {
-	DeleteWordPartLeft, DeleteWordPartRight,
-	CursorWordPartLeft, CursorWordPartRight
-} from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+import { DeleteWordPartLeft, DeleteWordPartRight, CursorWordPartLeft, CursorWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -36,56 +33,77 @@ suite('WordPartOperations', () => {
 		runEditorCommand(editor, _deleteWordPartRight);
 	}
 
-	test('move word part left basic', () => {
-		withTestCodeEditor([
-			'start line',
-			'thisIsACamelCaseVar  this_is_a_snake_case_var THIS_IS_CAPS_SNAKE this_ISMixedUse',
-			'end line'
-		], {}, (editor, _) => {
-			editor.setPosition(new Position(3, 8));
-			const expectedStops = [
-				[3, 5],
-				[3, 4],
-				[3, 1],
-				[2, 81],
-				[2, 78],
-				[2, 73],
-				[2, 70],
-				[2, 66],
-				[2, 65],
-				[2, 59],
-				[2, 54],
-				[2, 51],
-				[2, 47],
-				[2, 46],
-				[2, 42],
-				[2, 37],
-				[2, 31],
-				[2, 29],
-				[2, 26],
-				[2, 22],
-				[2, 21],
-				[2, 20],
-				[2, 17],
-				[2, 13],
-				[2, 8],
-				[2, 7],
-				[2, 5],
-				[2, 1],
-				[1, 11],
-				[1, 7],
-				[1, 6],
-				[1, 1]
-			];
+	function deserializePipePositions(text: string): [string, Position[]] {
+		let resultText = '';
+		let lineNumber = 1;
+		let charIndex = 0;
+		let positions: Position[] = [];
+		for (let i = 0, len = text.length; i < len; i++) {
+			const chr = text.charAt(i);
+			if (chr === '\n') {
+				resultText += chr;
+				lineNumber++;
+				charIndex = 0;
+				continue;
+			}
+			if (chr === '|') {
+				positions.push(new Position(lineNumber, charIndex + 1));
+			} else {
+				resultText += chr;
+				charIndex++;
+			}
+		}
+		return [resultText, positions];
+	}
 
-			let actualStops: number[][] = [];
-			for (let i = 0; i < expectedStops.length; i++) {
+	function serializePipePositions(text: string, positions: Position[]): string {
+		positions.sort(Position.compare);
+		let resultText = '';
+		let lineNumber = 1;
+		let charIndex = 0;
+		for (let i = 0, len = text.length; i < len; i++) {
+			const chr = text.charAt(i);
+			if (positions.length > 0 && positions[0].lineNumber === lineNumber && positions[0].column === charIndex + 1) {
+				resultText += '|';
+				positions.shift();
+			}
+			resultText += chr;
+			if (chr === '\n') {
+				lineNumber++;
+				charIndex = 0;
+			} else {
+				charIndex++;
+			}
+		}
+		return resultText;
+	}
+
+	test('move word part left basic', () => {
+		const EXPECTED = [
+			'|start| |line|',
+			'|this|Is|A|Camel|Case|Var| | |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
+			'|end| |line'
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+
+		withTestCodeEditor(text, {}, (editor, _) => {
+			editor.setPosition(new Position(1000, 1000));
+
+			let actualStops: Position[] = [];
+			let previousStop: Position = null;
+			while (true) {
 				moveWordPartLeft(editor);
-				const pos = editor.getPosition();
-				actualStops.push([pos.lineNumber, pos.column]);
+				const currentStop = editor.getPosition();
+				if (previousStop && currentStop.equals(previousStop)) {
+					break;
+				}
+				actualStops.push(currentStop);
+				previousStop = currentStop;
 			}
 
-			assert.deepEqual(actualStops, expectedStops);
+			const actual = serializePipePositions(text, actualStops);
+
+			assert.deepEqual(actual, EXPECTED);
 		});
 	});
 
