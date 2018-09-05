@@ -330,10 +330,15 @@ export class SettingsEditor2 extends BaseEditor {
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
-	private onDidClickSetting(evt: ISettingLinkClickEvent): void {
+	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
 		if (elements && elements[0]) {
-			const sourceTop = this.settingsTree.getRelativeTop(evt.source);
+			let sourceTop = this.settingsTree.getRelativeTop(evt.source);
+			if (sourceTop < 0) {
+				// e.g. clicked a searched element, now the search has been cleared
+				sourceTop = .5;
+			}
+
 			this.settingsTree.reveal(elements[0], sourceTop);
 
 			const domElements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
@@ -343,6 +348,12 @@ export class SettingsEditor2 extends BaseEditor {
 					(<HTMLElement>control).focus();
 				}
 			}
+		} else if (!recursed) {
+			const p = this.triggerSearch('');
+			p.then(() => {
+				this.searchWidget.setValue('');
+				this.onDidClickSetting(evt, true);
+			});
 		}
 	}
 
