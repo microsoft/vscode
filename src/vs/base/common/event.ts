@@ -305,10 +305,21 @@ export function toNativePromise<T>(event: Event<T>): Thenable<T> {
 
 export function once<T>(event: Event<T>): Event<T> {
 	return (listener, thisArgs = null, disposables?) => {
+		let sync = false;
+
 		const result = event(e => {
-			result.dispose();
+			if (result) {
+				result.dispose();
+			} else {
+				sync = true;
+			}
+
 			return listener.call(thisArgs, e);
 		}, null, disposables);
+
+		if (sync) {
+			result.dispose();
+		}
 
 		return result;
 	};
