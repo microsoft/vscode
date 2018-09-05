@@ -376,7 +376,8 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 
 export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
-		setting.key === 'search.exclude';
+		setting.key === 'search.exclude' ||
+		setting.key === 'files.watcherExclude';
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
