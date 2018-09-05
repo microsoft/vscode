@@ -410,7 +410,7 @@ export class DebugService implements IDebugService {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 
 		return session.initialize(dbgr).then(() => {
-			session.raw.attach(session.configuration).then(result => {
+			session.raw.launchOrAttach(session.configuration).then(result => {
 				this.focusStackFrame(undefined, undefined, session);
 			});
 		});
@@ -440,11 +440,7 @@ export class DebugService implements IDebugService {
 				resolved.__sessionId = session.getId();
 			}
 
-			return (resolved.request === 'attach' ? raw.attach(resolved) : raw.launch(resolved)).then(result => {
-
-				if (raw.disconnected) {
-					return TPromise.as(null);
-				}
+			return raw.launchOrAttach(resolved).then(result => {
 
 				this.focusStackFrame(undefined, undefined, session);
 

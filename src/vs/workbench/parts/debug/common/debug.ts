@@ -112,12 +112,12 @@ export interface IRawDebugSession {
 
 	capabilities: DebugProtocol.Capabilities;
 	disconnected: boolean;
+
 	readyForBreakpoints: boolean;
 	emittedStopped: boolean;
 	sessionLengthInSeconds: number;
 
-	launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse>;
-	attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse>;
+	launchOrAttach(args: IConfig): TPromise<DebugProtocol.Response>;
 	terminate(restart?: boolean): TPromise<DebugProtocol.TerminateResponse>;
 	disconnect(restart?: boolean): TPromise<any>;
 

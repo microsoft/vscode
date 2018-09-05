@@ -15,7 +15,7 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { IRawDebugSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { IRawDebugSession, IDebugAdapter, IConfig } from 'vs/workbench/parts/debug/common/debug';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class RawDebugSession implements IRawDebugSession {
@@ -150,35 +150,37 @@ export class RawDebugSession implements IRawDebugSession {
 	//---- DAP requests
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
-		return this.send('initialize', args).then(response => this.readCapabilities(response));
+		return this.send('initialize', args).then(response => {
+			this.readCapabilities(response);
+			return response;
+		});
 	}
 
-	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
-		return this.send('launch', args).then(response => this.readCapabilities(response));
-	}
-
-	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
-		this.isAttached = true;
-		return this.send('attach', args).then(response => this.readCapabilities(response));
+	public launchOrAttach(config: IConfig): TPromise<DebugProtocol.Response> {
+		this.isAttached = config.request === 'attach';
+		return this.send(this.isAttached ? 'attach' : 'launch', config).then(response => {
+			this.readCapabilities(response);
+			return response;
+		});
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
 		return this.send('next', args).then(response => {
-			this.fireFakeContinued(args.threadId);
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		});
 	}
 
 	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
 		return this.send('stepIn', args).then(response => {
-			this.fireFakeContinued(args.threadId);
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		});
 	}
 
 	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
 		return this.send('stepOut', args).then(response => {
-			this.fireFakeContinued(args.threadId);
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		});
 	}
@@ -188,7 +190,7 @@ export class RawDebugSession implements IRawDebugSession {
 			if (response && response.body && response.body.allThreadsContinued !== undefined) {
 				this.allThreadsContinued = response.body.allThreadsContinued;
 			}
-			this.fireFakeContinued(args.threadId, this.allThreadsContinued);
+			this.fireSimulatedContinuedEvent(args.threadId, this.allThreadsContinued);
 			return response;
 		});
 	}
@@ -207,7 +209,7 @@ export class RawDebugSession implements IRawDebugSession {
 
 	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
 		return this.send('restartFrame', args).then(response => {
-			this.fireFakeContinued(threadId);
+			this.fireSimulatedContinuedEvent(threadId);
 			return response;
 		});
 	}
@@ -276,7 +278,7 @@ export class RawDebugSession implements IRawDebugSession {
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
 		return this.send('stepBack', args).then(response => {
 			if (response.body === undefined) {
-				this.fireFakeContinued(args.threadId);
+				this.fireSimulatedContinuedEvent(args.threadId);
 			}
 			return response;
 		});
@@ -285,7 +287,7 @@ export class RawDebugSession implements IRawDebugSession {
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
 		return this.send('reverseContinue', args).then(response => {
 			if (response.body === undefined) {
-				this.fireFakeContinued(args.threadId);
+				this.fireSimulatedContinuedEvent(args.threadId);
 			}
 			return response;
 		});
@@ -340,7 +342,6 @@ export class RawDebugSession implements IRawDebugSession {
 			this.cachedInitDebugAdapterP = startSessionP.then(() => {
 				this.startTime = new Date().getTime();
 			}, err => {
-				this.cachedInitDebugAdapterP = null;
 				return TPromise.wrapError(err);
 			});
 		}
@@ -396,7 +397,6 @@ export class RawDebugSession implements IRawDebugSession {
 
 	private onDebugAdapterExit(code: number): void {
 		this.debugAdapter = null;
-		this.cachedInitDebugAdapterP = null;
 		if (!this.disconnected && code !== 0) {
 			this._onDidExitAdapter.fire(new Error(`exit code: ${code}`));
 		} else {
@@ -415,17 +415,17 @@ export class RawDebugSession implements IRawDebugSession {
 			success: true
 		};
 
-		const sendResponse = (response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
+		const safeSendResponse = (response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
 		switch (request.command) {
 			case 'runInTerminal':
 				this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
 					response.body = {};
-					sendResponse(response);
+					safeSendResponse(response);
 				}, err => {
 					response.success = false;
 					response.message = err.message;
-					sendResponse(response);
+					safeSendResponse(response);
 				});
 				break;
 			case 'handshake':
@@ -436,17 +436,17 @@ export class RawDebugSession implements IRawDebugSession {
 					response.body = {
 						signature: sig
 					};
-					sendResponse(response);
+					safeSendResponse(response);
 				} catch (e) {
 					response.success = false;
 					response.message = e.message;
-					sendResponse(response);
+					safeSendResponse(response);
 				}
 				break;
 			default:
 				response.success = false;
 				response.message = `unknown request '${request.command}'`;
-				sendResponse(response);
+				safeSendResponse(response);
 				break;
 		}
 	}
@@ -510,14 +510,13 @@ export class RawDebugSession implements IRawDebugSession {
 		});
 	}
 
-	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
+	private readCapabilities(response: DebugProtocol.Response): void {
 		if (response) {
 			this._capabilities = objects.mixin(this._capabilities, response.body);
 		}
-		return response;
 	}
 
-	private fireFakeContinued(threadId: number, allThreadsContinued = false): void {
+	private fireSimulatedContinuedEvent(threadId: number, allThreadsContinued = false): void {
 		this._onDidContinued.fire({
 			type: 'event',
 			event: 'continued',
@@ -533,7 +532,6 @@ export class RawDebugSession implements IRawDebugSession {
 
 		if (/* this.socket !== null */ this.debugAdapter instanceof SocketDebugAdapter) {
 			this.debugAdapter.stopSession();
-			this.cachedInitDebugAdapterP = null;
 		}
 
 		this._onDidExitAdapter.fire(error);

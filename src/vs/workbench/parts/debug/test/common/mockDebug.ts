@@ -223,11 +223,7 @@ export class MockRawSession implements IRawDebugSession {
 		return TPromise.as(null);
 	}
 
-	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
-		return TPromise.as(null);
-	}
-
-	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+	public launchOrAttach(args: IConfig): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);
 	}
 
