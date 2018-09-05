@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';

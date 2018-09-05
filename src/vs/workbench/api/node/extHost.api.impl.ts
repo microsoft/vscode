@@ -37,7 +37,7 @@ import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
@@ -61,6 +61,8 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
+import { toLocalISOString } from 'vs/base/common/date';
+import { posix } from 'path';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -136,7 +138,8 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
-	const extHostOutputService = new ExtHostOutputService(rpcProtocol);
+	const outputPath = posix.join(initData.logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+	const extHostOutputService = new ExtHostOutputService(outputPath, rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands
@@ -226,7 +229,7 @@ export function createApiFactory(
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return platform.language; },
 			get appName() { return product.nameLong; },
-			get appRoot() { return initData.environment.appRoot; },
+			get appRoot() { return initData.environment.appRoot.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return extHostLogService.getLevel();
@@ -262,8 +265,12 @@ export function createApiFactory(
 			getDiagnostics: (resource?: vscode.Uri) => {
 				return <any>extHostDiagnostics.getDiagnostics(resource);
 			},
-			getLanguages(): TPromise<string[]> {
+			getLanguages(): Thenable<string[]> {
 				return extHostLanguages.getLanguages();
+			},
+			changeLanguage(document: vscode.TextDocument, languageId: string): Thenable<void> {
+				checkProposedApiEnabled(extension);
+				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
 				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true);
@@ -344,7 +351,7 @@ export function createApiFactory(
 			get terminals() {
 				return extHostTerminalService.terminals;
 			},
-			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
 				if (URI.isUri(documentOrUri)) {
 					documentPromise = TPromise.wrap(workspace.openTextDocument(documentOrUri));
@@ -520,7 +527,7 @@ export function createApiFactory(
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
-			applyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
+			applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
 				return extHostEditors.applyWorkspaceEdit(edit);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
@@ -533,7 +540,7 @@ export function createApiFactory(
 				throw errors.readonly();
 			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
-				let uriPromise: TPromise<URI>;
+				let uriPromise: Thenable<URI>;
 
 				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {

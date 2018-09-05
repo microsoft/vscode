@@ -189,9 +189,9 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 				shouldPreventDefault = true;
 			}
 			if (typeof resolveResult.commandArgs === 'undefined') {
-				this._commandService.executeCommand(resolveResult.commandId).done(undefined, err => this._notificationService.warn(err));
+				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
 			} else {
-				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).done(undefined, err => this._notificationService.warn(err));
+				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
 			}
 			/* __GDPR__
 				"workbenchActionExecuted" : {

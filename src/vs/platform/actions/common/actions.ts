@@ -13,7 +13,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;

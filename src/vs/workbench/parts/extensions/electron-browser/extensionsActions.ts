@@ -28,7 +28,7 @@ import { IFileService, IContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -100,15 +100,19 @@ export class InstallAction extends Action {
 	) {
 		super(`extensions.install`, InstallAction.INSTALL_LABEL, InstallAction.Class, false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => this.update(extension)));
 		this.update();
 	}
 
-	private update(): void {
+	private update(extension?: IExtension): void {
 		if (!this.extension || this.extension.type === LocalExtensionType.System) {
 			this.enabled = false;
 			this.class = InstallAction.Class;
 			this.label = InstallAction.INSTALL_LABEL;
+			return;
+		}
+
+		if (extension && !areSameExtensions(this.extension, extension)) {
 			return;
 		}
 
@@ -167,13 +171,17 @@ export class UninstallAction extends Action {
 	) {
 		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => this.update(extension)));
 		this.update();
 	}
 
-	private update(): void {
+	private update(extension?: IExtension): void {
 		if (!this.extension) {
 			this.enabled = false;
+			return;
+		}
+
+		if (extension && !areSameExtensions(this.extension, extension)) {
 			return;
 		}
 
@@ -307,15 +315,19 @@ export class UpdateAction extends Action {
 		@IOpenerService private openerService: IOpenerService
 	) {
 		super(`extensions.update`, '', UpdateAction.DisabledClass, false);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => this.update(extension)));
 		this.update();
 	}
 
-	private update(): void {
+	private update(extension?: IExtension): void {
 		if (!this.extension) {
 			this.enabled = false;
 			this.class = UpdateAction.DisabledClass;
 			this.label = this.getUpdateLabel();
+			return;
+		}
+
+		if (extension && !areSameExtensions(this.extension, extension)) {
 			return;
 		}
 
@@ -377,7 +389,7 @@ export class DropDownMenuActionItem extends ActionItem {
 
 	public showMenu(): void {
 		const actions = this.getActions();
-		let elementPosition = DOM.getDomNodePagePosition(this.builder.getHTMLElement());
+		let elementPosition = DOM.getDomNodePagePosition(this.element);
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
@@ -422,6 +434,7 @@ export class ManageExtensionAction extends Action {
 	) {
 		super(ManageExtensionAction.ID);
 
+		this.tooltip = localize('manage', "Manage");
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups());
 		this.disposables.push(this._actionItem);
 
@@ -445,7 +458,6 @@ export class ManageExtensionAction extends Action {
 
 	private update(): void {
 		this.class = ManageExtensionAction.HideManageExtensionClass;
-		this.tooltip = '';
 		this.enabled = false;
 		if (this.extension) {
 			const state = this.extension.state;
@@ -915,11 +927,14 @@ export class ReloadAction extends Action {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => this.update(extension)));
 		this.update();
 	}
 
-	private update(): void {
+	private update(extension?: IExtension): void {
+		if (extension && this.extension && !areSameExtensions(this.extension, extension)) {
+			return;
+		}
 		this.throttler.queue(() => {
 			this.enabled = false;
 			this.tooltip = '';
@@ -933,7 +948,7 @@ export class ReloadAction extends Action {
 			}
 			return this.extensionService.getExtensions()
 				.then(runningExtensions => this.computeReloadState(runningExtensions));
-		}).done(() => {
+		}).then(() => {
 			this.class = this.enabled ? ReloadAction.EnabledClass : ReloadAction.DisabledClass;
 		});
 	}
@@ -1396,7 +1411,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs category:languages ');
+				viewlet.search('@category:"programming languages" @sort:installs ');
 				viewlet.focus();
 			});
 	}
@@ -2057,11 +2072,14 @@ export class DisabledStatusLabelAction extends Action {
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		super('extensions.install', localize('disabled', "Disabled"), `${DisabledStatusLabelAction.Class} hide`, false);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange((extension) => this.update(extension)));
 		this.update();
 	}
 
-	private update(): void {
+	private update(extension?: IExtension): void {
+		if (extension && this.extension && !areSameExtensions(this.extension, extension)) {
+			return;
+		}
 		this.throttler.queue(() => this.extensionService.getExtensions()
 			.then(runningExtensions => {
 				this.class = `${DisabledStatusLabelAction.Class} hide`;

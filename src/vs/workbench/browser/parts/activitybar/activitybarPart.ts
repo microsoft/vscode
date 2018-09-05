@@ -29,7 +29,7 @@ import { scheduleAtNextAnimationFrame, Dimension, addClass } from 'vs/base/brows
 import { Color } from 'vs/base/common/color';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
@@ -99,7 +99,6 @@ export class ActivitybarPart extends Part {
 
 		this.registerListeners();
 		this.updateCompositebar();
-		this.updatePlaceholderComposites();
 	}
 
 	private registerListeners(): void {
@@ -239,7 +238,7 @@ export class ActivitybarPart extends Part {
 			} else {
 				const placeHolderComposite = this.placeholderComposites.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, placeHolderComposite.iconUrl),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, placeHolderComposite && placeHolderComposite.iconUrl),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -269,18 +268,9 @@ export class ActivitybarPart extends Part {
 		}
 	}
 
-	private updatePlaceholderComposites(): void {
-		const viewlets = this.viewletService.getViewlets();
-		for (const { id } of this.placeholderComposites) {
-			if (viewlets.every(viewlet => viewlet.id !== id)) {
-				this.compositeBar.addComposite({ id, name: id, order: void 0 });
-			}
-		}
-	}
-
 	private removeNotExistingComposites(): void {
 		const viewlets = this.viewletService.getAllViewlets();
-		for (const { id } of this.placeholderComposites) {
+		for (const { id } of this.compositeBar.getComposites()) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
 				this.removeComposite(id, false);
 			}

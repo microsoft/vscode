@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/e2db601b62527357f772b48fb4a17965b11f844c",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/3f8583969690a13fc8d41cbc788d4ab5a19248ca",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"patterns": [
@@ -3671,7 +3671,7 @@
 		},
 		"type-primitive": {
 			"name": "support.type.primitive.ts",
-			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(string|number|boolean|symbol|any|void|never)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+			"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(string|number|boolean|symbol|any|void|never|unknown)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
 		},
 		"type-builtin-literals": {
 			"name": "support.type.builtin.ts",

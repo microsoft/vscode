@@ -14,7 +14,7 @@ import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/co
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {

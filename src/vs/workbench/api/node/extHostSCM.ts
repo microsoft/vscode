@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
@@ -624,7 +624,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): TPromise<void> {
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
 
 		const set = new Set<number>();

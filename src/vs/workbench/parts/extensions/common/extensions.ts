@@ -52,7 +52,7 @@ export interface IExtension {
 	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
-	getManifest(): TPromise<IExtensionManifest>;
+	getManifest(): TPromise<IExtensionManifest | undefined>;
 	getReadme(): TPromise<string>;
 	hasReadme(): boolean;
 	getChangelog(): TPromise<string>;
@@ -77,7 +77,7 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 
 export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
-	onChange: Event<void>;
+	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;

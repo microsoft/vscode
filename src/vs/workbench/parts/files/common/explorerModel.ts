@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';

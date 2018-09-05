@@ -10,7 +10,7 @@ import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as types from 'vs/base/common/types';
@@ -159,12 +159,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const handlerDescriptor = registry.getQuickOpenHandler(prefix) || registry.getDefaultQuickOpenHandler();
 
 		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor).done(null, errors.onUnexpectedError);
+		this.resolveHandler(handlerDescriptor);
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = this._register(new QuickOpenWidget(
-				document.getElementById(this.partService.getWorkbenchElementId()),
+				this.partService.getWorkbenchElement(),
 				{
 					onOk: () => { /* ignore */ },
 					onCancel: () => { /* ignore */ },
@@ -339,8 +339,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (!trimmedValue) {
 
 			// Trigger onOpen
-			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor)
-				.done(null, errors.onUnexpectedError);
+			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor);
 
 			this.quickOpenWidget.setInput(this.getEditorHistoryWithGroupLabel(), { autoFocusFirstEntry: true });
 
@@ -370,7 +369,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, instantProgress ? 0 : 800);
 
 		// Promise done handling
-		resultPromise.done(() => {
+		resultPromise.then(() => {
 			resultPromiseDone = true;
 
 			if (currentResultToken === this.currentResultToken) {

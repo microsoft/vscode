@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -56,7 +55,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
-	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
+	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
 
 // Quickopen
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
@@ -242,7 +241,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
+		extensionService.open(extension[0]);
 	}
 });
 
@@ -252,7 +251,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '2_keybindings',
 	command: {
 		id: ShowRecommendedKeymapExtensionsAction.ID,
-		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions")
+		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymaps")
 	},
 	order: 2
 });

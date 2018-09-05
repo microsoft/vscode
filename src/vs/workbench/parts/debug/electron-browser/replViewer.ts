@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as errors from 'vs/base/common/errors';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
@@ -203,7 +202,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 						startColumn: source.column,
 						endLineNumber: source.lineNumber,
 						endColumn: source.column
-					}).done(undefined, errors.onUnexpectedError);
+					});
 				}
 			}));
 

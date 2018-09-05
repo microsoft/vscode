@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
+import { Git } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -17,6 +17,7 @@ import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
+import { Ref, RefType, Branch, GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -1234,7 +1235,7 @@ export class CommandCenter {
 		}
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await repository.branch(name);
+		await repository.branch(name, true);
 	}
 
 	@command('git.deleteBranch', { repository: true })
@@ -1354,7 +1355,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.fetch();
+		await repository.fetchDefault();
 	}
 
 	@command('git.pullFrom', { repository: true })
@@ -1377,7 +1378,8 @@ export class CommandCenter {
 		const remoteRefs = repository.refs;
 		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
 		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
-		const branchPick = await window.showQuickPick(branchPicks, { placeHolder });
+		const branchPlaceHolder = localize('pick branch pull', "Pick a branch to pull from");
+		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
 
 		if (!branchPick) {
 			return;

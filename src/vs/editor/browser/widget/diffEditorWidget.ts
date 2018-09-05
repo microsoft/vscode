@@ -37,7 +37,7 @@ import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration, IModelDecorationsChangeAccessor, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -585,7 +585,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// renderSideBySide
 		if (renderSideBySideChanged) {
 			if (this._renderSideBySide) {
-				this._setStrategy(new DiffEdtorWidgetSideBySide(this._createDataSource(), this._enableSplitViewResizing, ));
+				this._setStrategy(new DiffEdtorWidgetSideBySide(this._createDataSource(), this._enableSplitViewResizing));
 			} else {
 				this._setStrategy(new DiffEdtorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
 			}

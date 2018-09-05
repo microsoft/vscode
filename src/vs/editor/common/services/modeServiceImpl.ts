@@ -11,7 +11,7 @@ import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
@@ -110,7 +110,7 @@ export class ModeServiceImpl implements IModeService {
 			let r: IMode = null;
 			this.getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds).then((mode) => {
 				r = mode;
-			}).done(null, onUnexpectedError);
+			}, onUnexpectedError);
 			return r;
 		}
 		return null;

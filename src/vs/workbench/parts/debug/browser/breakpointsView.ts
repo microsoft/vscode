@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, EDITOR_CONTRIBUTION_ID, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
@@ -29,7 +28,6 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -107,15 +105,15 @@ export class BreakpointsView extends ViewletPanel {
 
 			if (isMiddleClick) {
 				if (element instanceof Breakpoint) {
-					this.debugService.removeBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+					this.debugService.removeBreakpoints(element.getId());
 				} else if (element instanceof FunctionBreakpoint) {
-					this.debugService.removeFunctionBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+					this.debugService.removeFunctionBreakpoints(element.getId());
 				}
 				return;
 			}
 
 			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService).done(undefined, onUnexpectedError);
+				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService);
 			}
 			if (isDoubleClick && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
@@ -296,8 +294,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 
 	constructor(
 		@IDebugService private debugService: IDebugService,
-		@ILabelService private labelService: ILabelService,
-		@ITextFileService private textFileService: ITextFileService
+		@ILabelService private labelService: ILabelService
 	) {
 		// noop
 	}
@@ -343,7 +340,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), true);
 		data.checkbox.checked = breakpoint.enabled;
 
-		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
+		const { message, className } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
 		data.icon.className = className + ' icon';
 		data.breakpoint.title = breakpoint.message || message || '';
 
@@ -413,8 +410,7 @@ class ExceptionBreakpointsRenderer implements IRenderer<IExceptionBreakpoint, IB
 class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBaseBreakpointWithIconTemplateData> {
 
 	constructor(
-		@IDebugService private debugService: IDebugService,
-		@ITextFileService private textFileService: ITextFileService
+		@IDebugService private debugService: IDebugService
 	) {
 		// noop
 	}
@@ -447,7 +443,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IBaseBreakpointWithIconTemplateData): void {
 		data.context = functionBreakpoint;
 		data.name.textContent = functionBreakpoint.name;
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, functionBreakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, functionBreakpoint);
 		data.icon.className = className + ' icon';
 		data.icon.title = message ? message : '';
 		data.checkbox.checked = functionBreakpoint.enabled;
@@ -455,8 +451,8 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disalbed', (session && !session.raw.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
-		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
+		dom.toggleClass(data.breakpoint, 'disalbed', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		if (session && !session.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
 	}
@@ -501,9 +497,9 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 				template.reactedOnEvent = true;
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
 				if (inputBox.value && (renamed || template.breakpoint.name)) {
-					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
+					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name);
 				} else {
-					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId());
 				}
 			}
 		};
@@ -577,7 +573,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndClassName(debugService: IDebugService, textFileService: ITextFileService, breakpoint: IBreakpoint | FunctionBreakpoint): { message?: string, className: string } {
+export function getBreakpointMessageAndClassName(debugService: IDebugService, breakpoint: IBreakpoint | FunctionBreakpoint): { message?: string, className: string } {
 	const state = debugService.state;
 	const debugActive = state === State.Running || state === State.Stopped;
 
@@ -600,7 +596,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 
 	const session = debugService.getViewModel().focusedSession;
 	if (breakpoint instanceof FunctionBreakpoint) {
-		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
+		if (session && !session.capabilities.supportsFunctionBreakpoints) {
 			return {
 				className: 'debug-function-breakpoint-unverified',
 				message: nls.localize('functionBreakpointUnsupported', "Function breakpoints not supported by this debug type"),
@@ -612,18 +608,10 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		};
 	}
 
-	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
-		return {
-			className: 'debug-breakpoint-unverified',
-			message: appendMessage(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
-		};
-	}
-
-
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages = [];
 		if (breakpoint.logMessage) {
-			if (session && !session.raw.capabilities.supportsLogPoints) {
+			if (session && !session.capabilities.supportsLogPoints) {
 				return {
 					className: 'debug-breakpoint-unsupported',
 					message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
@@ -633,13 +621,13 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 			messages.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
 		}
 
-		if (session && breakpoint.condition && !session.raw.capabilities.supportsConditionalBreakpoints) {
+		if (session && breakpoint.condition && !session.capabilities.supportsConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('conditionalBreakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
 			};
 		}
-		if (session && breakpoint.hitCondition && !session.raw.capabilities.supportsHitConditionalBreakpoints) {
+		if (session && breakpoint.hitCondition && !session.capabilities.supportsHitConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
 				message: nls.localize('hitBreakpointUnsupported', "Hit conditional breakpoints not supported by this debug type"),

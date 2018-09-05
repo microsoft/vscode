@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

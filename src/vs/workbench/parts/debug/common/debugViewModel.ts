@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, ISession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/parts/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED } from 'vs/workbench/parts/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class ViewModel implements IViewModel {
@@ -12,11 +12,11 @@ export class ViewModel implements IViewModel {
 	firstSessionStart = true;
 
 	private _focusedStackFrame: IStackFrame;
-	private _focusedSession: ISession;
+	private _focusedSession: IDebugSession;
 	private _focusedThread: IThread;
 	private selectedExpression: IExpression;
 	private selectedFunctionBreakpoint: IFunctionBreakpoint;
-	private readonly _onDidFocusSession: Emitter<ISession | undefined>;
+	private readonly _onDidFocusSession: Emitter<IDebugSession | undefined>;
 	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame, explicit: boolean }>;
 	private readonly _onDidSelectExpression: Emitter<IExpression>;
 	private multiSessionView: boolean;
@@ -25,7 +25,7 @@ export class ViewModel implements IViewModel {
 	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
-		this._onDidFocusSession = new Emitter<ISession | undefined>();
+		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
 		this._onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame, explicit: boolean }>();
 		this._onDidSelectExpression = new Emitter<IExpression>();
 		this.multiSessionView = false;
@@ -38,7 +38,7 @@ export class ViewModel implements IViewModel {
 		return 'root';
 	}
 
-	get focusedSession(): ISession {
+	get focusedSession(): IDebugSession {
 		return this._focusedSession;
 	}
 
@@ -60,24 +60,24 @@ export class ViewModel implements IViewModel {
 		return this._focusedStackFrame;
 	}
 
-	setFocus(stackFrame: IStackFrame, thread: IThread, session: ISession, explicit: boolean): void {
-		let shouldEmit = this._focusedSession !== session || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
+	setFocus(stackFrame: IStackFrame, thread: IThread, session: IDebugSession, explicit: boolean): void {
+		const shouldEmit = this._focusedSession !== session || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
 
+		this._focusedStackFrame = stackFrame;
+		this._focusedThread = thread;
 		if (this._focusedSession !== session) {
 			this._focusedSession = session;
 			this._onDidFocusSession.fire(session);
 		}
-		this._focusedThread = thread;
-		this._focusedStackFrame = stackFrame;
 
-		this.loadedScriptsSupportedContextKey.set(session && session.raw.capabilities.supportsLoadedSourcesRequest);
+		this.loadedScriptsSupportedContextKey.set(session && session.capabilities.supportsLoadedSourcesRequest);
 
 		if (shouldEmit) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
 		}
 	}
 
-	get onDidFocusSession(): Event<ISession> {
+	get onDidFocusSession(): Event<IDebugSession> {
 		return this._onDidFocusSession.event;
 	}
 

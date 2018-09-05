@@ -4,45 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/referencesWidget';
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Color } from 'vs/base/common/color';
-import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Color } from 'vs/base/common/color';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as tree from 'vs/base/parts/tree/browser/tree';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextModel, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import 'vs/css!./media/referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textModel';
+import { Location } from 'vs/editor/common/modes';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { activeContrastBorder, contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PeekViewWidget } from './peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Location } from 'vs/editor/common/modes';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, basenameOrAuthority } from 'vs/base/common/resources';
-import { getBaseLabel } from 'vs/base/common/labels';
 
 
 class DecorationsManager implements IDisposable {
@@ -274,9 +273,9 @@ class Controller extends WorkbenchTreeController {
 	private _expandCollapse(tree: tree.ITree, element: any): boolean {
 
 		if (tree.isExpanded(element)) {
-			tree.collapse(element).done(null, onUnexpectedError);
+			tree.collapse(element).then(null, onUnexpectedError);
 		} else {
-			tree.expand(element).done(null, onUnexpectedError);
+			tree.expand(element).then(null, onUnexpectedError);
 		}
 		return true;
 	}
@@ -308,7 +307,7 @@ class FileReferencesTemplate {
 		container.appendChild(parent);
 		this.file = new IconLabel(parent);
 
-		this.badge = new CountBadge($('.count').appendTo(parent).getHTMLElement());
+		this.badge = new CountBadge(dom.append(parent, dom.$('.count')));
 		const styler = attachBadgeStyler(this.badge, themeService);
 
 		this.dispose = () => {
@@ -517,13 +516,13 @@ export class ReferenceWidget extends PeekViewWidget {
 	private _onDidSelectReference = new Emitter<SelectionEvent>();
 
 	private _tree: WorkbenchTree;
-	private _treeContainer: Builder;
+	private _treeContainer: HTMLElement;
 	private _sash: VSash;
 	private _preview: ICodeEditor;
 	private _previewModelReference: IReference<ITextEditorModel>;
 	private _previewNotAvailableMessage: TextModel;
-	private _previewContainer: Builder;
-	private _messageContainer: Builder;
+	private _previewContainer: HTMLElement;
+	private _messageContainer: HTMLElement;
 
 	constructor(
 		editor: ICodeEditor,
@@ -572,7 +571,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._tree.domFocus();
 	}
 
-	protected _onTitleClick(e: MouseEvent): void {
+	protected _onTitleClick(e: IMouseEvent): void {
 		if (this._preview && this._preview.getModel()) {
 			this._onDidSelectReference.fire({
 				element: this._getFocusedReference(),
@@ -583,96 +582,88 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	protected _fillBody(containerElement: HTMLElement): void {
-		let container = $(containerElement);
-
 		this.setCssClass('reference-zone-widget');
 
 		// message pane
-		container.div({ 'class': 'messages' }, div => {
-			this._messageContainer = div.hide();
-		});
+		this._messageContainer = dom.append(containerElement, dom.$('div.messages'));
+		dom.hide(this._messageContainer);
 
 		// editor
-		container.div({ 'class': 'preview inline' }, (div: Builder) => {
-
-			let options: IEditorOptions = {
-				scrollBeyondLastLine: false,
-				scrollbar: {
-					verticalScrollbarSize: 14,
-					horizontal: 'auto',
-					useShadows: true,
-					verticalHasArrows: false,
-					horizontalHasArrows: false
-				},
-				overviewRulerLanes: 2,
-				fixedOverflowWidgets: true,
-				minimap: {
-					enabled: false
-				}
-			};
-
-			this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
-			this._previewContainer = div.hide();
-			this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
-		});
+		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
+		let options: IEditorOptions = {
+			scrollBeyondLastLine: false,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
+			overviewRulerLanes: 2,
+			fixedOverflowWidgets: true,
+			minimap: {
+				enabled: false
+			}
+		};
+		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
+		dom.hide(this._previewContainer);
+		this._previewNotAvailableMessage = TextModel.createFromString(nls.localize('missingPreviewMessage', "no preview available"));
 
 		// sash
 		this._sash = new VSash(containerElement, this.layoutData.ratio || .8);
 		this._sash.onDidChangePercentages(() => {
 			let [left, right] = this._sash.percentages;
-			this._previewContainer.style({ width: left });
-			this._treeContainer.style({ width: right });
+			this._previewContainer.style.width = left;
+			this._treeContainer.style.width = right;
 			this._preview.layout();
 			this._tree.layout();
 			this.layoutData.ratio = this._sash.ratio;
 		});
 
 		// tree
-		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
-			this._callOnDispose.push(controller);
+		this._treeContainer = dom.append(containerElement, dom.$('div.ref-tree.inline'));
+		let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
+		this._callOnDispose.push(controller);
 
-			let config = <tree.ITreeConfiguration>{
-				dataSource: this._instantiationService.createInstance(DataSource),
-				renderer: this._instantiationService.createInstance(Renderer),
-				controller,
-				accessibilityProvider: new AriaProvider()
-			};
+		let config = <tree.ITreeConfiguration>{
+			dataSource: this._instantiationService.createInstance(DataSource),
+			renderer: this._instantiationService.createInstance(Renderer),
+			controller,
+			accessibilityProvider: new AriaProvider()
+		};
 
-			let options: tree.ITreeOptions = {
-				twistiePixels: 20,
-				ariaLabel: nls.localize('treeAriaLabel', "References")
-			};
+		let treeOptions: tree.ITreeOptions = {
+			twistiePixels: 20,
+			ariaLabel: nls.localize('treeAriaLabel', "References")
+		};
 
-			this._tree = this._instantiationService.createInstance(WorkbenchTree, div.getHTMLElement(), config, options);
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, this._treeContainer, config, treeOptions);
 
-			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
+		ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
-			// listen on selection and focus
-			let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
-				if (element instanceof OneReference) {
-					if (kind === 'show') {
-						this._revealReference(element, false);
-					}
-					this._onDidSelectReference.fire({ element, kind, source: 'tree' });
+		// listen on selection and focus
+		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+			if (element instanceof OneReference) {
+				if (kind === 'show') {
+					this._revealReference(element, false);
 				}
-			};
-			this._disposables.push(this._tree.onDidChangeFocus(event => {
-				if (event && event.payload && event.payload.origin === 'keyboard') {
-					onEvent(event.focus, 'show'); // only handle events from keyboard, mouse/touch is handled by other listeners below
-				}
-			}));
-			this._disposables.push(this._tree.onDidChangeSelection(event => {
-				if (event && event.payload && event.payload.origin === 'keyboard') {
-					onEvent(event.selection[0], 'goto'); // only handle events from keyboard, mouse/touch is handled by other listeners below
-				}
-			}));
-			this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
-			this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
-			this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
-
-			this._treeContainer = div.hide();
-		});
+				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
+			}
+		};
+		this._disposables.push(this._tree.onDidChangeFocus(event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				onEvent(event.focus, 'show'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+			}
+		}));
+		this._disposables.push(this._tree.onDidChangeSelection(event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				onEvent(event.selection[0], 'goto'); // only handle events from keyboard, mouse/touch is handled by other listeners below
+			}
+		}));
+		this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
+		this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
+		this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
+		dom.hide(this._treeContainer);
 	}
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
@@ -684,9 +675,10 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// set height/width
 		const [left, right] = this._sash.percentages;
-		this._previewContainer.style({ height, width: left });
-		this._treeContainer.style({ height, width: right });
-
+		this._previewContainer.style.height = height;
+		this._previewContainer.style.width = left;
+		this._treeContainer.style.height = height;
+		this._treeContainer.style.width = right;
 		// forward
 		this._tree.layout(heightInPixel);
 		this._preview.layout();
@@ -726,11 +718,12 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		if (this._model.empty) {
 			this.setTitle('');
-			this._messageContainer.innerHtml(nls.localize('noResults', "No results")).show();
+			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
+			dom.show(this._messageContainer);
 			return TPromise.as(void 0);
 		}
 
-		this._messageContainer.hide();
+		dom.hide(this._messageContainer);
 		this._decorationsManager = new DecorationsManager(this._preview, this._model);
 		this._disposeOnNewModel.push(this._decorationsManager);
 
@@ -751,8 +744,8 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// make sure things are rendered
 		dom.addClass(this.container, 'results-loaded');
-		this._treeContainer.show();
-		this._previewContainer.show();
+		dom.show(this._treeContainer);
+		dom.show(this._previewContainer);
 		this._preview.layout();
 		this._tree.layout();
 		this.focus();

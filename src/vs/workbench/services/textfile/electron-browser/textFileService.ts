@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';

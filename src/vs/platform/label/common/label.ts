@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -17,13 +17,19 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
 import { basename, dirname, join } from 'vs/base/common/paths';
+import { Schemas } from 'vs/base/common/network';
+
+export interface RegisterFormatterEvent {
+	scheme: string;
+	formatter: LabelRules;
+}
 
 export interface ILabelService {
 	_serviceBrand: any;
 	getUriLabel(resource: URI, relative?: boolean, forceNoTildify?: boolean): string;
 	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
 	registerFormatter(schema: string, formatter: LabelRules): IDisposable;
-	onDidRegisterFormatter: Event<{ scheme: string, formatter: LabelRules }>;
+	onDidRegisterFormatter: Event<RegisterFormatterEvent>;
 }
 
 export interface LabelRules {
@@ -50,14 +56,14 @@ export class LabelService implements ILabelService {
 	_serviceBrand: any;
 
 	private readonly formatters = new Map<string, LabelRules>();
-	private readonly _onDidRegisterFormatter = new Emitter<{ scheme: string, formatter: LabelRules }>();
+	private readonly _onDidRegisterFormatter = new Emitter<RegisterFormatterEvent>();
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) { }
 
-	get onDidRegisterFormatter(): Event<{ scheme: string, formatter: LabelRules }> {
+	get onDidRegisterFormatter(): Event<RegisterFormatterEvent> {
 		return this._onDidRegisterFormatter.event;
 	}
 
@@ -107,7 +113,12 @@ export class LabelService implements ILabelService {
 			// Folder on disk
 			const formatter = this.formatters.get(workspace.scheme);
 			const label = options && options.verbose ? this.getUriLabel(workspace) : basenameOrAuthority(workspace);
-			return formatter && formatter.workspace && formatter.workspace.suffix ? `${label} (${formatter.workspace.suffix})` : label;
+			if (workspace.scheme === Schemas.file) {
+				return label;
+			}
+
+			const suffix = formatter && formatter.workspace && (typeof formatter.workspace.suffix === 'string') ? formatter.workspace.suffix : workspace.scheme;
+			return suffix ? `${label} (${suffix})` : label;
 		}
 
 		// Workspace: Untitled

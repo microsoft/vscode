@@ -5,7 +5,7 @@
 
 'use strict';
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 

@@ -61,7 +61,6 @@ export class Action implements IAction {
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _order: number;
 	protected _actionCallback: (event?: any) => TPromise<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
@@ -172,14 +171,6 @@ export class Action implements IAction {
 			this._radio = value;
 			this._onDidChange.fire({ radio: value });
 		}
-	}
-
-	public get order(): number {
-		return this._order;
-	}
-
-	public set order(value: number) {
-		this._order = value;
 	}
 
 	public run(event?: any, data?: ITelemetryData): TPromise<any> {

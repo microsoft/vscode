@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { DataUri } from 'vs/workbench/common/resources';

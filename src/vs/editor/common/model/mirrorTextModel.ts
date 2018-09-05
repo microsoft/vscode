@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';

@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';

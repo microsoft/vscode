@@ -29,7 +29,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;

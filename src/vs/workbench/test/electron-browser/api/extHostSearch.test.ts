@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { IFileMatch, IPatternInfo, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, QueryType } from 'vs/platform/search/common/search';
@@ -650,14 +650,15 @@ suite('ExtHostSearch', () => {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
 			for (let fileMatch of actual) {
 				// Make relative
-				for (let lineMatch of fileMatch.lineMatches) {
-					for (let [offset, length] of lineMatch.offsetAndLengths) {
-						actualTextSearchResults.push({
-							preview: { text: lineMatch.preview, match: null },
-							range: new Range(lineMatch.lineNumber, offset, lineMatch.lineNumber, length + offset),
-							uri: fileMatch.resource
-						});
-					}
+				for (let lineMatch of fileMatch.matches) {
+					actualTextSearchResults.push({
+						preview: {
+							text: lineMatch.preview.text,
+							match: new Range(lineMatch.preview.match.startLineNumber, lineMatch.preview.match.startColumn, lineMatch.preview.match.endLineNumber, lineMatch.preview.match.endColumn)
+						},
+						range: new Range(lineMatch.range.startLineNumber, lineMatch.range.startColumn, lineMatch.range.endLineNumber, lineMatch.range.endColumn),
+						uri: fileMatch.resource
+					});
 				}
 			}
 

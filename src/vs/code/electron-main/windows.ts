@@ -34,8 +34,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import URI from 'vs/base/common/uri';
-import { Queue } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
+import { Queue, timeout } from 'vs/base/common/async';
 import { exists } from 'vs/base/node/pfs';
 import { getComparisonKey, isEqual, normalizePath } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
@@ -485,7 +485,7 @@ export class WindowsManager implements IWindowsMainService {
 		// used for the edit operation is closed or loaded to a different folder so that the waiting
 		// process can continue. We do this by deleting the waitMarkerFilePath.
 		if (openConfig.context === OpenContext.CLI && openConfig.cli.wait && openConfig.cli.waitMarkerFilePath && usedWindows.length === 1 && usedWindows[0]) {
-			this.waitForWindowCloseOrLoad(usedWindows[0].id).done(() => fs.unlink(openConfig.cli.waitMarkerFilePath, error => void 0));
+			this.waitForWindowCloseOrLoad(usedWindows[0].id).then(() => fs.unlink(openConfig.cli.waitMarkerFilePath, error => void 0));
 		}
 
 		return usedWindows;
@@ -1182,6 +1182,7 @@ export class WindowsManager implements IWindowsMainService {
 		const configuration: IWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.machineId = this.machineId;
+		configuration.mainPid = process.pid;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = assign({}, this.initialUserEnv, options.userEnv || {});
 		configuration.isInitialStartup = options.initialStartup;
@@ -1278,7 +1279,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Only load when the window has not vetoed this
-		this.lifecycleService.unload(window, UnloadReason.LOAD).done(veto => {
+		this.lifecycleService.unload(window, UnloadReason.LOAD).then(veto => {
 			if (!veto) {
 
 				// Register window for backups
@@ -1433,7 +1434,7 @@ export class WindowsManager implements IWindowsMainService {
 	reload(win: ICodeWindow, cli?: ParsedArgs): void {
 
 		// Only reload when the window has not vetoed this
-		this.lifecycleService.unload(win, UnloadReason.RELOAD).done(veto => {
+		this.lifecycleService.unload(win, UnloadReason.RELOAD).then(veto => {
 			if (!veto) {
 				win.reload(void 0, cli);
 
@@ -1510,7 +1511,7 @@ export class WindowsManager implements IWindowsMainService {
 			// might be related to the fact that the untitled workspace prompt shows up async and this
 			// code can execute before the dialog is fully closed which then blocks the window from closing.
 			// Issue: https://github.com/Microsoft/vscode/issues/41989
-			return TPromise.timeout(0).then(() => veto);
+			return timeout(0).then(() => veto);
 		}));
 	}
 

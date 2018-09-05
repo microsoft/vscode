@@ -12,7 +12,7 @@ import * as glob from 'vs/base/common/glob';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { ICachedSearchStats, IFileMatch, IFolderQuery, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, IFileSearchStats, IFileIndexProviderStats } from 'vs/platform/search/common/search';
@@ -450,7 +450,7 @@ export class FileIndexSearchManager {
 				return <ISearchCompleteStats>{
 					limitHit: complete.limitHit,
 					stats: {
-						type: 'fileIndexProver',
+						type: 'fileIndexProvider',
 						detailStats: complete.stats,
 						fromCache: false,
 						resultCount: complete.results.length
@@ -520,7 +520,7 @@ export class FileIndexSearchManager {
 								fromCache: false,
 								resultCount: sortedResults.length,
 								sortingTime,
-								type: 'fileIndexProver'
+								type: 'fileIndexProvider'
 							}
 						});
 					});
@@ -559,7 +559,7 @@ export class FileIndexSearchManager {
 								stats: {
 									fromCache: true,
 									detailStats: complete.stats,
-									type: 'fileIndexProver',
+									type: 'fileIndexProvider',
 									resultCount: sortedResults.length,
 									sortingTime: sortSW.elapsed()
 								}

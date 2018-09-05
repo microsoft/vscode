@@ -11,11 +11,13 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, getClientArea, removeClasses } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { $, Builder } from 'vs/base/browser/builder';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+
+export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
+export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
 
 export interface IMenuOptions {
 	context?: any;
@@ -61,7 +63,7 @@ export class Menu extends ActionBar {
 
 		this.actionsList.setAttribute('role', 'menu');
 
-		this.domNode.tabIndex = 0;
+		this.actionsList.tabIndex = 0;
 
 		this.menuDisposables = [];
 
@@ -91,16 +93,16 @@ export class Menu extends ActionBar {
 			}));
 		}
 
-		$(this.domNode).on(EventType.MOUSE_OUT, (e) => {
+		this._register(addDisposableListener(this.domNode, EventType.MOUSE_OUT, e => {
 			let relatedTarget = (e as MouseEvent).relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
 				this.focusedItem = undefined;
 				this.updateFocus();
 				e.stopPropagation();
 			}
-		});
+		}));
 
-		$(this.actionsList).on(EventType.MOUSE_OVER, (e) => {
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OUT, e => {
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
@@ -118,7 +120,7 @@ export class Menu extends ActionBar {
 					this.updateFocus();
 				}
 			}
-		});
+		}));
 
 		let parentData: ISubMenuData = {
 			parent: this
@@ -208,15 +210,15 @@ interface IMenuItemOptions extends IActionItemOptions {
 }
 
 class MenuActionItem extends BaseActionItem {
-	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
-	static ESCAPED_MNEMONIC_REGEX: RegExp = /&amp;&amp;(.)/g;
 
 	public container: HTMLElement;
-	protected $e: Builder;
-	protected $label: Builder;
-	protected $check: Builder;
+
 	protected options: IMenuItemOptions;
-	protected mnemonic: KeyCode;
+	protected item: HTMLElement;
+
+	private label: HTMLElement;
+	private check: HTMLElement;
+	private mnemonic: KeyCode;
 	private cssClass: string;
 
 	constructor(ctx: any, action: IAction, options: IMenuItemOptions = {}) {
@@ -232,9 +234,9 @@ class MenuActionItem extends BaseActionItem {
 		if (this.options.label && options.enableMnemonics) {
 			let label = this.getAction().label;
 			if (label) {
-				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
-				if (matches && matches.length === 2) {
-					this.mnemonic = KeyCodeUtils.fromString(matches[1].toLocaleLowerCase());
+				let matches = MENU_MNEMONIC_REGEX.exec(label);
+				if (matches) {
+					this.mnemonic = KeyCodeUtils.fromString((!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
 				}
 			}
 		}
@@ -245,62 +247,67 @@ class MenuActionItem extends BaseActionItem {
 
 		this.container = container;
 
-		this.$e = $('a.action-menu-item').appendTo(this.builder);
+		this.item = append(this.element, $('a.action-menu-item'));
 		if (this._action.id === Separator.ID) {
 			// A separator is a presentation item
-			this.$e.attr({ role: 'presentation' });
+			this.item.setAttribute('role', 'presentation');
 		} else {
-			this.$e.attr({ role: 'menuitem' });
+			this.item.setAttribute('role', 'menuitem');
+			if (this.mnemonic) {
+				this.item.setAttribute('aria-keyshortcuts', `${this.mnemonic}`);
+			}
 		}
 
-		this.$check = $('span.menu-item-check').appendTo(this.$e);
-		this.$label = $('span.action-label').appendTo(this.$e);
+		this.check = append(this.item, $('span.menu-item-check'));
+		this.check.setAttribute('role', 'none');
+
+		this.label = append(this.item, $('span.action-label'));
 
 		if (this.options.label && this.options.keybinding) {
-			$('span.keybinding').text(this.options.keybinding).appendTo(this.$e);
+			append(this.item, $('span.keybinding')).textContent = this.options.keybinding;
 		}
 
-		this._updateClass();
-		this._updateLabel();
-		this._updateTooltip();
-		this._updateEnabled();
-		this._updateChecked();
+		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+			EventHelper.stop(e, true);
+			this.onClick(e);
+		}));
+
+		this.updateClass();
+		this.updateLabel();
+		this.updateTooltip();
+		this.updateEnabled();
+		this.updateChecked();
 	}
 
 	focus(): void {
 		super.focus();
-		this.$e.domFocus();
+		this.item.focus();
 	}
 
-	_updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
 			if (label) {
-				let matches = MenuActionItem.MNEMONIC_REGEX.exec(label);
-				if (matches && matches.length === 2) {
-					let mnemonic = matches[1];
-
-					let ariaLabel = label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
-
-					this.mnemonic = KeyCodeUtils.fromString(mnemonic.toLocaleLowerCase());
-
-					this.$label.attr('aria-label', ariaLabel);
-				} else {
-					this.$label.attr('aria-label', label);
+				const cleanLabel = cleanMnemonic(label);
+				if (!this.options.enableMnemonics) {
+					label = cleanLabel;
 				}
 
-				if (this.options.enableMnemonics) {
-					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '<u>$1</u>');
-				} else {
-					label = strings.escape(label).replace(MenuActionItem.ESCAPED_MNEMONIC_REGEX, '$1');
+				this.label.setAttribute('aria-label', cleanLabel);
+
+				const matches = MENU_MNEMONIC_REGEX.exec(label);
+
+				if (matches) {
+					label = strings.escape(label).replace(MENU_ESCAPED_MNEMONIC_REGEX, '<u aria-hidden="true">$1</u>');
+					this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[2]).toLocaleLowerCase());
 				}
 			}
 
-			this.$label.innerHtml(label);
+			this.label.textContent = label.trim();
 		}
 	}
 
-	_updateTooltip(): void {
+	updateTooltip(): void {
 		let title: string = null;
 
 		if (this.getAction().tooltip) {
@@ -315,43 +322,47 @@ class MenuActionItem extends BaseActionItem {
 		}
 
 		if (title) {
-			this.$e.attr({ title: title });
+			this.item.title = title;
 		}
 	}
 
-	_updateClass(): void {
+	updateClass(): void {
 		if (this.cssClass) {
-			this.$e.removeClass(this.cssClass);
+			removeClasses(this.item, this.cssClass);
 		}
 		if (this.options.icon) {
 			this.cssClass = this.getAction().class;
-			this.$label.addClass('icon');
+			addClass(this.label, 'icon');
 			if (this.cssClass) {
-				this.$label.addClass(this.cssClass);
+				addClasses(this.label, this.cssClass);
 			}
-			this._updateEnabled();
+			this.updateEnabled();
 		} else {
-			this.$label.removeClass('icon');
+			removeClass(this.label, 'icon');
 		}
 	}
 
-	_updateEnabled(): void {
+	updateEnabled(): void {
 		if (this.getAction().enabled) {
-			this.builder.removeClass('disabled');
-			this.$e.removeClass('disabled');
-			this.$e.attr({ tabindex: 0 });
+			removeClass(this.element, 'disabled');
+			removeClass(this.item, 'disabled');
+			this.item.tabIndex = 0;
 		} else {
-			this.builder.addClass('disabled');
-			this.$e.addClass('disabled');
-			removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
+			addClass(this.element, 'disabled');
+			addClass(this.item, 'disabled');
+			removeTabIndexAndUpdateFocus(this.item);
 		}
 	}
 
-	_updateChecked(): void {
+	updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$e.addClass('checked');
+			addClass(this.item, 'checked');
+			this.item.setAttribute('role', 'menuitemcheckbox');
+			this.item.setAttribute('aria-checked', 'true');
 		} else {
-			this.$e.removeClass('checked');
+			removeClass(this.item, 'checked');
+			this.item.setAttribute('role', 'menuitem');
+			this.item.setAttribute('aria-checked', 'false');
 		}
 	}
 
@@ -362,7 +373,8 @@ class MenuActionItem extends BaseActionItem {
 
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
-	private submenuContainer: Builder;
+	private submenuContainer: HTMLElement;
+	private submenuDisposables: IDisposable[] = [];
 	private mouseOver: boolean;
 	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
@@ -383,7 +395,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}, 250);
 
 		this.hideScheduler = new RunOnceScheduler(() => {
-			if ((!isAncestor(document.activeElement, this.builder.getHTMLElement()) && this.parentData.submenu === this.mysubmenu)) {
+			if ((!isAncestor(document.activeElement, this.element) && this.parentData.submenu === this.mysubmenu)) {
 				this.parentData.parent.focus(false);
 				this.cleanupExistingSubmenu(true);
 			}
@@ -393,46 +405,49 @@ class SubmenuActionItem extends MenuActionItem {
 	render(container: HTMLElement): void {
 		super.render(container);
 
-		this.$e.addClass('monaco-submenu-item');
-		this.$e.attr('aria-haspopup', 'true');
-		$('span.submenu-indicator').text('\u25B6').appendTo(this.$e);
+		addClass(this.item, 'monaco-submenu-item');
+		this.item.setAttribute('aria-haspopup', 'true');
 
-		$(this.builder).on(EventType.KEY_UP, (e) => {
+		const submenuIndicator = append(this.item, $('span.submenu-indicator'));
+		submenuIndicator.setAttribute('aria-hidden', 'true');
+		submenuIndicator.textContent = '\u25B6';
+
+		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.RightArrow)) {
+			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 
 				this.createSubmenu(true);
 			}
-		});
+		}));
 
-		$(this.builder).on(EventType.KEY_DOWN, (e) => {
+		this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.RightArrow)) {
+			if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Enter)) {
 				EventHelper.stop(e, true);
 			}
-		});
+		}));
 
-		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
+		this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
 			if (!this.mouseOver) {
 				this.mouseOver = true;
 
 				this.showScheduler.schedule();
 			}
-		});
+		}));
 
-		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
+		this._register(addDisposableListener(this.element, EventType.MOUSE_LEAVE, e => {
 			this.mouseOver = false;
-		});
+		}));
 
-		$(this.builder).on(EventType.FOCUS_OUT, (e) => {
-			if (!isAncestor(document.activeElement, this.builder.getHTMLElement())) {
+		this._register(addDisposableListener(this.element, EventType.FOCUS_OUT, e => {
+			if (!isAncestor(document.activeElement, this.element)) {
 				this.hideScheduler.schedule();
 			}
-		});
+		}));
 	}
 
-	onClick(e: EventLike) {
+	onClick(e: EventLike): void {
 		// stop clicking from trying to run an action
 		EventHelper.stop(e, true);
 
@@ -440,27 +455,25 @@ class SubmenuActionItem extends MenuActionItem {
 		this.createSubmenu(false);
 	}
 
-	private cleanupExistingSubmenu(force: boolean) {
+	private cleanupExistingSubmenu(force: boolean): void {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
 			this.parentData.submenu.dispose();
 			this.parentData.submenu = null;
 
 			if (this.submenuContainer) {
-				this.submenuContainer.dispose();
+				this.submenuDisposables = dispose(this.submenuDisposables);
 				this.submenuContainer = null;
 			}
 		}
 	}
 
-	private createSubmenu(selectFirstItem = true) {
+	private createSubmenu(selectFirstItem = true): void {
 		if (!this.parentData.submenu) {
-			this.submenuContainer = $(this.builder).div({ class: 'monaco-submenu menubar-menu-items-holder context-view' });
+			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
+			addClasses(this.submenuContainer, 'menubar-menu-items-holder', 'context-view');
+			this.submenuContainer.style.left = `${getClientArea(this.element).width}px`;
 
-			$(this.submenuContainer).style({
-				'left': `${$(this.builder).getClientArea().width}px`
-			});
-
-			$(this.submenuContainer).on(EventType.KEY_UP, (e) => {
+			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
@@ -469,29 +482,28 @@ class SubmenuActionItem extends MenuActionItem {
 					this.parentData.submenu.dispose();
 					this.parentData.submenu = null;
 
-					this.submenuContainer.dispose();
+					this.submenuDisposables = dispose(this.submenuDisposables);
 					this.submenuContainer = null;
 				}
-			});
+			}));
 
-			$(this.submenuContainer).on(EventType.KEY_DOWN, (e) => {
+			this.submenuDisposables.push(addDisposableListener(this.submenuContainer, EventType.KEY_DOWN, e => {
 				let event = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (event.equals(KeyCode.LeftArrow)) {
 					EventHelper.stop(e, true);
 				}
-			});
+			}));
 
+			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
 
-			this.parentData.submenu = new Menu(this.submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
-
-			this.parentData.submenu.onDidCancel(() => {
+			this.submenuDisposables.push(this.parentData.submenu.onDidCancel(() => {
 				this.parentData.parent.focus();
 				this.parentData.submenu.dispose();
 				this.parentData.submenu = null;
 
-				this.submenuContainer.dispose();
+				this.submenuDisposables = dispose(this.submenuDisposables);
 				this.submenuContainer = null;
-			});
+			}));
 
 			this.parentData.submenu.focus(selectFirstItem);
 
@@ -501,7 +513,7 @@ class SubmenuActionItem extends MenuActionItem {
 		}
 	}
 
-	dispose() {
+	dispose(): void {
 		super.dispose();
 
 		this.hideScheduler.dispose();
@@ -512,8 +524,21 @@ class SubmenuActionItem extends MenuActionItem {
 		}
 
 		if (this.submenuContainer) {
-			this.submenuContainer.dispose();
+			this.submenuDisposables = dispose(this.submenuDisposables);
 			this.submenuContainer = null;
 		}
 	}
+}
+
+export function cleanMnemonic(label: string): string {
+	const regex = MENU_MNEMONIC_REGEX;
+
+	const matches = regex.exec(label);
+	if (!matches) {
+		return label;
+	}
+
+	const mnemonicInText = matches[0].charAt(0) === '&';
+
+	return label.replace(regex, mnemonicInText ? '$2' : '').trim();
 }

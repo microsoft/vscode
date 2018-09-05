@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';

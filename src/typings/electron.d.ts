@@ -104,7 +104,7 @@ declare namespace Electron {
 	const powerMonitor: PowerMonitor;
 	const powerSaveBlocker: PowerSaveBlocker;
 	const protocol: Protocol;
-	const remote: Remote;
+	// const remote: Remote; ### VSCODE CHANGE (we do not want to use remote)
 	const screen: Screen;
 	type session = Session;
 	const session: typeof Session;
@@ -2962,7 +2962,7 @@ declare namespace Electron {
 		 * event.returnValue. Note: Sending a synchronous message will block the whole
 		 * renderer process, unless you know what you are doing you should never use it.
 		 */
-		sendSync(channel: string, ...args: any[]): any;
+		// sendSync(channel: string, ...args: any[]): any; ### VSCODE CHANGE (we do not want to use sendSync)
 		/**
 		 * Sends a message to a window with windowid via channel.
 		 */
@@ -8774,24 +8774,6 @@ declare namespace Electron {
 		 */
 		fantasy?: string;
 	}
-
-	// ### BEGIN VSCODE ADDITION ###
-	type MenuItemRole = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteandmatchstyle' | 'selectall' | 'delete' | 'minimize' | 'close' | 'quit' | 'togglefullscreen' | 'resetzoom' | 'zoomin' | 'zoomout' | 'about' | 'hide' | 'hideothers' | 'unhide' | 'startspeaking' | 'stopspeaking' | 'front' | 'zoom' | 'window' | 'help' | 'services';
-
-	interface LoginRequest {
-		method: string;
-		url: string;
-		referrer: string;
-	}
-
-	interface LoginAuthInfo {
-		isProxy: boolean;
-		scheme: string;
-		host: string;
-		port: number;
-		realm: string;
-	}
-	// ### END VSCODE ADDITION ###
 }
 
 declare module 'electron' {

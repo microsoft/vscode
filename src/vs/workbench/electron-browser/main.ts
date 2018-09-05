@@ -14,14 +14,12 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
-import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
+import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { realpath } from 'vs/base/node/pfs';
+import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -48,6 +46,7 @@ import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
+import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -147,30 +146,15 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 		return TPromise.as(folderUri);
 	}
 
-	// Otherwise: use realpath to resolve symbolic links to the truth
-	return realpath(folderUri.fsPath).then(realFolderPath => {
-
-		// For some weird reason, node adds a trailing slash to UNC paths
-		// we never ever want trailing slashes as our workspace path unless
-		// someone opens root ("/").
-		// See also https://github.com/nodejs/io.js/issues/1765
-		if (paths.isUNC(realFolderPath) && strings.endsWith(realFolderPath, paths.nativeSep)) {
-			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
-		}
-
-		return uri.file(realFolderPath);
-	}, error => {
+	// Ensure absolute existing folder path
+	const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
+	return stat(sanitizedFolderPath).then(stat => uri.file(sanitizedFolderPath), error => {
 		if (verbose) {
 			errors.onUnexpectedError(error);
 		}
 
 		// Treat any error case as empty workbench case (no folder path)
 		return null;
-
-	}).then(realFolderUriOrNull => {
-
-		// Update config with real path if we have one
-		return realFolderUriOrNull;
 	});
 }
 

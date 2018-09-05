@@ -382,8 +382,11 @@ export interface ITerminalInstance {
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 *
+	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
+	 * immediately.
 	 */
-	dispose(): void;
+	dispose(isShuttingDown?: boolean): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
@@ -446,11 +449,19 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Focuses the terminal instance.
+	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
 	 *
 	 * @param focus Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
+
+	/**
+	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * when the terminal is being shown.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
+	focusWhenReady(force?: boolean): Promise<void>;
 
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
@@ -565,6 +576,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	addDisposable(disposable: IDisposable);
+	dispose(immediate?: boolean);
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
@@ -600,7 +612,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
-	onShutdown: Event<void>;
+	onShutdown: Event<boolean>;
 }
 
 export interface ITerminalProcessExtHostRequest {

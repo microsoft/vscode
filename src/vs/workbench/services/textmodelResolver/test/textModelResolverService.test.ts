@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { ITextModel } from 'vs/editor/common/model';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

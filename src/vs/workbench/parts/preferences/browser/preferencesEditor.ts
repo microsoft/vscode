@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
@@ -15,7 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionCtor, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -55,7 +55,7 @@ import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsE
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -108,20 +108,6 @@ export class PreferencesEditor extends BaseEditor {
 		DOM.addClass(parent, 'preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
-		const advertisement = DOM.append(this.headerContainer, DOM.$('.new-settings-ad'));
-		const advertisementLabel = DOM.append(advertisement, DOM.$('span.new-settings-ad-label'));
-		advertisementLabel.textContent = nls.localize('advertisementLabel', "Try a preview of our ") + ' ';
-		const openSettings2Button = this._register(new Button(advertisement, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		openSettings2Button.style({
-			buttonBackground: null,
-			buttonForeground: null,
-			buttonBorder: null,
-			buttonHoverBackground: null
-		});
-		openSettings2Button.label = nls.localize('openSettings2Label', "new settings editor");
-		openSettings2Button.element.classList.add('open-settings2-button');
-		this._register(openSettings2Button.onDidClick(() => this.preferencesService.openSettings(false)));
-
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
@@ -261,7 +247,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.done(value => {
+		promise.then(value => {
 			if (target === ConfigurationTarget.USER) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
@@ -990,9 +976,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

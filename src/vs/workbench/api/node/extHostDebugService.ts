@@ -6,7 +6,7 @@
 
 import * as paths from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -335,7 +335,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {
+	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): Thenable<void> {
 
 		this.startBreakpoints();
 
@@ -401,7 +401,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$registerBreakpoints(dtos);
 	}
 
-	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {
+	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Thenable<void> {
 
 		this.startBreakpoints();
 
@@ -484,7 +484,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return asWinJsPromise(token => handler.debugAdapterExecutable(this.getFolder(folderUri), token));
 	}
 
-	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {
+	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean> {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 

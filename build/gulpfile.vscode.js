@@ -327,7 +327,15 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
-		return result.pipe(vfs.dest(destination));
+		return result.pipe(es.through(undefined, function () {
+			// submit all stats that have been collected during the build phase
+			if (!opts.stats) {
+				return this.emit('end');
+			}
+			const { submitAllStats } = require('./lib/stats');
+			submitAllStats(product).then(() => this.emit('end')).catch(() => this.emit('end'));
+
+		})).pipe(vfs.dest(destination));
 	};
 }
 
@@ -342,14 +350,14 @@ gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(buildRoot, 'VSCode-lin
 
 gulp.task('vscode-win32-ia32', ['optimize-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32'));
 gulp.task('vscode-win32-x64', ['optimize-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64'));
-gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
+gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { stats: true }));
 gulp.task('vscode-linux-ia32', ['optimize-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32'));
 gulp.task('vscode-linux-x64', ['optimize-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64'));
 gulp.task('vscode-linux-arm', ['optimize-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm'));
 
 gulp.task('vscode-win32-ia32-min', ['minify-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32', { minified: true }));
 gulp.task('vscode-win32-x64-min', ['minify-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64', { minified: true }));
-gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true }));
+gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true, stats: true }));
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
@@ -402,23 +410,18 @@ gulp.task('vscode-translations-push-test', ['optimize-vscode'], function () {
 });
 
 gulp.task('vscode-translations-pull', function () {
-	[...i18n.defaultLanguages, ...i18n.extraLanguages].forEach(language => {
-		i18n.pullCoreAndExtensionsXlfFiles(apiHostname, apiName, apiToken, language).pipe(vfs.dest(`../vscode-localization/${language.id}/build`));
-
+	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		let includeDefault = !!innoSetupConfig[language.id].defaultInfo;
-		i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));
-	});
+		return i18n.pullSetupXlfFiles(apiHostname, apiName, apiToken, language, includeDefault).pipe(vfs.dest(`../vscode-localization/${language.id}/setup`));
+	}));
 });
 
 gulp.task('vscode-translations-import', function () {
-	[...i18n.defaultLanguages, ...i18n.extraLanguages].forEach(language => {
-		gulp.src(`../vscode-localization/${language.id}/build/*/*.xlf`)
-			.pipe(i18n.prepareI18nFiles())
-			.pipe(vfs.dest(`./i18n/${language.folderName}`));
-		gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
+	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
+		return gulp.src(`../vscode-localization/${language.id}/setup/*/*.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
-	});
+	}));
 });
 
 // Sourcemaps

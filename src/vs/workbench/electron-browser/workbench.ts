@@ -91,9 +91,9 @@ import { WorkspaceEditingService } from 'vs/workbench/services/workspace/node/wo
 import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, FileDialogContext } from 'vs/platform/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -110,7 +110,7 @@ import { PreferencesService } from 'vs/workbench/services/preferences/browser/pr
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -537,6 +537,10 @@ export class Workbench extends Disposable implements IPartService {
 			this.menubarToggled = visible;
 
 			if (this.menubarVisibility === 'toggle' || (browser.isFullscreen() && this.menubarVisibility === 'default')) {
+				if (browser.isFullscreen() && this.menubarVisibility === 'default') {
+					this._onTitleBarVisibilityChange.fire();
+				}
+
 				this.layout();
 			}
 		}
@@ -549,7 +553,7 @@ export class Workbench extends Disposable implements IPartService {
 		// the wait marker file to signal to the outside that editing is done.
 		if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
 			listenerDispose.dispose();
-			this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+			this.fileService.del(waitMarkerFile);
 		}
 	}
 
@@ -609,9 +613,10 @@ export class Workbench extends Disposable implements IPartService {
 	private handleContextKeys(): void {
 		this.inZenMode = InEditorZenModeContext.bindTo(this.contextKeyService);
 
-		(new RawContextKey<boolean>('isMac', isMacintosh)).bindTo(this.contextKeyService);
-		(new RawContextKey<boolean>('isLinux', isLinux)).bindTo(this.contextKeyService);
-		(new RawContextKey<boolean>('isWindows', isWindows)).bindTo(this.contextKeyService);
+		IsMacContext.bindTo(this.contextKeyService);
+		IsLinuxContext.bindTo(this.contextKeyService);
+		IsWindowsContext.bindTo(this.contextKeyService);
+		FileDialogContext.bindTo(this.contextKeyService);
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
@@ -788,7 +793,8 @@ export class Workbench extends Disposable implements IPartService {
 				return TPromise.as([<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
 					rightResource: filesToDiff[1].resource,
-					options: { pinned: true }
+					options: { pinned: true },
+					forceFile: true
 				}]);
 			}
 
@@ -829,7 +835,7 @@ export class Workbench extends Disposable implements IPartService {
 			if (isNew) {
 				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
 			} else {
-				input = { resource, options: { pinned: true } } as IResourceInput;
+				input = { resource, options: { pinned: true }, forceFile: true } as IResourceInput;
 			}
 
 			if (!isNew && p.lineNumber) {
@@ -1212,8 +1218,8 @@ export class Workbench extends Disposable implements IPartService {
 		return offset;
 	}
 
-	getWorkbenchElementId(): string {
-		return Identifiers.WORKBENCH_CONTAINER;
+	getWorkbenchElement(): HTMLElement {
+		return this.workbench;
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
@@ -1234,8 +1240,8 @@ export class Workbench extends Disposable implements IPartService {
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
 
-			this.setPanelHidden(true, true).done(void 0, errors.onUnexpectedError);
-			this.setSideBarHidden(true, true).done(void 0, errors.onUnexpectedError);
+			this.setPanelHidden(true, true);
+			this.setSideBarHidden(true, true);
 
 			if (config.hideActivityBar) {
 				this.setActivityBarHidden(true, true);
@@ -1257,11 +1263,11 @@ export class Workbench extends Disposable implements IPartService {
 		// Zen Mode Inactive
 		else {
 			if (this.zenMode.wasPanelVisible) {
-				this.setPanelHidden(false, true).done(void 0, errors.onUnexpectedError);
+				this.setPanelHidden(false, true);
 			}
 
 			if (this.zenMode.wasSideBarVisible) {
-				this.setSideBarHidden(false, true).done(void 0, errors.onUnexpectedError);
+				this.setSideBarHidden(false, true);
 			}
 
 			if (this.zenMode.transitionedToCenteredEditorLayout) {
@@ -1283,7 +1289,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		if (toggleFullScreen) {
-			this.windowService.toggleFullScreen().done(void 0, errors.onUnexpectedError);
+			this.windowService.toggleFullScreen();
 		}
 	}
 
@@ -1439,7 +1445,7 @@ export class Workbench extends Disposable implements IPartService {
 
 	setSideBarPosition(position: Position): void {
 		if (this.sideBarHidden) {
-			this.setSideBarHidden(false, true /* Skip Layout */).done(void 0, errors.onUnexpectedError);
+			this.setSideBarHidden(false, true /* Skip Layout */);
 		}
 
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';

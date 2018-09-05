@@ -8,7 +8,7 @@
 import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { localize } from 'vs/nls';
 import { ButtonGroup } from 'vs/base/browser/ui/button/button';
@@ -426,10 +426,10 @@ export class NotificationTemplateRenderer {
 
 	private renderSource(notification): void {
 		if (notification.expanded && notification.source) {
-			this.template.source.innerText = localize('notificationSource', "Source: {0}", notification.source);
+			this.template.source.textContent = localize('notificationSource', "Source: {0}", notification.source);
 			this.template.source.title = notification.source;
 		} else {
-			this.template.source.innerText = '';
+			this.template.source.textContent = '';
 			this.template.source.removeAttribute('title');
 		}
 	}

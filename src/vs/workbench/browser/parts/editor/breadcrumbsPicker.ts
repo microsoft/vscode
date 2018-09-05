@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -12,8 +13,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore, fuzzyScore } from 'vs/base/common/filters';
 import * as glob from 'vs/base/common/glob';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { join } from 'vs/base/common/paths';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -25,11 +27,11 @@ import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/file
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HighlightingWorkbenchTree, IHighlighter, IHighlightingTreeConfiguration, IHighlightingTreeOptions } from 'vs/platform/list/browser/listService';
 import { breadcrumbsPickerBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
+import { IFileIconTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	let ctor: IConstructorSignature1<HTMLElement, BreadcrumbsPicker> = element instanceof FileElement ? BreadcrumbsFilePicker : BreadcrumbsOutlinePicker;
@@ -54,7 +56,7 @@ export abstract class BreadcrumbsPicker {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IThemeService protected readonly _themeService: IThemeService,
+		@IWorkbenchThemeService protected readonly _themeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._domNode = document.createElement('div');
@@ -63,6 +65,7 @@ export abstract class BreadcrumbsPicker {
 
 		this._focus = dom.trackFocus(this._domNode);
 		this._focus.onDidBlur(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined }), undefined, this._disposables);
+		this._disposables.push(onDidChangeZoomLevel(_ => this._onDidPickElement.fire({ target: undefined, payload: undefined })));
 
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
@@ -88,7 +91,7 @@ export abstract class BreadcrumbsPicker {
 			HighlightingWorkbenchTree,
 			this._treeContainer,
 			treeConifg,
-			<IHighlightingTreeOptions>{ useShadows: false, filterOnType: filterConfig.getValue() },
+			<IHighlightingTreeOptions>{ useShadows: false, filterOnType: filterConfig.getValue(), showTwistie: false, twistiePixels: 12 },
 			{ placeholder: localize('placeholder', "Find") }
 		);
 		this._disposables.push(this._tree.onDidChangeSelection(e => {
@@ -107,6 +110,16 @@ export abstract class BreadcrumbsPicker {
 				this._onDidFocusElement.fire({ target, payload: e.payload });
 			}
 		}));
+
+		// tree icon theme specials
+		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
+		dom.addClass(this._treeContainer, 'show-file-icons');
+		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
+			dom.toggleClass(this._treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			dom.toggleClass(this._treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
+		};
+		this._disposables.push(_themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		onFileIconThemeChange(_themeService.getFileIconTheme());
 
 		this._domNode.focus();
 	}
@@ -230,9 +243,23 @@ export class FileFilter implements IFilter {
 		const update = () => {
 			_workspaceService.getWorkspace().folders.forEach(folder => {
 				const excludesConfig = config.getValue({ resource: folder.uri });
-				if (excludesConfig) {
-					this._cachedExpressions.set(folder.uri.toString(), glob.parse(excludesConfig));
+				if (!excludesConfig) {
+					return;
 				}
+				// adjust patterns to be absolute in case they aren't
+				// free floating (**/)
+				const adjustedConfig: glob.IExpression = {};
+				for (const pattern in excludesConfig) {
+					if (typeof excludesConfig[pattern] !== 'boolean') {
+						continue;
+					}
+					let patternAbs = pattern.indexOf('**/') !== 0
+						? join(folder.uri.path, pattern)
+						: pattern;
+
+					adjustedConfig[patternAbs] = excludesConfig[pattern];
+				}
+				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig));
 			});
 		};
 		update();
@@ -259,7 +286,7 @@ export class FileFilter implements IFilter {
 		}
 
 		const expression = this._cachedExpressions.get(folder.uri.toString());
-		return !expression(element.resource.path.substr(folder.uri.path.length), basename(element.resource));
+		return !expression(element.resource.path, basename(element.resource));
 	}
 }
 
@@ -338,7 +365,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IConfigurationService configService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 	) {

@@ -7,7 +7,7 @@
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import { basename } from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -426,7 +426,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return handle;
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| extensionTreeItem.iconPath instanceof URI) {
@@ -437,18 +437,18 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
 		return void 0;
 	}
 
-	private getIconPath(iconPath: string | URI): string {
+	private getIconPath(iconPath: string | URI): URI {
 		if (iconPath instanceof URI) {
-			return iconPath.toString();
+			return iconPath;
 		}
-		return URI.file(iconPath).toString();
+		return URI.file(iconPath);
 	}
 
 	private addNodeToCache(element: T, node: TreeNode): void {

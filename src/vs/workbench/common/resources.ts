@@ -5,14 +5,15 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 
-export class ResourceContextKey implements IContextKey<URI>, IDisposable {
+export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 	static Scheme = new RawContextKey<string>('resourceScheme', undefined);
 	static Filename = new RawContextKey<string>('resourceFilename', undefined);
@@ -21,6 +22,7 @@ export class ResourceContextKey implements IContextKey<URI>, IDisposable {
 	static Extension = new RawContextKey<string>('resourceExtname', undefined);
 	static HasResource = new RawContextKey<boolean>('resourceSet', false);
 	static IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', false);
+	static IsFileSystemResourceOrUntitled = new RawContextKey<boolean>('isFileSystemResourceOrUntitled', false);
 
 	private _resourceKey: IContextKey<URI>;
 	private _schemeKey: IContextKey<string>;
@@ -29,13 +31,15 @@ export class ResourceContextKey implements IContextKey<URI>, IDisposable {
 	private _extensionKey: IContextKey<string>;
 	private _hasResource: IContextKey<boolean>;
 	private _isfileSystemResource: IContextKey<boolean>;
-	private toDispose: IDisposable[] = [];
+	private _isFileSystemResourceOrUntitled: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
 		@IModeService private readonly _modeService: IModeService
 	) {
+		super();
+
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(contextKeyService);
 		this._langIdKey = ResourceContextKey.LangId.bindTo(contextKeyService);
@@ -43,9 +47,12 @@ export class ResourceContextKey implements IContextKey<URI>, IDisposable {
 		this._extensionKey = ResourceContextKey.Extension.bindTo(contextKeyService);
 		this._hasResource = ResourceContextKey.HasResource.bindTo(contextKeyService);
 		this._isfileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(contextKeyService);
-		this.toDispose.push(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
+		this._isFileSystemResourceOrUntitled = ResourceContextKey.IsFileSystemResourceOrUntitled.bindTo(contextKeyService);
+
+		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
 			const resource = this._resourceKey.get();
 			this._isfileSystemResource.set(resource && _fileService.canHandleResource(resource));
+			this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 		}));
 	}
 
@@ -57,6 +64,7 @@ export class ResourceContextKey implements IContextKey<URI>, IDisposable {
 		this._extensionKey.set(value && paths.extname(value.fsPath));
 		this._hasResource.set(!!value);
 		this._isfileSystemResource.set(value && this._fileService.canHandleResource(value));
+		this._isFileSystemResourceOrUntitled.set(this._isfileSystemResource.get() || this._schemeKey.get() === Schemas.untitled);
 	}
 
 	reset(): void {
@@ -70,10 +78,6 @@ export class ResourceContextKey implements IContextKey<URI>, IDisposable {
 
 	get(): URI {
 		return this._resourceKey.get();
-	}
-
-	dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }
 

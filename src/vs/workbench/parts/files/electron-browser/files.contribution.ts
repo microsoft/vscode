@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -62,6 +62,9 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 				separator: nativeSep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows
+			},
+			workspace: {
+				suffix: ''
 			}
 		});
 	}
@@ -154,7 +157,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding }, { forceFileInput: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
 		});
 	}
 }

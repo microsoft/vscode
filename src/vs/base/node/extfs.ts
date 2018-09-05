@@ -94,7 +94,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 			});
 		};
 
-		mkdirp(target, stat.mode & 511).done(proceed, proceed);
+		mkdirp(target, stat.mode & 511).then(proceed, proceed);
 	});
 }
 
@@ -670,4 +670,40 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 	}
 
 	return void 0;
+}
+
+export function sanitizeFilePath(candidate: string, cwd: string): string {
+
+	// Special case: allow to open a drive letter without trailing backslash
+	if (platform.isWindows && strings.endsWith(candidate, ':')) {
+		candidate += paths.sep;
+	}
+
+	// Ensure absolute
+	if (!paths.isAbsolute(candidate)) {
+		candidate = paths.join(cwd, candidate);
+	}
+
+	// Ensure normalized
+	candidate = paths.normalize(candidate);
+
+	// Ensure no trailing slash/backslash
+	if (platform.isWindows) {
+		candidate = strings.rtrim(candidate, paths.sep);
+
+		// Special case: allow to open drive root ('C:\')
+		if (strings.endsWith(candidate, ':')) {
+			candidate += paths.sep;
+		}
+
+	} else {
+		candidate = strings.rtrim(candidate, paths.sep);
+
+		// Special case: allow to open root ('/')
+		if (!candidate) {
+			candidate = paths.sep;
+		}
+	}
+
+	return candidate;
 }

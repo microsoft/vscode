@@ -19,7 +19,7 @@ import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { LaunchService, LaunchChannel, ILaunchService } from './launch';
+import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -37,16 +37,15 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { ProxyAuthHandler } from './auth';
+import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { CodeWindow } from 'vs/code/electron-main/window';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
@@ -63,10 +62,12 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 import { CodeMenu } from 'vs/code/electron-main/menus';
 import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
+import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
 
 export class CodeApplication {
 
@@ -103,6 +104,10 @@ export class CodeApplication {
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
 		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
+		process.on('SIGPIPE', () => this.onUnexpectedError(new Error('Unexpected SIGPIPE'))); // workaround https://github.com/electron/electron/issues/13254
+
+		// Contextmenu via IPC support
+		registerContextMenuListener();
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -228,8 +233,8 @@ export class CodeApplication {
 			}
 		});
 
-		ipc.on('vscode:labelRegisterFormater', (event: any, { scheme, formater }) => {
-			this.labelService.registerFormatter(scheme, formater);
+		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
+			this.labelService.registerFormatter(data.scheme, data.formatter);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: Event) => {
@@ -261,8 +266,7 @@ export class CodeApplication {
 			return true;
 		}
 
-		const srcUri: any = URI.parse(source.toLowerCase()).toString();
-
+		const srcUri: any = source.toLowerCase();
 		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 	}
 
@@ -293,8 +297,8 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.stateService.setItem(CodeWindow.themeStorageKey, data.baseTheme);
-			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+			this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
+			this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
 		}
 	}
 
@@ -334,7 +338,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+			this.sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
@@ -437,7 +441,7 @@ export class CodeApplication {
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
-		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
+		this.sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
 		const menubarChannel = new MenubarChannel(menubarService);
@@ -450,7 +454,7 @@ export class CodeApplication {
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
-		this.sharedProcessClient.done(client => client.registerChannel('loglevel', logLevelChannel));
+		this.sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
 
 		// Lifecycle
 		this.lifecycleService.ready();
@@ -555,7 +559,15 @@ export class CodeApplication {
 		// Install Menu
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
-		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
+
+		let createNativeMenu = true;
+		if (platform.isLinux) {
+			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
+		} else if (platform.isWindows) {
+			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+		}
+
+		if (createNativeMenu) {
 			instantiationService.createInstance(CodeMenu);
 		}
 

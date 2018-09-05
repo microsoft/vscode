@@ -111,7 +111,7 @@ export class Lock {
 			}).then(c, e);
 
 			return result;
-		}, () => result.cancel());
+		});
 	}
 
 	private getLock(item: Item): LockData {

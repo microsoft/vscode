@@ -137,6 +137,10 @@
 	padding: 0;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label::after {
+	opacity: 0; /* when tab has the focus this shade breaks the tab border (fixes https://github.com/Microsoft/vscode/issues/57819) */
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-description-container {
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
@@ -168,8 +172,9 @@
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
-.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
-	overflow: visible; /* ...but still show the close button on hover and when dirty */
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close,
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close:focus-within {
+	overflow: visible; /* ...but still show the close button on hover, focus and when dirty */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-button-off > .tab-close {
@@ -263,8 +268,13 @@
 	cursor: default;
 }
 
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label {
+	height: 22px;
+	line-height: 22px;
+}
+
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
-	height: 18px; /* tweak the icon size of the editor labels when icons are enabled */
+	height: 22px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item {
@@ -273,6 +283,7 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item::before {
 	min-width: 16px;
+	height: 22px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-breadcrumbs  .breadcrumbs-control .monaco-breadcrumb-item:last-child {

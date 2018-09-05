@@ -25,7 +25,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
-import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
+import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken, timeout } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -553,7 +553,6 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
-		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e) => this.onClick(e))); // >= Chrome 56
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
@@ -668,12 +667,23 @@ export class TreeView extends HeightMap {
 	}
 
 	public getFirstVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop));
-		return item && item.model.getElement();
+		const firstIndex = this.indexAt(this.lastRenderTop);
+		let item = this.itemAtIndex(firstIndex);
+		if (!item) {
+			return item;
+		}
+
+		const itemMidpoint = item.top + item.height / 2;
+		if (itemMidpoint < this.scrollTop) {
+			const nextItem = this.itemAtIndex(firstIndex + 1);
+			item = nextItem || item;
+		}
+
+		return item.model.getElement();
 	}
 
 	public getLastVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight));
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight - 1));
 		return item && item.model.getElement();
 	}
 
@@ -1544,7 +1554,7 @@ export class TreeView extends HeightMap {
 				}
 
 				if (reaction.autoExpand) {
-					const promise = WinJS.TPromise.timeout(500)
+					const promise = WinJS.TPromise.wrap(timeout(500))
 						.then(() => this.context.tree.expand(this.currentDropElement))
 						.then(() => this.shouldInvalidateDropReaction = true);
 

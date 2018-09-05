@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { join, sep } from 'path';
 import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, toWinJsPromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -218,7 +218,7 @@ export class SearchService implements IRawSearchService {
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
-		return toWinJsPromise<[ISerializedSearchSuccess, IRawFileMatch[]]>(
+		return TPromise.wrap<[ISerializedSearchSuccess, IRawFileMatch[]]>(
 			allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
@@ -346,7 +346,7 @@ export class SearchService implements IRawSearchService {
 			});
 		}
 
-		return toWinJsPromise(cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
+		return TPromise.wrap(cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
 			if (token && token.isCancellationRequested) {
 				throw canceled();
 			}
@@ -455,6 +455,9 @@ export class SearchService implements IRawSearchService {
 			}
 			catch(reject?) {
 				return this.then(undefined, reject);
+			}
+			cancelableThen(resolve, reject) {
+				return createCancelablePromise(_ => this.then(resolve, reject));
 			}
 		};
 	}

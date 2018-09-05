@@ -6,7 +6,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -137,11 +136,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError))));
+		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true))));
 
 		// Panels
 		const panels = this.panelService.getPanels();
-		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError))));
+		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true))));
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
@@ -158,9 +157,9 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			tab.terminalInstances.forEach((terminal, terminalIndex) => {
 				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
 				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
-					this.terminalService.showPanel(true).done(() => {
+					this.terminalService.showPanel(true).then(() => {
 						this.terminalService.setActiveInstance(terminal);
-					}, errors.onUnexpectedError);
+					});
 				});
 
 				viewEntries.push(entry);
@@ -168,10 +167,10 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		});
 
 		// Output Channels
-		const channels = this.outputService.getChannels();
+		const channels = this.outputService.getChannelDescriptors();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id).done(null, errors.onUnexpectedError));
+			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id));
 
 			viewEntries.push(entry);
 		});

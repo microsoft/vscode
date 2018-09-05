@@ -7,12 +7,13 @@
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -78,7 +79,7 @@ class SearchOperation {
 	addMatch(match: IFileMatch): void {
 		if (this.matches.has(match.resource.toString())) {
 			// Merge with previous IFileMatches
-			this.matches.get(match.resource.toString()).lineMatches.push(...match.lineMatches);
+			this.matches.get(match.resource.toString()).matches.push(...match.matches);
 		} else {
 			this.matches.set(match.resource.toString(), match);
 		}
@@ -106,34 +107,28 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete> {
-
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {
 		if (isFalsyOrEmpty(query.folderQueries)) {
 			return TPromise.as(undefined);
 		}
 
-		let outer: TPromise;
+		const search = new SearchOperation(onProgress);
+		this._searches.set(search.id, search);
 
-		return new TPromise((resolve, reject) => {
+		const searchP = query.type === QueryType.File
+			? this._proxy.$provideFileSearchResults(this._handle, search.id, query)
+			: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query);
 
-			const search = new SearchOperation(onProgress);
-			this._searches.set(search.id, search);
+		if (token) {
+			token.onCancellationRequested(() => searchP.cancel());
+		}
 
-			outer = query.type === QueryType.File
-				? this._proxy.$provideFileSearchResults(this._handle, search.id, query)
-				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query);
-
-			outer.then((result: ISearchCompleteStats) => {
-				this._searches.delete(search.id);
-				resolve(({ results: values(search.matches), stats: result.stats, limitHit: result.limitHit }));
-			}, err => {
-				this._searches.delete(search.id);
-				reject(err);
-			});
-		}, () => {
-			if (outer) {
-				outer.cancel();
-			}
+		return searchP.then((result: ISearchCompleteStats) => {
+			this._searches.delete(search.id);
+			return { results: values(search.matches), stats: result.stats, limitHit: result.limitHit };
+		}, err => {
+			this._searches.delete(search.id);
+			return TPromise.wrapError(err);
 		});
 	}
 
@@ -149,10 +144,10 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		const searchOp = this._searches.get(session);
 		dataOrUri.forEach(result => {
-			if ((<IRawFileMatch2>result).lineMatches) {
+			if ((<IRawFileMatch2>result).matches) {
 				searchOp.addMatch({
 					resource: URI.revive((<IRawFileMatch2>result).resource),
-					lineMatches: (<IRawFileMatch2>result).lineMatches
+					matches: (<IRawFileMatch2>result).matches
 				});
 			} else {
 				searchOp.addMatch({

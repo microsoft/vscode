@@ -19,7 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, defaultWorkspacePath, defaultFilePath, defaultFolderPath } from 'vs/workbench/browser/actions/workspaceCommands';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class OpenFileAction extends Action {
 

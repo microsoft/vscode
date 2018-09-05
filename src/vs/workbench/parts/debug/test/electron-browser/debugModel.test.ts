@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import { SimpleReplElement, Model, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { Session } from 'vs/workbench/parts/debug/electron-browser/debugSession';
+import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 suite('Debug - Model', () => {
 	let model: Model;
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new Model([], true, [], [], []);
+		model = new Model([], true, [], [], [], <any>{ isDirty: (e: any) => false });
 		rawSession = new MockRawSession();
 	});
 
@@ -109,12 +109,12 @@ suite('Debug - Model', () => {
 	test('threads simple', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
-		const session = new Session('mock', { resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
 		assert.equal(model.getSessions().length, 1);
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: threadId,
 			thread: {
 				id: threadId,
@@ -141,13 +141,13 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		const session = new Session('mock', { resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
 		session['_raw'] = <any>rawSession;
 
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: threadId1,
 			thread: {
 				id: threadId1,
@@ -156,7 +156,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: threadId2,
 			thread: {
 				id: threadId2,
@@ -166,7 +166,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with all threads stopped
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: threadId1,
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -234,14 +234,14 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		const session = new Session('mock', { resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
 		session['_raw'] = <any>rawSession;
 
 		// Add the threads
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: stoppedThreadId,
 			thread: {
 				id: stoppedThreadId,
@@ -250,7 +250,7 @@ suite('Debug - Model', () => {
 		});
 
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: runningThreadId,
 			thread: {
 				id: runningThreadId,
@@ -260,7 +260,7 @@ suite('Debug - Model', () => {
 
 		// Stopped event with only one thread stopped
 		model.rawUpdate({
-			sessionId: 'mock',
+			sessionId: session.getId(),
 			threadId: stoppedThreadId,
 			stoppedDetails: {
 				reason: stoppedReason,
@@ -348,15 +348,15 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const session = new Session('mock', { resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
 		session['_raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		model.addReplExpression(session, stackFrame, 'myVariable').done();
-		model.addReplExpression(session, stackFrame, 'myVariable').done();
-		model.addReplExpression(session, stackFrame, 'myVariable').done();
+		model.addReplExpression(session, stackFrame, 'myVariable').then();
+		model.addReplExpression(session, stackFrame, 'myVariable').then();
+		model.addReplExpression(session, stackFrame, 'myVariable').then();
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {
@@ -370,7 +370,7 @@ suite('Debug - Model', () => {
 	});
 
 	test('stack frame get specific source name', () => {
-		const session = new Session('mock', { resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
 		let firstStackFrame: StackFrame;

@@ -144,11 +144,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
 			]
 		},
-		'breadcrumbs.filterOnType': {
-			description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
-			type: 'boolean',
-			default: false
-		},
+		// 'breadcrumbs.filterOnType': {
+		// 	description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
+		// 	type: 'boolean',
+		// 	default: false
+		// },
 	}
 });
 

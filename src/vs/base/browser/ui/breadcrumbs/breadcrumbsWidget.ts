@@ -5,15 +5,15 @@
 
 'use strict';
 
-import 'vs/css!./breadcrumbsWidget';
 import * as dom from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Color } from 'vs/base/common/color';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { commonPrefixLength } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
 	dispose(): void { }
@@ -107,6 +107,9 @@ export class BreadcrumbsWidget {
 
 	dispose(): void {
 		dispose(this._disposables);
+		this._onDidSelectItem.dispose();
+		this._onDidFocusItem.dispose();
+		this._onDidChangeFocus.dispose();
 		this._domNode.remove();
 		this._disposables.length = 0;
 		this._nodes.length = 0;
@@ -197,23 +200,27 @@ export class BreadcrumbsWidget {
 				node.focus();
 			}
 		}
-		this._reveal(this._focusedItemIdx);
+		this._reveal(this._focusedItemIdx, true);
 		this._onDidFocusItem.fire({ type: 'focus', item: this._items[this._focusedItemIdx], node: this._nodes[this._focusedItemIdx], payload });
 	}
 
 	reveal(item: BreadcrumbsItem): void {
 		let idx = this._items.indexOf(item);
 		if (idx >= 0) {
-			this._reveal(idx);
+			this._reveal(idx, false);
 		}
 	}
 
-	private _reveal(nth: number): void {
+	private _reveal(nth: number, minimal: boolean): void {
 		const node = this._nodes[nth];
 		if (node) {
-			this._scrollable.setRevealOnScroll(false);
-			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
-			this._scrollable.setRevealOnScroll(true);
+			const { width } = this._scrollable.getScrollDimensions();
+			const { scrollLeft } = this._scrollable.getScrollPosition();
+			if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
+				this._scrollable.setRevealOnScroll(false);
+				this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+				this._scrollable.setRevealOnScroll(true);
+			}
 		}
 	}
 

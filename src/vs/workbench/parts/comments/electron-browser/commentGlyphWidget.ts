@@ -30,7 +30,7 @@ export class CommentGlyphWidget {
 			options: this._commentsOptions
 		}];
 
-		this.commentsDecorations = this._editor.getModel().deltaDecorations(this.commentsDecorations, commentsDecorations);
+		this.commentsDecorations = this._editor.deltaDecorations(this.commentsDecorations, commentsDecorations);
 	}
 
 	setLineNumber(lineNumber: number): void {

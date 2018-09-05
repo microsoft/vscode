@@ -3,16 +3,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __assign = (this && this.__assign) || Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-        s = arguments[i];
-        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-            t[p] = s[p];
-    }
-    return t;
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
+var fs = require("fs");
+var glob = require("glob");
+var gulp = require("gulp");
+var path = require("path");
+var File = require("vinyl");
+var vsce = require("vsce");
+var stats_1 = require("./stats");
+var util2 = require("./util");
 var assign = require("object-assign");
 var remote = require("gulp-remote-src");
 var flatmap = require('gulp-flatmap');
@@ -24,13 +35,6 @@ var buffer = require('gulp-buffer');
 var json = require('gulp-json-editor');
 var webpack = require('webpack');
 var webpackGulp = require('webpack-stream');
-var fs = require("fs");
-var path = require("path");
-var vsce = require("vsce");
-var File = require("vinyl");
-var glob = require("glob");
-var gulp = require("gulp");
-var util2 = require("./util");
 var root = path.resolve(path.join(__dirname, '..', '..'));
 function fromLocal(extensionPath, sourceMappingURLBase) {
     var result = es.through();
@@ -44,11 +48,20 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
             contents: fs.createReadStream(filePath)
         }); });
         var filesStream = es.readArray(files);
-        // check for a webpack configuration file, then invoke webpack
+        // check for a webpack configuration files, then invoke webpack
         // and merge its output with the files stream. also rewrite the package.json
         // file to a new entry point
-        if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
-            var packageJsonFilter = filter('package.json', { restore: true });
+        var pattern = path.join(extensionPath, '/**/extension.webpack.config.js');
+        var webpackConfigLocations = glob.sync(pattern, { ignore: ['**/node_modules'] });
+        if (webpackConfigLocations.length) {
+            var packageJsonFilter = filter(function (f) {
+                if (path.basename(f.path) === 'package.json') {
+                    // only modify package.json's next to the webpack file.
+                    // to be safe, use existsSync instead of path comparison.
+                    return fs.existsSync(path.join(path.dirname(f.path), 'extension.webpack.config.js'));
+                }
+                return false;
+            }, { restore: true });
             var patchFilesStream = filesStream
                 .pipe(packageJsonFilter)
                 .pipe(buffer())
@@ -58,44 +71,54 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
                 return data;
             }))
                 .pipe(packageJsonFilter.restore);
-            var webpackConfig = __assign({}, require(path.join(extensionPath, 'extension.webpack.config.js')), { mode: 'production', stats: 'errors-only' });
-            var webpackStream = webpackGulp(webpackConfig, webpack)
-                .pipe(es.through(function (data) {
-                data.stat = data.stat || {};
-                data.base = extensionPath;
-                this.emit('data', data);
-            }))
-                .pipe(es.through(function (data) {
-                // source map handling:
-                // * rewrite sourceMappingURL
-                // * save to disk so that upload-task picks this up
-                if (sourceMappingURLBase) {
-                    var contents = data.contents.toString('utf8');
-                    data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                        return "\n//# sourceMappingURL=" + sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/dist/" + g1;
-                    }), 'utf8');
-                    if (/\.js\.map$/.test(data.path)) {
-                        if (!fs.existsSync(path.dirname(data.path))) {
-                            fs.mkdirSync(path.dirname(data.path));
-                        }
-                        fs.writeFileSync(data.path, data.contents);
+            var webpackStreams = webpackConfigLocations.map(function (webpackConfigPath) {
+                var webpackDone = function (err, stats) {
+                    util.log("Bundled extension: " + util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath))) + "...");
+                    if (err) {
+                        result.emit('error', err);
                     }
-                }
-                this.emit('data', data);
-            }));
-            es.merge(webpackStream, patchFilesStream)
-                // .pipe(es.through(function (data) {
-                // 	// debug
-                // 	console.log('out', data.path, data.contents.length);
-                // 	this.emit('data', data);
-                // }))
-                .pipe(result);
+                    var compilation = stats.compilation;
+                    if (compilation.errors.length > 0) {
+                        result.emit('error', compilation.errors.join('\n'));
+                    }
+                    if (compilation.warnings.length > 0) {
+                        result.emit('error', compilation.warnings.join('\n'));
+                    }
+                };
+                var webpackConfig = __assign({}, require(webpackConfigPath), { mode: 'production' });
+                var relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
+                return webpackGulp(webpackConfig, webpack, webpackDone)
+                    .pipe(es.through(function (data) {
+                    data.stat = data.stat || {};
+                    data.base = extensionPath;
+                    this.emit('data', data);
+                }))
+                    .pipe(es.through(function (data) {
+                    // source map handling:
+                    // * rewrite sourceMappingURL
+                    // * save to disk so that upload-task picks this up
+                    if (sourceMappingURLBase) {
+                        var contents = data.contents.toString('utf8');
+                        data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+                            return "\n//# sourceMappingURL=" + sourceMappingURLBase + "/extensions/" + path.basename(extensionPath) + "/" + relativeOutputPath + "/" + g1;
+                        }), 'utf8');
+                        if (/\.js\.map$/.test(data.path)) {
+                            if (!fs.existsSync(path.dirname(data.path))) {
+                                fs.mkdirSync(path.dirname(data.path));
+                            }
+                            fs.writeFileSync(data.path, data.contents);
+                        }
+                    }
+                    this.emit('data', data);
+                }));
+            });
+            es.merge.apply(es, webpackStreams.concat([patchFilesStream])).pipe(result);
         }
         else {
             filesStream.pipe(result);
         }
     }).catch(function (err) { return result.emit('error', err); });
-    return result;
+    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 exports.fromLocal = fromLocal;
 function error(err) {

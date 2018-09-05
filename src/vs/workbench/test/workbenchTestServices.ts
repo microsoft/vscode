@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
@@ -76,6 +76,7 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { timeout } from 'vs/base/common/async';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -306,6 +307,7 @@ export class TestExtensionService implements IExtensionService {
 	activateByEvent(activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
 	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
 	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
+	getLogsLocations(): TPromise<URI[]> { return TPromise.as([]); }
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
@@ -469,7 +471,7 @@ export class TestPartService implements IPartService {
 
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
-	public getWorkbenchElementId(): string { return ''; }
+	public getWorkbenchElement(): HTMLElement { return void 0; }
 
 	public toggleZenMode(): void { }
 
@@ -824,16 +826,14 @@ export class TestFileService implements IFileService {
 	}
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		return TPromise.timeout(1).then(() => {
-			return {
-				resource,
-				etag: 'index.txt',
-				encoding: 'utf8',
-				mtime: Date.now(),
-				isDirectory: false,
-				name: paths.basename(resource.fsPath)
-			};
-		});
+		return TPromise.wrap(timeout(0).then(() => ({
+			resource,
+			etag: 'index.txt',
+			encoding: 'utf8',
+			mtime: Date.now(),
+			isDirectory: false,
+			name: paths.basename(resource.fsPath)
+		})));
 	}
 
 	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {

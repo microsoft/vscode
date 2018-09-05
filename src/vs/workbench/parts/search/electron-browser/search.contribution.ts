@@ -42,7 +42,7 @@ import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { illegalArgument } from 'vs/base/common/errors';
 import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { relative } from 'path';
 import { dirname } from 'vs/base/common/resources';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -521,6 +521,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL), 'Search: Collapse All', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllSymbolsAction, ShowAllSymbolsAction.ID, ShowAllSymbolsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_T }), 'Go to Symbol in Workspace...');
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshAction, RefreshAction.ID, RefreshAction.LABEL), 'Search: Refresh', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL), 'Search: Clear', category);
 
 
 // Register Quick Open Handler

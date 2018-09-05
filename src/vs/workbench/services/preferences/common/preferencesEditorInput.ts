@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OS } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -82,10 +83,20 @@ export class SettingsEditor2Input extends ResourceEditorInput {
 	public static readonly ID: string = 'workbench.input.settings2';
 
 	constructor(defaultSettingsResource: URI,
+		private _configurationTarget: ConfigurationTarget,
+		private _folderUri: URI | undefined,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {
-		super(nls.localize('settingsEditor2InputName', "Settings (Preview)"), '', defaultSettingsResource, textModelResolverService, hashService);
+		super(nls.localize('settingsEditor2InputName', "Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
+	}
+
+	get configurationTarget(): ConfigurationTarget {
+		return this._configurationTarget;
+	}
+
+	get folderUri(): URI | undefined {
+		return this._folderUri;
 	}
 
 	getTypeId(): string {

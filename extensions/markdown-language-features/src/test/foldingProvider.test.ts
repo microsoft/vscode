@@ -103,6 +103,25 @@ a`);
 		assert.strictEqual(second.end, 9);
 	});
 
+	test('Should fold from list to end of document', async () => {
+		const folds = await getFoldsForDocument(`a
+- b
+c
+d`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('Should fold if list has multiple lines of content', async () => {
+		const folds = await getFoldsForDocument(`a
+- This list item\n  spans multiple\n  lines.`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
 });
 
 

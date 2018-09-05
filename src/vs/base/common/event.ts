@@ -296,20 +296,33 @@ export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 }
 
 export function toPromise<T>(event: Event<T>): Thenable<T> {
-	return new TPromise(complete => {
-		const sub = event(e => {
-			sub.dispose();
-			complete(e);
-		});
-	});
+	return new TPromise(c => once(event)(c));
+}
+
+export function toNativePromise<T>(event: Event<T>): Thenable<T> {
+	return new Promise(c => once(event)(c));
 }
 
 export function once<T>(event: Event<T>): Event<T> {
 	return (listener, thisArgs = null, disposables?) => {
+		// we need this, in case the event fires during the listener call
+		let didFire = false;
+
 		const result = event(e => {
-			result.dispose();
+			if (didFire) {
+				return;
+			} else if (result) {
+				result.dispose();
+			} else {
+				didFire = true;
+			}
+
 			return listener.call(thisArgs, e);
 		}, null, disposables);
+
+		if (didFire) {
+			result.dispose();
+		}
 
 		return result;
 	};

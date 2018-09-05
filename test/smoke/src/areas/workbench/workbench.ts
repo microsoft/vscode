@@ -57,7 +57,7 @@ export class Workbench {
 		this.problems = new Problems(code);
 		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickopen);
 		this.keybindingsEditor = new KeybindingsEditor(code);
-		this.terminal = new Terminal(code);
+		this.terminal = new Terminal(code, this.quickopen);
 	}
 }
 

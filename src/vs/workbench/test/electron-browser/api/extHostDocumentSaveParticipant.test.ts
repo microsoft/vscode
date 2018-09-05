@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';

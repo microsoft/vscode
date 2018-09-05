@@ -166,5 +166,5 @@ export interface IEditorService {
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createInput(input: IResourceEditor, options?: { forceFileInput: boolean }): IEditorInput;
+	createInput(input: IResourceEditor): IEditorInput;
 }

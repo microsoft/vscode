@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as model from 'vs/editor/common/model';
 import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
@@ -1323,7 +1323,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
-				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+				try {
+					this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+				} catch (err) {
+					// emergency recovery => reset tokens
+					this._tokens = new ModelLinesTokens(this._tokens.languageIdentifier, this._tokens.tokenizationSupport);
+				}
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 

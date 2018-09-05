@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { Iterator } from './iterator';
 

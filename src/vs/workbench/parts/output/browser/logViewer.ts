@@ -14,22 +14,23 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
+import { LOG_SCHEME, IOutputChannelDescriptor } from 'vs/workbench/parts/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class LogViewerInput extends ResourceEditorInput {
 
 	public static readonly ID = 'workbench.editorinputs.output';
 
-	constructor(private file: URI,
+	constructor(private outputChannelDescriptor: IOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService
 	) {
-		super(paths.basename(file.fsPath), paths.dirname(file.fsPath), file.with({ scheme: LOG_SCHEME }), textModelResolverService, hashService);
+		super(paths.basename(outputChannelDescriptor.file.path), paths.dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), textModelResolverService, hashService);
 	}
 
 	public getTypeId(): string {
@@ -37,7 +38,7 @@ export class LogViewerInput extends ResourceEditorInput {
 	}
 
 	public getResource(): URI {
-		return this.file;
+		return this.outputChannelDescriptor.file;
 	}
 }
 
@@ -54,9 +55,10 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
