@@ -49,8 +49,11 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 		_: vscode.FoldingContext,
 		_token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[]> {
-		const [regions, sections, lists] = await Promise.all([this.getRegions(document), this.getHeaderFoldingRanges(document), this.getListFoldingRanges(document)]);
-		return [...regions, ...sections, ...lists].slice(0, rangeLimit);
+		const foldables = await Promise.all([
+			this.getRegions(document),
+			this.getHeaderFoldingRanges(document),
+			this.getBlockFoldingRanges(document)]);
+		return [].concat.apply([], foldables).slice(0, rangeLimit);
 	}
 
 	private async getHeaderFoldingRanges(document: vscode.TextDocument) {
@@ -65,13 +68,13 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 		});
 	}
 
-	private async getListFoldingRanges(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
+	private async getBlockFoldingRanges(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
 
-		const isMultiLineListOpen = (token: Token) =>
-			token.type === 'list_item_open' && token.map[1] > token.map[0];
+		const isFoldableToken = (token: Token) =>
+			['fence', 'list_item_open'].indexOf(token.type) >= 0 && token.map[1] > token.map[0];
 
 		const tokens = await this.engine.parse(document.uri, document.getText());
-		const multiLineListItems = tokens.filter(isMultiLineListOpen);
+		const multiLineListItems = tokens.filter(isFoldableToken);
 		return multiLineListItems.map(listItem => {
 			const start = listItem.map[0];
 			const end = listItem.map[1] - 1;
