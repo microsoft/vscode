@@ -971,7 +971,7 @@ export type DecorationData = [number, boolean, string, string, ThemeColor, strin
 export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
-	$provideDecorations(requests: DecorationRequest[]): Thenable<DecorationReply>;
+	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Thenable<DecorationReply>;
 }
 
 export interface ExtHostWindowShape {
