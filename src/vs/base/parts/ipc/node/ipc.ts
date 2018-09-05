@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent, toNativePromise, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 
 export enum RequestType {
@@ -205,10 +205,11 @@ export class ChannelServer implements IChannelServer, IDisposable {
 
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
+		const cancellationTokenSource = new CancellationTokenSource();
 		let promise: TPromise<any>;
 
 		try {
-			promise = channel.call(request.name, request.arg); // TODO cancellationToken
+			promise = channel.call(request.name, request.arg, cancellationTokenSource.token);
 		} catch (err) {
 			promise = TPromise.wrapError(err);
 		}
@@ -234,7 +235,12 @@ export class ChannelServer implements IChannelServer, IDisposable {
 			this.activeRequests.delete(request.id);
 		});
 
-		this.activeRequests.set(request.id, toDisposable(() => requestPromise.cancel()));
+		const disposable = toDisposable(() => {
+			cancellationTokenSource.cancel();
+			requestPromise.cancel();
+		});
+
+		this.activeRequests.set(request.id, disposable);
 	}
 
 	private onEventListen(request: IRawEventListenRequest): void {
