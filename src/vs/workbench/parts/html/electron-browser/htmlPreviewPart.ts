@@ -25,6 +25,7 @@ import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/elect
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface HtmlPreviewEditorViewState {
 	scrollYPercentage: number;
@@ -49,6 +50,9 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	private _scrollYPercentage: number = 0;
 
 	private editorMemento: IEditorMemento<HtmlPreviewEditorViewState>;
+
+	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -118,6 +122,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 					this._scrollYPercentage = data.scrollYPercentage;
 				}),
 			];
+
+			this._register(this._webview.onDidFocus(() => this._onDidFocusWebview.fire()));
 		}
 		return this._webview;
 	}

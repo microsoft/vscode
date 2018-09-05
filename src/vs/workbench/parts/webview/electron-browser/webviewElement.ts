@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -36,6 +36,9 @@ export class WebviewElement extends Disposable {
 	private _findStarted: boolean = false;
 	private _contents: string = '';
 	private _state: string | undefined = undefined;
+
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
 	constructor(
 		private readonly _styleElement: Element,
@@ -331,12 +334,9 @@ export class WebviewElement extends Disposable {
 			}
 		}
 
-		// Workaround for https://github.com/electron/electron/issues/14255:
-		// We emulate the focus event on the <webview> so that clients of this component
-		// can install focus listeners as if the component was a normal HTML element.
-		const event = document.createEvent('FocusEvent');
-		event.initEvent(isFocused ? 'focus' : 'blur');
-		this._webview.dispatchEvent(event);
+		if (isFocused) {
+			this._onDidFocus.fire();
+		}
 	}
 
 	public sendMessage(data: any): void {
