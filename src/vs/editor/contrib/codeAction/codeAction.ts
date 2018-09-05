@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +22,7 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 	};
 
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
+		return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
 				return [];
 			}
