@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { getDefinitionsAtPosition2 } from './goToDefinition';
+import { getDefinitionsAtPosition } from './goToDefinition';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -284,7 +284,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			return TPromise.as(null);
 		}
 
-		return getDefinitionsAtPosition2(model, target.position, token);
+		return getDefinitionsAtPosition(model, target.position, token);
 	}
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {

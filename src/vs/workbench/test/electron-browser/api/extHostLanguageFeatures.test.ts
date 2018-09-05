@@ -276,7 +276,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -300,7 +300,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 2);
 			});
 		});
@@ -322,7 +322,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 2);
 				// let [first, second] = value;
 
@@ -347,7 +347,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -364,7 +364,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getImplementationsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getImplementationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -384,7 +384,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1)).then(value => {
+			return getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
