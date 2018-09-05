@@ -79,7 +79,7 @@ export interface IIPCOptions {
 export class Client implements IChannelClient, IDisposable {
 
 	private disposeDelayer: Delayer<void>;
-	private activeRequests: IDisposable[];
+	private activeRequests = new Set<IDisposable>();
 	private child: ChildProcess;
 	private _client: IPCClient;
 	private channels = new Map<string, IChannel>();
@@ -90,7 +90,6 @@ export class Client implements IChannelClient, IDisposable {
 	constructor(private modulePath: string, private options: IIPCOptions) {
 		const timeout = options && options.timeout ? options.timeout : 60000;
 		this.disposeDelayer = new Delayer<void>(timeout);
-		this.activeRequests = [];
 		this.child = null;
 		this._client = null;
 	}
@@ -113,20 +112,16 @@ export class Client implements IChannelClient, IDisposable {
 
 		const result = new TPromise<void>((c, e) => {
 			request.then(c, e).then(() => {
-				if (!this.activeRequests) {
-					return;
-				}
+				this.activeRequests.delete(disposable);
 
-				this.activeRequests.splice(this.activeRequests.indexOf(disposable), 1);
-
-				if (this.activeRequests.length === 0) {
+				if (this.activeRequests.size === 0) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
 				}
 			});
 		}, () => request.cancel());
 
 		const disposable = toDisposable(() => result.cancel());
-		this.activeRequests.push(disposable);
+		this.activeRequests.add(disposable);
 		return result;
 	}
 
@@ -144,18 +139,13 @@ export class Client implements IChannelClient, IDisposable {
 				const event: Event<T> = channel.listen(name, arg);
 
 				listener = event(emitter.fire, emitter);
-				this.activeRequests.push(listener);
-
+				this.activeRequests.add(listener);
 			},
 			onLastListenerRemove: () => {
-				if (!this.activeRequests) {
-					return;
-				}
-
-				this.activeRequests.splice(this.activeRequests.indexOf(listener), 1);
+				this.activeRequests.delete(listener);
 				listener.dispose();
 
-				if (this.activeRequests.length === 0) {
+				if (this.activeRequests.size === 0) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
 				}
 			}
@@ -219,9 +209,8 @@ export class Client implements IChannelClient, IDisposable {
 			this.child.on('exit', (code: any, signal: any) => {
 				process.removeListener('exit', onExit);
 
-				if (this.activeRequests) {
-					this.activeRequests = dispose(this.activeRequests);
-				}
+				this.activeRequests.forEach(dispose);
+				this.activeRequests.clear();
 
 				if (code !== 0 && signal !== 'SIGTERM') {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
@@ -261,6 +250,6 @@ export class Client implements IChannelClient, IDisposable {
 		this.disposeDelayer.cancel();
 		this.disposeDelayer = null;
 		this.disposeClient();
-		this.activeRequests = null;
+		this.activeRequests.clear();
 	}
 }
