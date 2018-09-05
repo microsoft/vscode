@@ -85,8 +85,8 @@ export interface IChannelClient {
  * channels (each from a separate client) to pick from.
  */
 export interface IClientRouter {
-	routeCall(command: string, arg: any): TPromise<string>;
-	routeEvent(event: string, arg: any): TPromise<string>;
+	routeCall(command: string, arg?: any): TPromise<string>;
+	routeEvent(event: string, arg?: any): TPromise<string>;
 }
 
 /**
@@ -278,10 +278,16 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command: string, arg: any) => this.requestPromise(channelName, command, arg);
-		const listen = (event: string, arg: any) => this.requestEvent(channelName, event, arg);
+		const that = this;
 
-		return { call, listen } as T;
+		return {
+			call(command: string, arg?: any) {
+				return that.requestPromise(channelName, command, arg);
+			},
+			listen(event: string, arg: any) {
+				return that.requestEvent(channelName, event, arg);
+			}
+		} as T;
 	}
 
 	private requestPromise(channelName: string, name: string, arg: any): TPromise<any> {
@@ -469,25 +475,26 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 	}
 
 	getChannel<T extends IChannel>(channelName: string, router: IClientRouter): T {
-		const call = (command: string, arg: any) => {
-			const channelPromise = router.routeCall(command, arg)
-				.then(id => this.getClient(id))
-				.then(client => client.getChannel(channelName));
+		const that = this;
 
-			return getDelayedChannel(channelPromise)
-				.call(command, arg);
-		};
+		return {
+			call(command: string, arg?: any) {
+				const channelPromise = router.routeCall(command, arg)
+					.then(id => that.getClient(id))
+					.then(client => client.getChannel(channelName));
 
-		const listen = (event: string, arg: any) => {
-			const channelPromise = router.routeEvent(event, arg)
-				.then(id => this.getClient(id))
-				.then(client => client.getChannel(channelName));
+				return getDelayedChannel(channelPromise)
+					.call(command, arg);
+			},
+			listen(event: string, arg: any) {
+				const channelPromise = router.routeEvent(event, arg)
+					.then(id => that.getClient(id))
+					.then(client => client.getChannel(channelName));
 
-			return getDelayedChannel(channelPromise)
-				.listen(event, arg);
-		};
-
-		return { call, listen } as T;
+				return getDelayedChannel(channelPromise)
+					.listen(event, arg);
+			}
+		} as T;
 	}
 
 	registerChannel(channelName: string, channel: IChannel): void {
@@ -553,42 +560,44 @@ export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: TPromise<T>): T {
-	const call = (command: string, arg: any) => promise.then(c => c.call(command, arg));
-	const listen = (event: string, arg: any) => {
-		const relay = new Relay<any>();
-		promise.then(c => relay.input = c.listen(event, arg));
-		return relay.event;
-	};
+	return {
+		call(command: string, arg?: any) {
+			return promise.then(c => c.call(command, arg));
+		},
 
-	return { call, listen } as T;
+		listen(event: string, arg: any) {
+			const relay = new Relay<any>();
+			promise.then(c => relay.input = c.listen(event, arg));
+			return relay.event;
+		}
+	} as T;
 }
 
 export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
-	const call = (command: string, arg: any) => {
-		if (didTick) {
-			return channel.call(command, arg);
+	return {
+		call(command: string, arg?: any) {
+			if (didTick) {
+				return channel.call(command, arg);
+			}
+
+			return TPromise.timeout(0)
+				.then(() => didTick = true)
+				.then(() => channel.call(command, arg));
+		},
+		listen(event: string, arg?: any): Event<any> {
+			if (didTick) {
+				return channel.listen(event, arg);
+			}
+
+			const relay = new Relay();
+
+			TPromise.timeout(0)
+				.then(() => didTick = true)
+				.then(() => relay.input = channel.listen(event, arg));
+
+			return relay.event;
 		}
-
-		return TPromise.timeout(0)
-			.then(() => didTick = true)
-			.then(() => channel.call(command, arg));
-	};
-
-	const listen = (event: string, arg: any): Event<any> => {
-		if (didTick) {
-			return channel.listen(event, arg);
-		}
-
-		const relay = new Relay();
-
-		TPromise.timeout(0)
-			.then(() => didTick = true)
-			.then(() => relay.input = channel.listen(event, arg));
-
-		return relay.event;
-	};
-
-	return { call, listen } as T;
+	} as T;
 }
