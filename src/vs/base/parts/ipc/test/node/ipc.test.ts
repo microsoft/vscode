@@ -11,6 +11,7 @@ import { Emitter, toNativePromise, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
+import { timeout } from 'vs/base/common/async';
 
 class QueueProtocol implements IMessagePassingProtocol {
 
@@ -101,9 +102,14 @@ interface ITestService {
 	error(message: string): TPromise<void>;
 	neverComplete(): TPromise<void>;
 	neverCompleteCT(cancellationToken: CancellationToken): TPromise<void>;
+
+	pong: Event<string>;
 }
 
 class TestService implements ITestService {
+
+	private _pong = new Emitter<string>();
+	readonly pong = this._pong.event;
 
 	marco(): TPromise<string> {
 		return TPromise.wrap('polo');
@@ -124,6 +130,10 @@ class TestService implements ITestService {
 
 		return new TPromise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
 	}
+
+	ping(msg: string): void {
+		this._pong.fire(msg);
+	}
 }
 
 interface ITestChannel extends IChannel {
@@ -132,6 +142,8 @@ interface ITestChannel extends IChannel {
 	call(command: 'neverComplete'): TPromise<void>;
 	call(command: 'neverCompleteCT', arg: undefined, cancellationToken: CancellationToken): TPromise<void>;
 	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): TPromise<T>;
+
+	listen(event: 'pong'): Event<string>;
 	listen<T>(event: string, arg?: any): Event<T>;
 }
 
@@ -149,14 +161,19 @@ class TestChannel implements ITestChannel {
 		}
 	}
 
-	listen<T>(event: string, arg?: any): Event<T> {
+	listen(event: string, arg?: any): Event<any> {
 		switch (event) {
+			case 'pong': return this.service.pong;
 			default: throw new Error('not implemented');
 		}
 	}
 }
 
 class TestChannelClient implements ITestService {
+
+	get pong(): Event<string> {
+		return this.channel.listen('pong');
+	}
 
 	constructor(private channel: ITestChannel) { }
 
@@ -198,10 +215,11 @@ suite('Base IPC', function () {
 	suite('one to one', function () {
 		let server: IPCServer;
 		let client: IPCClient;
+		let service: TestService;
 		let ipcService: ITestService;
 
 		setup(function () {
-			const service = new TestService();
+			service = new TestService();
 			const testServer = new TestIPCServer();
 			server = testServer;
 
@@ -280,8 +298,24 @@ suite('Base IPC', function () {
 
 			return promise;
 		});
-	});
 
+		test('listen to events', async function () {
+			const messages = [];
+
+			ipcService.pong(msg => messages.push(msg));
+			await timeout(0);
+
+			assert.deepEqual(messages, []);
+			service.ping('hello');
+			await timeout(0);
+
+			assert.deepEqual(messages, ['hello']);
+			service.ping('world');
+			await timeout(0);
+
+			assert.deepEqual(messages, ['hello', 'world']);
+		});
+	});
 
 	suite('getDelayedChannel', function () {
 
