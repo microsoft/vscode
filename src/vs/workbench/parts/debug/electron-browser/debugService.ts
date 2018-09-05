@@ -309,7 +309,7 @@ export class DebugService implements IDebugService {
 					}));
 				}
 				if (configOrName && !config) {
-					const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName) :
+					const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : JSON.stringify(configOrName)) :
 						nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
 					return TPromise.wrapError(new Error(message));
 				}
@@ -746,7 +746,7 @@ export class DebugService implements IDebugService {
 					if (!taskStarted) {
 						const errorMessage = typeof taskId === 'string'
 							? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
-							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskId);
+							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", JSON.stringify(taskId));
 						e({ severity: severity.Error, message: errorMessage });
 					}
 				}, 10000);

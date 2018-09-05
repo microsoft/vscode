@@ -94,7 +94,7 @@ export class LanguageConfigurationFileHandler {
 			const errors: ParseError[] = [];
 			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
-				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation, errors.join('\n')));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.join('\n')));
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {

@@ -126,7 +126,7 @@ function zipLogs(
 	return new TPromise<string>((resolve, reject) => {
 		doZip(logsPath, outZip, tempDir, (err, stdout, stderr) => {
 			if (err) {
-				console.error(localize('zipError', 'Error zipping logs: {0}', err));
+				console.error(localize('zipError', 'Error zipping logs: {0}', err.message));
 				reject(err);
 			} else {
 				resolve(outZip);
