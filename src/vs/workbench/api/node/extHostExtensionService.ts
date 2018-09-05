@@ -94,7 +94,7 @@ class ExtensionStoragePath {
 		}
 
 		const storageName = this._workspace.id;
-		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+		const storagePath = join(this._environment.appSettingsHome.fsPath, 'workspaceStorage', storageName);
 
 		const exists = await dirExists(storagePath);
 

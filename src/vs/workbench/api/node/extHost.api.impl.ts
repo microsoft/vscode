@@ -229,7 +229,7 @@ export function createApiFactory(
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return platform.language; },
 			get appName() { return product.nameLong; },
-			get appRoot() { return initData.environment.appRoot; },
+			get appRoot() { return initData.environment.appRoot.fsPath; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
 				return extHostLogService.getLevel();

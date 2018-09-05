@@ -389,10 +389,10 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-						appRoot: this._environmentService.appRoot,
-						appSettingsHome: this._environmentService.appSettingsHome,
+						appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : void 0,
+						appSettingsHome: this._environmentService.appSettingsHome ? URI.file(this._environmentService.appSettingsHome) : void 0,
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-						extensionTestsPath: this._environmentService.extensionTestsPath
+						extensionTestsPath: this._environmentService.extensionTestsPath ? URI.file(this._environmentService.extensionTestsPath) : void 0
 					},
 					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 						configuration: workspace.configuration,

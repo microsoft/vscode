@@ -46,10 +46,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
-	appRoot: string;
-	appSettingsHome: string;
+	appRoot: URI;
+	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
-	extensionTestsPath: string;
+	extensionTestsPath: URI;
 }
 
 export interface IWorkspaceData {
