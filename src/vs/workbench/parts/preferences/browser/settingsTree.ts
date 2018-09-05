@@ -612,7 +612,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		const toDispose = [];
 
-		const toolbar = this.renderSettingToolbar(container);
+		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
+		const toolbar = this.renderSettingToolbar(toolbarContainer);
 
 		const template: ISettingItemTemplate = {
 			toDispose,
