@@ -194,4 +194,27 @@ suite('CodeAction', () => {
 			assert.strictEqual(actions[0].title, 'a');
 		}
 	});
+
+	test('getCodeActions should not invoke code action providers filtered out by providedCodeActionKinds', async function () {
+		let wasInvoked = false;
+		const provider = new class implements CodeActionProvider {
+			provideCodeActions() {
+				wasInvoked = true;
+				return [];
+			}
+
+			providedCodeActionKinds = [CodeActionKind.Refactor.value];
+		};
+
+		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
+
+		const actions = await getCodeActions(model, new Range(1, 1, 2, 1), {
+			type: 'auto',
+			filter: {
+				kind: CodeActionKind.QuickFix
+			}
+		});
+		assert.strictEqual(actions.length, 0);
+		assert.strictEqual(wasInvoked, false);
+	});
 });

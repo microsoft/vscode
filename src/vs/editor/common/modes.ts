@@ -388,7 +388,7 @@ export interface CodeActionProvider {
 	/**
 	 * Optional list of of CodeActionKinds that this provider returns.
 	 */
-	providedCodeActionKinds?: string[];
+	providedCodeActionKinds?: ReadonlyArray<string>;
 }
 
 /**

@@ -21,21 +21,26 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 		trigger: trigger && trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
-			if (!Array.isArray(providedCodeActions)) {
-				return [];
-			}
-			return providedCodeActions.filter(action => isValidAction(trigger && trigger.filter, action));
-		}, (err): CodeAction[] => {
-			if (isPromiseCanceledError(err)) {
-				throw err;
-			}
+	const promises = CodeActionProviderRegistry.all(model)
+		.filter(provider => {
+			// Avoid calling providers that we know will not return code actions of interest
+			return !provider.providedCodeActionKinds || provider.providedCodeActionKinds.some(providedKind => isValidActionKind(trigger && trigger.filter, providedKind));
+		})
+		.map(support => {
+			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
+				if (!Array.isArray(providedCodeActions)) {
+					return [];
+				}
+				return providedCodeActions.filter(action => isValidAction(trigger && trigger.filter, action));
+			}, (err): CodeAction[] => {
+				if (isPromiseCanceledError(err)) {
+					throw err;
+				}
 
-			onUnexpectedExternalError(err);
-			return [];
+				onUnexpectedExternalError(err);
+				return [];
+			});
 		});
-	});
 
 	return Promise.all(promises)
 		.then(flatten)
@@ -43,17 +48,17 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 }
 
 function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
-	if (!action) {
-		return false;
-	}
+	return action && isValidActionKind(filter, action.kind);
+}
 
+function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | undefined): boolean {
 	// Filter out actions by kind
-	if (filter && filter.kind && (!action.kind || !filter.kind.contains(action.kind))) {
+	if (filter && filter.kind && (!kind || !filter.kind.contains(kind))) {
 		return false;
 	}
 
 	// Don't return source actions unless they are explicitly requested
-	if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
+	if (kind && CodeActionKind.Source.contains(kind) && (!filter || !filter.includeSourceActions)) {
 		return false;
 	}
 
