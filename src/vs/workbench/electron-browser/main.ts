@@ -14,15 +14,12 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
-import * as paths from 'vs/base/common/paths';
 import { URI as uri } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { stat } from 'vs/base/node/pfs';
-import { normalize, join, isAbsolute } from 'path';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -49,6 +46,7 @@ import { RelayURLService } from 'vs/platform/url/common/urlService';
 import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
+import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -149,19 +147,8 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 	}
 
 	// Ensure absolute existing folder path
-	let absoluteFolderPath = normalize(isAbsolute(folderUri.fsPath) ? folderUri.fsPath : join(process.env['VSCODE_CWD'] || process.cwd(), folderUri.fsPath));
-	return stat(absoluteFolderPath).then(stat => {
-
-		// For some weird reason, node adds a trailing slash to UNC paths
-		// we never ever want trailing slashes as our workspace path unless
-		// someone opens root ("/").
-		// See also https://github.com/nodejs/io.js/issues/1765
-		if (paths.isUNC(absoluteFolderPath) && strings.endsWith(absoluteFolderPath, paths.nativeSep)) {
-			absoluteFolderPath = strings.rtrim(absoluteFolderPath, paths.nativeSep);
-		}
-
-		return uri.file(absoluteFolderPath);
-	}, error => {
+	const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
+	return stat(sanitizedFolderPath).then(stat => uri.file(sanitizedFolderPath), error => {
 		if (verbose) {
 			errors.onUnexpectedError(error);
 		}

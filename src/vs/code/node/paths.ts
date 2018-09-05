@@ -12,6 +12,7 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 
@@ -46,20 +47,20 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			pathCandidate = preparePath(cwd, pathCandidate);
 		}
 
-		const absolutePath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
+		const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
 
-		const basename = path.basename(absolutePath);
+		const basename = path.basename(sanitizedFilePath);
 		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 
 		if (gotoLineMode) {
-			parsedPath.path = absolutePath;
+			parsedPath.path = sanitizedFilePath;
 
 			return toPath(parsedPath);
 		}
 
-		return absolutePath;
+		return sanitizedFilePath;
 	});
 
 	const caseInsensitive = platform.isWindows || platform.isMacintosh;

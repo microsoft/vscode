@@ -580,4 +580,40 @@ suite('Extfs', () => {
 			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});
 	});
+
+	test('sanitizeFilePath', () => {
+		if (isWindows) {
+			assert.equal(extfs.sanitizeFilePath('.', 'C:\\the\\cwd'), 'C:\\the\\cwd');
+			assert.equal(extfs.sanitizeFilePath('', 'C:\\the\\cwd'), 'C:\\the\\cwd');
+
+			assert.equal(extfs.sanitizeFilePath('C:', 'C:\\the\\cwd'), 'C:\\');
+			assert.equal(extfs.sanitizeFilePath('C:\\', 'C:\\the\\cwd'), 'C:\\');
+			assert.equal(extfs.sanitizeFilePath('C:\\\\', 'C:\\the\\cwd'), 'C:\\');
+
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my.txt', 'C:\\the\\cwd'), 'C:\\folder\\my.txt');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my', 'C:\\the\\cwd'), 'C:\\folder\\my');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\..\\my', 'C:\\the\\cwd'), 'C:\\my');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my\\', 'C:\\the\\cwd'), 'C:\\folder\\my');
+			assert.equal(extfs.sanitizeFilePath('C:\\folder\\my\\\\\\', 'C:\\the\\cwd'), 'C:\\folder\\my');
+
+			assert.equal(extfs.sanitizeFilePath('my.txt', 'C:\\the\\cwd'), 'C:\\the\\cwd\\my.txt');
+			assert.equal(extfs.sanitizeFilePath('my.txt\\', 'C:\\the\\cwd'), 'C:\\the\\cwd\\my.txt');
+
+			assert.equal(extfs.sanitizeFilePath('\\\\localhost\\folder\\my', 'C:\\the\\cwd'), '\\\\localhost\\folder\\my');
+			assert.equal(extfs.sanitizeFilePath('\\\\localhost\\folder\\my\\', 'C:\\the\\cwd'), '\\\\localhost\\folder\\my');
+		} else {
+			assert.equal(extfs.sanitizeFilePath('.', '/the/cwd'), '/the/cwd');
+			assert.equal(extfs.sanitizeFilePath('', '/the/cwd'), '/the/cwd');
+			assert.equal(extfs.sanitizeFilePath('/', '/the/cwd'), '/');
+
+			assert.equal(extfs.sanitizeFilePath('/folder/my.txt', '/the/cwd'), '/folder/my.txt');
+			assert.equal(extfs.sanitizeFilePath('/folder/my', '/the/cwd'), '/folder/my');
+			assert.equal(extfs.sanitizeFilePath('/folder/../my', '/the/cwd'), '/my');
+			assert.equal(extfs.sanitizeFilePath('/folder/my/', '/the/cwd'), '/folder/my');
+			assert.equal(extfs.sanitizeFilePath('/folder/my///', '/the/cwd'), '/folder/my');
+
+			assert.equal(extfs.sanitizeFilePath('my.txt', '/the/cwd'), '/the/cwd/my.txt');
+			assert.equal(extfs.sanitizeFilePath('my.txt/', '/the/cwd'), '/the/cwd/my.txt');
+		}
+	});
 });
