@@ -753,9 +753,6 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			// Maybe settings were added, update count
-			this.renderResultCountMessages();
-
 			return this.renderTree();
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
@@ -768,8 +765,6 @@ export class SettingsEditor2 extends BaseEditor {
 			} else {
 				this.tocTree.setInput(this.tocTreeModel);
 			}
-
-			this.renderResultCountMessages();
 		}
 
 		return TPromise.wrap(null);
@@ -823,6 +818,8 @@ export class SettingsEditor2 extends BaseEditor {
 				return TPromise.wrap(null);
 			}
 		}
+
+		this.renderResultCountMessages();
 
 		let refreshP: TPromise<any>;
 		if (key) {
