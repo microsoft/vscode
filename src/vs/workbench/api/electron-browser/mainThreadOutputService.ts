@@ -16,6 +16,8 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService implements MainThreadOutputServiceShape {
 
+	private static _idPool = 1;
+
 	private readonly _outputService: IOutputService;
 	private readonly _partService: IPartService;
 	private readonly _panelService: IPanelService;
@@ -35,9 +37,10 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		// Leave all the existing channels intact (e.g. might help with troubleshooting)
 	}
 
-	public $register(id: string, label: string, file?: UriComponents): TPromise<void> {
+	public $register(label: string, file?: UriComponents): TPromise<string> {
+		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log: false });
-		return TPromise.as(null);
+		return TPromise.as(id);
 	}
 
 	public $append(channelId: string, value: string): TPromise<void> {

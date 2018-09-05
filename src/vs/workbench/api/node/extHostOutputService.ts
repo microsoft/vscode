@@ -9,22 +9,18 @@ import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { posix } from 'path';
 import { OutputAppender } from 'vs/platform/output/node/outputAppender';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export abstract class AbstractExtHostOutputChannel implements vscode.OutputChannel {
 
-	private static _idPool = 1;
-
-	protected readonly _id: string;
+	protected readonly _id: Thenable<string>;
 	private readonly _name: string;
 	protected readonly _proxy: MainThreadOutputServiceShape;
-	protected _registerationPromise: Thenable<void> = TPromise.as(null);
 	private _disposed: boolean;
 
-	constructor(name: string, proxy: MainThreadOutputServiceShape) {
-		this._id = 'extension-output-#' + (AbstractExtHostOutputChannel._idPool++);
+	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
 		this._name = name;
 		this._proxy = proxy;
+		this._id = proxy.$register(this.name, file);
 	}
 
 	get name(): string {
@@ -40,17 +36,17 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 
 	clear(): void {
 		this.validate();
-		this._registerationPromise.then(() => this._proxy.$clear(this._id));
+		this._id.then(id => this._proxy.$clear(id));
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
 		this.validate();
-		this._registerationPromise.then(() => this._proxy.$reveal(this._id, typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus));
+		this._id.then(id => this._proxy.$reveal(id, typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus));
 	}
 
 	hide(): void {
 		this.validate();
-		this._registerationPromise.then(() => this._proxy.$close(this._id));
+		this._id.then(id => this._proxy.$close(id));
 	}
 
 	protected validate(): void {
@@ -61,8 +57,8 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 
 	dispose(): void {
 		if (!this._disposed) {
-			this._registerationPromise
-				.then(() => this._proxy.$dispose(this._id))
+			this._id
+				.then(id => this._proxy.$dispose(id))
 				.then(() => this._disposed = true);
 		}
 	}
@@ -71,26 +67,26 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 export class ExtHostOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, proxy: MainThreadOutputServiceShape) {
-		super(name, proxy);
-		this._registerationPromise = proxy.$register(this._id, name);
+		super(name, null, proxy);
 	}
 
 	append(value: string): void {
 		this.validate();
-		this._registerationPromise.then(() => this._proxy.$append(this._id, value));
+		this._id.then(id => this._proxy.$append(id, value));
 	}
 }
 
 export class ExtHostLoggingOutputChannel extends AbstractExtHostOutputChannel {
 
+	private static _namePool = 1;
 	private _appender: OutputAppender;
 
 	constructor(name: string, outputDir: string, proxy: MainThreadOutputServiceShape) {
-		super(name, proxy);
-		const file = URI.file(posix.join(outputDir, `${this._id}.log`));
-		this._appender = new OutputAppender(this._id, file.fsPath);
-		this._registerationPromise = proxy.$register(this._id, this.name, file);
+		const fileName = `${ExtHostLoggingOutputChannel._namePool++}-${name}`;
+		const file = URI.file(posix.join(outputDir, `${fileName}.log`));
 
+		super(name, file, proxy);
+		this._appender = new OutputAppender(fileName, file.fsPath);
 	}
 
 	append(value: string): void {
