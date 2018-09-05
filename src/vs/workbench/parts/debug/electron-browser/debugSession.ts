@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { ISession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, IRawSession, LoadedSourceEvent } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, IRawDebugSession, LoadedSourceEvent } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, Model } from 'vs/workbench/parts/debug/common/debugModel';
@@ -28,7 +28,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-export class Session implements ISession {
+export class DebugSession implements IDebugSession {
 
 	private id: string;
 
@@ -60,7 +60,7 @@ export class Session implements ISession {
 		return this.id;
 	}
 
-	get raw(): IRawSession {
+	get raw(): IRawDebugSession {
 		return this._raw;
 	}
 

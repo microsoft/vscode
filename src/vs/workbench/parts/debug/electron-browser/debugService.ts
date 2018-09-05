@@ -22,7 +22,6 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
@@ -48,10 +47,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { deepClone, equals } from 'vs/base/common/objects';
-import { Session } from 'vs/workbench/parts/debug/electron-browser/debugSession';
+import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, ISession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -63,13 +62,13 @@ export class DebugService implements IDebugService {
 	_serviceBrand: any;
 
 	private readonly _onDidChangeState: Emitter<State>;
-	private readonly _onDidNewSession: Emitter<ISession>;
-	private readonly _onWillNewSession: Emitter<ISession>;
-	private readonly _onDidEndSession: Emitter<ISession>;
+	private readonly _onDidNewSession: Emitter<IDebugSession>;
+	private readonly _onWillNewSession: Emitter<IDebugSession>;
+	private readonly _onDidEndSession: Emitter<IDebugSession>;
 	private model: Model;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
-	private allSessions = new Map<string, ISession>();
+	private allSessions = new Map<string, IDebugSession>();
 	private toDispose: IDisposable[];
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
@@ -106,9 +105,9 @@ export class DebugService implements IDebugService {
 		this.breakpointsToSendOnResourceSaved = new Set<string>();
 
 		this._onDidChangeState = new Emitter<State>();
-		this._onDidNewSession = new Emitter<ISession>();
-		this._onWillNewSession = new Emitter<ISession>();
-		this._onDidEndSession = new Emitter<ISession>();
+		this._onDidNewSession = new Emitter<IDebugSession>();
+		this._onWillNewSession = new Emitter<IDebugSession>();
+		this._onDidEndSession = new Emitter<IDebugSession>();
 
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager);
 		this.toDispose.push(this.configurationManager);
@@ -128,7 +127,7 @@ export class DebugService implements IDebugService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		this.toDispose.push(this.broadcastService.onBroadcast(broadcast => {
-			const session = <Session>this.getSession(broadcast.payload.debugId);
+			const session = <DebugSession>this.getSession(broadcast.payload.debugId);
 			if (session) {
 				switch (broadcast.channel) {
 
@@ -159,7 +158,7 @@ export class DebugService implements IDebugService {
 		}));
 	}
 
-	getSession(sessionId: string): ISession {
+	getSession(sessionId: string): IDebugSession {
 		return this.allSessions.get(sessionId);
 	}
 
@@ -225,15 +224,15 @@ export class DebugService implements IDebugService {
 		return this._onDidChangeState.event;
 	}
 
-	get onDidNewSession(): Event<ISession> {
+	get onDidNewSession(): Event<IDebugSession> {
 		return this._onDidNewSession.event;
 	}
 
-	get onWillNewSession(): Event<ISession> {
+	get onWillNewSession(): Event<IDebugSession> {
 		return this._onWillNewSession.event;
 	}
 
-	get onDidEndSession(): Event<ISession> {
+	get onDidEndSession(): Event<IDebugSession> {
 		return this._onDidEndSession.event;
 	}
 
@@ -404,14 +403,14 @@ export class DebugService implements IDebugService {
 		return equalsIgnoreCase(config.type, 'extensionhost');
 	}
 
-	private attachExtensionHost(session: Session, port: number): TPromise<void> {
+	private attachExtensionHost(session: DebugSession, port: number): TPromise<void> {
 
 		session.configuration.request = 'attach';
 		session.configuration.port = port;
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 
 		return session.initialize(dbgr).then(() => {
-			(<RawDebugSession>session.raw).attach(session.configuration).then(result => {
+			session.raw.attach(session.configuration).then(result => {
 				this.focusStackFrame(undefined, undefined, session);
 			});
 		});
@@ -419,7 +418,7 @@ export class DebugService implements IDebugService {
 
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<any> {
 
-		const session = this.instantiationService.createInstance(Session, configuration, root, this.model);
+		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
 		this.allSessions.set(session.getId(), session);
 
 		// register listeners as the very first thing!
@@ -434,7 +433,7 @@ export class DebugService implements IDebugService {
 
 		return session.initialize(dbgr).then(() => {
 
-			const raw = <RawDebugSession>session.raw;
+			const raw = session.raw;
 
 			// pass the sessionID for EH debugging
 			if (this.isExtensionHostDebugging(resolved)) {
@@ -511,7 +510,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private registerSessionListeners(session: Session): void {
+	private registerSessionListeners(session: DebugSession): void {
 
 		this.toDispose.push(session.onDidChangeState((state) => {
 			if (state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
@@ -561,9 +560,9 @@ export class DebugService implements IDebugService {
 		}));
 	}
 
-	restartSession(session: ISession, restartData?: any): TPromise<any> {
+	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
-			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
+			const unresolvedConfiguration = (<DebugSession>session).unresolvedConfiguration;
 			if (session.capabilities.supportsRestartRequest) {
 				return this.runTask(session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
 					.then(success => success ? this.runTask(session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
@@ -617,7 +616,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	stopSession(session: ISession): TPromise<any> {
+	stopSession(session: IDebugSession): TPromise<any> {
 
 		if (session) {
 			return session.raw.terminate();
@@ -783,7 +782,7 @@ export class DebugService implements IDebugService {
 		return stackFrameToFocus.openInEditor(this.editorService, true);
 	}
 
-	focusStackFrame(stackFrame: IStackFrame, thread?: IThread, session?: ISession, explicit?: boolean): void {
+	focusStackFrame(stackFrame: IStackFrame, thread?: IThread, session?: IDebugSession, explicit?: boolean): void {
 		if (!session) {
 			if (stackFrame || thread) {
 				session = stackFrame ? stackFrame.thread.session : thread.session;
@@ -824,7 +823,7 @@ export class DebugService implements IDebugService {
 		this.model.removeReplExpressions();
 	}
 
-	private addToRepl(session: ISession, extensionOutput: IRemoteConsoleLog) {
+	private addToRepl(session: IDebugSession, extensionOutput: IRemoteConsoleLog) {
 
 		let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
@@ -998,17 +997,17 @@ export class DebugService implements IDebugService {
 		return this.sendFunctionBreakpoints();
 	}
 
-	sendAllBreakpoints(session?: ISession): TPromise<any> {
+	sendAllBreakpoints(session?: IDebugSession): TPromise<any> {
 		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
 			.then(() => this.sendExceptionBreakpoints(session));
 	}
 
-	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: ISession): TPromise<void> {
+	private sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): TPromise<void> {
 
-		const sendBreakpointsToSession = (session: ISession): TPromise<void> => {
-			const raw = <RawDebugSession>session.raw;
+		const sendBreakpointsToSession = (session: IDebugSession): TPromise<void> => {
+			const raw = session.raw;
 			if (!raw.readyForBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -1051,9 +1050,9 @@ export class DebugService implements IDebugService {
 		return this.sendToOneOrAllSessions(session, sendBreakpointsToSession);
 	}
 
-	private sendFunctionBreakpoints(session?: ISession): TPromise<void> {
-		const sendFunctionBreakpointsToSession = (session: ISession): TPromise<void> => {
-			const raw = <RawDebugSession>session.raw;
+	private sendFunctionBreakpoints(session?: IDebugSession): TPromise<void> {
+		const sendFunctionBreakpointsToSession = (session: IDebugSession): TPromise<void> => {
+			const raw = session.raw;
 			if (!raw.readyForBreakpoints || !raw.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
@@ -1075,9 +1074,9 @@ export class DebugService implements IDebugService {
 		return this.sendToOneOrAllSessions(session, sendFunctionBreakpointsToSession);
 	}
 
-	private sendExceptionBreakpoints(session?: ISession): TPromise<void> {
-		const sendExceptionBreakpointsToSession = (session: ISession): TPromise<any> => {
-			const raw = <RawDebugSession>session.raw;
+	private sendExceptionBreakpoints(session?: IDebugSession): TPromise<void> {
+		const sendExceptionBreakpointsToSession = (session: IDebugSession): TPromise<any> => {
+			const raw = session.raw;
 			if (!raw.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 				return TPromise.as(null);
 			}
@@ -1089,7 +1088,7 @@ export class DebugService implements IDebugService {
 		return this.sendToOneOrAllSessions(session, sendExceptionBreakpointsToSession);
 	}
 
-	private sendToOneOrAllSessions(session: ISession, send: (session: ISession) => TPromise<void>): TPromise<void> {
+	private sendToOneOrAllSessions(session: IDebugSession, send: (session: IDebugSession) => TPromise<void>): TPromise<void> {
 		if (session) {
 			return send(session);
 		}
@@ -1217,7 +1216,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private telemetryDebugSessionStop(session: ISession): TPromise<any> {
+	private telemetryDebugSessionStop(session: IDebugSession): TPromise<any> {
 
 		const breakpoints = this.model.getBreakpoints();
 
@@ -1232,8 +1231,8 @@ export class DebugService implements IDebugService {
 		*/
 		return this.telemetryService.publicLog('debugSessionStop', {
 			type: session && session.configuration.type,
-			success: (<RawDebugSession>session.raw).emittedStopped || breakpoints.length === 0,
-			sessionLengthInSeconds: (<RawDebugSession>session.raw).getLengthInSeconds(),
+			success: session.raw.emittedStopped || breakpoints.length === 0,
+			sessionLengthInSeconds: session.raw.sessionLengthInSeconds,
 			breakpointCount: breakpoints.length,
 			watchExpressionsCount: this.model.getWatchExpressions().length
 		});

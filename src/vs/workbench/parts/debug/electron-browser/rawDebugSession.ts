@@ -15,23 +15,23 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { IRawSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
+import { IRawDebugSession, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
-export class RawDebugSession implements IRawSession {
-
-	public emittedStopped: boolean;
-	public readyForBreakpoints: boolean;
-	public disconnected: boolean;
+export class RawDebugSession implements IRawDebugSession {
 
 	private debugAdapter: IDebugAdapter;
 	private cachedInitDebugAdapterP: TPromise<void>;
 	private startTime: number;
 	private terminated: boolean;
 	private cancellationTokens: CancellationTokenSource[];
-	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
 	private isAttached: boolean;
+
+	private _emittedStopped: boolean;
+	private _readyForBreakpoints: boolean;
+	private _disconnected: boolean;
+	private _capabilities: DebugProtocol.Capabilities;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -57,8 +57,8 @@ export class RawDebugSession implements IRawSession {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService
 	) {
-		this.emittedStopped = false;
-		this.readyForBreakpoints = false;
+		this._emittedStopped = false;
+		this._readyForBreakpoints = false;
 		this.allThreadsContinued = true;
 		this.cancellationTokens = [];
 
@@ -77,7 +77,31 @@ export class RawDebugSession implements IRawSession {
 		this._onDidExitAdapter = new Emitter<Error>();
 	}
 
-	// DAP events
+	public get onDidExitAdapter(): Event<Error> {
+		return this._onDidExitAdapter.event;
+	}
+
+	public get sessionLengthInSeconds(): number {
+		return (new Date().getTime() - this.startTime) / 1000;
+	}
+
+	public get capabilities(): DebugProtocol.Capabilities {
+		return this._capabilities || {};
+	}
+
+	public get readyForBreakpoints(): boolean {
+		return this._readyForBreakpoints;
+	}
+
+	public get emittedStopped(): boolean {
+		return this._emittedStopped;
+	}
+
+	public get disconnected(): boolean {
+		return this._disconnected;
+	}
+
+	//---- DAP events
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
 		return this._onDidInitialize.event;
@@ -123,162 +147,10 @@ export class RawDebugSession implements IRawSession {
 		return this._onDidEvent.event;
 	}
 
-	// DA event
-	public get onDidExitAdapter(): Event<Error> {
-		return this._onDidExitAdapter.event;
-	}
-
-	private startAdapter(): TPromise<void> {
-
-		if (!this.cachedInitDebugAdapterP) {
-
-			const startSessionP = this._debugger.createDebugAdapter(this.root, this.outputService, this.debugServerPort).then(debugAdapter => {
-
-				this.debugAdapter = debugAdapter;
-
-				this.debugAdapter.onError(err => this.onDebugAdapterError(err));
-				this.debugAdapter.onEvent(event => this.onDapEvent(event));
-				this.debugAdapter.onRequest(request => this.dispatchRequest(request));
-				this.debugAdapter.onExit(code => this.onDebugAdapterExit(code));
-
-				return this.debugAdapter.startSession();
-			});
-
-			this.cachedInitDebugAdapterP = startSessionP.then(() => {
-				this.startTime = new Date().getTime();
-			}, err => {
-				this.cachedInitDebugAdapterP = null;
-				return TPromise.wrapError(err);
-			});
-		}
-
-		return this.cachedInitDebugAdapterP;
-	}
-
-	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
-		return this.startAdapter().then(() => {
-
-			const cancellationSource = new CancellationTokenSource();
-
-			const promise = this.internalSend<R>(command, args, cancellationSource.token).then(response => {
-				return response;
-			},
-				(errorResponse: DebugProtocol.ErrorResponse) => {
-					const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
-					const errorMessage = errorResponse ? errorResponse.message : '';
-					const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
-					if (error && error.sendTelemetry) {
-						/* __GDPR__
-							"debugProtocolErrorResponse" : {
-								"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
-						if (this.customTelemetryService) {
-							/* __GDPR__TODO__
-								The message is sent in the name of the adapter but the adapter doesn't know about it.
-								However, since adapters are an open-ended set, we can not declared the events statically either.
-							*/
-							this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
-						}
-					}
-
-					const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
-					if (error && error.url) {
-						const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-						return TPromise.wrapError<R>(errors.create(userMessage, {
-							actions: [new Action('debug.moreInfo', label, null, true, () => {
-								window.open(error.url);
-								return TPromise.as(null);
-							})]
-						}));
-					}
-
-					if (errors.isPromiseCanceledError(errorResponse)) {
-						return TPromise.wrapError<R>(<any>errorResponse);
-					}
-					return TPromise.wrapError<R>(new Error(userMessage));
-				});
-
-			if (cancelOnDisconnect) {
-				this.cancellationTokens.push(cancellationSource);
-			}
-			return promise;
-		});
-	}
-
-	private internalSend<R extends DebugProtocol.Response>(command: string, args: any, cancelationToken: CancellationToken): TPromise<R> {
-		return new TPromise<R>((completeDispatch, errorDispatch) => {
-			cancelationToken.onCancellationRequested(() => errorDispatch(errors.canceled()));
-			this.debugAdapter.sendRequest(command, args, (result: R) => {
-				if (result.success) {
-					completeDispatch(result);
-				} else {
-					errorDispatch(result);
-				}
-			});
-		});
-	}
-
-	private onDapEvent(event: DebugProtocol.Event): void {
-
-		switch (event.event) {
-			case 'initialized':
-				this.readyForBreakpoints = true;
-				this._onDidInitialize.fire(event);
-				break;
-			case 'loadedSource':
-				this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
-				break;
-			case 'capabilities':
-				if (event.body) {
-					const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-					this._capabilities = objects.mixin(this._capabilities, capabilites);
-				}
-				break;
-			case 'stopped':
-				this.emittedStopped = true;
-				this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
-				break;
-			case 'continued':
-				this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued === false ? false : true;
-				this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
-				break;
-			case 'thread':
-				this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
-				break;
-			case 'output':
-				this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
-				break;
-			case 'breakpoint':
-				this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
-				break;
-			case 'terminated':
-				this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
-				break;
-			case 'exit':
-				this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
-				break;
-			default:
-				this._onDidCustomEvent.fire(event);
-				break;
-		}
-		this._onDidEvent.fire(event);
-	}
-
-	public get capabilities(): DebugProtocol.Capabilities {
-		return this._capabilities || {};
-	}
+	//---- DAP requests
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
 		return this.send('initialize', args).then(response => this.readCapabilities(response));
-	}
-
-	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
-		if (response) {
-			this._capabilities = objects.mixin(this._capabilities, response.body);
-		}
-		return response;
 	}
 
 	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
@@ -423,11 +295,118 @@ export class RawDebugSession implements IRawSession {
 		return this.send(request, args);
 	}
 
-	public getLengthInSeconds(): number {
-		return (new Date().getTime() - this.startTime) / 1000;
+	public disconnect(restart = false): TPromise<any> {
+		if (this.disconnected) {
+			return this.stopAdapter();
+		}
+
+		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+		// Give a 1s timeout to give a chance for some promises to complete.
+		setTimeout(() => {
+			this.cancellationTokens.forEach(token => token.cancel());
+			this.cancellationTokens = [];
+		}, 1000);
+
+		if (this.debugAdapter && !this.disconnected) {
+			// point of no return: from now on don't report any errors
+			this._disconnected = true;
+			return this.send('disconnect', { restart }, false).then(() => this.stopAdapter(), () => this.stopAdapter());
+		}
+
+		return TPromise.as(null);
+	}
+
+	//---- private
+
+	private startAdapter(): TPromise<void> {
+
+		if (!this.cachedInitDebugAdapterP) {
+
+			const startSessionP = this._debugger.createDebugAdapter(this.root, this.outputService, this.debugServerPort).then(debugAdapter => {
+
+				this.debugAdapter = debugAdapter;
+
+				this.debugAdapter.onError(err => {
+					// TODO: don't stop server on this layer
+					this.stopAdapter(err);
+				});
+				this.debugAdapter.onEvent(event => this.onDapEvent(event));
+				this.debugAdapter.onExit(code => this.onDebugAdapterExit(code));
+				this.debugAdapter.onRequest(request => this.dispatchRequest(request));
+
+				return this.debugAdapter.startSession();
+			});
+
+			this.cachedInitDebugAdapterP = startSessionP.then(() => {
+				this.startTime = new Date().getTime();
+			}, err => {
+				this.cachedInitDebugAdapterP = null;
+				return TPromise.wrapError(err);
+			});
+		}
+
+		return this.cachedInitDebugAdapterP;
+	}
+
+	private onDapEvent(event: DebugProtocol.Event): void {
+
+		switch (event.event) {
+			case 'initialized':
+				this._readyForBreakpoints = true;
+				this._onDidInitialize.fire(event);
+				break;
+			case 'loadedSource':
+				this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
+				break;
+			case 'capabilities':
+				if (event.body) {
+					const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+					this._capabilities = objects.mixin(this._capabilities, capabilites);
+				}
+				break;
+			case 'stopped':
+				this._emittedStopped = true;
+				this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
+				break;
+			case 'continued':
+				this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued === false ? false : true;
+				this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
+				break;
+			case 'thread':
+				this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
+				break;
+			case 'output':
+				this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
+				break;
+			case 'breakpoint':
+				this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
+				break;
+			case 'terminated':
+				this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
+				break;
+			case 'exit':
+				this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
+				break;
+			default:
+				this._onDidCustomEvent.fire(event);
+				break;
+		}
+		this._onDidEvent.fire(event);
+	}
+
+	private onDebugAdapterExit(code: number): void {
+		this.debugAdapter = null;
+		this.cachedInitDebugAdapterP = null;
+		if (!this.disconnected && code !== 0) {
+			this._onDidExitAdapter.fire(new Error(`exit code: ${code}`));
+		} else {
+			// normal exit
+			this._onDidExitAdapter.fire();
+		}
 	}
 
 	private dispatchRequest(request: DebugProtocol.Request): void {
+
 		const response: DebugProtocol.Response = {
 			type: 'response',
 			seq: 0,
@@ -435,38 +414,107 @@ export class RawDebugSession implements IRawSession {
 			request_seq: request.seq,
 			success: true
 		};
+
 		const sendResponse = (response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
 
-		if (request.command === 'runInTerminal') {
-
-			this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
-				response.body = {};
-				sendResponse(response);
-			}, err => {
+		switch (request.command) {
+			case 'runInTerminal':
+				this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
+					response.body = {};
+					sendResponse(response);
+				}, err => {
+					response.success = false;
+					response.message = err.message;
+					sendResponse(response);
+				});
+				break;
+			case 'handshake':
+				try {
+					const vsda = <any>require.__$__nodeRequire('vsda');
+					const obj = new vsda.signer();
+					const sig = obj.sign(request.arguments.value);
+					response.body = {
+						signature: sig
+					};
+					sendResponse(response);
+				} catch (e) {
+					response.success = false;
+					response.message = e.message;
+					sendResponse(response);
+				}
+				break;
+			default:
 				response.success = false;
-				response.message = err.message;
+				response.message = `unknown request '${request.command}'`;
 				sendResponse(response);
-			});
-
-		} else if (request.command === 'handshake') {
-			try {
-				const vsda = <any>require.__$__nodeRequire('vsda');
-				const obj = new vsda.signer();
-				const sig = obj.sign(request.arguments.value);
-				response.body = {
-					signature: sig
-				};
-				sendResponse(response);
-			} catch (e) {
-				response.success = false;
-				response.message = e.message;
-				sendResponse(response);
-			}
-		} else {
-			response.success = false;
-			response.message = `unknown request '${request.command}'`;
-			sendResponse(response);
+				break;
 		}
+	}
+
+	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
+
+		return this.startAdapter().then(() => {
+
+			const cancellationSource = new CancellationTokenSource();
+
+			const promise = this.internalSend<R>(command, args, cancellationSource.token).then(
+				response => {
+					return response;
+				},
+				(errorResponse: DebugProtocol.ErrorResponse) => {
+
+					if (errors.isPromiseCanceledError(errorResponse)) {
+						return TPromise.wrapError<R>(<any>errorResponse);
+					}
+
+					const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
+					const errorMessage = errorResponse ? errorResponse.message : '';
+
+					if (error && error.sendTelemetry) {
+						const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
+						this.telemetryDebugProtocolErrorResponse(telemetryMessage);
+					}
+
+					const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
+					if (error && error.url) {
+						const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
+						return TPromise.wrapError<R>(errors.create(userMessage, {
+							actions: [new Action('debug.moreInfo', label, null, true, () => {
+								window.open(error.url);
+								return TPromise.as(null);
+							})]
+						}));
+					}
+
+					return TPromise.wrapError<R>(new Error(userMessage));
+				}
+			);
+
+			if (cancelOnDisconnect) {
+				this.cancellationTokens.push(cancellationSource);
+			}
+			return promise;
+		});
+	}
+
+	private internalSend<R extends DebugProtocol.Response>(command: string, args: any, cancelationToken: CancellationToken): TPromise<R> {
+		return new TPromise<R>((completeDispatch, errorDispatch) => {
+			cancelationToken.onCancellationRequested(() => errorDispatch(errors.canceled()));
+			this.debugAdapter.sendRequest(command, args, (result: R) => {
+				if (result.success) {
+					completeDispatch(result);
+				} else {
+					errorDispatch(result);
+				}
+			});
+		});
+	}
+
+	private readCapabilities(response: DebugProtocol.Response): DebugProtocol.Response {
+		if (response) {
+			this._capabilities = objects.mixin(this._capabilities, response.body);
+		}
+		return response;
 	}
 
 	private fireFakeContinued(threadId: number, allThreadsContinued = false): void {
@@ -481,28 +529,7 @@ export class RawDebugSession implements IRawSession {
 		});
 	}
 
-	public disconnect(restart = false): TPromise<any> {
-		if (this.disconnected) {
-			return this.stopServer();
-		}
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		// Give a 1s timeout to give a chance for some promises to complete.
-		setTimeout(() => {
-			this.cancellationTokens.forEach(token => token.cancel());
-			this.cancellationTokens = [];
-		}, 1000);
-
-		if (this.debugAdapter && !this.disconnected) {
-			// point of no return: from now on don't report any errors
-			this.disconnected = true;
-			return this.send('disconnect', { restart }, false).then(() => this.stopServer(), () => this.stopServer());
-		}
-
-		return TPromise.as(null);
-	}
-
-	private stopServer(error?: Error): TPromise<any> {
+	private stopAdapter(error?: Error): TPromise<any> {
 
 		if (/* this.socket !== null */ this.debugAdapter instanceof SocketDebugAdapter) {
 			this.debugAdapter.stopSession();
@@ -510,25 +537,27 @@ export class RawDebugSession implements IRawSession {
 		}
 
 		this._onDidExitAdapter.fire(error);
-		this.disconnected = true;
+		this._disconnected = true;
 		if (!this.debugAdapter || this.debugAdapter instanceof SocketDebugAdapter) {
 			return TPromise.as(null);
 		}
 
 		return this.debugAdapter.stopSession();
 	}
-	private onDebugAdapterError(err: Error): void {
-		this.stopServer(err);
-	}
 
-	private onDebugAdapterExit(code: number): void {
-		this.debugAdapter = null;
-		this.cachedInitDebugAdapterP = null;
-		if (!this.disconnected && code !== 0) {
-			this._onDidExitAdapter.fire(new Error(`exit code: ${code}`));
-		} else {
-			// normal exit
-			this._onDidExitAdapter.fire();
+	private telemetryDebugProtocolErrorResponse(telemetryMessage: string) {
+		/* __GDPR__
+			"debugProtocolErrorResponse" : {
+				"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
+		if (this.customTelemetryService) {
+			/* __GDPR__TODO__
+				The message is sent in the name of the adapter but the adapter doesn't know about it.
+				However, since adapters are an open-ended set, we can not declared the events statically either.
+			*/
+			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
 		}
 	}
 }

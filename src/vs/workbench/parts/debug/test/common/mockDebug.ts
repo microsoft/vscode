@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawDebugSession, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ISuggestion } from 'vs/editor/common/modes';
 
@@ -16,7 +16,7 @@ export class MockDebugService implements IDebugService {
 
 	public _serviceBrand: any;
 
-	getSession(sessionId: string): ISession {
+	getSession(sessionId: string): IDebugSession {
 		return undefined;
 	}
 
@@ -24,15 +24,15 @@ export class MockDebugService implements IDebugService {
 		return null;
 	}
 
-	public get onWillNewSession(): Event<ISession> {
+	public get onWillNewSession(): Event<IDebugSession> {
 		return null;
 	}
 
-	public get onDidNewSession(): Event<ISession> {
+	public get onDidNewSession(): Event<IDebugSession> {
 		return null;
 	}
 
-	public get onDidEndSession(): Event<ISession> {
+	public get onDidEndSession(): Event<IDebugSession> {
 		return null;
 	}
 
@@ -47,7 +47,7 @@ export class MockDebugService implements IDebugService {
 	public focusStackFrame(focusedStackFrame: IStackFrame): void {
 	}
 
-	sendAllBreakpoints(session?: ISession): TPromise<any> {
+	sendAllBreakpoints(session?: IDebugSession): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -126,10 +126,10 @@ export class MockDebugService implements IDebugService {
 	}
 }
 
-export class MockSession implements ISession {
+export class MockSession implements IDebugSession {
 
 	configuration: IConfig = { type: 'mock', request: 'launch' };
-	raw: IRawSession = new MockRawSession();
+	raw: IRawDebugSession = new MockRawSession();
 	state = State.Stopped;
 	root: IWorkspaceFolder;
 
@@ -188,7 +188,11 @@ export class MockSession implements ISession {
 	dispose(): void { }
 }
 
-export class MockRawSession implements IRawSession {
+export class MockRawSession implements IRawDebugSession {
+
+	capabilities: DebugProtocol.Capabilities;
+	disconnected: boolean;
+	sessionLengthInSeconds: number;
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;
@@ -216,6 +220,10 @@ export class MockRawSession implements IRawSession {
 	}
 
 	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
+		return TPromise.as(null);
+	}
+
+	public launch(args: DebugProtocol.LaunchRequestArguments): TPromise<DebugProtocol.LaunchResponse> {
 		return TPromise.as(null);
 	}
 
