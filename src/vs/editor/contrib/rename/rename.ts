@@ -28,7 +28,7 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorS
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 class RenameSkeleton {
@@ -172,7 +172,7 @@ class RenameController implements IEditorContribution {
 
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-			const renameOperation = TPromise.wrap(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(loc.range).getStartPosition()).then(result => {
+			const renameOperation = Promise.resolve(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(loc.range).getStartPosition()).then(result => {
 				if (result.rejectReason) {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
@@ -191,7 +191,7 @@ class RenameController implements IEditorContribution {
 
 			}, err => {
 				this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}));
 
 			this._progressService.showWhile(renameOperation, 250);
@@ -199,7 +199,7 @@ class RenameController implements IEditorContribution {
 
 		}, err => {
 			this._renameInputVisible.reset();
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		});
 	}
 

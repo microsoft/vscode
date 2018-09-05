@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
@@ -271,7 +270,7 @@ export class OpenEditorsView extends ViewletPanel {
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
 				if (isMiddleClick) {
-					element.group.closeEditor(element.editor).done(null, errors.onUnexpectedError);
+					element.group.closeEditor(element.editor);
 				} else {
 					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 				}
@@ -380,11 +379,11 @@ export class OpenEditorsView extends ViewletPanel {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).done(editor => {
+			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 				if (!preserveActivateGroup) {
 					this.editorGroupService.activateGroup(editor.group);
 				}
-			}, errors.onUnexpectedError);
+			});
 		}
 	}
 

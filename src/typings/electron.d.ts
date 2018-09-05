@@ -8774,24 +8774,6 @@ declare namespace Electron {
 		 */
 		fantasy?: string;
 	}
-
-	// ### BEGIN VSCODE ADDITION ###
-	type MenuItemRole = 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'pasteandmatchstyle' | 'selectall' | 'delete' | 'minimize' | 'close' | 'quit' | 'togglefullscreen' | 'resetzoom' | 'zoomin' | 'zoomout' | 'about' | 'hide' | 'hideothers' | 'unhide' | 'startspeaking' | 'stopspeaking' | 'front' | 'zoom' | 'window' | 'help' | 'services';
-
-	interface LoginRequest {
-		method: string;
-		url: string;
-		referrer: string;
-	}
-
-	interface LoginAuthInfo {
-		isProxy: boolean;
-		scheme: string;
-		host: string;
-		port: number;
-		realm: string;
-	}
-	// ### END VSCODE ADDITION ###
 }
 
 declare module 'electron' {

@@ -22,14 +22,14 @@ import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smar
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { parseTree, Node } from 'vs/base/common/json';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { WindowsNativeResolvedKeybinding } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from 'vs/editor/common/model';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_ERROR_MESSAGE = nls.localize('defineKeybinding.kbLayoutErrorMessage', "You won't be able to produce this key combination under your current keyboard layout.");
@@ -262,8 +262,8 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 			return true;
 		}
 
-		const [parsedA1, parsedA2] = KeybindingIO._readUserBinding(a);
-		const [parsedB1, parsedB2] = KeybindingIO._readUserBinding(b);
+		const [parsedA1, parsedA2] = KeybindingParser.parseUserBinding(a);
+		const [parsedB1, parsedB2] = KeybindingParser.parseUserBinding(b);
 
 		return (
 			this._userBindingEquals(parsedA1, parsedB1)

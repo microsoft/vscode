@@ -338,7 +338,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			} else {
 				onUnexpectedError(err);
 			}
-		}).done(null, onUnexpectedError);
+		});
 	}
 
 	public getLinkOccurrence(position: Position): LinkOccurrence {

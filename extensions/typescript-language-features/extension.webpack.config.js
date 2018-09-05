@@ -11,9 +11,6 @@ const withDefaults = require('../shared.webpack.config');
 
 module.exports = withDefaults({
 	context: __dirname,
-	node: {
-		__dirname: false,
-	},
 	resolve: {
 		mainFields: ['module', 'main']
 	},

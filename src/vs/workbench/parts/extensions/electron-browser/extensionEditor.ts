@@ -32,7 +32,6 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -50,6 +49,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -336,7 +336,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.publisher.onclick = finalHandler(() => {
 				this.viewletService.openViewlet(VIEWLET_ID, true)
 					.then(viewlet => viewlet as IExtensionsViewlet)
-					.done(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
+					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			});
 
 			if (extension.licenseUrl) {
@@ -499,6 +499,7 @@ export class ExtensionEditor extends BaseEditor {
 					}
 				}, null, this.contentDisposables);
 				this.contentDisposables.push(this.activeWebview);
+				this.activeWebview.focus();
 			})
 			.then(null, () => {
 				const p = append(this.content, $('p.nocontent'));
@@ -515,9 +516,9 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	private openContributions(): void {
+		const content = $('div', { class: 'subcontent', tabindex: '0' });
 		this.loadContents(() => this.extensionManifest.get())
 			.then(manifest => {
-				const content = $('div', { class: 'subcontent' });
 				const scrollableContent = new DomScrollableElement(content, {});
 
 				const layout = () => scrollableContent.scanDomNode();
@@ -542,14 +543,17 @@ export class ExtensionEditor extends BaseEditor {
 				scrollableContent.scanDomNode();
 
 				if (isEmpty) {
-					append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-					return;
+					append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+					append(this.content, content);
 				} else {
 					append(this.content, scrollableContent.getDomNode());
 					this.contentDisposables.push(scrollableContent);
 				}
+				content.focus();
 			}, () => {
-				append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+				append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
+				append(this.content, content);
+				content.focus();
 			});
 	}
 
@@ -577,6 +581,7 @@ export class ExtensionEditor extends BaseEditor {
 
 				this.contentDisposables.push(dependenciesTree);
 				scrollableContent.scanDomNode();
+				dependenciesTree.domFocus();
 			}, error => {
 				append(this.content, $('p.nocontent')).textContent = error;
 				this.notificationService.error(error);
@@ -618,17 +623,18 @@ export class ExtensionEditor extends BaseEditor {
 		append(this.content, scrollableContent.getDomNode());
 		this.contentDisposables.push(scrollableContent);
 
-		const dependenciesTree = this.renderExtensionPack(content, extension);
+		const extensionsPackTree = this.renderExtensionPack(content, extension);
 		const layout = () => {
 			scrollableContent.scanDomNode();
 			const scrollDimensions = scrollableContent.getScrollDimensions();
-			dependenciesTree.layout(scrollDimensions.height);
+			extensionsPackTree.layout(scrollDimensions.height);
 		};
 		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
 		this.contentDisposables.push(toDisposable(removeLayoutParticipant));
 
-		this.contentDisposables.push(dependenciesTree);
+		this.contentDisposables.push(extensionsPackTree);
 		scrollableContent.scanDomNode();
+		extensionsPackTree.domFocus();
 	}
 
 	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
@@ -927,7 +933,7 @@ export class ExtensionEditor extends BaseEditor {
 			});
 		});
 
-		const rawKeybindings = contributes && contributes.keybindings || [];
+		const rawKeybindings = contributes && contributes.keybindings ? (Array.isArray(contributes.keybindings) ? contributes.keybindings : [contributes.keybindings]) : [];
 
 		rawKeybindings.forEach(rawKeybinding => {
 			const keybinding = this.resolveKeybinding(rawKeybinding);
@@ -1057,7 +1063,7 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
+		const keyBinding = KeybindingParser.parseKeybinding(key || rawKeyBinding.key, OS);
 		if (!keyBinding) {
 			return null;
 		}

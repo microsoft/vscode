@@ -13,7 +13,7 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 

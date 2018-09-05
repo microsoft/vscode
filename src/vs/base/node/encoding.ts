@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable, WritableOptions } from 'stream';
-import { toWinJsPromise } from 'vs/base/common/async';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -194,7 +193,7 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
  * Guesses the encoding from buffer.
  */
 export function guessEncodingByBuffer(buffer: Buffer): TPromise<string> {
-	return toWinJsPromise(import('jschardet')).then(jschardet => {
+	return TPromise.wrap(import('jschardet')).then(jschardet => {
 		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 		const guessed = jschardet.detect(buffer);

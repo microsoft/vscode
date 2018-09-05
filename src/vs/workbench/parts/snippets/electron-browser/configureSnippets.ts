@@ -14,7 +14,7 @@ import { join, basename, dirname, extname } from 'path';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { values } from 'vs/base/common/map';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';

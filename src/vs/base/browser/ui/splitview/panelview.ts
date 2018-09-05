@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./panelview';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -43,7 +43,11 @@ export abstract class Panel implements IView {
 
 	private static readonly HEADER_SIZE = 22;
 
+	readonly element: HTMLElement;
+
 	protected _expanded: boolean;
+	protected disposables: IDisposable[] = [];
+
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
 	private _minimumBodySize: number;
@@ -51,9 +55,7 @@ export abstract class Panel implements IView {
 	private ariaHeaderLabel: string;
 	private styles: IPanelStyles = {};
 
-	readonly element: HTMLElement;
 	private header: HTMLElement;
-	protected disposables: IDisposable[] = [];
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
@@ -226,6 +228,8 @@ export abstract class Panel implements IView {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+
+		this._onDidChange.dispose();
 	}
 }
 
@@ -233,24 +237,24 @@ interface IDndContext {
 	draggable: PanelDraggable | null;
 }
 
-class PanelDraggable implements IDisposable {
+class PanelDraggable extends Disposable {
 
 	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
-	// see https://github.com/Microsoft/vscode/issues/14470
-	private dragOverCounter = 0;
-	private disposables: IDisposable[] = [];
+	private dragOverCounter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 
-	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
+	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
 	readonly onDidDrop = this._onDidDrop.event;
 
 	constructor(private panel: Panel, private dnd: IPanelDndController, private context: IDndContext) {
+		super();
+
 		panel.draggableElement.draggable = true;
-		domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'dragleave')(this.onDragLeave, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'dragend')(this.onDragEnd, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'drop')(this.onDrop, this, this.disposables);
+		this._register(domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this));
+		this._register(domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this));
+		this._register(domEvent(panel.dropTargetElement, 'dragleave')(this.onDragLeave, this));
+		this._register(domEvent(panel.dropTargetElement, 'dragend')(this.onDragEnd, this));
+		this._register(domEvent(panel.dropTargetElement, 'drop')(this.onDrop, this));
 	}
 
 	private onDragStart(e: DragEvent): void {
@@ -332,10 +336,6 @@ class PanelDraggable implements IDisposable {
 
 		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
 	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-	}
 }
 
 export interface IPanelDndController {
@@ -363,7 +363,7 @@ interface IPanelItem {
 	disposable: IDisposable;
 }
 
-export class PanelView implements IDisposable {
+export class PanelView extends Disposable {
 
 	private dnd: IPanelDndController | null;
 	private dndContext: IDndContext = { draggable: null };
@@ -372,15 +372,17 @@ export class PanelView implements IDisposable {
 	private splitview: SplitView;
 	private animationTimer: number | null = null;
 
-	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
+	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
 	readonly onDidSashChange: Event<number>;
 
 	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
+		super();
+
 		this.dnd = options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
-		this.splitview = new SplitView(this.el);
+		this.splitview = this._register(new SplitView(this.el));
 		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 
@@ -470,7 +472,8 @@ export class PanelView implements IDisposable {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		this.panelItems.forEach(i => i.disposable.dispose());
-		this.splitview.dispose();
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, coalesce } from 'vs/base/common/arrays';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -36,9 +36,37 @@ function getDefinitions<T>(
 		.then(references => coalesce(references));
 }
 
+function getDefinitions2<T>(
+	model: ITextModel,
+	position: Position,
+	registry: LanguageFeatureRegistry<T>,
+	provide: (provider: T, model: ITextModel, position: Position) => DefinitionLink | DefinitionLink[] | Thenable<DefinitionLink | DefinitionLink[]>
+): Thenable<DefinitionLink[]> {
+	const provider = registry.ordered(model);
+
+	// get results
+	const promises = provider.map((provider): Thenable<DefinitionLink | DefinitionLink[]> => {
+		return asThenable(() => {
+			return provide(provider, model, position);
+		}).then(undefined, err => {
+			onUnexpectedExternalError(err);
+			return null;
+		});
+	});
+	return TPromise.join(promises)
+		.then(flatten)
+		.then(references => coalesce(references));
+}
+
 
 export function getDefinitionsAtPosition(model: ITextModel, position: Position): TPromise<DefinitionLink[]> {
 	return getDefinitions(model, position, DefinitionProviderRegistry, (provider, model, position, token) => {
+		return provider.provideDefinition(model, position, token);
+	});
+}
+
+export function getDefinitionsAtPosition2(model: ITextModel, position: Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+	return getDefinitions2(model, position, DefinitionProviderRegistry, (provider, model, position) => {
 		return provider.provideDefinition(model, position, token);
 	});
 }

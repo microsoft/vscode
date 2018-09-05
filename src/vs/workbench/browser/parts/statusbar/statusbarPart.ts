@@ -27,7 +27,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener, removeNode } from 'vs/base/browser/dom';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class StatusbarPart extends Part implements IStatusbarService {
@@ -86,7 +86,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		return toDisposable(() => {
-			removeNode(el);
+			el.remove();
 
 			if (toDispose) {
 				toDispose.dispose();
@@ -306,7 +306,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 			}
 		*/
 		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
-		this.commandService.executeCommand(id, ...args).done(undefined, err => this.notificationService.error(toErrorMessage(err)));
+		this.commandService.executeCommand(id, ...args).then(undefined, err => this.notificationService.error(toErrorMessage(err)));
 	}
 }
 

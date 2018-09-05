@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, EDITOR_CONTRIBUTION_ID, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
@@ -106,15 +105,15 @@ export class BreakpointsView extends ViewletPanel {
 
 			if (isMiddleClick) {
 				if (element instanceof Breakpoint) {
-					this.debugService.removeBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+					this.debugService.removeBreakpoints(element.getId());
 				} else if (element instanceof FunctionBreakpoint) {
-					this.debugService.removeFunctionBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+					this.debugService.removeFunctionBreakpoints(element.getId());
 				}
 				return;
 			}
 
 			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService).done(undefined, onUnexpectedError);
+				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService);
 			}
 			if (isDoubleClick && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
@@ -498,9 +497,9 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 				template.reactedOnEvent = true;
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
 				if (inputBox.value && (renamed || template.breakpoint.name)) {
-					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
+					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name);
 				} else {
-					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId());
 				}
 			}
 		};

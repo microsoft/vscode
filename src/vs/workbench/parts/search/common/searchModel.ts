@@ -10,7 +10,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree, values } from 'vs/base/common/map';
 import * as objects from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -24,6 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class Match {
 
@@ -229,10 +230,7 @@ export class FileMatch extends Disposable {
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean) {
 		matches.forEach(m => {
-			const textSearchResult = new TextSearchResult(
-				this._model.getLineContent(m.range.startLineNumber),
-				new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.startLineNumber - 1, m.range.endColumn - 1),
-				this._previewOptions);
+			const textSearchResult = editorMatchToTextSearchResult(m, this._model, this._previewOptions);
 			const match = new Match(this, textSearchResult);
 
 			if (!this._removedMatches.has(match.id())) {
@@ -733,7 +731,7 @@ export class SearchModel extends Disposable {
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
-	private currentRequest: TPromise<ISearchComplete>;
+	private currentCancelTokenSource: CancellationTokenSource;
 
 	constructor(@ISearchService private searchService: ISearchService, @ITelemetryService private telemetryService: ITelemetryService, @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
@@ -778,7 +776,8 @@ export class SearchModel extends Disposable {
 		const progressEmitter = new Emitter<void>();
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
-		this.currentRequest = this.searchService.search(this._searchQuery, p => {
+		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
+		const currentRequest = this.searchService.search(this._searchQuery, this.currentCancelTokenSource.token, p => {
 			progressEmitter.fire();
 			this.onSearchProgress(p);
 
@@ -787,7 +786,10 @@ export class SearchModel extends Disposable {
 			}
 		});
 
-		const onDone = fromPromise(this.currentRequest);
+		const dispose = () => tokenSource.dispose();
+		currentRequest.then(dispose, dispose);
+
+		const onDone = fromPromise(currentRequest);
 		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
@@ -807,18 +809,14 @@ export class SearchModel extends Disposable {
 		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
-		const currentRequest = this.currentRequest;
-		this.currentRequest.then(
+		currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
 
-		// this.currentRequest may be completed (and nulled) immediately
 		return currentRequest;
 	}
 
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
-		this.currentRequest = null;
-
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 
@@ -866,9 +864,8 @@ export class SearchModel extends Disposable {
 	}
 
 	public cancelSearch(): boolean {
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-			this.currentRequest = null;
+		if (this.currentCancelTokenSource) {
+			this.currentCancelTokenSource.cancel();
 			return true;
 		}
 		return false;
@@ -985,4 +982,21 @@ export class RangeHighlightDecorations implements IDisposable {
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
+}
+
+/**
+ * While search doesn't support multiline matches, collapse editor matches to a single line
+ */
+export function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
+	let endLineNumber = match.range.endLineNumber - 1;
+	let endCol = match.range.endColumn - 1;
+	if (match.range.endLineNumber !== match.range.startLineNumber) {
+		endLineNumber = match.range.startLineNumber - 1;
+		endCol = model.getLineLength(match.range.startLineNumber);
+	}
+
+	return new TextSearchResult(
+		model.getLineContent(match.range.startLineNumber),
+		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, endLineNumber, endCol),
+		previewOptions);
 }

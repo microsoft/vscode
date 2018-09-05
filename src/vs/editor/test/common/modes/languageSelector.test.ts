@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { score } from 'vs/editor/common/modes/languageSelector';
 
 suite('LanguageSelector', function () {

@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, ISession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds, Model } from 'vs/workbench/parts/debug/common/debugModel';
@@ -83,7 +82,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 
 			this.needsRefresh = false;
 			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput))
-				.done(() => this.updateTreeSelection(), errors.onUnexpectedError);
+				.then(() => this.updateTreeSelection());
 		}, 50);
 	}
 
@@ -122,7 +121,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 			const element = e.element;
 			if (element instanceof StackFrame) {
 				this.debugService.focusStackFrame(element, element.thread, element.thread.session, true);
-				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 			}
 			if (element instanceof Thread) {
 				this.debugService.focusStackFrame(undefined, element, element.session, true);
@@ -135,7 +134,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
-						.done(() => this.tree.refresh(), errors.onUnexpectedError);
+						.then(() => this.tree.refresh());
 				}
 			}
 		}));
@@ -168,7 +167,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				return;
 			}
 
-			this.updateTreeSelection().done(undefined, errors.onUnexpectedError);
+			this.updateTreeSelection();
 		}));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684

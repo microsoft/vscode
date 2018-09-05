@@ -14,7 +14,7 @@ import product from 'vs/platform/node/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';

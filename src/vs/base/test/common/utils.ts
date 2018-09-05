@@ -6,7 +6,7 @@
 'use strict';
 
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 
 export class DeferredTPromise<T> extends TPromise<T> {

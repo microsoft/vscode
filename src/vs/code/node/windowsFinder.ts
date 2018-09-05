@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 export interface ISimpleWindow {

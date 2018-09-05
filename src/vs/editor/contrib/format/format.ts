@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';

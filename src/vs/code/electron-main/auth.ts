@@ -14,8 +14,8 @@ import { BrowserWindow, app } from 'electron';
 type LoginEvent = {
 	event: Electron.Event;
 	webContents: Electron.WebContents;
-	req: Electron.LoginRequest;
-	authInfo: Electron.LoginAuthInfo;
+	req: Electron.Request;
+	authInfo: Electron.AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 

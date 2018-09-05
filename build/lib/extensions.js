@@ -3,13 +3,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-var __assign = (this && this.__assign) || Object.assign || function(t) {
-    for (var s, i = 1, n = arguments.length; i < n; i++) {
-        s = arguments[i];
-        for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-            t[p] = s[p];
-    }
-    return t;
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
@@ -19,6 +22,7 @@ var gulp = require("gulp");
 var path = require("path");
 var File = require("vinyl");
 var vsce = require("vsce");
+var stats_1 = require("./stats");
 var util2 = require("./util");
 var assign = require("object-assign");
 var remote = require("gulp-remote-src");
@@ -114,7 +118,7 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
             filesStream.pipe(result);
         }
     }).catch(function (err) { return result.emit('error', err); });
-    return result;
+    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 exports.fromLocal = fromLocal;
 function error(err) {

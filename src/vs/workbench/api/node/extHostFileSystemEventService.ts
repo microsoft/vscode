@@ -7,7 +7,7 @@
 import { flatten } from 'vs/base/common/arrays';
 import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';

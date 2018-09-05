@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -355,11 +355,11 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		}
 	}
 
-	protected _updateEnabled(): void {
+	protected updateEnabled(): void {
 		this.update();
 	}
 
-	protected _updateChecked(): void {
+	protected updateChecked(): void {
 		this.update();
 	}
 

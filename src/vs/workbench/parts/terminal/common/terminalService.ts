@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -325,7 +324,7 @@ export abstract class TerminalService implements ITerminalService {
 	public hidePanel(): void {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
+			this._partService.setPanelHidden(true);
 		}
 	}
 

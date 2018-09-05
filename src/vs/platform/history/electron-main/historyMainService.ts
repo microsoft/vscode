@@ -19,7 +19,7 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { getComparisonKey, isEqual as areResourcesEqual, dirname } from 'vs/base/common/resources';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 
@@ -60,6 +60,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private registerListeners(): void {
 		this.workspacesMainService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+		this.labelService.onDidRegisterFormatter(() => this._onRecentlyOpenedChange.fire());
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {

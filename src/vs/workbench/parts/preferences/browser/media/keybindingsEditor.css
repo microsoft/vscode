@@ -152,6 +152,11 @@
 	font-weight: bold;
 }
 
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column .highlight,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected.focused > .column .highlight {
+	color: inherit;
+}
+
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar {
 	display: none;
 	flex: 1;

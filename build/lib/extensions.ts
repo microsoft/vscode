@@ -11,6 +11,7 @@ import * as path from 'path';
 import { Stream } from 'stream';
 import * as File from 'vinyl';
 import * as vsce from 'vsce';
+import { createStatsStream } from './stats';
 import * as util2 from './util';
 import assign = require('object-assign');
 import remote = require('gulp-remote-src');
@@ -131,7 +132,7 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 
 	}).catch(err => result.emit('error', err));
 
-	return result;
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
 function error(err: any): Stream {

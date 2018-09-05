@@ -7,7 +7,7 @@ import * as os from 'os';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';

@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TPromise } from 'vs/base/common/winjs.base';

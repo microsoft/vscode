@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { IFileMatch, IPatternInfo, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, QueryType } from 'vs/platform/search/common/search';

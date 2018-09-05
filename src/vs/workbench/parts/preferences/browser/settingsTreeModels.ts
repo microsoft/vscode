@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -484,4 +484,30 @@ export class SearchResultModel extends SettingsTreeModel {
 
 		return flatSettings;
 	}
+}
+
+export interface IParsedQuery {
+	tags: string[];
+	query: string;
+}
+
+const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
+export function parseQuery(query: string): IParsedQuery {
+	const tags: string[] = [];
+	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
+		tags.push(tag || quotedTag);
+		return '';
+	});
+
+	query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
+		tags.push(MODIFIED_SETTING_TAG);
+		return '';
+	});
+
+	query = query.trim();
+
+	return {
+		tags,
+		query
+	};
 }

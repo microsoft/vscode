@@ -39,7 +39,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
 import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
 import { ILabelService } from 'vs/platform/label/common/label';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IExtensionHostStarter {
@@ -74,6 +74,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	constructor(
 		private readonly _extensions: TPromise<IExtensionDescription[]>,
+		private readonly _logsLocation: TPromise<URI>,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -272,8 +273,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	/**
 	 * Start a server (`this._namedPipeServer`) that listens on a named pipe and return the named pipe name.
 	 */
-	private _tryListenOnPipe(): TPromise<string> {
-		return new TPromise<string>((resolve, reject) => {
+	private _tryListenOnPipe(): Promise<string> {
+		return new Promise<string>((resolve, reject) => {
 			const pipeName = generateRandomPipeName();
 
 			this._namedPipeServer = createServer();
@@ -288,15 +289,15 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	/**
 	 * Find a free port if extension host debugging is enabled.
 	 */
-	private _tryFindDebugPort(): TPromise<{ expected: number; actual: number }> {
+	private _tryFindDebugPort(): Promise<{ expected: number; actual: number }> {
 		let expected: number;
 		let startPort = 9333;
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
 		} else {
-			return TPromise.as({ expected: undefined, actual: 0 });
+			return Promise.resolve({ expected: undefined, actual: 0 });
 		}
-		return new TPromise((c, e) => {
+		return new Promise(resolve => {
 			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
@@ -310,7 +311,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
 					}
 				}
-				return c({ expected, actual: port });
+				return resolve({ expected, actual: port });
 			});
 		});
 	}
@@ -375,34 +376,35 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	}
 
 	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions]).then(([telemetryInfo, extensionDescriptions]) => {
-			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
-			const workspace = this._contextService.getWorkspace();
-			const r: IInitData = {
-				parentPid: process.pid,
-				environment: {
-					isExtensionDevelopmentDebug: this._isExtensionDevDebug,
-					appRoot: this._environmentService.appRoot,
-					appSettingsHome: this._environmentService.appSettingsHome,
-					extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-					extensionTestsPath: this._environmentService.extensionTestsPath
-				},
-				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
-					configuration: workspace.configuration,
-					folders: workspace.folders,
-					id: workspace.id,
-					name: this._labelService.getWorkspaceLabel(workspace)
-				},
-				extensions: extensionDescriptions,
-				// Send configurations scopes only in development mode.
-				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
-				telemetryInfo,
-				windowId: this._windowService.getCurrentWindowId(),
-				logLevel: this._logService.getLevel(),
-				logsPath: this._environmentService.logsPath
-			};
-			return r;
-		});
+		const promises: TPromise[] = [this._telemetryService.getTelemetryInfo(), this._extensions, this._logsLocation];
+		return TPromise.join(promises)
+			.then(([telemetryInfo, extensionDescriptions, logsLocation]) => {
+				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
+				const workspace = this._contextService.getWorkspace();
+				const r: IInitData = {
+					parentPid: process.pid,
+					environment: {
+						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
+						appRoot: this._environmentService.appRoot,
+						appSettingsHome: this._environmentService.appSettingsHome,
+						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
+						extensionTestsPath: this._environmentService.extensionTestsPath
+					},
+					workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
+						configuration: workspace.configuration,
+						folders: workspace.folders,
+						id: workspace.id,
+						name: this._labelService.getWorkspaceLabel(workspace)
+					},
+					extensions: extensionDescriptions,
+					// Send configurations scopes only in development mode.
+					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
+					telemetryInfo,
+					logLevel: this._logService.getLevel(),
+					logsLocation
+				};
+				return r;
+			});
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {

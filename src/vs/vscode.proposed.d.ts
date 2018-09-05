@@ -19,6 +19,17 @@ declare module 'vscode' {
 		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
 	}
 
+	//#region Joh - read/write in chunks
+
+	export interface FileSystemProvider {
+		open?(resource: Uri): number | Thenable<number>;
+		close?(fd: number): void | Thenable<void>;
+		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+	}
+
+	//#endregion
+
 	//#region Rob: search provider
 
 	/**

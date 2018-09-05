@@ -8,7 +8,6 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 export interface IUpdateChannel extends IChannel {
@@ -63,14 +62,14 @@ export class UpdateChannelClient implements IUpdateService {
 		// always set this._state as the state changes
 		this.onStateChange(state => this._state = state);
 
-		channel.call('_getInitialState').done(state => {
+		channel.call('_getInitialState').then(state => {
 			// fire initial state
 			this._onStateChange.fire(state);
 
 			// fire subsequent states as they come in from remote
 
 			this.channel.listen('onStateChange')(state => this._onStateChange.fire(state));
-		}, onUnexpectedError);
+		});
 	}
 
 	checkForUpdates(context: any): TPromise<void> {

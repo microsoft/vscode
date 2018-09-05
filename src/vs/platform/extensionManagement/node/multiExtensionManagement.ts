@@ -12,7 +12,7 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
 import { isWorkspaceExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';

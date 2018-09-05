@@ -13,7 +13,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IGlobalActivity } from 'vs/workbench/common/activity';

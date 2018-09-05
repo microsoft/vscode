@@ -99,32 +99,9 @@ function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][
 		}
 
 		if (isPrimaryGroup(group)) {
+			const to = Array.isArray<IAction>(target) ? target : target.primary;
 
-			const head = Array.isArray<IAction>(target) ? target : target.primary;
-
-			// split contributed actions at the point where order
-			// changes form lt zero to gte
-			let pivot = 0;
-			for (; pivot < actions.length; pivot++) {
-				if ((<MenuItemAction>actions[pivot]).order >= 0) {
-					break;
-				}
-			}
-			// prepend contributed actions with order lte zero
-			head.unshift(...actions.slice(0, pivot));
-
-			// find the first separator which marks the end of the
-			// navigation group - might be the whole array length
-			let sep = 0;
-			while (sep < head.length) {
-				if (head[sep] instanceof Separator) {
-					break;
-				}
-				sep++;
-			}
-			// append contributed actions with order gt zero
-			head.splice(sep, 0, ...actions.slice(pivot));
-
+			to.unshift(...actions);
 		} else {
 			const to = Array.isArray<IAction>(target) ? target : target.secondary;
 
@@ -193,9 +170,9 @@ export class MenuItemActionItem extends ActionItem {
 			const wantsAltCommand = mouseOver && alternativeKeyDown;
 			if (wantsAltCommand !== this._wantsAltCommand) {
 				this._wantsAltCommand = wantsAltCommand;
-				this._updateLabel();
-				this._updateTooltip();
-				this._updateClass();
+				this.updateLabel();
+				this.updateTooltip();
+				this.updateClass();
 			}
 		};
 
@@ -215,13 +192,13 @@ export class MenuItemActionItem extends ActionItem {
 		}));
 	}
 
-	_updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	_updateTooltip(): void {
+	updateTooltip(): void {
 		const element = this.label;
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
@@ -231,7 +208,7 @@ export class MenuItemActionItem extends ActionItem {
 			: this._commandAction.label;
 	}
 
-	_updateClass(): void {
+	updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
 				this._updateItemClass(this._action.alt.item);

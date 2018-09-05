@@ -62,7 +62,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Element not found'));
+			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
 		}
 
 		const { left, top } = getTopLeftOffset(element as HTMLElement);
@@ -100,7 +100,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Element not found'));
+			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
 		}
 
 		const inputElement = element as HTMLInputElement;
@@ -132,7 +132,7 @@ class WindowDriver implements IWindowDriver {
 				el = el.parentElement;
 			}
 
-			return TPromise.wrapError(new Error(`Active element not found. Current active element is '${chain.join(' > ')}'`));
+			return TPromise.wrapError(new Error(`Active element not found. Current active element is '${chain.join(' > ')}'. Looking for ${selector}`));
 		}
 
 		return TPromise.as(true);
@@ -154,7 +154,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Editor not found: ' + selector));
+			return TPromise.wrapError(new Error(`Editor not found: ${selector}`));
 		}
 
 		const textarea = element as HTMLTextAreaElement;
@@ -176,13 +176,13 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Terminal not found: ' + selector));
+			return TPromise.wrapError(new Error(`Terminal not found: ${selector}`));
 		}
 
 		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
-			return TPromise.wrapError(new Error('Xterm not found: ' + selector));
+			return TPromise.wrapError(new Error(`Xterm not found: ${selector}`));
 		}
 
 		const lines: string[] = [];
@@ -198,13 +198,13 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Element not found'));
+			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
 		}
 
 		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
-			return TPromise.wrapError(new Error('Xterm not found'));
+			return TPromise.wrapError(new Error(`Xterm not found: ${selector}`));
 		}
 
 		xterm._core.handler(text);

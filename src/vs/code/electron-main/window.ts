@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -166,7 +166,11 @@ export class CodeWindow implements ICodeWindow {
 				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
 		} else {
-			useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom'; // Must be specified on Windows/Linux
+			if (isLinux) {
+				useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom';
+			} else {
+				useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on Windows
+			}
 		}
 
 		if (useNativeTabs) {
@@ -308,7 +312,7 @@ export class CodeWindow implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
-			this.marketplaceHeadersPromise.done(headers => {
+			this.marketplaceHeadersPromise.then(headers => {
 				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 			});
 		});

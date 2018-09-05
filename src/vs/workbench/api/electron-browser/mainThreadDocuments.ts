@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';

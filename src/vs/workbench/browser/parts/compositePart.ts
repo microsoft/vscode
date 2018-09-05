@@ -34,7 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, addClass, hide, removeNode, show, addClasses } from 'vs/base/browser/dom';
+import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
 
 export interface ICompositeTitleLabel {
 
@@ -387,7 +387,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite.setVisible(false).then(() => {
 
 			// Take Container Off-DOM and hide
-			removeNode(compositeContainer);
+			compositeContainer.remove();
 			hide(compositeContainer);
 
 			// Clear any running Progress

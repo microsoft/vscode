@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';

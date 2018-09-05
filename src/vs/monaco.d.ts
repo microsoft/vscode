@@ -53,10 +53,6 @@ declare namespace monaco {
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
-		public done(
-			onfulfilled?: (value: T) => void,
-			onrejected?: (reason: any) => void): void;
-
 		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
@@ -1658,22 +1654,6 @@ declare namespace monaco.editor {
 		 * @return The range where the previous match is. It is null if no previous match has been found.
 		 */
 		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
-		/**
-		 * Get the language associated with this model.
-		 */
-		getModeId(): string;
-		/**
-		 * Get the word under or besides `position`.
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Might be null.
-		 */
-		getWordAtPosition(position: IPosition): IWordAtPosition;
-		/**
-		 * Get the word under or besides `position` trimmed to `position`.column
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Will never be null.
-		 */
-		getWordUntilPosition(position: IPosition): IWordAtPosition;
 		/**
 		 * Get the language associated with this model.
 		 */

@@ -29,7 +29,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -116,7 +116,6 @@ export class MenubarControl extends Disposable {
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	constructor(
-		id: string,
 		@IThemeService themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
@@ -455,7 +454,7 @@ export class MenubarControl extends Disposable {
 			this._register(browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen()));
 
 			// Listen for alt key presses
-			this._register(ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
+			this._register(ModifierKeyEmitter.getInstance(this.windowService).event(this.onModifierKeyToggled, this));
 
 			// Listen for window focus changes
 			this._register(this.windowService.onDidChangeFocus(e => this.onDidChangeWindowFocus(e)));
@@ -1291,7 +1290,7 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter;
 
-	private constructor() {
+	private constructor(windowService: IWindowService) {
 		super();
 
 		this._keyStatus = {
@@ -1350,20 +1349,22 @@ class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			this._keyStatus.lastKeyPressed = undefined;
 		}));
 
-		this._subscriptions.push(domEvent(window, 'blur')(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-			this._keyStatus.lastKeyReleased = undefined;
-			this._keyStatus.altKey = false;
-			this._keyStatus.shiftKey = false;
-			this._keyStatus.shiftKey = false;
+		this._subscriptions.push(windowService.onDidChangeFocus(focused => {
+			if (!focused) {
+				this._keyStatus.lastKeyPressed = undefined;
+				this._keyStatus.lastKeyReleased = undefined;
+				this._keyStatus.altKey = false;
+				this._keyStatus.shiftKey = false;
+				this._keyStatus.shiftKey = false;
 
-			this.fire(this._keyStatus);
+				this.fire(this._keyStatus);
+			}
 		}));
 	}
 
-	static getInstance() {
+	static getInstance(windowService: IWindowService) {
 		if (!ModifierKeyEmitter.instance) {
-			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
+			ModifierKeyEmitter.instance = new ModifierKeyEmitter(windowService);
 		}
 
 		return ModifierKeyEmitter.instance;

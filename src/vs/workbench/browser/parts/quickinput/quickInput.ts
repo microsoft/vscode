@@ -38,7 +38,7 @@ import { ICommandAndKeybindingRule, KeybindingWeight } from 'vs/platform/keybind
 import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -849,7 +849,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			return;
 		}
 
-		const workbench = document.getElementById(this.partService.getWorkbenchElementId());
+		const workbench = this.partService.getWorkbenchElement();
 		const container = dom.append(workbench, $('.quick-input-widget.show-file-icons'));
 		container.tabIndex = -1;
 		container.style.display = 'none';

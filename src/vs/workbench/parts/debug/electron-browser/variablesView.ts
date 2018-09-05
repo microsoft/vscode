@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { RunOnceScheduler, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -77,7 +76,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 					}
 					return undefined;
 				});
-			}).done(null, errors.onUnexpectedError);
+			});
 		}, 400);
 	}
 
@@ -124,7 +123,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (expression instanceof Variable) {
-				this.tree.refresh(expression, false).done(null, errors.onUnexpectedError);
+				this.tree.refresh(expression, false);
 			}
 		}));
 	}

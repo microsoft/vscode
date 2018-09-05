@@ -6,6 +6,8 @@
 
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as arrays from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, values } from 'vs/base/common/map';
@@ -13,23 +15,24 @@ import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Range } from 'vs/editor/common/core/range';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, pathIncludedInQuery, QueryType, SearchProviderType, IFileSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
+import { FileMatch, ICachedSearchStats, IFileMatch, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType, SearchProviderType, TextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
-import { Range } from 'vs/editor/common/core/range';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -92,65 +95,62 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	public search(query: ISearchQuery, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
-		let combinedPromise: TPromise<void>;
+	public search(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+		// Get local results from dirty/untitled
+		const localResults = this.getLocalResults(query);
 
-		return new TPromise<ISearchComplete>((onComplete, onError) => {
+		if (onProgress) {
+			localResults.values().filter((res) => !!res).forEach(onProgress);
+		}
 
-			// Get local results from dirty/untitled
-			const localResults = this.getLocalResults(query);
+		this.logService.trace('SearchService#search', JSON.stringify(query));
 
-			if (onProgress) {
-				localResults.values().filter((res) => !!res).forEach(onProgress);
+		const onProviderProgress = progress => {
+			if (progress.resource) {
+				// Match
+				if (!localResults.has(progress.resource) && onProgress) { // don't override local results
+					onProgress(progress);
+				}
+			} else if (onProgress) {
+				// Progress
+				onProgress(<IProgress>progress);
 			}
 
-			this.logService.trace('SearchService#search', JSON.stringify(query));
+			if (progress.message) {
+				this.logService.debug('SearchService#search', progress.message);
+			}
+		};
 
-			const onProviderProgress = progress => {
-				if (progress.resource) {
-					// Match
-					if (!localResults.has(progress.resource) && onProgress) { // don't override local results
-						onProgress(progress);
-					}
-				} else if (onProgress) {
-					// Progress
-					onProgress(<IProgress>progress);
+		const schemesInQuery = this.getSchemesInQuery(query);
+
+		const providerActivations: TPromise<any>[] = [TPromise.wrap(null)];
+		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
+
+		const providerPromise = TPromise.join(providerActivations)
+			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
+			.then(() => this.searchWithProviders(query, onProviderProgress, token))
+			.then(completes => {
+				completes = completes.filter(c => !!c);
+				if (!completes.length) {
+					return null;
 				}
 
-				if (progress.message) {
-					this.logService.debug('SearchService#search', progress.message);
+				return <ISearchComplete>{
+					limitHit: completes[0] && completes[0].limitHit,
+					stats: completes[0].stats,
+					results: arrays.flatten(completes.map(c => c.results))
+				};
+			}, errs => {
+				if (!Array.isArray(errs)) {
+					errs = [errs];
 				}
-			};
 
-			const schemesInQuery = this.getSchemesInQuery(query);
+				errs = errs.filter(e => !!e);
+				return TPromise.wrapError(errs[0]);
+			});
 
-			const providerActivations: TPromise<any>[] = [TPromise.wrap(null)];
-			schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
-
-			const providerPromise = TPromise.join(providerActivations)
-				.then(() => this.extensionService.whenInstalledExtensionsRegistered())
-				.then(() => this.searchWithProviders(query, onProviderProgress))
-				.then(completes => {
-					completes = completes.filter(c => !!c);
-					if (!completes.length) {
-						return null;
-					}
-
-					return <ISearchComplete>{
-						limitHit: completes[0] && completes[0].limitHit,
-						stats: completes[0].stats,
-						results: arrays.flatten(completes.map(c => c.results))
-					};
-				}, errs => {
-					if (!Array.isArray(errs)) {
-						errs = [errs];
-					}
-
-					errs = errs.filter(e => !!e);
-					return TPromise.wrapError(errs[0]);
-				});
-
-			combinedPromise = providerPromise.then(value => {
+		return new TPromise((c, e) => {
+			providerPromise.then(value => {
 				const values = [value];
 
 				const result: ISearchComplete = {
@@ -177,10 +177,11 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				return result;
+			}).then(c, e);
+		}, () => {
+			// Need the OpenAnythingHandler to stop trying to cancel this promise, https://github.com/Microsoft/vscode/issues/56137
+		});
 
-			}).then(onComplete, onError);
-
-		}, () => combinedPromise && combinedPromise.cancel());
 	}
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {
@@ -196,7 +197,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return schemes;
 	}
 
-	private searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void) {
+	private searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
 		const e2eSW = StopWatch.create(false);
 
 		const diskSearchQueries: IFolderQuery[] = [];
@@ -219,7 +220,7 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 				};
 
-				searchPs.push(provider.search(oneFolderQuery, onProviderProgress));
+				searchPs.push(provider.search(oneFolderQuery, onProviderProgress, token));
 			}
 		});
 
@@ -234,7 +235,7 @@ export class SearchService extends Disposable implements ISearchService {
 				extraFileResources: diskSearchExtraFileResources
 			};
 
-			searchPs.push(this.diskSearch.search(diskSearchQuery, onProviderProgress));
+			searchPs.push(this.diskSearch.search(diskSearchQuery, onProviderProgress, token));
 		}
 
 		return TPromise.join(searchPs).then(completes => {
@@ -363,10 +364,7 @@ export class SearchService extends Disposable implements ISearchService {
 					localResults.set(resource, fileMatch);
 
 					matches.forEach((match) => {
-						fileMatch.matches.push(new TextSearchResult(
-							model.getLineContent(match.range.startLineNumber),
-							new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.startLineNumber - 1, match.range.endColumn - 1),
-							query.previewOptions));
+						fileMatch.matches.push(editorMatchToTextSearchResult(match, model, query.previewOptions));
 					});
 				} else {
 					localResults.set(resource, null);
@@ -447,7 +445,7 @@ export class DiskSearch implements ISearchResultProvider {
 		this.raw = new SearchChannelClient(channel);
 	}
 
-	public search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+	public search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {
 		const folderQueries = query.folderQueries || [];
 		return TPromise.join(folderQueries.map(q => q.folder.scheme === Schemas.file && pfs.exists(q.folder.fsPath)))
 			.then(exists => {
@@ -461,7 +459,7 @@ export class DiskSearch implements ISearchResultProvider {
 					event = this.raw.textSearch(rawSearch);
 				}
 
-				return DiskSearch.collectResultsFromEvent(event, onProgress);
+				return DiskSearch.collectResultsFromEvent(event, onProgress, token);
 			});
 	}
 
@@ -507,11 +505,21 @@ export class DiskSearch implements ISearchResultProvider {
 		return rawSearch;
 	}
 
-	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void): TPromise<ISearchComplete> {
+	public static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {
 		let result: IFileMatch[] = [];
 
 		let listener: IDisposable;
 		return new TPromise<ISearchComplete>((c, e) => {
+			if (token) {
+				token.onCancellationRequested(() => {
+					if (listener) {
+						listener.dispose();
+					}
+
+					e(canceled());
+				});
+			}
+
 			listener = event(ev => {
 				if (isSerializedSearchComplete(ev)) {
 					if (isSerializedSearchSuccess(ev)) {
@@ -551,8 +559,7 @@ export class DiskSearch implements ISearchResultProvider {
 					}
 				}
 			});
-		},
-			() => listener && listener.dispose());
+		});
 	}
 
 	private static createFileMatch(data: ISerializedFileMatch): FileMatch {
@@ -566,4 +573,21 @@ export class DiskSearch implements ISearchResultProvider {
 	public clearCache(cacheKey: string): TPromise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
+}
+
+/**
+ * While search doesn't support multiline matches, collapse editor matches to a single line
+ */
+function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
+	let endLineNumber = match.range.endLineNumber - 1;
+	let endCol = match.range.endColumn - 1;
+	if (match.range.endLineNumber !== match.range.startLineNumber) {
+		endLineNumber = match.range.startLineNumber - 1;
+		endCol = model.getLineLength(match.range.startLineNumber);
+	}
+
+	return new TextSearchResult(
+		model.getLineContent(match.range.startLineNumber),
+		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, endLineNumber, endCol),
+		previewOptions);
 }

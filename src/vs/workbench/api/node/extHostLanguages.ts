@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { MainContext, MainThreadLanguagesShape, IMainContext } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -18,10 +17,10 @@ export class ExtHostLanguages {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
 	}
 
-	getLanguages(): TPromise<string[]> {
+	getLanguages(): Thenable<string[]> {
 		return this._proxy.$getLanguages();
 	}
-	changeLanguage(documentUri: vscode.Uri, languageId: string): TPromise<void> {
+	changeLanguage(documentUri: vscode.Uri, languageId: string): Thenable<void> {
 		return this._proxy.$changeLanguage(documentUri, languageId);
 	}
 }

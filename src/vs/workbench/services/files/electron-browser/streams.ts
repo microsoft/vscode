@@ -6,7 +6,7 @@
 
 import { Readable, Writable } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileSystemProvider, ITextSnapshot, FileSystemProviderCapabilities, FileWriteOptions } from 'vs/platform/files/common/files';
 import { illegalArgument } from 'vs/base/common/errors';
 

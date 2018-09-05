@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';

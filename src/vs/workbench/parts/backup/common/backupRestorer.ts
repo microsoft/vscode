@@ -5,11 +5,10 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
@@ -35,9 +34,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private restoreBackups(): void {
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-			this.doRestoreBackups().done(null, errors.onUnexpectedError);
-		});
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.doRestoreBackups());
 	}
 
 	private doRestoreBackups(): TPromise<URI[]> {

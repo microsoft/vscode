@@ -15,7 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionCtor, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -55,6 +55,7 @@ import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsE
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -246,7 +247,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.done(value => {
+		promise.then(value => {
 			if (target === ConfigurationTarget.USER) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
@@ -975,9 +976,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

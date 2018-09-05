@@ -16,7 +16,7 @@ import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape 
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';

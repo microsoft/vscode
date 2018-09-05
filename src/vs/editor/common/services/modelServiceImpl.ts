@@ -9,7 +9,7 @@ import * as network from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
@@ -74,8 +74,8 @@ class ModelMarkerHandler {
 
 		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
-				range: this._createDecorationRange(modelData.model, marker),
-				options: this._createDecorationOption(marker)
+				range: ModelMarkerHandler._createDecorationRange(modelData.model, marker),
+				options: ModelMarkerHandler._createDecorationOption(marker)
 			};
 		});
 
@@ -89,9 +89,7 @@ class ModelMarkerHandler {
 		if (rawMarker.severity === MarkerSeverity.Hint) {
 			// * never render hints on multiple lines
 			// * make enough space for three dots
-			if (Range.spansMultipleLines(ret) || ret.endColumn - ret.startColumn < 2) {
-				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
-			}
+			ret = ret.setEndPosition(ret.startLineNumber, Math.min(ret.endColumn, ret.startColumn + 2));
 		}
 
 		ret = model.validateRange(ret);

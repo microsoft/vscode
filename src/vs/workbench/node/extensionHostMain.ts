@@ -22,7 +22,7 @@ import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensio
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
 import { Counter } from 'vs/base/common/numbers';
@@ -100,8 +100,9 @@ export class ExtensionHostMain {
 		this._workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		// ensure URIs are revived
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
+		initData.logsLocation = URI.revive(initData.logsLocation);
 
-		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, initData.logsPath);
+		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
@@ -188,7 +189,7 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			TPromise.any<void>([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
 	}
 
@@ -251,7 +252,7 @@ export class ExtensionHostMain {
 				// the file was found
 				return (
 					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
-						.done(null, err => console.error(err))
+						.then(null, err => console.error(err))
 				);
 			}
 		}
@@ -295,7 +296,7 @@ export class ExtensionHostMain {
 			// a file was found matching one of the glob patterns
 			return (
 				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
-					.done(null, err => console.error(err))
+					.then(null, err => console.error(err))
 			);
 		}
 

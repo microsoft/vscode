@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService, stubFunction } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';

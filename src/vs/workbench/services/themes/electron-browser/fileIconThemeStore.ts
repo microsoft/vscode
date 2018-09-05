@@ -14,7 +14,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
 	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),

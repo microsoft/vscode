@@ -10,7 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { language } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';

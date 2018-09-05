@@ -146,6 +146,6 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
 		const res = actionRunner.run(actionToRun, context) || TPromise.as(null);
 
-		res.done(null, e => this.notificationService.error(e));
+		res.then(null, e => this.notificationService.error(e));
 	}
 }

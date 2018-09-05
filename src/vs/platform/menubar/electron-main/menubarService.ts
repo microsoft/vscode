@@ -6,6 +6,8 @@
 'use strict';
 
 import { IMenubarService, IMenubarData, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
+// TODO@sbatten bad layering
+// tslint:disable-next-line:import-patterns
 import { Menubar } from 'vs/code/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';

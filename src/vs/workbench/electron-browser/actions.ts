@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/actions';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
@@ -194,7 +194,7 @@ export abstract class BaseZoomAction extends Action {
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level).done(() => applyZoom());
+		this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level).then(() => applyZoom());
 	}
 }
 
@@ -349,7 +349,7 @@ export abstract class BaseSwitchWindow extends Action {
 			});
 		}).then(pick => {
 			if (pick) {
-				this.windowsService.showWindow(pick.payload).done(null, errors.onUnexpectedError);
+				this.windowsService.showWindow(pick.payload);
 			}
 		});
 	}
@@ -497,8 +497,7 @@ export abstract class BaseOpenRecentAction extends Action {
 					return runPick(pick.resource, pick.fileKind === FileKind.FILE, keyMods);
 				}
 				return null;
-			})
-			.done(null, errors.onUnexpectedError);
+			});
 	}
 }
 

@@ -12,7 +12,7 @@ import { chain, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import 'vs/css!./media/suggestEnabledInput';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -220,6 +220,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	public focus(): void {
 		this.inputWidget.focus();
+
+		if (this.inputWidget.getValue()) {
+			this.selectAll();
+		}
 	}
 
 	public layout(dimension: Dimension): void {
@@ -227,7 +231,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.placeholderText.style.width = `${dimension.width}px`;
 	}
 
-	public selectAll(): void {
+	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
 	}
 

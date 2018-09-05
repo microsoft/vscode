@@ -23,7 +23,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class ViewletActivityAction extends ActivityAction {
 

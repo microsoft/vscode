@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
@@ -38,15 +38,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.push(debugService.onDidNewSession(session => {
 			this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
 		}));
+		// Need to start listening early to new session events because a custom event can come while a session is initialising
 		this._toDispose.push(debugService.onWillNewSession(session => {
-			// Need to start listening early to new session events because a custom event can come while a session is initialising
-			this._toDispose.push(session.onDidCustomEvent(event => {
-				if (event && event.sessionId) {
-					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, session.configuration.type, session.configuration.name, event);
-				}
-			}));
+			this._toDispose.push(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(session.getId(), session.configuration.type, session.configuration.name, event)));
 		}));
-		this._toDispose.push(debugService.onDidEndSession(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.onDidEndSession(session => {
+			this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>session.getId(), session.configuration.type, session.getName(false));
+		}));
 		this._toDispose.push(debugService.getViewModel().onDidFocusSession(proc => {
 			if (proc) {
 				this._proxy.$acceptDebugSessionActiveChanged(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false));
@@ -220,9 +218,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this.debugService.getModel().getSessions().filter(p => p.getId() === sessionId).pop();
-		if (process) {
-			return process.raw.custom(request, args).then(response => {
+		const session = this.debugService.getSession(sessionId);
+		if (session) {
+			return session.raw.custom(request, args).then(response => {
 				if (response && response.success) {
 					return response.body;
 				} else {
