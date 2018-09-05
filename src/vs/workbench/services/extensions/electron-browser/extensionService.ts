@@ -250,6 +250,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private readonly _onDidRegisterExtensions: Emitter<void>;
 
+	private readonly _extensionHostLogsLocation: URI;
 	private _registry: ExtensionDescriptionRegistry;
 	private readonly _installedExtensionsReady: Barrier;
 	private readonly _isDev: boolean;
@@ -276,6 +277,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
+		this._extensionHostLogsLocation = URI.file(path.posix.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`));
 		this._registry = null;
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
@@ -368,7 +370,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _startExtensionHostProcess(initialActivationEvents: string[]): void {
 		this._stopExtensionHostProcess();
 
-		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this.getLogsLocations().then(([logsLocation]) => logsLocation));
+		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
 		this._extensionHostProcessManagers.push(extHostProcessManager);
@@ -437,7 +439,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	public getLogsLocations(): TPromise<URI[]> {
-		return TPromise.as([URI.file(path.posix.join(this._environmentService.logsPath, `exthost${this._windowService.getCurrentWindowId()}`))]);
+		return TPromise.as([this._extensionHostLogsLocation]);
 	}
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {

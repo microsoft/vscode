@@ -75,7 +75,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	constructor(
 		private readonly _extensions: TPromise<IExtensionDescription[]>,
-		private readonly _logsLocation: TPromise<URI>,
+		private readonly _extensionHostLogsLocation: URI,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -380,9 +380,8 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	}
 
 	private _createExtHostInitData(): TPromise<IInitData> {
-		const promises: TPromise[] = [this._telemetryService.getTelemetryInfo(), this._extensions, this._logsLocation];
-		return TPromise.join(promises)
-			.then(([telemetryInfo, extensionDescriptions, logsLocation]) => {
+		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions])
+			.then(([telemetryInfo, extensionDescriptions]) => {
 				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
@@ -405,7 +404,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 					configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 					telemetryInfo,
 					logLevel: this._logService.getLevel(),
-					logsLocation
+					logsLocation: this._extensionHostLogsLocation
 				};
 				return r;
 			});
