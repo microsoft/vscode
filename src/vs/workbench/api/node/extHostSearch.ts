@@ -93,7 +93,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			});
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
-			return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+			const searchP = this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
 				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
 			}).then(null, err => {
 				if (!isPromiseCanceledError(err)) {
@@ -102,6 +102,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 				return null;
 			});
+
+			token.onCancellationRequested(() => searchP.cancel());
+
+			return searchP;
 		}
 	}
 

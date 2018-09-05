@@ -23,6 +23,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
 import { Counter } from 'vs/base/common/numbers';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -264,17 +265,27 @@ export class ExtensionHostMain {
 			return TPromise.as(void 0);
 		}
 
-		const requestId = this._searchRequestIdProvider.getNext();
-		const searchP = this._mainThreadWorkspace.$checkExists(globPatterns, requestId);
+		const tokenSource = new CancellationTokenSource();
+		const searchP = this._mainThreadWorkspace.$checkExists(globPatterns, tokenSource.token);
 
 		const timer = setTimeout(async () => {
-			await this._mainThreadWorkspace.$cancelSearch(requestId);
+			tokenSource.cancel();
 			this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout:${globPatterns.join(',')}`))
 				.then(null, err => console.error(err));
 		}, ExtensionHostMain.WORKSPACE_CONTAINS_TIMEOUT);
 
-		const exists = await searchP;
+		let exists: boolean;
+		try {
+			exists = await searchP;
+		} catch (err) {
+			if (!errors.isPromiseCanceledError(err)) {
+				console.error(err);
+			}
+		}
+
+		tokenSource.dispose();
 		clearTimeout(timer);
+
 		if (exists) {
 			// a file was found matching one of the glob patterns
 			return (

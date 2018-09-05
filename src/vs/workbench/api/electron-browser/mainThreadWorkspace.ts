@@ -24,7 +24,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -113,7 +113,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
@@ -158,8 +158,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		this._searchService.extendQuery(query);
 
-		const tokenSource = new CancellationTokenSource();
-		const search = this._searchService.search(query, tokenSource.token).then(result => {
+		return this._searchService.search(query, token).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
@@ -167,18 +166,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 			return undefined;
 		});
-
-		this._activeCancelTokens[requestId] = tokenSource;
-		const onDone = () => {
-			tokenSource.dispose();
-			delete this._activeCancelTokens[requestId];
-		};
-		search.then(onDone, onDone);
-
-		return search;
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): Thenable<void> {
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<void> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -191,8 +181,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		};
 
-		const tokenSource = new CancellationTokenSource();
-		const search = this._searchService.search(query, tokenSource.token, onProgress).then(
+		const search = this._searchService.search(query, token, onProgress).then(
 			() => {
 				return null;
 			},
@@ -204,17 +193,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				return undefined;
 			});
 
-		this._activeCancelTokens[requestId] = tokenSource;
-		const onDone = () => {
-			tokenSource.dispose();
-			delete this._activeCancelTokens[requestId];
-		};
-		search.then(onDone, onDone);
-
 		return search;
 	}
 
-	$checkExists(includes: string[], requestId: number): Thenable<boolean> {
+	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean> {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
 		const query = queryBuilder.file(folders, {
@@ -222,34 +204,17 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			exists: true
 		});
 
-		const tokenSource = new CancellationTokenSource();
-		const search = this._searchService.search(query, tokenSource.token).then(
+		return this._searchService.search(query, token).then(
 			result => {
-				delete this._activeCancelTokens[requestId];
 				return result.limitHit;
 			},
 			err => {
-				delete this._activeCancelTokens[requestId];
 				if (!isPromiseCanceledError(err)) {
 					return TPromise.wrapError(err);
 				}
 
 				return undefined;
 			});
-
-		this._activeCancelTokens[requestId] = tokenSource;
-
-		return search;
-	}
-
-	$cancelSearch(requestId: number): Thenable<boolean> {
-		const tokenSource = this._activeCancelTokens[requestId];
-		if (tokenSource) {
-			delete this._activeCancelTokens[requestId];
-			tokenSource.cancel();
-			return TPromise.as(true);
-		}
-		return undefined;
 	}
 
 	// --- save & edit resources ---

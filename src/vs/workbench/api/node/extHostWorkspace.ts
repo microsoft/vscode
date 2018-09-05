@@ -24,6 +24,7 @@ import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IMainContext, IWorkspaceData, MainContext, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 function isFolderEqual(folderA: URI, folderB: URI): boolean {
 	return isEqual(folderA, folderB, !isLinux);
@@ -345,10 +346,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults: number, extensionId: string, token: vscode.CancellationToken = CancellationToken.None): Thenable<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId}, entryPoint: findFiles`);
-
-		const requestId = this._requestIdProvider.getNext();
 
 		let includePattern: string;
 		let includeFolder: string;
@@ -376,14 +375,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return TPromise.wrap([]);
 		}
 
-		const result = this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, requestId);
-		if (token) {
-			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
-		}
-		return result.then(data => Array.isArray(data) ? data.map(URI.revive) : []);
+		return this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, token)
+			.then(data => Array.isArray(data) ? data.map(URI.revive) : []);
 	}
 
-	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token?: vscode.CancellationToken) {
+	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token: vscode.CancellationToken = CancellationToken.None) {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
 
 		if (options.previewOptions && options.previewOptions.totalChars <= options.previewOptions.leadingChars) {
@@ -431,18 +427,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			});
 		};
 
-		if (token) {
-			if (token.isCancellationRequested) {
-				return TPromise.wrap(undefined);
-			} else {
-				token.onCancellationRequested(() => {
-					isCanceled = true;
-					this._proxy.$cancelSearch(requestId);
-				});
-			}
+		if (token.isCancellationRequested) {
+			return TPromise.wrap(undefined);
 		}
 
-		return this._proxy.$startTextSearch(query, queryOptions, requestId).then(
+		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(
 			() => {
 				delete this._activeSearchCallbacks[requestId];
 			},
