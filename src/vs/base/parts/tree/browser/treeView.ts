@@ -667,8 +667,19 @@ export class TreeView extends HeightMap {
 	}
 
 	public getFirstVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop));
-		return item && item.model.getElement();
+		const firstIndex = this.indexAt(this.lastRenderTop);
+		let item = this.itemAtIndex(firstIndex);
+		if (!item) {
+			return item;
+		}
+
+		const itemMidpoint = item.top + item.height / 2;
+		if (itemMidpoint < this.scrollTop) {
+			const nextItem = this.itemAtIndex(firstIndex + 1);
+			item = nextItem || item;
+		}
+
+		return item.model.getElement();
 	}
 
 	public getLastVisibleElement(): any {
