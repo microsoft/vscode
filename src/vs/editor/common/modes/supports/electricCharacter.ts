@@ -121,8 +121,8 @@ export class BracketElectricCharacterSupport {
 			}
 
 			// check if the full open bracket matches
-			let start = column - pair.open.length;
-			let actual = line.substring(start, start + pair.open.length) + character;
+			let start = column - pair.open.length + 1;
+			let actual = line.substring(start - 1, column - 1) + character;
 			if (actual !== pair.open) {
 				continue;
 			}
