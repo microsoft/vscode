@@ -155,6 +155,7 @@ export class FontInfo extends BareFontInfo {
 	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
+	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
 	readonly maxDigitWidth: number;
 
@@ -171,6 +172,7 @@ export class FontInfo extends BareFontInfo {
 		isMonospace: boolean;
 		typicalHalfwidthCharacterWidth: number;
 		typicalFullwidthCharacterWidth: number;
+		canUseHalfwidthRightwardsArrow: boolean;
 		spaceWidth: number;
 		maxDigitWidth: number;
 	}, isTrusted: boolean) {
@@ -179,6 +181,7 @@ export class FontInfo extends BareFontInfo {
 		this.isMonospace = opts.isMonospace;
 		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
 		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
+		this.canUseHalfwidthRightwardsArrow = opts.canUseHalfwidthRightwardsArrow;
 		this.spaceWidth = opts.spaceWidth;
 		this.maxDigitWidth = opts.maxDigitWidth;
 	}
@@ -195,6 +198,7 @@ export class FontInfo extends BareFontInfo {
 			&& this.letterSpacing === other.letterSpacing
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
+			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.spaceWidth === other.spaceWidth
 			&& this.maxDigitWidth === other.maxDigitWidth
 		);

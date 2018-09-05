@@ -7,11 +7,11 @@
 
 import * as os from 'os';
 
-import uri from 'vs/base/common/uri';
-import * as ipc from 'vs/base/parts/ipc/common/ipc';
+import * as ipc from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 
 import { ISearchWorker, ISearchWorkerChannel, SearchWorkerChannelClient } from './worker/searchWorkerIpc';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface ITextSearchWorkerProvider {
 	getWorkers(): ISearchWorker[];
@@ -31,7 +31,7 @@ export class TextSearchWorkerProvider implements ITextSearchWorkerProvider {
 
 	private createWorker(): void {
 		let client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap'),
 			{
 				serverName: 'Search Worker ' + this.workers.length,
 				args: ['--type=searchWorker'],

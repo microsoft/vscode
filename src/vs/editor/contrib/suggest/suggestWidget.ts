@@ -35,7 +35,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-const sticky = false; // for development purposes
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
 
@@ -111,10 +110,12 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			const fontFamily = configuration.fontInfo.fontFamily;
 			const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
 			const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
+			const fontWeight = configuration.fontInfo.fontWeight;
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
 
 			data.root.style.fontSize = fontSizePx;
+			data.root.style.fontWeight = fontWeight;
 			main.style.fontFamily = fontFamily;
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
@@ -331,10 +332,12 @@ class SuggestionDetails {
 		const fontFamily = configuration.fontInfo.fontFamily;
 		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
 		const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
+		const fontWeight = configuration.fontInfo.fontWeight;
 		const fontSizePx = `${fontSize}px`;
 		const lineHeightPx = `${lineHeight}px`;
 
 		this.el.style.fontSize = fontSizePx;
+		this.el.style.fontWeight = fontWeight;
 		this.type.style.fontFamily = fontFamily;
 		this.close.style.height = lineHeightPx;
 		this.close.style.width = lineHeightPx;
@@ -456,7 +459,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 				listInactiveFocusOutline: activeContrastBorder
 			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
-			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			editor.onDidLayoutChange(() => this.onEditorLayoutChange()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
@@ -479,18 +481,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 
 		this.editor.layoutContentWidget(this);
-	}
-
-	private onEditorBlur(): void {
-		if (sticky) {
-			return;
-		}
-
-		this.editorBlurTimeout.cancelAndSet(() => {
-			if (!this.editor.hasTextFocus()) {
-				this.setState(State.Hidden);
-			}
-		}, 150);
 	}
 
 	private onEditorLayoutChange(): void {
@@ -593,6 +583,10 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
 
 		this.currentSuggestionDetails.then(() => {
+			if (this.list.length < index) {
+				return;
+			}
+
 			// item can have extra information, so re-render
 			this.ignoreFocusEvents = true;
 			this.list.splice(index, 1, [item]);
@@ -714,18 +708,21 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.completionModel = null;
 
 		} else {
-			const { stats } = this.completionModel;
-			stats['wasAutomaticallyTriggered'] = !!isAuto;
-			/* __GDPR__
-				"suggestWidget" : {
-					"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"${include}": [
-						"${ICompletionStats}",
-						"${EditorTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
+
+			if (this.state !== State.Open) {
+				const { stats } = this.completionModel;
+				stats['wasAutomaticallyTriggered'] = !!isAuto;
+				/* __GDPR__
+					"suggestWidget" : {
+						"wasAutomaticallyTriggered" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+						"${include}": [
+							"${ICompletionStats}",
+							"${EditorTelemetryData}"
+						]
+					}
+				*/
+				this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
+			}
 
 			this.list.splice(0, this.list.length, this.completionModel.items);
 

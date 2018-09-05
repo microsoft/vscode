@@ -6,8 +6,7 @@
 'use strict';
 
 import 'vs/css!./contextMenuHandler';
-import { $, Builder } from 'vs/base/browser/builder';
-import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
@@ -16,6 +15,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 export class ContextMenuHandler {
 
@@ -23,8 +23,10 @@ export class ContextMenuHandler {
 	private notificationService: INotificationService;
 	private telemetryService: ITelemetryService;
 
-	private $el: Builder;
+	private element: HTMLElement;
+	private elementDisposable: IDisposable;
 	private menuContainerElement: HTMLElement;
+	private focusToReturn: HTMLElement;
 
 	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, notificationService: INotificationService) {
 		this.setContainer(element);
@@ -37,21 +39,23 @@ export class ContextMenuHandler {
 	}
 
 	public setContainer(container: HTMLElement): void {
-		if (this.$el) {
-			this.$el.off(['click', 'mousedown']);
-			this.$el = null;
+		if (this.element) {
+			this.elementDisposable = dispose(this.elementDisposable);
+			this.element = null;
 		}
 		if (container) {
-			this.$el = $(container);
-			this.$el.on('mousedown', (e: Event) => this.onMouseDown(e as MouseEvent));
+			this.element = container;
+			this.elementDisposable = addDisposableListener(this.element, 'mousedown', (e) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
-		delegate.getActions().done((actions: IAction[]) => {
+		delegate.getActions().then((actions: IAction[]) => {
 			if (!actions.length) {
 				return; // Don't render an empty context menu
 			}
+
+			this.focusToReturn = document.activeElement as HTMLElement;
 
 			this.contextViewService.showContextView({
 				getAnchor: () => delegate.getAnchor(),
@@ -110,6 +114,11 @@ export class ContextMenuHandler {
 		}
 
 		this.contextViewService.hideContextView(false);
+
+		// Restore focus here
+		if (this.focusToReturn) {
+			this.focusToReturn.focus();
+		}
 	}
 
 	private onDidActionRun(e: IRunEvent): void {

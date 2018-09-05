@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IExtensionDescription {
 	readonly id: string;
@@ -116,6 +116,8 @@ export class ExtensionPointContribution<T> {
 	}
 }
 
+export const ExtensionHostLogFileName = 'exthost';
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -150,6 +152,11 @@ export interface IExtensionService {
 	 * Return all registered extensions
 	 */
 	getExtensions(): TPromise<IExtensionDescription[]>;
+
+	/**
+	 * Return extension host log folder paths
+	 */
+	getLogsLocations(): TPromise<URI[]>;
 
 	/**
 	 * Read all contributions to an extension point.

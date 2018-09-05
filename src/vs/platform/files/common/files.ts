@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as glob from 'vs/base/common/glob';
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -198,21 +198,21 @@ export interface IFileSystemProvider {
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
-	stat(resource: URI): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<void>;
-	readdir(resource: URI): TPromise<[string, FileType][]>;
-	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
+	stat(resource: URI): Thenable<IStat>;
+	mkdir(resource: URI): Thenable<void>;
+	readdir(resource: URI): Thenable<[string, FileType][]>;
+	delete(resource: URI, opts: FileDeleteOptions): Thenable<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
 
-	readFile?(resource: URI): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
+	readFile?(resource: URI): Thenable<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void>;
 
-	open?(resource: URI): TPromise<number>;
-	close?(fd: number): TPromise<void>;
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	open?(resource: URI): Thenable<number>;
+	close?(fd: number): Thenable<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
 }
 
 export interface IFileSystemProviderRegistrationEvent {
@@ -284,22 +284,24 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * Returns true if this change event contains the provided file with the given change type. In case of
+	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
 	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
 	 * provided file path.
 	 */
-	contains(resource: URI, type: FileChangeType): boolean {
+	contains(resource: URI, type?: FileChangeType): boolean {
 		if (!resource) {
 			return false;
 		}
 
+		const checkForChangeType = !isUndefinedOrNull(type);
+
 		return this._changes.some(change => {
-			if (change.type !== type) {
+			if (checkForChangeType && change.type !== type) {
 				return false;
 			}
 
 			// For deleted also return true when deleted folder is parent of target path
-			if (type === FileChangeType.DELETED) {
+			if (change.type === FileChangeType.DELETED) {
 				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 

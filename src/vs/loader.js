@@ -142,7 +142,7 @@ var AMDLoader;
          * This method does not take care of / vs \
          */
         Utilities.fileUriToFilePath = function (isWindows, uri) {
-            uri = decodeURI(uri);
+            uri = decodeURI(uri).replace(/%23/g, '#');
             if (isWindows) {
                 if (/^file:\/\/\//.test(uri)) {
                     // This is a URI without a hostname => return only the path segment
@@ -768,8 +768,7 @@ var AMDLoader;
                     }
                     contents = nodeInstrumenter(contents, normalizedScriptSrc);
                     if (!opts.nodeCachedDataDir) {
-                        _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, { filename: vmScriptSrc }, recorder);
-                        callback();
+                        _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, { filename: vmScriptSrc }, recorder, callback, errorback);
                     }
                     else {
                         var cachedDataPath_1 = _this._getCachedDataPath(opts.nodeCachedDataDir, scriptSrc);
@@ -780,22 +779,34 @@ var AMDLoader;
                                 produceCachedData: typeof cachedData === 'undefined',
                                 cachedData: cachedData
                             };
-                            var script = _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder);
-                            callback();
+                            var script = _this._loadAndEvalScript(moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder, callback, errorback);
                             _this._processCachedData(moduleManager, script, cachedDataPath_1);
                         });
                     }
                 });
             }
         };
-        NodeScriptLoader.prototype._loadAndEvalScript = function (moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder) {
+        NodeScriptLoader.prototype._loadAndEvalScript = function (moduleManager, scriptSrc, vmScriptSrc, contents, options, recorder, callback, errorback) {
             // create script, run script
             recorder.record(31 /* NodeBeginEvaluatingScript */, scriptSrc);
             var script = new this._vm.Script(contents, options);
             var r = script.runInThisContext(options);
-            r.call(AMDLoader.global, moduleManager.getGlobalAMDRequireFunc(), moduleManager.getGlobalAMDDefineFunc(), vmScriptSrc, this._path.dirname(scriptSrc));
+            var globalDefineFunc = moduleManager.getGlobalAMDDefineFunc();
+            var receivedDefineCall = false;
+            var localDefineFunc = function () {
+                receivedDefineCall = true;
+                return globalDefineFunc.apply(null, arguments);
+            };
+            localDefineFunc.amd = globalDefineFunc.amd;
+            r.call(AMDLoader.global, moduleManager.getGlobalAMDRequireFunc(), localDefineFunc, vmScriptSrc, this._path.dirname(scriptSrc));
             // signal done
             recorder.record(32 /* NodeEndEvaluatingScript */, scriptSrc);
+            if (receivedDefineCall) {
+                callback();
+            }
+            else {
+                errorback(new Error("Didn't receive define call in " + scriptSrc + "!"));
+            }
             return script;
         };
         NodeScriptLoader.prototype._getCachedDataPath = function (basedir, filename) {
@@ -811,17 +822,15 @@ var AMDLoader;
                     errorCode: 'cachedDataRejected',
                     path: cachedDataPath
                 });
-                NodeScriptLoader._runSoon(function () {
-                    return _this._fs.unlink(cachedDataPath, function (err) {
-                        if (err) {
-                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
-                                errorCode: 'unlink',
-                                path: cachedDataPath,
-                                detail: err
-                            });
-                        }
-                    });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                NodeScriptLoader._runSoon(function () { return _this._fs.unlink(cachedDataPath, function (err) {
+                    if (err) {
+                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                            errorCode: 'unlink',
+                            path: cachedDataPath,
+                            detail: err
+                        });
+                    }
+                }); }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
             }
             else if (script.cachedDataProduced) {
                 // data produced => tell outside world
@@ -830,17 +839,15 @@ var AMDLoader;
                     length: script.cachedData.length
                 });
                 // data produced => write cache file
-                NodeScriptLoader._runSoon(function () {
-                    return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
-                        if (err) {
-                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
-                                errorCode: 'writeFile',
-                                path: cachedDataPath,
-                                detail: err
-                            });
-                        }
-                    });
-                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                NodeScriptLoader._runSoon(function () { return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
+                    if (err) {
+                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                            errorCode: 'writeFile',
+                            path: cachedDataPath,
+                            detail: err
+                        });
+                    }
+                }); }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
             }
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {

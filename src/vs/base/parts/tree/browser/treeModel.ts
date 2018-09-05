@@ -111,7 +111,7 @@ export class Lock {
 			}).then(c, e);
 
 			return result;
-		}, () => result.cancel());
+		});
 	}
 
 	private getLock(item: Item): LockData {
@@ -360,6 +360,10 @@ export class Item {
 		}
 
 		var result = this.lock.run(this, () => {
+			if (this.isExpanded() || !this.doesHaveChildren) {
+				return WinJS.TPromise.as(false);
+			}
+
 			var eventData: IItemExpandEvent = { item: this };
 			var result: WinJS.Promise;
 			this._onExpand.fire(eventData);

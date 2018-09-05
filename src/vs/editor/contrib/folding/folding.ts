@@ -33,6 +33,7 @@ import { SyntaxRangeProvider, ID_SYNTAX_PROVIDER } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/folding/intializingRangeProvider';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const ID = 'editor.contrib.folding';
 
@@ -166,7 +167,7 @@ export class FoldingController implements IEditorContribution {
 				if (foldingModel) {
 					foldingModel.applyMemento(state.collapsedRegions);
 				}
-			});
+			}).then(undefined, onUnexpectedError);
 		}
 	}
 
@@ -312,7 +313,7 @@ export class FoldingController implements IEditorContribution {
 					}
 				}
 			}
-		});
+		}).then(undefined, onUnexpectedError);
 
 	}
 
@@ -332,10 +333,13 @@ export class FoldingController implements IEditorContribution {
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS:
 				const data = e.target.detail as IMarginData;
-				const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+				const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
+
+				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
-				if (gutterOffsetX <= 10) {
+				if (gutterOffsetX < 5) { // the whitespace between the border and the real folding icon border is 5px
 					return;
 				}
 
@@ -404,7 +408,7 @@ export class FoldingController implements IEditorContribution {
 					}
 				}
 			}
-		});
+		}).then(undefined, onUnexpectedError);
 	}
 
 	public reveal(position: IPosition): void {

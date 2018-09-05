@@ -12,7 +12,7 @@ import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, Confi
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -23,7 +23,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataUri } from 'vs/workbench/common/resources';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IResourceLabel {
 	name: string;
@@ -56,7 +56,7 @@ export class ResourceLabel extends IconLabel {
 		@IModelService private modelService: IModelService,
 		@IDecorationsService protected decorationsService: IDecorationsService,
 		@IThemeService private themeService: IThemeService,
-		@IUriDisplayService protected uriDisplayService: IUriDisplayService
+		@ILabelService protected labelService: ILabelService
 	) {
 		super(container, options);
 
@@ -139,6 +139,10 @@ export class ResourceLabel extends IconLabel {
 			return true; // same resource but different kind (file, folder)
 		}
 
+		if (newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource)) {
+			return true;
+		}
+
 		if (newResource && oldResource) {
 			return newResource.toString() !== oldResource.toString();
 		}
@@ -191,7 +195,7 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
-				this.computedPathLabel = this.uriDisplayService.getLabel(resource, true);
+				this.computedPathLabel = this.labelService.getUriLabel(resource);
 			}
 
 			iconLabelOptions.title = this.computedPathLabel;
@@ -274,9 +278,9 @@ export class FileLabel extends ResourceLabel {
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService
+		@ILabelService labelService: ILabelService
 	) {
-		super(container, options, extensionService, configurationService, modeService, modelService, decorationsService, themeService, uriDisplayService);
+		super(container, options, extensionService, configurationService, modeService, modelService, decorationsService, themeService, labelService);
 	}
 
 	setFile(resource: uri, options?: IFileLabelOptions): void {
@@ -298,7 +302,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			description = this.uriDisplayService.getLabel(resources.dirname(resource), true);
+			description = this.labelService.getUriLabel(resources.dirname(resource), true);
 		}
 
 		this.setLabel({ resource, name, description }, options);

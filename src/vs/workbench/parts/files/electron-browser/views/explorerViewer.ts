@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import * as path from 'path';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -279,7 +279,7 @@ export class FileRenderer implements IRenderer {
 		const parent = stat.name ? resources.dirname(stat.resource) : stat.resource;
 		const value = stat.name || '';
 
-		label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // Use icon for ' ' if name is empty.
+		label.setFile(resources.joinPath(parent, value || ' '), labelOptions); // Use icon for ' ' if name is empty.
 
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
@@ -291,7 +291,7 @@ export class FileRenderer implements IRenderer {
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
 		inputBox.onDidChange(value => {
-			label.setFile(parent.with({ path: paths.join(parent.path, value || ' ') }), labelOptions); // update label icon while typing!
+			label.setFile(resources.joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 		});
 
 		const lastDot = value.lastIndexOf('.');
@@ -390,7 +390,7 @@ export class FileRenderer implements IRenderer {
 export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, stat: ExplorerItem): string {
-		return nls.localize('filesExplorerViewerAriaLabel', "{0}, Files Explorer", stat.name);
+		return stat.name;
 	}
 }
 
@@ -502,7 +502,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 					sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
 				}
 
-				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });
+				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick || (event && event.middleButton) });
 			}
 		}
 
@@ -871,6 +871,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
+				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
+					// Disable moving workspace roots in one another
+					return false;
+				}
+
 				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
@@ -908,19 +913,16 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): void {
-		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			promise = this.handleExternalDrop(tree, data, target, originalEvent);
+			this.handleExternalDrop(tree, data, target, originalEvent);
 		}
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			promise = this.handleExplorerDrop(tree, data, target, originalEvent);
+			this.handleExplorerDrop(tree, data, target, originalEvent);
 		}
-
-		promise.done(null, errors.onUnexpectedError);
 	}
 
 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {
@@ -1058,7 +1060,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			}
 
 			// Otherwise move
-			const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
+			const targetResource = resources.joinPath(target.resource, source.name);
 
 			return this.textFileService.move(source.resource, targetResource).then(null, error => {
 

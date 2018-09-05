@@ -12,7 +12,7 @@ import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';

@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
@@ -32,6 +32,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { Schemas } from 'vs/base/common/network';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -122,6 +124,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private fileInputFactory: IFileInputFactory;
 
+	private canNavigateBackContextKey: IContextKey<boolean>;
+	private canNavigateForwardContextKey: IContextKey<boolean>;
+
 	constructor(
 		@IEditorService private editorService: EditorServiceImpl,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
@@ -132,10 +137,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IFileService private fileService: IFileService,
 		@IWindowsService private windowService: IWindowsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IPartService private partService: IPartService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.activeEditorListeners = [];
+
+		this.canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false)).bindTo(this.contextKeyService);
+		this.canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false)).bindTo(this.contextKeyService);
 
 		this.fileInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileInputFactory();
 
@@ -266,6 +276,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private setIndex(value: number): void {
 		this.lastIndex = this.index;
 		this.index = value;
+
+		this.updateContextKeys();
 	}
 
 	private doForwardAcrossEditors(): void {
@@ -336,6 +348,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.stack.splice(0);
 		this.history = [];
 		this.recentlyClosedFiles = [];
+
+		this.updateContextKeys();
+	}
+
+	private updateContextKeys(): void {
+		this.canNavigateBackContextKey.set(this.stack.length > 0 && this.index > 0);
+		this.canNavigateForwardContextKey.set(this.stack.length > 0 && this.index < this.stack.length - 1);
 	}
 
 	private navigate(acrossEditors?: boolean): void {
@@ -361,7 +380,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			openEditorPromise = this.editorService.openEditor({ resource: (entry.input as IResourceInput).resource, options });
 		}
 
-		openEditorPromise.done(() => {
+		openEditorPromise.then(() => {
 			this.navigatingInStack = false;
 		}, error => {
 			this.navigatingInStack = false;
@@ -567,6 +586,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (stackInput instanceof EditorInput) {
 			once(stackInput.onDispose)(() => this.removeFromStack(input));
 		}
+
+		// Context
+		this.updateContextKeys();
 	}
 
 	private preferResourceInput(input: IEditorInput): IEditorInput | IResourceInput {
@@ -593,6 +615,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.stack = this.stack.filter(e => !this.matches(arg1, e.input));
 		this.index = this.stack.length - 1; // reset index
 		this.lastIndex = -1;
+
+		this.updateContextKeys();
 	}
 
 	private removeFromRecentlyClosedFiles(arg1: IEditorInput | IResourceInput | FileChangesEvent): void {
@@ -606,7 +630,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const input = arg1 as IResourceInput;
 
-		this.windowService.removeFromRecentlyOpened([input.resource.fsPath]);
+		this.windowService.removeFromRecentlyOpened([input.resource]);
 	}
 
 	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
@@ -657,8 +681,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		if (arg2 instanceof EditorInput) {
 			const inputResource = arg2.getResource();
+			if (!inputResource) {
+				return false;
+			}
 
-			return inputResource && this.fileService.canHandleResource(inputResource) && inputResource.toString() === resource.toString();
+			if (this.partService.isCreated() && !this.fileService.canHandleResource(inputResource)) {
+				return false; // make sure to only check this when workbench has started (for https://github.com/Microsoft/vscode/issues/48275)
+			}
+
+			return inputResource.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;

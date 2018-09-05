@@ -511,13 +511,33 @@ suite('workspace-namespace', () => {
 	});
 
 	test('findTextInFiles', async () => {
+		const options: vscode.FindTextInFilesOptions = {
+			include: '*.ts',
+			previewOptions: {
+				leadingChars: 2,
+				maxLines: 1,
+				totalChars: 100
+			}
+		};
+
 		const results: vscode.TextSearchResult[] = [];
-		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, { include: '*.ts' }, result => {
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, options, result => {
 			results.push(result);
 		});
 
 		assert.equal(results.length, 1);
+		assert.equal(results[0].preview.text, 'n foo(): void {');
 		assert.equal(vscode.workspace.asRelativePath(results[0].uri), '10linefile.ts');
+	});
+
+	test('findTextInFiles, cancellation', async () => {
+		const results: vscode.TextSearchResult[] = [];
+		const cancellation = new vscode.CancellationTokenSource();
+		cancellation.cancel();
+
+		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, result => {
+			results.push(result);
+		}, cancellation.token);
 	});
 
 	test('applyEdit', () => {

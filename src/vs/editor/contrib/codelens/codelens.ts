@@ -7,7 +7,7 @@
 
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';

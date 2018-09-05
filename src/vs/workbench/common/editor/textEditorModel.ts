@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';

@@ -20,7 +20,6 @@ import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/con
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
@@ -122,7 +121,7 @@ export class SearchWidget extends Widget {
 	public readonly onBlur: Event<void> = this._onBlur.event;
 
 	constructor(
-		container: Builder,
+		container: HTMLElement,
 		options: ISearchWidgetOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
@@ -228,8 +227,10 @@ export class SearchWidget extends Widget {
 		this.searchInput.focusOnRegex();
 	}
 
-	private render(container: Builder, options: ISearchWidgetOptions): void {
-		this.domNode = container.div({ 'class': 'search-widget' }).style({ position: 'relative' }).getHTMLElement();
+	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
+		this.domNode = dom.append(container, dom.$('.search-widget'));
+		this.domNode.style.position = 'relative';
+
 		this.renderToggleReplaceButton(this.domNode);
 
 		this.renderSearchInput(this.domNode, options);
@@ -245,7 +246,8 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
+		this.toggleReplaceButton.element.classList.add('collapse');
+		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
@@ -382,6 +384,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputChanged(): void {
+		this.searchInput.clearMessage();
 		this.setReplaceAllActionState(false);
 	}
 

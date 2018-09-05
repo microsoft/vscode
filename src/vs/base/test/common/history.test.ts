@@ -27,7 +27,7 @@ suite('History Navigator', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 100);
 
 		assert.equal(testObject.first(), '1');
-		assert.equal(testObject.last(), '4', );
+		assert.equal(testObject.last(), '4');
 	});
 
 	test('first returns first element', () => {

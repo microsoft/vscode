@@ -26,6 +26,7 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRe
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { asWinJsPromise } from 'vs/base/common/async';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -483,7 +484,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getDocumentSymbols(<ITextModel>model).then(entries => {
+				return asWinJsPromise(token => getDocumentSymbols(<ITextModel>model, token)).then(entries => {
 
 					const model = new OutlineModel(this.toQuickOpenEntries(entries));
 

@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IBackupWorkspacesFormat {
 	rootWorkspaces: IWorkspaceIdentifier[];

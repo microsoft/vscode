@@ -2,9 +2,9 @@
 # yarn lockfile v1
 
 
-"@types/node@7.0.43":
-  version "7.0.43"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.43.tgz#a187e08495a075f200ca946079c914e1a5fe962c"
+"@types/node@^8.10.25":
+  version "8.10.25"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
 
 vscode-nls@^3.2.4:
   version "3.2.4"

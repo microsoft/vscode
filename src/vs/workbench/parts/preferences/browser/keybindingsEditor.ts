@@ -439,7 +439,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private getAriaLabel(keybindingsEntries: IKeybindingItemEntry[]): string {
 		if (this.sortByPrecedence.checked) {
-			return localize('show sorted keybindings', "Showing {0} Keybindings in precendence order", keybindingsEntries.length);
+			return localize('show sorted keybindings', "Showing {0} Keybindings in precedence order", keybindingsEntries.length);
 		} else {
 			return localize('show keybindings', "Showing {0} Keybindings in alphabetical order", keybindingsEntries.length);
 		}

@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';

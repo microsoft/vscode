@@ -71,7 +71,7 @@ export abstract class Composite extends Component implements IComposite {
 	 * Note: Clients should not call this method, the workbench calls this
 	 * method. Calling it otherwise may result in unexpected behavior.
 	 *
-	 * Called to create this composite on the provided builder. This method is only
+	 * Called to create this composite on the provided parent. This method is only
 	 * called once during the lifetime of the workbench.
 	 * Note that DOM-dependent calculations should be performed from the setVisible()
 	 * call. Only then the composite will be part of the DOM.

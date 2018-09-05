@@ -51,6 +51,10 @@
 	overflow: visible;
 }
 
+.monaco-workbench.linux > .part.titlebar > .window-title {
+	font-size: inherit;
+}
+
 .monaco-workbench.windows > .part.titlebar > .resizer,
 .monaco-workbench.linux > .part.titlebar > .resizer {
 	-webkit-app-region: no-drag;
@@ -69,7 +73,6 @@
 .monaco-workbench > .part.titlebar > .window-appicon {
 	width: 35px;
 	height: 100%;
-	-webkit-app-region: no-drag;
 	position: relative;
 	z-index: 99;
 	background-image: url('code-icon.svg');
@@ -99,65 +102,100 @@
 	display: none;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg {
 	display: inline-block;
 	-webkit-app-region: no-drag;
-	-webkit-transition: background-color .1s;
-	transition: background-color .1s;
 	height: 100%;
 	width: 33.34%;
-	background-size: 21.74%;
-	background-position: center center;
-	background-repeat: no-repeat;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
+.monaco-workbench > .part.titlebar > .window-controls-container .window-icon svg {
 	shape-rendering: crispEdges;
 	text-align: center;
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close {
-	background-image: url('chrome-close-dark.svg');
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container .window-close {
+	-webkit-mask: url('chrome-close.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-close {
-	background-image: url('chrome-close.svg');
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container .window-unmaximize {
+	-webkit-mask: url('chrome-restore.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-unmaximize {
-	background-image: url('chrome-restore-dark.svg');
+.monaco-workbench > .part.titlebar > .window-controls-container .window-maximize {
+	-webkit-mask: url('chrome-maximize.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-unmaximize {
-	background-image: url('chrome-restore.svg');
+.monaco-workbench > .part.titlebar > .window-controls-container .window-minimize {
+	-webkit-mask: url('chrome-minimize.svg') no-repeat 50% 50%;
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-maximize {
-	background-image: url('chrome-maximize-dark.svg');
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg > .window-icon {
+	height: 100%;
+	width: 100%;
+	-webkit-mask-size: 23.1%;
 }
 
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-maximize {
-	background-image: url('chrome-maximize.svg');
-}
-
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-minimize {
-	background-image: url('chrome-minimize-dark.svg');
-}
-
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-minimize {
-	background-image: url('chrome-minimize.svg');
-}
-
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon:hover {
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon-bg:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-close:hover,
-	.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-close:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon-bg.window-close-bg:hover {
 	background-color: rgba(232, 17, 35, 0.9);
-	background-image: url('chrome-close-dark.svg');
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container .window-icon.window-close:hover {
+	background-color: white;
+}
+
+/* Menubar styles */
+
+.monaco-workbench .menubar {
+	display: flex;
+	flex-shrink: 1;
+	box-sizing: border-box;
+	height: 30px;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+	flex-wrap: wrap;
+}
+
+.monaco-workbench.fullscreen .menubar {
+	margin: 0px;
+	padding: 0px 5px;
+}
+
+.monaco-workbench .menubar > .menubar-menu-button {
+	align-items: center;
+	box-sizing: border-box;
+	padding: 0px 8px;
+	cursor: default;
+	-webkit-app-region: no-drag;
+	zoom: 1;
+	white-space: nowrap;
+}
+
+.monaco-workbench .menubar .menubar-menu-items-holder {
+	position: absolute;
+	left: 0px;
+	opacity: 1;
+	z-index: 2000;
+}
+
+.monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
+	font-family: "Segoe WPC", "Segoe UI", ".SFNSDisplay-Light", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	outline: 0;
+	border: none;
+}
+
+.monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container :focus {
+	outline: 0;
+}
+
+.hc-black .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
+	border: 2px solid #6FC3DF;
 }

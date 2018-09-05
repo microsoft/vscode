@@ -8,7 +8,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -55,7 +54,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh().done(undefined, errors.onUnexpectedError);
+			this.tree.refresh();
 		}, 50);
 	}
 
@@ -90,9 +89,9 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				return;
 			}
 
-			this.tree.refresh().done(() => {
+			this.tree.refresh().then(() => {
 				return we instanceof Expression ? this.tree.reveal(we) : TPromise.as(true);
-			}, errors.onUnexpectedError);
+			});
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.isExpanded() || !this.isVisible()) {
@@ -107,7 +106,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (expression instanceof Expression) {
-				this.tree.refresh(expression, false).done(null, errors.onUnexpectedError);
+				this.tree.refresh(expression, false);
 			}
 		}));
 	}

@@ -33,7 +33,16 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private getExendsLink(document: vscode.TextDocument, root: jsonc.Node): vscode.DocumentLink | undefined {
-		return this.pathNodeToLink(document, jsonc.findNodeAtLocation(root, ['extends']));
+		const extendsNode = jsonc.findNodeAtLocation(root, ['extends']);
+		if (!this.isPathValue(extendsNode)) {
+			return undefined;
+		}
+
+		return new vscode.DocumentLink(
+			this.getRange(document, extendsNode),
+			basename(extendsNode.value).match('.json$')
+				? this.getFileTarget(document, extendsNode)
+				: vscode.Uri.file(join(dirname(document.uri.fsPath), extendsNode!.value + '.json')));
 	}
 
 	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node) {

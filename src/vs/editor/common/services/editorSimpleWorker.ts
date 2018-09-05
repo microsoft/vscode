@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
@@ -529,6 +529,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 			return TPromise.as(methods);
 		}
+		// ESM-comment-begin
 		return new TPromise<any>((c, e) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
@@ -544,6 +545,11 @@ export abstract class BaseEditorSimpleWorker {
 
 			}, e);
 		});
+		// ESM-comment-end
+
+		// ESM-uncomment-begin
+		// return TPromise.wrapError(new Error(`Unexpected usage`));
+		// ESM-uncomment-end
 	}
 
 	// foreign method request

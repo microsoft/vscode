@@ -7,7 +7,7 @@
 
 import { mergeSort } from 'vs/base/common/arrays';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -24,7 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 abstract class Recording {
 
@@ -233,7 +233,7 @@ export class BulkEdit {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IUriDisplayService private readonly _uriDisplayServie: IUriDisplayService
+		@ILabelService private readonly _uriLabelServie: ILabelService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -339,7 +339,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => this._uriDisplayServie.getLabel(edit.resource, true));
+			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, true));
 
 		recording.stop();
 
@@ -369,7 +369,7 @@ export class BulkEditService implements IBulkEditService {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IUriDisplayService private readonly _uriDisplayService: IUriDisplayService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 
 	}
@@ -400,7 +400,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._uriDisplayService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService);
 		bulkEdit.add(edits);
 
 		return TPromise.wrap(bulkEdit.perform().then(() => {

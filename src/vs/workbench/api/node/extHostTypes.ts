@@ -6,7 +6,7 @@
 
 import * as crypto from 'crypto';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
@@ -1955,4 +1955,11 @@ export enum CommentThreadCollapsibleState {
 	 * Determines an item is expanded
 	 */
 	Expanded = 1
+}
+
+export class QuickInputButtons {
+
+	static readonly Back: vscode.QuickInputButton = { iconPath: 'back.svg' };
+
+	private constructor() { }
 }

@@ -19,7 +19,7 @@ import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
@@ -189,9 +189,12 @@ export class ColorThemeData implements IColorTheme {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
+	get baseTheme(): string {
+		return this.id.split(' ')[0];
+	}
+
 	get type(): ThemeType {
-		let baseTheme = this.id.split(' ')[0];
-		switch (baseTheme) {
+		switch (this.baseTheme) {
 			case VS_LIGHT_THEME: return 'light';
 			case VS_HC_THEME: return 'hc';
 			default: return 'dark';
@@ -272,7 +275,7 @@ function toCSSSelector(str: string) {
 
 function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
 	if (Paths.extname(themeLocation.path) === '.json') {
-		return fileService.resolveContent(themeLocation).then(content => {
+		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
@@ -325,7 +328,7 @@ function getPListParser() {
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	return fileService.resolveContent(themeLocation).then(content => {
+	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 		return getPListParser().then(parser => {
 			try {
 				let contentValue = parser.parse(content.value.toString());

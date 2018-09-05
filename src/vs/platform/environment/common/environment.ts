@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
 	'folder-uri'?: string | string[];
+	'file-uri'?: string | string[];
 	_urls?: string[];
 	help?: boolean;
 	version?: boolean;
@@ -31,6 +33,7 @@ export interface ParsedArgs {
 	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
+	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
 	debugPluginHost?: string;
@@ -103,8 +106,9 @@ export interface IEnvironmentService {
 
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	builtinExtensionsPath: string;
 	extensionsPath: string;
-	extensionDevelopmentPath: string;
+	extensionDevelopmentLocationURI: URI;
 	extensionTestsPath: string;
 
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -119,6 +123,7 @@ export interface IEnvironmentService {
 	performance: boolean;
 
 	// logging
+	log: string;
 	logsPath: string;
 	verbose: boolean;
 

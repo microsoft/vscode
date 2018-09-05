@@ -518,6 +518,20 @@ suite('TextAreaState', () => {
 		);
 	});
 
+	test('issue #49480: Double curly braces inserted', () => {
+		// Characters get doubled
+		testDeduceInput(
+			new TextAreaState(
+				'aa',
+				2, 2,
+				null, null
+			),
+			'aaa',
+			3, 3, true, true,
+			'a', 0
+		);
+	});
+
 	suite('PagedScreenReaderStrategy', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {

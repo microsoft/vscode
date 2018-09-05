@@ -76,17 +76,16 @@ define([], function () {
 
 	function getDuration(from, to) {
 		const entries = global._performanceEntries;
-		let name = from;
-		let startTime = 0;
-		for (let i = 0; i < entries.length; i += 5) {
-			if (entries[i + 1] === name) {
-				if (name === from) {
-					// found `from` (start of interval)
-					name = to;
-					startTime = entries[i + 2];
+		let target = to;
+		let endTime = 0;
+		for (let i = entries.length - 1; i >= 0; i -= 5) {
+			if (entries[i - 3] === target) {
+				if (target === to) {
+					// found `to` (end of interval)
+					endTime = entries[i - 2];
+					target = from;
 				} else {
-					// from `to` (end of interval)
-					return entries[i + 2] - startTime;
+					return endTime - entries[i - 2];
 				}
 			}
 		}

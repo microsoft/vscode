@@ -13,7 +13,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -29,6 +28,7 @@ import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -47,7 +47,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService
@@ -184,10 +184,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public selectDefaultWindowsShell(): TPromise<string> {
 		return this._detectWindowsShells().then(shells => {
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
-			return this._quickOpenService.pick(shells, options).then(value => {
+			return this._quickInputService.pick(shells, options).then(value => {
 				if (!value) {
 					return null;
 				}
@@ -197,7 +197,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
+	private _detectWindowsShells(): TPromise<IQuickPickItem[]> {
 		// Determine the correct System32 path. We want to point to Sysnative
 		// when the 32-bit version of VS Code is running on a 64-bit machine.
 		// The reason for this is because PowerShell's important PSReadline
@@ -231,7 +231,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return TPromise.join(promises).then(results => {
 			return results.filter(result => !!result).map(result => {
-				return <IPickOpenEntry>{
+				return <IQuickPickItem>{
 					label: result[0],
 					description: result[1]
 				};

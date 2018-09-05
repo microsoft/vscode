@@ -8,7 +8,6 @@
 import 'vs/css!./parameterHints';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
@@ -169,7 +168,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints;
+		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
 
 		if (!this.enabled) {
 			this.cancel();
@@ -294,7 +293,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.keyVisible.set(true);
 		this.visible = true;
-		TPromise.timeout(100).done(() => dom.addClass(this.element, 'visible'));
+		setTimeout(() => dom.addClass(this.element, 'visible'), 100);
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -476,14 +475,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	next(): boolean {
 		const length = this.hints.signatures.length;
 		const last = (this.currentSignature % length) === (length - 1);
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
 		// If there is only one signature, or we're on last signature of list
-		if (length < 2 || last) {
+		if ((length < 2 || last) && !cycle) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature++;
+		if (last && cycle) {
+			this.currentSignature = 0;
+		} else {
+			this.currentSignature++;
+		}
+
 		this.render();
 		return true;
 	}
@@ -491,13 +496,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	previous(): boolean {
 		const length = this.hints.signatures.length;
 		const first = this.currentSignature === 0;
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
-		if (length < 2 || first) {
+		// If there is only one signature, or we're on first signature of list
+		if ((length < 2 || first) && !cycle) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature--;
+		if (first && cycle) {
+			this.currentSignature = length - 1;
+		} else {
+			this.currentSignature--;
+		}
+
 		this.render();
 		return true;
 	}

@@ -9,7 +9,7 @@ import * as network from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
@@ -28,6 +28,7 @@ import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/
 import { ITextModel, IModelDeltaDecoration, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, DefaultEndOfLine, ITextModelCreationOptions, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBufferFactory, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { basename } from 'vs/base/common/paths';
+import { isThenable } from 'vs/base/common/async';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -73,8 +74,8 @@ class ModelMarkerHandler {
 
 		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
-				range: this._createDecorationRange(modelData.model, marker),
-				options: this._createDecorationOption(marker)
+				range: ModelMarkerHandler._createDecorationRange(modelData.model, marker),
+				options: ModelMarkerHandler._createDecorationOption(marker)
 			};
 		});
 
@@ -85,9 +86,12 @@ class ModelMarkerHandler {
 
 		let ret = Range.lift(rawMarker);
 
-		if (rawMarker.severity === MarkerSeverity.Hint && Range.spansMultipleLines(ret)) {
-			// never render hints on multiple lines
-			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn);
+		if (rawMarker.severity === MarkerSeverity.Hint) {
+			if (!rawMarker.tags || rawMarker.tags.indexOf(MarkerTag.Unnecessary) === -1) {
+				// * never render hints on multiple lines
+				// * make enough space for three dots
+				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
+			}
 		}
 
 		ret = model.validateRange(ret);
@@ -497,7 +501,7 @@ export class ModelServiceImpl implements IModelService {
 	public createModel(value: string | ITextBufferFactory, modeOrPromise: TPromise<IMode> | IMode, resource: URI, isForSimpleWidget: boolean = false): ITextModel {
 		let modelData: ModelData;
 
-		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
+		if (!modeOrPromise || isThenable(modeOrPromise)) {
 			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
 			this.setMode(modelData.model, modeOrPromise);
 		} else {
@@ -518,7 +522,7 @@ export class ModelServiceImpl implements IModelService {
 		if (!modeOrPromise) {
 			return;
 		}
-		if (TPromise.is(modeOrPromise)) {
+		if (isThenable(modeOrPromise)) {
 			modeOrPromise.then((mode) => {
 				if (!model.isDisposed()) {
 					model.setMode(mode.getLanguageIdentifier());

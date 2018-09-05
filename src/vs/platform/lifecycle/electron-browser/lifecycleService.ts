@@ -61,7 +61,7 @@ export class LifecycleService implements ILifecycleService {
 			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload(reply.reason).done(veto => {
+			this.onBeforeUnload(reply.reason).then(veto => {
 				if (veto) {
 					this._logService.trace('lifecycle: onBeforeUnload prevented via veto');
 					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
@@ -83,7 +83,7 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	private onBeforeUnload(reason: ShutdownReason): TPromise<boolean> {
-		const vetos: (boolean | TPromise<boolean>)[] = [];
+		const vetos: (boolean | Thenable<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {

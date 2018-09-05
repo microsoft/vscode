@@ -5,12 +5,12 @@
 
 'use strict';
 
-import * as errors from 'vs/base/common/errors';
-import { TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
+import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
@@ -24,16 +24,10 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	}
 }
 
-export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
-	if (arg instanceof TPromise) {
-		return arg;
-	}
-
-	return new TPromise((resolve, reject) => arg.then(resolve, reject));
-}
-
 export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
+	cancelableThen<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): CancelablePromise<U>;
+	cancelableThen<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => void): CancelablePromise<U>;
 }
 
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Thenable<T>): CancelablePromise<T> {
@@ -63,12 +57,19 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Thenable<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
 		}
+		cancelableThen<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Thenable<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Thenable<TResult2>) | undefined | null): CancelablePromise<TResult1 | TResult2> {
+			return createCancelablePromise<TResult1 | TResult2>(token => {
+				const listener = token.onCancellationRequested(_ => this.cancel());
+				always(promise, () => listener.dispose());
+				return this.then(resolve, reject);
+			});
+		}
 	};
 }
 
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject, progress) => {
+	return new TPromise<T>((resolve, reject) => {
 		let item = callback(source.token);
 		if (item instanceof TPromise) {
 			item.then(result => {
@@ -77,7 +78,7 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 			}, err => {
 				source.dispose();
 				reject(err);
-			}, progress);
+			});
 		} else if (isThenable<T>(item)) {
 			item.then(result => {
 				source.dispose();
@@ -95,6 +96,19 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	});
 }
 
+export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Thenable<T> {
+	return new TPromise<T>((resolve, reject) => {
+		let item = callback();
+		if (item instanceof TPromise) {
+			item.then(resolve, reject);
+		} else if (isThenable<T>(item)) {
+			item.then(resolve, reject);
+		} else {
+			resolve(item);
+		}
+	}, () => { /* not supported */ });
+}
+
 /**
  * Hook a cancellation token to a WinJS Promise
  */
@@ -109,33 +123,6 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 		});
 	}
 	return always(promise, () => subscription.dispose());
-}
-
-export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, bucket?: IDisposable[]): { promise: Thenable<T> } & IDisposable {
-	let dispose: () => void;
-	let promise = new TPromise((resolve, reject) => {
-		dispose = function () {
-			resolve(cancelValue);
-			if (isWinJSPromise(input)) {
-				input.cancel();
-			}
-		};
-		input.then(resolve, err => {
-			if (errors.isPromiseCanceledError(err)) {
-				resolve(cancelValue);
-			} else {
-				reject(err);
-			}
-		});
-	});
-	let res = {
-		promise,
-		dispose
-	};
-	if (Array.isArray(bucket)) {
-		bucket.push(res);
-	}
-	return res;
 }
 
 export interface ITask<T> {
@@ -194,15 +181,15 @@ export class Throttler {
 					return result;
 				};
 
-				this.queuedPromise = new TPromise((c, e, p) => {
-					this.activePromise.then(onComplete, onComplete, p).done(c);
+				this.queuedPromise = new TPromise(c => {
+					this.activePromise.then(onComplete, onComplete).then(c);
 				}, () => {
 					this.activePromise.cancel();
 				});
 			}
 
-			return new TPromise((c, e, p) => {
-				this.queuedPromise.then(c, e, p);
+			return new TPromise((c, e) => {
+				this.queuedPromise.then(c, e);
 			}, () => {
 				// no-op
 			});
@@ -210,14 +197,14 @@ export class Throttler {
 
 		this.activePromise = promiseFactory();
 
-		return new TPromise((c, e, p) => {
-			this.activePromise.done((result: any) => {
+		return new TPromise((c, e) => {
+			this.activePromise.then((result: any) => {
 				this.activePromise = null;
 				c(result);
 			}, (err: any) => {
 				this.activePromise = null;
 				e(err);
-			}, p);
+			});
 		}, () => {
 			this.activePromise.cancel();
 		});
@@ -378,20 +365,18 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 	constructor(outer: TPromise<T>) {
 
 		let completeCallback: ValueCallback,
-			errorCallback: ErrorCallback,
-			progressCallback: ProgressCallback;
+			errorCallback: ErrorCallback;
 
-		super((c, e, p) => {
+		super((c, e) => {
 			completeCallback = c;
 			errorCallback = e;
-			progressCallback = p;
 		}, () => {
 			// cancel this promise but not the
 			// outer promise
 			errorCallback(errors.canceled());
 		});
 
-		outer.then(completeCallback, errorCallback, progressCallback);
+		outer.then(completeCallback, errorCallback);
 	}
 }
 
@@ -410,8 +395,12 @@ export function timeout(n: number): CancelablePromise<void> {
 	});
 }
 
-function isWinJSPromise(candidate: any): candidate is TPromise {
-	return TPromise.is(candidate) && typeof (<TPromise>candidate).done === 'function';
+/**
+ *
+ * @returns `true` if candidate is a `WinJS.Promise`
+ */
+export function isWinJSPromise(candidate: any): candidate is TPromise {
+	return isThenable(candidate) && typeof (candidate as any).done === 'function';
 }
 
 /**
@@ -419,39 +408,20 @@ function isWinJSPromise(candidate: any): candidate is TPromise {
  * the provided promise the provided function will always be called. This
  * method is comparable to a try-finally code block.
  * @param promise a promise
- * @param f a function that will be call in the success and error case.
+ * @param callback a function that will be call in the success and error case.
  */
-export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
-export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
-export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
-	if (isWinJSPromise(winjsPromiseOrThenable)) {
-		return new TPromise<T>((c, e, p) => {
-			winjsPromiseOrThenable.done((result) => {
-				try {
-					f(result);
-				} catch (e1) {
-					errors.onUnexpectedError(e1);
-				}
-				c(result);
-			}, (err) => {
-				try {
-					f(err);
-				} catch (e1) {
-					errors.onUnexpectedError(e1);
-				}
-				e(err);
-			}, (progress) => {
-				p(progress);
-			});
-		}, () => {
-			winjsPromiseOrThenable.cancel();
-		});
-
-	} else {
-		// simple
-		winjsPromiseOrThenable.then(_ => f(), _ => f());
-		return winjsPromiseOrThenable;
+export function always<T>(thenable: TPromise<T>, callback: () => void): TPromise<T>;
+export function always<T>(promise: Thenable<T>, callback: () => void): Thenable<T>;
+export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => void) {
+	function safeCallback() {
+		try {
+			callback();
+		} catch (err) {
+			errors.onUnexpectedError(err);
+		}
 	}
+	winjsPromiseOrThenable.then(_ => safeCallback(), _ => safeCallback());
+	return winjsPromiseOrThenable;
 }
 
 /**
@@ -534,7 +504,6 @@ interface ILimitedTaskFactory {
 	factory: ITask<TPromise>;
 	c: ValueCallback;
 	e: ErrorCallback;
-	p: ProgressCallback;
 }
 
 /**
@@ -563,14 +532,9 @@ export class Limiter<T> {
 	}
 
 	queue(promiseFactory: ITask<TPromise>): TPromise;
-	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
-		return new TPromise<T>((c, e, p) => {
-			this.outstandingPromises.push({
-				factory: promiseFactory,
-				c: c,
-				e: e,
-				p: p
-			});
+	queue(factory: ITask<TPromise<T>>): TPromise<T> {
+		return new TPromise<T>((c, e) => {
+			this.outstandingPromises.push({ factory, c, e });
 
 			this.consume();
 		});
@@ -582,8 +546,8 @@ export class Limiter<T> {
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
-			promise.done(iLimitedTask.c, iLimitedTask.e, iLimitedTask.p);
-			promise.done(() => this.consumed(), () => this.consumed());
+			promise.then(iLimitedTask.c, iLimitedTask.e);
+			promise.then(() => this.consumed(), () => this.consumed());
 		}
 	}
 

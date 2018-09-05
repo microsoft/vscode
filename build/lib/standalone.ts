@@ -10,7 +10,6 @@ import * as tss from './treeshaking';
 
 const REPO_ROOT = path.join(__dirname, '../../');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
-const OUT_EDITOR = path.join(REPO_ROOT, 'out-editor');
 
 let dirCache: { [dir: string]: boolean; } = {};
 
@@ -38,7 +37,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 			writeFile(path.join(options.destRoot, fileName), result[fileName]);
 		}
 	}
-	let copied: { [fileName:string]: boolean; } = {};
+	let copied: { [fileName: string]: boolean; } = {};
 	const copyFile = (fileName: string) => {
 		if (copied[fileName]) {
 			return;
@@ -82,6 +81,8 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
 	tsConfig.compilerOptions.noUnusedLocals = false;
+	tsConfig.compilerOptions.preserveConstEnums = false;
+	tsConfig.compilerOptions.declaration = false;
 	writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
 
 	[
@@ -101,191 +102,174 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	].forEach(copyFile);
 }
 
-export interface IOptions {
-	entryPoints: string[];
+export interface IOptions2 {
+	srcFolder: string;
 	outFolder: string;
 	outResourcesFolder: string;
-	redirects: { [module: string]: string; };
+	ignores: string[];
+	renames: { [filename: string]: string; };
 }
 
-export function createESMSourcesAndResources(options: IOptions): void {
+export function createESMSourcesAndResources2(options: IOptions2): void {
+	const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
 	const OUT_FOLDER = path.join(REPO_ROOT, options.outFolder);
 	const OUT_RESOURCES_FOLDER = path.join(REPO_ROOT, options.outResourcesFolder);
 
-	let in_queue: { [module: string]: boolean; } = Object.create(null);
-	let queue: string[] = [];
-
-	const enqueue = (module: string) => {
-		if (in_queue[module]) {
-			return;
+	const getDestAbsoluteFilePath = (file: string): string => {
+		let dest = options.renames[file.replace(/\\/g, '/')] || file;
+		if (dest === 'tsconfig.json') {
+			return path.join(OUT_FOLDER, `../tsconfig.json`);
 		}
-		in_queue[module] = true;
-		queue.push(module);
+		if (/\.ts$/.test(dest)) {
+			return path.join(OUT_FOLDER, dest);
+		}
+		return path.join(OUT_RESOURCES_FOLDER, dest);
 	};
 
-	const seenDir: { [key: string]: boolean; } = {};
-	const createDirectoryRecursive = (dir: string) => {
-		if (seenDir[dir]) {
-			return;
-		}
+	const allFiles = walkDirRecursive(SRC_FOLDER);
+	for (let i = 0; i < allFiles.length; i++) {
+		const file = allFiles[i];
 
-		let lastSlash = dir.lastIndexOf('/');
-		if (lastSlash === -1) {
-			lastSlash = dir.lastIndexOf('\\');
-		}
-		if (lastSlash !== -1) {
-			createDirectoryRecursive(dir.substring(0, lastSlash));
-		}
-		seenDir[dir] = true;
-		try { fs.mkdirSync(dir); } catch (err) { }
-	};
-
-	seenDir[REPO_ROOT] = true;
-
-	const toggleComments = (fileContents: string) => {
-		let lines = fileContents.split(/\r\n|\r|\n/);
-		let mode = 0;
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-
-			if (mode === 0) {
-				if (/\/\/ ESM-comment-begin/.test(line)) {
-					mode = 1;
-					continue;
-				}
-				if (/\/\/ ESM-uncomment-begin/.test(line)) {
-					mode = 2;
-					continue;
-				}
-				continue;
-			}
-
-			if (mode === 1) {
-				if (/\/\/ ESM-comment-end/.test(line)) {
-					mode = 0;
-					continue;
-				}
-				lines[i] = '// ' + line;
-				continue;
-			}
-
-			if (mode === 2) {
-				if (/\/\/ ESM-uncomment-end/.test(line)) {
-					mode = 0;
-					continue;
-				}
-				lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
-					return indent;
-				});
-			}
-		}
-
-		return lines.join('\n');
-	};
-
-	const write = (filePath: string, contents: string | Buffer) => {
-		let absoluteFilePath: string;
-		if (/\.ts$/.test(filePath)) {
-			absoluteFilePath = path.join(OUT_FOLDER, filePath);
-		} else {
-			absoluteFilePath = path.join(OUT_RESOURCES_FOLDER, filePath);
-		}
-		createDirectoryRecursive(path.dirname(absoluteFilePath));
-		if (/(\.ts$)|(\.js$)/.test(filePath)) {
-			contents = toggleComments(contents.toString());
-		}
-		fs.writeFileSync(absoluteFilePath, contents);
-	};
-
-	options.entryPoints.forEach((entryPoint) => enqueue(entryPoint));
-
-	while (queue.length > 0) {
-		const module = queue.shift();
-		if (transportCSS(module, enqueue, write)) {
-			continue;
-		}
-		if (transportResource(options, module, enqueue, write)) {
-			continue;
-		}
-		if (transportDTS(options, module, enqueue, write)) {
+		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
 			continue;
 		}
 
-		let filename: string;
-		if (options.redirects[module]) {
-			filename = path.join(SRC_DIR, options.redirects[module] + '.ts');
-		} else {
-			filename = path.join(SRC_DIR, module + '.ts');
-		}
-		let fileContents = fs.readFileSync(filename).toString();
-
-		const info = ts.preProcessFile(fileContents);
-
-		for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-			const importedFilename = info.importedFiles[i].fileName;
-			const pos = info.importedFiles[i].pos;
-			const end = info.importedFiles[i].end;
-
-			let importedFilepath: string;
-			if (/^vs\/css!/.test(importedFilename)) {
-				importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
-			} else {
-				importedFilepath = importedFilename;
-			}
-			if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-				importedFilepath = path.join(path.dirname(module), importedFilepath);
-			}
-
-			enqueue(importedFilepath);
-
-			let relativePath: string;
-			if (importedFilepath === path.dirname(module)) {
-				relativePath = '../' + path.basename(path.dirname(module));
-			} else if (importedFilepath === path.dirname(path.dirname(module))) {
-				relativePath = '../../' + path.basename(path.dirname(path.dirname(module)));
-			} else {
-				relativePath = path.relative(path.dirname(module), importedFilepath);
-			}
-			if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
-				relativePath = './' + relativePath;
-			}
-			fileContents = (
-				fileContents.substring(0, pos + 1)
-				+ relativePath
-				+ fileContents.substring(end + 1)
-			);
+		if (file === 'tsconfig.json') {
+			const tsConfig = JSON.parse(fs.readFileSync(path.join(SRC_FOLDER, file)).toString());
+			tsConfig.compilerOptions.moduleResolution = undefined;
+			tsConfig.compilerOptions.baseUrl = undefined;
+			tsConfig.compilerOptions.module = 'es6';
+			tsConfig.compilerOptions.rootDir = 'src';
+			tsConfig.compilerOptions.outDir = path.relative(path.dirname(OUT_FOLDER), OUT_RESOURCES_FOLDER);
+			write(getDestAbsoluteFilePath(file), JSON.stringify(tsConfig, null, '\t'));
+			continue;
 		}
 
-		fileContents = fileContents.replace(/import ([a-zA-z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
-			return `import * as ${m1} from ${m2};`;
-		});
-		fileContents = fileContents.replace(/Thenable/g, 'PromiseLike');
+		if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file)) {
+			// Transport the files directly
+			write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
+			continue;
+		}
 
-		write(module + '.ts', fileContents);
+		if (/\.ts$/.test(file)) {
+			// Transform the .ts file
+			let fileContents = fs.readFileSync(path.join(SRC_FOLDER, file)).toString();
+
+			const info = ts.preProcessFile(fileContents);
+
+			for (let i = info.importedFiles.length - 1; i >= 0; i--) {
+				const importedFilename = info.importedFiles[i].fileName;
+				const pos = info.importedFiles[i].pos;
+				const end = info.importedFiles[i].end;
+
+				let importedFilepath: string;
+				if (/^vs\/css!/.test(importedFilename)) {
+					importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
+				} else {
+					importedFilepath = importedFilename;
+				}
+				if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
+					importedFilepath = path.join(path.dirname(file), importedFilepath);
+				}
+
+				let relativePath: string;
+				if (importedFilepath === path.dirname(file)) {
+					relativePath = '../' + path.basename(path.dirname(file));
+				} else if (importedFilepath === path.dirname(path.dirname(file))) {
+					relativePath = '../../' + path.basename(path.dirname(path.dirname(file)));
+				} else {
+					relativePath = path.relative(path.dirname(file), importedFilepath);
+				}
+				if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
+					relativePath = './' + relativePath;
+				}
+				fileContents = (
+					fileContents.substring(0, pos + 1)
+					+ relativePath
+					+ fileContents.substring(end + 1)
+				);
+			}
+
+			fileContents = fileContents.replace(/import ([a-zA-z0-9]+) = require\(('[^']+')\);/g, function (_, m1, m2) {
+				return `import * as ${m1} from ${m2};`;
+			});
+
+			write(getDestAbsoluteFilePath(file), fileContents);
+			continue;
+		}
+
+		console.log(`UNKNOWN FILE: ${file}`);
 	}
 
-	const esm_opts = {
-		"compilerOptions": {
-			"outDir": path.relative(path.dirname(OUT_FOLDER), OUT_RESOURCES_FOLDER),
-			"rootDir": "src",
-			"module": "es6",
-			"target": "es5",
-			"experimentalDecorators": true,
-			"lib": [
-				"dom",
-				"es5",
-				"es2015.collection",
-				"es2015.promise"
-			],
-			"types": [
-			]
+
+	function walkDirRecursive(dir: string): string[] {
+		if (dir.charAt(dir.length - 1) !== '/' || dir.charAt(dir.length - 1) !== '\\') {
+			dir += '/';
 		}
-	};
-	fs.writeFileSync(path.join(path.dirname(OUT_FOLDER), 'tsconfig.json'), JSON.stringify(esm_opts, null, '\t'));
+		let result: string[] = [];
+		_walkDirRecursive(dir, result, dir.length);
+		return result;
+	}
 
-	const monacodts = fs.readFileSync(path.join(SRC_DIR, 'vs/monaco.d.ts')).toString();
-	fs.writeFileSync(path.join(OUT_FOLDER, 'vs/monaco.d.ts'), monacodts);
+	function _walkDirRecursive(dir: string, result: string[], trimPos: number): void {
+		const files = fs.readdirSync(dir);
+		for (let i = 0; i < files.length; i++) {
+			const file = path.join(dir, files[i]);
+			if (fs.statSync(file).isDirectory()) {
+				_walkDirRecursive(file, result, trimPos);
+			} else {
+				result.push(file.substr(trimPos));
+			}
+		}
+	}
 
+	function write(absoluteFilePath: string, contents: string | Buffer): void {
+		if (/(\.ts$)|(\.js$)/.test(absoluteFilePath)) {
+			contents = toggleComments(contents.toString());
+		}
+		writeFile(absoluteFilePath, contents);
+
+		function toggleComments(fileContents: string): string {
+			let lines = fileContents.split(/\r\n|\r|\n/);
+			let mode = 0;
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i];
+
+				if (mode === 0) {
+					if (/\/\/ ESM-comment-begin/.test(line)) {
+						mode = 1;
+						continue;
+					}
+					if (/\/\/ ESM-uncomment-begin/.test(line)) {
+						mode = 2;
+						continue;
+					}
+					continue;
+				}
+
+				if (mode === 1) {
+					if (/\/\/ ESM-comment-end/.test(line)) {
+						mode = 0;
+						continue;
+					}
+					lines[i] = '// ' + line;
+					continue;
+				}
+
+				if (mode === 2) {
+					if (/\/\/ ESM-uncomment-end/.test(line)) {
+						mode = 0;
+						continue;
+					}
+					lines[i] = line.replace(/^(\s*)\/\/ ?/, function (_, indent) {
+						return indent;
+					});
+				}
+			}
+
+			return lines.join('\n');
+		}
+	}
 }
 
 function transportCSS(module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
@@ -362,34 +346,4 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 	function _startsWith(haystack: string, needle: string): boolean {
 		return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
 	}
-}
-
-function transportResource(options: IOptions, module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
-
-	if (!/\.svg/.test(module)) {
-		return false;
-	}
-
-	write(module, fs.readFileSync(path.join(SRC_DIR, module)));
-	return true;
-}
-
-function transportDTS(options: IOptions, module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
-
-	if (options.redirects[module] && fs.existsSync(path.join(SRC_DIR, options.redirects[module] + '.ts'))) {
-		return false;
-	}
-
-	if (!fs.existsSync(path.join(SRC_DIR, module + '.d.ts'))) {
-		return false;
-	}
-
-	write(module + '.d.ts', fs.readFileSync(path.join(SRC_DIR, module + '.d.ts')));
-	let filename: string;
-	if (options.redirects[module]) {
-		write(module + '.js', fs.readFileSync(path.join(SRC_DIR, options.redirects[module] + '.js')));
-	} else {
-		write(module + '.js', fs.readFileSync(path.join(SRC_DIR, module + '.js')));
-	}
-	return true;
 }

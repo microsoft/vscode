@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
@@ -122,6 +122,7 @@ export interface IExtensionManifest {
 	main?: string;
 	icon?: string;
 	categories?: string[];
+	keywords?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
@@ -255,7 +256,8 @@ export interface IReportedExtension {
 }
 
 export enum InstallOperation {
-	Install = 1,
+	None = 0,
+	Install,
 	Update
 }
 
@@ -276,6 +278,7 @@ export interface IExtensionGalleryService {
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
+	getExtension(id: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension>;
 }
 
 export interface InstallExtensionEvent {
@@ -306,7 +309,9 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	install(zipPath: string): TPromise<void>;
+	zip(extension: ILocalExtension): TPromise<URI>;
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier>;
+	install(vsix: URI): TPromise<IExtensionIdentifier>;
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
@@ -320,13 +325,14 @@ export const IExtensionManagementServerService = createDecorator<IExtensionManag
 
 export interface IExtensionManagementServer {
 	extensionManagementService: IExtensionManagementService;
-	location: URI;
+	authority: string;
+	label: string;
 }
 
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly extensionManagementServers: IExtensionManagementServer[];
-	getDefaultExtensionManagementServer(): IExtensionManagementServer;
+	getLocalExtensionManagementServer(): IExtensionManagementServer;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 

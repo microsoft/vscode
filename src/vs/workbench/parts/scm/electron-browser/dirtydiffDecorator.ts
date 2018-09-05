@@ -19,7 +19,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -64,7 +64,7 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 		event.stopPropagation();
 
 		this.actionRunner.run(this._commandAction, this._context)
-			.done(undefined, err => this._notificationService.error(err));
+			.then(undefined, err => this._notificationService.error(err));
 	}
 }
 
@@ -703,11 +703,16 @@ export class DirtyDiffController implements IEditorContribution {
 			return;
 		}
 
+		if (e.target.element.className.indexOf('dirty-diff-glyph') < 0) {
+			return;
+		}
+
 		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX > 10) {
+		if (gutterOffsetX < -3 || gutterOffsetX > 6) { // dirty diff decoration on hover is 9px wide
 			return;
 		}
 

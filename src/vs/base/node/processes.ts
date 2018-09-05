@@ -6,17 +6,16 @@
 
 import * as path from 'path';
 import * as cp from 'child_process';
-import { fork } from 'vs/base/node/stdFork';
 import * as nls from 'vs/nls';
 import { TPromise, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
-import URI from 'vs/base/common/uri';
 import * as Objects from 'vs/base/common/objects';
 import * as TPath from 'vs/base/common/paths';
 import * as Platform from 'vs/base/common/platform';
 import { LineDecoder } from 'vs/base/node/decoder';
 import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
 export type TProgressCallback<T> = (progress: T) => void;
@@ -54,7 +53,7 @@ export function terminateProcess(process: cp.ChildProcess, cwd?: string): Termin
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
-			let cmd = URI.parse(require.toUrl('vs/base/node/terminateProcess.sh')).fsPath;
+			let cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
 			let result = cp.spawnSync(cmd, [process.pid.toString()]);
 			if (result.error) {
 				return { success: false, error: result.error };
@@ -74,7 +73,6 @@ export function getWindowsShell(): string {
 
 export abstract class AbstractProcess<TProgressData> {
 	private cmd: string;
-	private module: string;
 	private args: string[];
 	private options: CommandOptions | ForkOptions;
 	protected shell: boolean;
@@ -107,18 +105,12 @@ export abstract class AbstractProcess<TProgressData> {
 
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
-	public constructor(module: string, args: string[], options: ForkOptions);
-	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
-		if (arg4) {
+	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean, arg4?: CommandOptions) {
+		if (arg2 !== void 0 && arg3 !== void 0 && arg4 !== void 0) {
 			this.cmd = <string>arg1;
 			this.args = arg2;
-			this.shell = <boolean>arg3;
+			this.shell = arg3;
 			this.options = arg4;
-		} else if (arg3 && arg2) {
-			this.module = <string>arg1;
-			this.args = arg2;
-			this.shell = false;
-			this.options = <ForkOptions>arg3;
 		} else {
 			let executable = <Executable>arg1;
 			this.cmd = executable.command;
@@ -233,24 +225,6 @@ export abstract class AbstractProcess<TProgressData> {
 				} else {
 					if (this.cmd) {
 						childProcess = cp.spawn(this.cmd, this.args, this.options);
-					} else if (this.module) {
-						this.childProcessPromise = new TPromise<cp.ChildProcess>((c, e) => {
-							fork(this.module, this.args, <ForkOptions>this.options, (error: any, childProcess: cp.ChildProcess) => {
-								if (error) {
-									e(error);
-									ee({ terminated: this.terminateRequested, error: error });
-									return;
-								}
-								this.childProcess = childProcess;
-								if (this.pidResolve) {
-									this.pidResolve(Types.isNumber(childProcess.pid) ? childProcess.pid : -1);
-									this.pidResolve = undefined;
-								}
-								this.childProcess.on('close', closeHandler);
-								this.handleSpawn(childProcess, cc, pp, ee, false);
-								c(childProcess);
-							});
-						});
 					}
 				}
 				if (childProcess) {
@@ -345,7 +319,6 @@ export class LineProcess extends AbstractProcess<LineData> {
 
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
-	public constructor(module: string, args: string[], options: ForkOptions);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
 		super(<any>arg1, arg2, <any>arg3, arg4);
 	}

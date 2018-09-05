@@ -8,7 +8,7 @@
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as pfs from 'vs/base/node/pfs';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, ITextSnapshot } from 'vs/platform/files/common/files';

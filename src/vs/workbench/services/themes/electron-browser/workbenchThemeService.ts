@@ -18,13 +18,10 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
 import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
@@ -97,7 +94,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
-		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
@@ -130,9 +126,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (persistedThemeData) {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
 		}
-		if (!themeData) {
-			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
-			themeData = ColorThemeData.createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
+		let containerBaseTheme = this.getBaseThemeFromContainer();
+		if (!themeData || themeData && themeData.baseTheme !== containerBaseTheme) {
+			themeData = ColorThemeData.createUnloadedTheme(containerBaseTheme);
 		}
 		themeData.setCustomColors(this.colorCustomizations);
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
@@ -305,6 +301,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
+	public restoreColorTheme() {
+		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
+		if (colorThemeSetting !== this.currentColorTheme.settingsId) {
+			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+				if (theme) {
+					this.setColorTheme(theme.id, null);
+				}
+			});
+		}
+	}
+
 	private updateDynamicCSSRules(themeData: ITheme) {
 		let cssRules: string[] = [];
 		let hasRule: { [rule: string]: boolean } = {};
@@ -342,11 +349,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
-		if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
-			let background = Color.Format.CSS.formatHex(newTheme.getColor(editorBackground)); // only take RGB, its what is used in the initial CSS
-			let data = { id: newTheme.id, background: background };
-			this.broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify(data) });
-		}
 		// remember theme data for a quick restore
 		this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData());
 
@@ -448,6 +450,18 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this._configurationWriter = this.instantiationService.createInstance(ConfigurationWriter);
 		}
 		return this._configurationWriter;
+	}
+
+	private getBaseThemeFromContainer() {
+		if (this.container) {
+			for (let i = this.container.classList.length - 1; i >= 0; i--) {
+				const item = document.body.classList.item(i);
+				if (item === VS_LIGHT_THEME || item === VS_DARK_THEME || item === VS_HC_THEME) {
+					return item;
+				}
+			}
+		}
+		return VS_DARK_THEME;
 	}
 }
 

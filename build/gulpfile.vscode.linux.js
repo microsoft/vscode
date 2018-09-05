@@ -214,9 +214,6 @@ gulp.task('clean-vscode-linux-arm-rpm', util.rimraf('.build/linux/rpm/armhf'));
 gulp.task('clean-vscode-linux-ia32-snap', util.rimraf('.build/linux/snap/x64'));
 gulp.task('clean-vscode-linux-x64-snap', util.rimraf('.build/linux/snap/x64'));
 gulp.task('clean-vscode-linux-arm-snap', util.rimraf('.build/linux/snap/x64'));
-gulp.task('clean-vscode-linux-ia32-flatpak', util.rimraf('.build/linux/flatpak/i386'));
-gulp.task('clean-vscode-linux-x64-flatpak', util.rimraf('.build/linux/flatpak/x86_64'));
-gulp.task('clean-vscode-linux-arm-flatpak', util.rimraf('.build/linux/flatpak/arm'));
 
 gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb'], prepareDebPackage('ia32'));
 gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb'], prepareDebPackage('x64'));

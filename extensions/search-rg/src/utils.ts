@@ -19,9 +19,27 @@ export function anchorGlob(glob: string): string {
 	return glob.startsWith('**') || glob.startsWith('/') ? glob : `/${glob}`;
 }
 
-export function joinPath(resource: vscode.Uri, pathFragment: string): vscode.Uri {
-	const joinedPath = path.join(resource.path || '/', pathFragment);
-	return resource.with({
-		path: joinedPath
-	});
+export function createTextSearchResult(uri: vscode.Uri, fullText: string, range: vscode.Range, previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchResult {
+	let preview: vscode.TextSearchResultPreview;
+	if (previewOptions) {
+		const previewStart = Math.max(range.start.character - previewOptions.leadingChars, 0);
+		const previewEnd = previewOptions.totalChars + previewStart;
+		const endOfMatchRangeInPreview = Math.min(previewEnd, range.end.character - previewStart);
+
+		preview = {
+			text: fullText.substring(previewStart, previewEnd),
+			match: new vscode.Range(0, range.start.character - previewStart, 0, endOfMatchRangeInPreview)
+		};
+	} else {
+		preview = {
+			text: fullText,
+			match: new vscode.Range(0, range.start.character, 0, range.end.character)
+		};
+	}
+
+	return <vscode.TextSearchResult>{
+		uri,
+		range,
+		preview
+	};
 }

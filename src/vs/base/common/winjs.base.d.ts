@@ -5,25 +5,17 @@
 /// Interfaces for WinJS
 
 export type ErrorCallback = (error: any) => void;
-export type ProgressCallback<TProgress = any> = (progress: TProgress) => void;
 
-export declare class Promise<T = any, TProgress = any> {
+export class Promise<T = any> {
 	constructor(
 		executor: (
 			resolve: (value: T | PromiseLike<T>) => void,
-			reject: (reason: any) => void,
-			progress: (progress: TProgress) => void) => void,
+			reject: (reason: any) => void) => void,
 		oncancel?: () => void);
 
 	public then<TResult1 = T, TResult2 = never>(
 		onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-		onprogress?: (progress: TProgress) => void): Promise<TResult1 | TResult2, TProgress>;
-
-	public done(
-		onfulfilled?: (value: T) => void,
-		onrejected?: (reason: any) => void,
-		onprogress?: (progress: TProgress) => void): void;
+		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
 	public cancel(): void;
 
@@ -32,8 +24,6 @@ export declare class Promise<T = any, TProgress = any> {
 	public static as<T>(value: PromiseLike<T>): PromiseLike<T>;
 	public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 	public static as<T>(value: T): Promise<T>;
-
-	public static is(value: any): value is PromiseLike<any>;
 
 	public static timeout(delay: number): Promise<void>;
 
@@ -56,9 +46,7 @@ export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
 
 export {
 	Promise as TPromise,
-	Promise as PPromise,
-	TValueCallback as ValueCallback,
-	ProgressCallback as TProgressCallback
+	TValueCallback as ValueCallback
 };
 
 export interface IPromiseErrorDetail {

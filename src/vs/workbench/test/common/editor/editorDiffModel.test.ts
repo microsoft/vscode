@@ -11,7 +11,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';

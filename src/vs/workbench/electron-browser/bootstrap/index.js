@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Warning: Do not use the `let` declarator in this file, it breaks our minification
-
 'use strict';
 
 /*global window,document,define*/
@@ -15,27 +13,28 @@ perf.mark('renderer/started');
 const path = require('path');
 const fs = require('fs');
 const electron = require('electron');
-const remote = electron.remote;
 const ipc = electron.ipcRenderer;
+
+Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 
 process.lazyEnv = new Promise(function (resolve) {
 	const handle = setTimeout(function () {
 		resolve();
 		console.warn('renderer did not receive lazyEnv in time');
 	}, 10000);
+
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 		clearTimeout(handle);
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
+
 	ipc.send('vscode:fetchShellEnv');
 });
 
-Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-
 function onError(error, enableDeveloperTools) {
 	if (enableDeveloperTools) {
-		remote.getCurrentWebContents().openDevTools();
+		ipc.send('vscode:openDevTools');
 	}
 
 	console.error('[uncaught exception]: ' + error);
@@ -46,8 +45,7 @@ function onError(error, enableDeveloperTools) {
 }
 
 function assign(destination, source) {
-	return Object.keys(source)
-		.reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
 }
 
 function parseURLQueryArgs() {
@@ -66,7 +64,7 @@ function uriFromPath(_path) {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {
@@ -79,6 +77,10 @@ function readFile(file) {
 			resolve(data);
 		});
 	});
+}
+
+function writeFile(file, content) {
+	return new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 }
 
 function showPartsSplash(configuration) {
@@ -97,10 +99,24 @@ function showPartsSplash(configuration) {
 		// ignore
 	}
 
+	// high contrast mode has been turned on, ignore stored colors and layouts
+	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
+		data = void 0;
+	}
+
+	const style = document.createElement('style');
+	document.head.appendChild(style);
+
 	if (data) {
+		const { layoutInfo, colorInfo, baseTheme } = data;
+
+		// set the theme base id used by images and some styles
+		document.body.className = `monaco-shell ${baseTheme}`;
+		// stylesheet that defines foreground and background color
+		style.innerHTML = `.monaco-shell { background-color: ${colorInfo.editorBackground}; color: ${colorInfo.foreground}; }`;
+
 		const splash = document.createElement('div');
 		splash.id = data.id;
-		const { layoutInfo, colorInfo } = data;
 
 		// ensure there is enough space
 		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
@@ -108,7 +124,7 @@ function showPartsSplash(configuration) {
 		if (configuration.folderUri || configuration.workspace) {
 			// folder or workspace -> status bar color, sidebar
 			splash.innerHTML = `
-			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground};"></div>
+			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;"></div>
 			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
 			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};"></div>
 			<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${colorInfo.statusBarBackground};"></div>
@@ -116,17 +132,19 @@ function showPartsSplash(configuration) {
 		} else {
 			// empty -> speical status bar color, no sidebar
 			splash.innerHTML = `
-			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground};"></div>
+			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;"></div>
 			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
 			<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${colorInfo.statusBarNoFolderBackground};"></div>
 			`;
 		}
 		document.body.appendChild(splash);
+	} else {
+		document.body.className = `monaco-shell ${configuration.highContrast ? 'hc-black' : 'vs-dark'}`;
+		style.innerHTML = `.monaco-shell { background-color: ${configuration.highContrast ? '#000000' : '#1E1E1E'}; color: ${configuration.highContrast ? '#FFFFFF' : '#CCCCCC'}; }`;
 	}
+
 	perf.mark('didShowPartsSplash');
 }
-
-const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 
 function registerListeners(enableDeveloperTools) {
 
@@ -149,15 +167,16 @@ function registerListeners(enableDeveloperTools) {
 		listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
-				remote.getCurrentWebContents().toggleDevTools();
+				ipc.send('vscode:toggleDevTools');
 			} else if (key === RELOAD_KB) {
-				remote.getCurrentWindow().reload();
+				ipc.send('vscode:reloadWindow');
 			}
 		};
 		window.addEventListener('keydown', listener);
 	}
 
 	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools); });
+	process.on('SIGPIPE', function () { onError(new Error('Unexpected SIGPIPE'), false); }); // workaround https://github.com/electron/electron/issues/13254
 
 	return function () {
 		if (listener) {
@@ -202,8 +221,15 @@ function main() {
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
-	perf.importEntries(configuration.perfEntries);
 
+	// disable pinch zoom & apply zoom level early to avoid glitches
+	const zoomLevel = configuration.zoomLevel;
+	webFrame.setVisualZoomLevelLimits(1, 1);
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
+	}
+
+	// Parts splash
 	showPartsSplash(configuration);
 
 	// Get the nls configuration into the process.env as early as possible.
@@ -252,13 +278,6 @@ function main() {
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	const unbind = registerListeners(enableDeveloperTools);
 
-	// disable pinch zoom & apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	webFrame.setVisualZoomLevelLimits(1, 1);
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
-	}
-
 	// Load the loader and start loading the workbench
 	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
 	const loaderSource = require('fs').readFileSync(loaderFilename);
@@ -288,14 +307,6 @@ function main() {
 		});
 	}
 
-	// Perf Counters
-	window.MonacoEnvironment.timers = {
-		isInitialStartup: !!configuration.isInitialStartup,
-		hasAccessibilitySupport: !!configuration.accessibilitySupport,
-		start: configuration.perfStartTime,
-		windowLoad: configuration.perfWindowLoadTime
-	};
-
 	perf.mark('willLoadWorkbenchMain');
 	require([
 		'vs/workbench/workbench.main',
@@ -308,14 +319,13 @@ function main() {
 			perf.mark('main/startup');
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)
-				.done(function () {
+				.then(function () {
 					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
 				}, function (error) {
 					onError(error, enableDeveloperTools);
 				});
 		});
 	});
-
 }
 
 main();

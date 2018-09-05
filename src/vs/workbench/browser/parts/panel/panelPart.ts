@@ -7,7 +7,6 @@ import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -24,8 +23,8 @@ import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, Toggl
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
+import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
@@ -151,12 +150,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = $(this.getContainer());
-		container.style('background-color', this.getColor(PANEL_BACKGROUND));
-		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
+		const container = this.getContainer();
+		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND);
+		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
-		const title = $(this.getTitleArea());
-		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
+		const title = this.getTitleArea();
+		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 	}
 
 	openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -282,7 +281,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private removeComposite(compositeId: string): void {
-		this.compositeBar.removeComposite(compositeId);
+		this.compositeBar.hideComposite(compositeId);
 		const compositeActions = this.compositeActions[compositeId];
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();

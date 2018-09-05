@@ -26,6 +26,8 @@ import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { createCancelablePromise } from 'vs/base/common/async';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class DefinitionActionConfig {
 
@@ -56,7 +58,7 @@ export class DefinitionAction extends EditorAction {
 		const model = editor.getModel();
 		const pos = editor.getPosition();
 
-		const definitionPromise = this._getDeclarationsAtPosition(model, pos).then(references => {
+		const definitionPromise = this._getDeclarationsAtPosition(model, pos, CancellationToken.None).then(references => {
 
 			if (model.isDisposed() || editor.getModel() !== model) {
 				// new model, no more model
@@ -108,11 +110,11 @@ export class DefinitionAction extends EditorAction {
 		});
 
 		progressService.showWhile(definitionPromise, 250);
-		return definitionPromise;
+		return TPromise.wrap(definitionPromise);
 	}
 
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
-		return getDefinitionsAtPosition(model, position);
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getDefinitionsAtPosition(model, position, token);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -249,8 +251,8 @@ export class PeekDefinitionAction extends DefinitionAction {
 }
 
 export class ImplementationAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
-		return getImplementationsAtPosition(model, position);
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getImplementationsAtPosition(model, position, token);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -307,8 +309,8 @@ export class PeekImplementationAction extends ImplementationAction {
 }
 
 export class TypeDefinitionAction extends DefinitionAction {
-	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position): TPromise<DefinitionLink[]> {
-		return getTypeDefinitionsAtPosition(model, position);
+	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
+		return getTypeDefinitionsAtPosition(model, position, token);
 	}
 
 	protected _getNoResultFoundMessage(info?: IWordAtPosition): string {
@@ -375,3 +377,31 @@ registerEditorAction(GoToImplementationAction);
 registerEditorAction(PeekImplementationAction);
 registerEditorAction(GoToTypeDefinitionAction);
 registerEditorAction(PeekTypeDefinitionAction);
+
+// Go to menu
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'editor.action.goToDeclaration',
+		title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'editor.action.goToTypeDefinition',
+		title: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition")
+	},
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: 'z_go_to',
+	command: {
+		id: 'editor.action.goToImplementation',
+		title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
+	},
+	order: 6
+});

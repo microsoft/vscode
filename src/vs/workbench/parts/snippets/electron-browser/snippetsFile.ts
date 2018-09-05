@@ -13,7 +13,7 @@ import { basename, extname } from 'path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 export class Snippet {
@@ -33,7 +33,7 @@ export class Snippet {
 		readonly isFromExtension?: boolean,
 	) {
 		//
-		this.prefixLow = prefix.toLowerCase();
+		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
 	}
 
 	get codeSnippet(): string {
@@ -195,7 +195,7 @@ export class SnippetFile {
 
 	load(): Promise<this> {
 		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(this._fileService.resolveContent(this.location)).then(content => {
+			this._loadPromise = Promise.resolve(this._fileService.resolveContent(this.location, { encoding: 'utf8' })).then(content => {
 				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
 				if (typeof data === 'object') {
 					forEach(data, entry => {

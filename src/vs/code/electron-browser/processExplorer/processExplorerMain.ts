@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { remote, webFrame, ipcRenderer, clipboard } from 'electron';
+import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/node/product';
@@ -15,6 +15,8 @@ import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 
 let processList: any[];
 let mapPidToWindowTitle = new Map<number, string>();
@@ -137,29 +139,29 @@ function applyZoom(zoomLevel: number): void {
 function showContextMenu(e) {
 	e.preventDefault();
 
-	const menu = new remote.Menu();
+	const items: IContextMenuItem[] = [];
 
 	const pid = parseInt(e.currentTarget.id);
 	if (pid && typeof pid === 'number') {
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('killProcess', "Kill Process"),
 			click() {
 				process.kill(pid, 'SIGTERM');
 			}
-		}));
+		});
 
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('forceKillProcess', "Force Kill Process"),
 			click() {
 				process.kill(pid, 'SIGKILL');
 			}
-		}));
+		});
 
-		menu.append(new remote.MenuItem({
+		items.push({
 			type: 'separator'
-		}));
+		});
 
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('copy', "Copy"),
 			click() {
 				const row = document.getElementById(pid.toString());
@@ -167,9 +169,9 @@ function showContextMenu(e) {
 					clipboard.writeText(row.innerText);
 				}
 			}
-		}));
+		});
 
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('copyAll', "Copy All"),
 			click() {
 				const processList = document.getElementById('process-list');
@@ -177,9 +179,9 @@ function showContextMenu(e) {
 					clipboard.writeText(processList.innerText);
 				}
 			}
-		}));
+		});
 	} else {
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('copyAll', "Copy All"),
 			click() {
 				const processList = document.getElementById('process-list');
@@ -187,10 +189,10 @@ function showContextMenu(e) {
 					clipboard.writeText(processList.innerText);
 				}
 			}
-		}));
+		});
 	}
 
-	menu.popup({ window: remote.getCurrentWindow() });
+	popup(items);
 }
 
 export function startup(data: ProcessExplorerData): void {
@@ -198,7 +200,7 @@ export function startup(data: ProcessExplorerData): void {
 	applyZoom(data.zoomLevel);
 
 	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-	ipcRenderer.on('windowsInfoResponse', (event, windows) => {
+	ipcRenderer.on('vscode:windowsInfoResponse', (event, windows) => {
 		mapPidToWindowTitle = new Map<number, string>();
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});
@@ -206,7 +208,7 @@ export function startup(data: ProcessExplorerData): void {
 	setInterval(() => {
 		ipcRenderer.send('windowsInfoRequest');
 
-		listProcesses(remote.process.pid).then(processes => {
+		listProcesses(data.pid).then(processes => {
 			processList = getProcessList(processes);
 			updateProcessInfo(processList);
 

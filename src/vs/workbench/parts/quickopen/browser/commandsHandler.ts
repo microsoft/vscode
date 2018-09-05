@@ -293,7 +293,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 		this.onBeforeRun(this.commandId);
 
 		// Use a timeout to give the quick open widget a chance to close itself first
-		TPromise.timeout(50).done(() => {
+		setTimeout(() => {
 			if (action && (!(action instanceof Action) || action.enabled)) {
 				try {
 					/* __GDPR__
@@ -303,7 +303,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 						}
 					*/
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || TPromise.as(null)).done(() => {
+					(action.run() || TPromise.as(null)).then(() => {
 						if (action instanceof Action) {
 							action.dispose();
 						}
@@ -314,7 +314,7 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 			} else {
 				this.notificationService.info(nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, err => this.onError(err));
+		}, 50);
 	}
 
 	private onError(error?: Error): void {

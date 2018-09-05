@@ -25,6 +25,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as async from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -149,7 +150,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private editor: ICodeEditor;
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
-	private timeoutPromise: async.CancelablePromise<void>;
+	private timeout: async.TimeoutTimer;
 	private computePromise: async.CancelablePromise<Link[]>;
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
@@ -201,7 +202,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
 
-		this.timeoutPromise = null;
+		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
@@ -225,13 +226,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private onChange(): void {
-		if (!this.timeoutPromise) {
-			this.timeoutPromise = async.timeout(LinkDetector.RECOMPUTE_TIME);
-			this.timeoutPromise.then(() => {
-				this.timeoutPromise = null;
-				this.beginCompute();
-			});
-		}
+		this.timeout.setIfNotSet(() => this.beginCompute(), LinkDetector.RECOMPUTE_TIME);
 	}
 
 	private async beginCompute(): Promise<void> {
@@ -331,7 +326,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		const { link } = occurrence;
 
-		link.resolve().then(uri => {
+		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
 			return this.openerService.open(uri, { openToSide });
 
@@ -344,7 +339,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			} else {
 				onUnexpectedError(err);
 			}
-		}).done(null, onUnexpectedError);
+		});
 	}
 
 	public getLinkOccurrence(position: Position): LinkOccurrence {
@@ -374,10 +369,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private stop(): void {
-		if (this.timeoutPromise) {
-			this.timeoutPromise.cancel();
-			this.timeoutPromise = null;
-		}
+		this.timeout.cancel();
 		if (this.computePromise) {
 			this.computePromise.cancel();
 			this.computePromise = null;
@@ -387,6 +379,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	public dispose(): void {
 		this.listenersToRemove = dispose(this.listenersToRemove);
 		this.stop();
+		this.timeout.dispose();
 	}
 }
 

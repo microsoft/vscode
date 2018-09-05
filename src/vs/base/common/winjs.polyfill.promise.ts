@@ -5,6 +5,7 @@
 
 import { Promise as WinJSPromise } from './winjs.base';
 import * as platform from 'vs/base/common/platform';
+import { isWinJSPromise } from 'vs/base/common/async';
 
 /**
  * A polyfill for the native promises. The implementation is based on
@@ -45,7 +46,7 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 	constructor(callback: (resolve: (value?: T) => void, reject: (err?: any) => void) => any);
 	constructor(initOrPromise: WinJSPromise | ((resolve: (value?: T) => void, reject: (err?: any) => void) => any)) {
 
-		if (WinJSPromise.is(initOrPromise)) {
+		if (isWinJSPromise(initOrPromise)) {
 			this._winjsPromise = initOrPromise;
 		} else {
 			this._winjsPromise = new WinJSPromise((resolve, reject) => {
@@ -70,19 +71,47 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 
 	then(onFulfilled?: any, onRejected?: any): PolyfillPromise {
 		let sync = true;
+		// To support chaining, we need to return the value of the
+		// onFulfilled and onRejected callback.
+		// WinJSPromise supports a flat-map style #then, ie. the callbacks
+		// passed to WinJSPromise#then can return a Promise.
 		let promise = new PolyfillPromise(this._winjsPromise.then(
 			onFulfilled && function (value) {
 				if (!sync) {
-					onFulfilled(value);
+					return onFulfilled(value);
 				} else {
-					platform.setImmediate(() => onFulfilled(value));
+					return new WinJSPromise((resolve, reject) => {
+						platform.setImmediate(() => {
+							let result;
+							try {
+								result = onFulfilled(value);
+							}
+							catch (err2) {
+								reject(err2);
+								return;
+							}
+							resolve(result);
+						});
+					});
 				}
 			},
 			onRejected && function (err) {
 				if (!sync) {
-					onRejected(err);
+					return onRejected(err);
 				} else {
-					platform.setImmediate(() => onRejected(err));
+					return new WinJSPromise((resolve, reject) => {
+						platform.setImmediate(() => {
+							let result;
+							try {
+								result = onRejected(err);
+							}
+							catch (err2) {
+								reject(err2);
+								return;
+							}
+							resolve(result);
+						});
+					});
 				}
 			}
 		));

@@ -12,7 +12,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class WindowService implements IWindowService {
 

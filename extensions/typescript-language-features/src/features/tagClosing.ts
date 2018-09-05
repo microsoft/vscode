@@ -73,8 +73,10 @@ class TagClosing extends Disposable {
 			return;
 		}
 
-		const secondToLastCharacter = lastChange.text[lastChange.text.length - 2];
-		if (secondToLastCharacter === '>') {
+		const priorCharacter = lastChange.range.start.character > 0
+			? document.getText(new vscode.Range(lastChange.range.start.translate({ characterDelta: -1 }), lastChange.range.start))
+			: '';
+		if (priorCharacter === '>') {
 			return;
 		}
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -34,7 +34,7 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
 
@@ -53,14 +53,19 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	}
 }
 
-class FileUriDisplayContribution implements IWorkbenchContribution {
+class FileUriLabelContribution implements IWorkbenchContribution {
 
-	constructor(@IUriDisplayService uriDisplayService: IUriDisplayService) {
-		uriDisplayService.registerFormater(Schemas.file, {
-			label: '${path}',
-			separator: nativeSep,
-			tildify: !platform.isWindows,
-			normalizeDriveLetter: platform.isWindows
+	constructor(@ILabelService labelService: ILabelService) {
+		labelService.registerFormatter(Schemas.file, {
+			uri: {
+				label: '${path}',
+				separator: nativeSep,
+				tildify: !platform.isWindows,
+				normalizeDriveLetter: platform.isWindows
+			},
+			workspace: {
+				suffix: ''
+			}
 		});
 	}
 }
@@ -152,7 +157,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding }, { forceFileInput: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
 		});
 	}
 }
@@ -172,7 +177,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
 
 // Register uri display for file uris
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriDisplayContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
 
 // Configuration
@@ -186,7 +191,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'files.exclude': {
 			'type': 'object',
-			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting."),
+			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
@@ -211,7 +216,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.associations': {
 			'type': 'object',
-			'description': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
+			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',
@@ -267,19 +272,19 @@ configurationRegistry.registerConfiguration({
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE],
-			'enumDescriptions': [
+			'markdownEnumDescriptions': [
 				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty file is never automatically saved."),
 				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty file is automatically saved after the configured `#files.autoSaveDelay#`."),
 				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty file is automatically saved when the editor loses focus."),
 				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty file is automatically saved when the window loses focus.")
 			],
 			'default': AutoSaveConfiguration.OFF,
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
 			'type': 'object',
@@ -291,10 +296,10 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 			'default': HotExitConfiguration.ON_EXIT,
-			'enumDescriptions': [
+			'markdownEnumDescriptions': [
 				nls.localize('hotExit.off', 'Disable hot exit.'),
-				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit command` is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
-				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit command` is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set `#window.restoreWindows#` to `all`.')
+				nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
+				nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set `#window.restoreWindows#` to `all`.')
 			],
 			'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 		},
@@ -310,7 +315,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'description': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
 		}
 	}
 });
@@ -351,22 +356,22 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.autoReveal': {
 			'type': 'boolean',
-			'description': nls.localize('autoReveal', "Controls if the explorer should automatically reveal and select files when opening them."),
+			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
 			'default': true
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation to move files and folders via drag and drop."),
+			'description': nls.localize('confirmDragAndDrop', "Controls whether the explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls if the explorer should ask for confirmation when deleting a file via the trash."),
+			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
 		'explorer.sortOrder': {
@@ -384,12 +389,12 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
-			description: nls.localize('explorer.decorations.colors', "Controls if file decorations should use colors."),
+			description: nls.localize('explorer.decorations.colors', "Controls whether file decorations should use colors."),
 			default: true
 		},
 		'explorer.decorations.badges': {
 			type: 'boolean',
-			description: nls.localize('explorer.decorations.badges', "Controls if file decorations should use badges."),
+			description: nls.localize('explorer.decorations.badges', "Controls whether file decorations should use badges."),
 			default: true
 		},
 	}

@@ -51,11 +51,6 @@ export interface IPartService {
 	onEditorLayout: Event<IDimension>;
 
 	/**
-	 * Asks the part service to layout all parts.
-	 */
-	layout(options?: ILayoutOptions): void;
-
-	/**
 	 * Asks the part service to if all parts have been created.
 	 */
 	isCreated(): boolean;
@@ -127,9 +122,9 @@ export interface IPartService {
 	setPanelPosition(position: Position): TPromise<void>;
 
 	/**
-	 * Returns the identifier of the element that contains the workbench.
+	 * Returns the element that contains the workbench.
 	 */
-	getWorkbenchElementId(): string;
+	getWorkbenchElement(): HTMLElement;
 
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.

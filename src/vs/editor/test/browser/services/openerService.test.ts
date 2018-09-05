@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';

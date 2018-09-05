@@ -16,7 +16,7 @@ import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, Mai
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
@@ -25,6 +25,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
+	private _firstSessionStart: boolean;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -35,6 +36,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	) {
 		super();
 		this._disposables = [];
+		this._firstSessionStart = true;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 		this._disposables.push(this._editorService.onDidActiveEditorChange(e => {
 			const editors = this.getFocusedEditors();
@@ -83,7 +85,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$registerWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.set(handle, undefined);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
-		this._panelService.openPanel(COMMENTS_PANEL_ID);
+		if (this._firstSessionStart) {
+			this._panelService.openPanel(COMMENTS_PANEL_ID);
+			this._firstSessionStart = false;
+		}
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
 				this._commentService.setWorkspaceComments(handle, commentThreads);

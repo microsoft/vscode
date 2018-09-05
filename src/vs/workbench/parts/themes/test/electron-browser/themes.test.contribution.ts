@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as pfs from 'vs/base/node/pfs';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
