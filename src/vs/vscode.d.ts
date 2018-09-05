@@ -6634,6 +6634,11 @@ declare module 'vscode' {
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
 		env?: { [key: string]: string | null };
+
+		/**
+		 * Wait for a keypress before closing the terminal after executable exits.
+		 */
+		waitOnExit?: boolean;
 	}
 
 	/**
