@@ -104,13 +104,7 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 		// Attempt to kill the pty, it may have already been killed at this
 		// point but we want to make sure
 		try {
-			if (!platform.isWindows) {
-				// Send SIGTERM, SIGHUP does not seem to work when the parent process dies
-				// immediately after.
-				process.kill(this._ptyProcess.pid, 'SIGTERM');
-			} else {
-				this._ptyProcess.kill();
-			}
+			this._ptyProcess.kill();
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
