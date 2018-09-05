@@ -610,7 +610,7 @@ function shouldExcludeCompletionEntry(
 	element: Proto.CompletionEntry,
 	completionConfiguration: CompletionConfiguration
 ) {
-	const isNameSuggestion = element.kind === PConst.Kind.warning
+	const isNameSuggestion = element.kind === PConst.Kind.warning;
 
 	return (
 		(!completionConfiguration.nameSuggestions && isNameSuggestion)
