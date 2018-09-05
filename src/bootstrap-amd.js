@@ -9,12 +9,11 @@ var loader = require('./vs/loader');
 
 function uriFromPath(_path) {
 	var pathName = path.resolve(_path).replace(/\\/g, '/');
-
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
 	}
 
-	return encodeURI('file://' + pathName);
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
 }
 
 function readFile(file) {
@@ -68,6 +67,11 @@ loader.config({
 	'vs/nls': nlsConfig,
 	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
 });
+
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions.electron) {
+	// running in Electron
+	loader.define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+}
 
 if (nlsConfig.pseudo) {
 	loader(['vs/nls'], function (nlsPlugin) {

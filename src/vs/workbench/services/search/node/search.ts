@@ -5,11 +5,11 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IExpression } from 'vs/base/common/glob';
-import { IProgress, ILineMatch, IPatternInfo, ISearchStats } from 'vs/platform/search/common/search';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
+import { IExpression } from 'vs/base/common/glob';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileSearchStats, IPatternInfo, IProgress, ISearchEngineStats, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats } from 'vs/platform/search/common/search';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IFolderSearch {
 	folder: string;
@@ -34,6 +34,7 @@ export interface IRawSearch {
 	maxFilesize?: number;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
+	previewOptions?: ITextSearchPreviewOptions;
 }
 
 export interface ITelemetryEvent {
@@ -45,7 +46,6 @@ export interface IRawSearchService {
 	fileSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	textSearch(search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	clearCache(cacheKey: string): TPromise<void>;
-	readonly onTelemetry: Event<ITelemetryEvent>;
 }
 
 export interface IRawFileMatch {
@@ -56,19 +56,27 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
-	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void) => void;
+	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void) => void;
 	cancel: () => void;
 }
 
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	stats: ISearchStats;
+	stats: IFileSearchStats | ITextSearchStats;
+}
+
+export interface ISearchEngineSuccess {
+	limitHit: boolean;
+	stats: ISearchEngineStats;
 }
 
 export interface ISerializedSearchError {
 	type: 'error';
-	error: any;
+	error: {
+		message: string,
+		stack: string
+	};
 }
 
 export type ISerializedSearchComplete = ISerializedSearchSuccess | ISerializedSearchError;
@@ -89,7 +97,7 @@ export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg i
 
 export interface ISerializedFileMatch {
 	path: string;
-	lineMatches?: ILineMatch[];
+	matches?: ITextSearchResult[];
 	numMatches?: number;
 }
 
@@ -100,56 +108,22 @@ export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgres
 
 export class FileMatch implements ISerializedFileMatch {
 	path: string;
-	lineMatches: LineMatch[];
+	matches: ITextSearchResult[];
 
 	constructor(path: string) {
 		this.path = path;
-		this.lineMatches = [];
+		this.matches = [];
 	}
 
-	addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
+	addMatch(match: ITextSearchResult): void {
+		this.matches.push(match);
 	}
 
 	serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-		let numMatches = 0;
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			numMatches += this.lineMatches[i].offsetAndLengths.length;
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
 		return {
 			path: this.path,
-			lineMatches,
-			numMatches
+			matches: this.matches,
+			numMatches: this.matches.length
 		};
-	}
-}
-
-export class LineMatch implements ILineMatch {
-	preview: string;
-	lineNumber: number;
-	offsetAndLengths: number[][];
-
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
-
-	addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
-
-	serialize(): ILineMatch {
-		const result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
-		};
-
-		return result;
 	}
 }

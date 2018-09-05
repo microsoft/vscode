@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 suite('Snippets', function () {
 

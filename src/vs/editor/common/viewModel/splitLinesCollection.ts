@@ -192,6 +192,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			// This is pretty bad, it means we lost track of the model...
 			throw new Error(`ViewModel is out of sync with Model!`);
 		}
+		if (this.lines.length !== this.model.getLineCount()) {
+			// This is pretty bad, it means we lost track of the model...
+			this._constructLines(false);
+		}
 	}
 
 	private _constructLines(resetHiddenAreas: boolean): void {

@@ -10,7 +10,7 @@ import { JSONVisitor, visit } from 'vs/base/common/json';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
@@ -267,6 +267,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				let settingStartPosition = model.getPositionAt(offset);
 				const setting: ISetting = {
 					description: [],
+					descriptionIsMarkdown: false,
 					key: name,
 					keyRange: {
 						startLineNumber: settingStartPosition.lineNumber,
@@ -493,7 +494,8 @@ export class DefaultSettings extends Disposable {
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
+		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
 			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
@@ -517,14 +519,20 @@ export class DefaultSettings extends Disposable {
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)];
+			const configurationSettings: ISetting[] = [];
+			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)]) {
+				if (!seenSettings[setting.key]) {
+					configurationSettings.push(setting);
+					seenSettings[setting.key] = true;
+				}
+			}
 			if (configurationSettings.length) {
 				configurationSettings.sort((a, b) => a.key.localeCompare(b.key));
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
 		}
 		return result;
 	}
@@ -544,18 +552,45 @@ export class DefaultSettings extends Disposable {
 		let result: ISetting[] = [];
 		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			if (!prop.deprecationMessage && this.matchesScope(prop)) {
+			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				const description = (prop.description || '').split('\n');
+				const description = (prop.description || prop.markdownDescription || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides, type: prop.type, enum: prop.enum, enumDescriptions: prop.enumDescriptions });
+				result.push({
+					key,
+					value,
+					description,
+					descriptionIsMarkdown: !prop.description,
+					range: null,
+					keyRange: null,
+					valueRange: null,
+					descriptionRanges: [],
+					overrides,
+					type: prop.type,
+					enum: prop.enum,
+					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
+					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
+					tags: prop.tags,
+					deprecationMessage: prop.deprecationMessage,
+					validator: createValidator(prop)
+				});
 			}
 		}
 		return result;
 	}
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
-		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
+		return Object.keys(overrideSettings).map((key) => ({
+			key,
+			value: overrideSettings[key],
+			description: [],
+			descriptionIsMarkdown: false,
+			range: null,
+			keyRange: null,
+			valueRange: null,
+			descriptionRanges: [],
+			overrides: []
+		}));
 	}
 
 	private matchesScope(property: IConfigurationNode): boolean {
@@ -732,13 +767,22 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private copySetting(setting: ISetting): ISetting {
-		return <ISetting>{
+		return {
 			description: setting.description,
+			type: setting.type,
+			enum: setting.enum,
+			enumDescriptions: setting.enumDescriptions,
 			key: setting.key,
 			value: setting.value,
 			range: setting.range,
 			overrides: [],
-			overrideOf: setting.overrideOf
+			overrideOf: setting.overrideOf,
+			tags: setting.tags,
+			deprecationMessage: setting.deprecationMessage,
+			keyRange: undefined,
+			valueRange: undefined,
+			descriptionIsMarkdown: undefined,
+			descriptionRanges: undefined
 		};
 	}
 
@@ -842,26 +886,48 @@ class SettingsContentBuilder {
 
 	private pushSetting(setting: ISetting, indent: string): void {
 		const settingStart = this.lineCountWithOffset + 1;
+
+		this.pushSettingDescription(setting, indent);
+
+		let preValueContent = indent;
+		const keyString = JSON.stringify(setting.key);
+		preValueContent += keyString;
+		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueContent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
+
+		preValueContent += ': ';
+		const valueStart = this.lineCountWithOffset + 1;
+		this.pushValue(setting, preValueContent, indent);
+
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueContent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
+		this._contentByLines[this._contentByLines.length - 1] += ',';
+		this._contentByLines.push('');
+		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+	}
+
+	private pushSettingDescription(setting: ISetting, indent: string): void {
+		const fixSettingLink = line => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+
 		setting.descriptionRanges = [];
 		const descriptionPreValue = indent + '// ';
-		for (const line of setting.description) {
+		for (let line of (setting.deprecationMessage ? [setting.deprecationMessage, ...setting.description] : setting.description)) {
+			line = fixSettingLink(line);
+
 			this._contentByLines.push(descriptionPreValue + line);
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
-		let preValueConent = indent;
-		const keyString = JSON.stringify(setting.key);
-		preValueConent += keyString;
-		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
+		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+			setting.enumDescriptions.forEach((desc, i) => {
+				const displayEnum = escapeInvisibleChars(String(setting.enum[i]));
+				const line = desc ?
+					`${displayEnum}: ${fixSettingLink(desc)}` :
+					displayEnum;
 
-		preValueConent += ': ';
-		const valueStart = this.lineCountWithOffset + 1;
-		this.pushValue(setting, preValueConent, indent);
+				this._contentByLines.push(`  //  - ${line}`);
 
-		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
-		this._contentByLines[this._contentByLines.length - 1] += ',';
-		this._contentByLines.push('');
-		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+			});
+		}
 	}
 
 	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
@@ -894,6 +960,119 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
+}
+
+export function createValidator(prop: IConfigurationPropertySchema): ((value: any) => string) | null {
+	let exclusiveMax: number | undefined;
+	let exclusiveMin: number | undefined;
+
+	if (typeof prop.exclusiveMaximum === 'boolean') {
+		exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
+	} else {
+		exclusiveMax = prop.exclusiveMaximum;
+	}
+
+	if (typeof prop.exclusiveMinimum === 'boolean') {
+		exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
+	} else {
+		exclusiveMin = prop.exclusiveMinimum;
+	}
+
+	let patternRegex: RegExp | undefined;
+	if (typeof prop.pattern === 'string') {
+		patternRegex = new RegExp(prop.pattern);
+	}
+
+	const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const canBeType = (t: string) => type.indexOf(t) > -1;
+
+	const isNullable = canBeType('null');
+	const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+	const isIntegral = (canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+
+	type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+
+	let numericValidations: Validator<number>[] = isNumeric ? [
+		{
+			enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
+			isValid: (value => value < exclusiveMax),
+			message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
+		},
+		{
+			enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
+			isValid: (value => value > exclusiveMin),
+			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
+		},
+
+		{
+			enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
+			isValid: (value => value <= prop.maximum),
+			message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
+		},
+		{
+			enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
+			isValid: (value => value >= prop.minimum),
+			message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
+		},
+		{
+			enabled: prop.multipleOf !== undefined,
+			isValid: (value => value % prop.multipleOf === 0),
+			message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
+		},
+		{
+			enabled: isIntegral,
+			isValid: (value => value % 1 === 0),
+			message: nls.localize('validations.expectedInteger', "Value must be an integer.")
+		},
+	].filter(validation => validation.enabled) : [];
+
+	let stringValidations: Validator<string>[] = [
+		{
+			enabled: prop.maxLength !== undefined,
+			isValid: (value => value.length <= prop.maxLength),
+			message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
+		},
+		{
+			enabled: prop.minLength !== undefined,
+			isValid: (value => value.length >= prop.minLength),
+			message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
+		},
+		{
+			enabled: patternRegex !== undefined,
+			isValid: (value => patternRegex.test(value)),
+			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
+		},
+	].filter(validation => validation.enabled);
+
+	if (prop.type === 'string' && stringValidations.length === 0) { return null; }
+
+	return value => {
+		if (isNullable && value === '') { return ''; }
+
+		let errors = [];
+
+		if (isNumeric) {
+			if (value === '' || isNaN(+value)) {
+				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
+			} else {
+				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
+			}
+		}
+
+		if (prop.type === 'string') {
+			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
+		}
+		if (errors.length) {
+			return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
+		}
+		return '';
+	};
+}
+
+function escapeInvisibleChars(enumValue: string): string {
+	return enumValue && enumValue
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r');
 }
 
 export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {

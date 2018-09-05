@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import * as errors from 'vs/base/common/errors';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
@@ -24,8 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
-import { getPathLabel } from 'vs/base/common/labels';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const $ = dom.$;
 
@@ -98,7 +96,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	constructor(
 		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.linkDetector = this.instantiationService.createInstance(LinkDetector);
 	}
@@ -204,7 +202,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 						startColumn: source.column,
 						endLineNumber: source.lineNumber,
 						endColumn: source.column
-					}).done(undefined, errors.onUnexpectedError);
+					});
 				}
 			}));
 
@@ -261,7 +259,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? getPathLabel(element.sourceData.source.uri, this.environmentService) : '';
+		templateData.source.title = element.sourceData ? this.labelService.getUriLabel(element.sourceData.source.uri) : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 

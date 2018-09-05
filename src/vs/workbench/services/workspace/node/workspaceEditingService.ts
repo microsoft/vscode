@@ -6,7 +6,7 @@
 'use strict';
 
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -18,7 +18,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/node/confi
 import { migrateStorageToMultiRootWorkspace } from 'vs/platform/storage/common/migration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { StorageService } from 'vs/platform/storage/common/storageService';
-import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -138,10 +138,14 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceFolder = this.contextService.getWorkspace().folders[0];
-			return (folders.some(folder => isEqual(folder, workspaceFolder.uri, !isLinux)));
+			return (folders.some(folder => isEqual(folder, workspaceFolder.uri)));
 		}
 
 		return false;
+	}
+
+	enterWorkspace(path: string): TPromise<void> {
+		return this.doEnterWorkspace(() => this.windowService.enterWorkspace(path));
 	}
 
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<void> {
@@ -228,7 +232,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 		// Settings migration (only if we come from a folder workspace)
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			return this.copyWorkspaceSettings(toWorkspace);
+			return this.migrateWorkspaceSettings(toWorkspace);
 		}
 
 		return TPromise.as(void 0);
@@ -242,11 +246,23 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 		storageImpl.setWorkspaceId(newWorkspaceId);
 	}
 
+	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		return this.doCopyWorkspaceSettings(toWorkspace, setting => setting.scope === ConfigurationScope.WINDOW);
+	}
+
 	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): TPromise<void> {
+		return this.doCopyWorkspaceSettings(toWorkspace);
+	}
+
+	private doCopyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier, filter?: (config: IConfigurationPropertySchema) => boolean): TPromise<void> {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const targetWorkspaceConfiguration = {};
 		for (const key of this.workspaceConfigurationService.keys().workspace) {
-			if (configurationProperties[key] && !configurationProperties[key].notMultiRootAdopted && configurationProperties[key].scope === ConfigurationScope.WINDOW) {
+			if (configurationProperties[key]) {
+				if (filter && !filter(configurationProperties[key])) {
+					continue;
+				}
+
 				targetWorkspaceConfiguration[key] = this.workspaceConfigurationService.inspect(key).workspace;
 			}
 		}

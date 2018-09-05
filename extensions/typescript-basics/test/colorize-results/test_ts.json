@@ -3,9 +3,9 @@
 		"c": "/*",
 		"t": "source.ts comment.block.ts punctuation.definition.comment.ts",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,9 +14,9 @@
 		"c": " Game of Life",
 		"t": "source.ts comment.block.ts",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -25,9 +25,9 @@
 		"c": " * Implemented in TypeScript",
 		"t": "source.ts comment.block.ts",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -36,9 +36,9 @@
 		"c": " * To learn more about TypeScript, please visit http://www.typescriptlang.org/",
 		"t": "source.ts comment.block.ts",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -47,9 +47,9 @@
 		"c": " ",
 		"t": "source.ts comment.block.ts",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -58,9 +58,9 @@
 		"c": "*/",
 		"t": "source.ts comment.block.ts punctuation.definition.comment.ts",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -1860,7 +1860,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1871,7 +1871,7 @@
 	},
 	{
 		"c": "world",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.field.declaration.ts meta.definition.property.ts variable.object.property.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",

@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { localize } from 'vs/nls';
-import { ILaunchChannel } from 'vs/code/electron-main/launch';
+import { ILaunchChannel } from 'vs/platform/launch/electron-main/launchService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';

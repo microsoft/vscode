@@ -6,8 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -44,7 +43,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 
 	$registerTextContentProvider(handle: number, scheme: string): void {
 		this._resourceContentProvider[handle] = this._textModelResolverService.registerTextModelContentProvider(scheme, {
-			provideTextContent: (uri: URI): TPromise<ITextModel> => {
+			provideTextContent: (uri: URI): Thenable<ITextModel> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
 						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));

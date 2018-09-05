@@ -5,21 +5,21 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, systemPreferences } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsChannel } from 'vs/platform/windows/node/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
+import { UpdateChannel } from 'vs/platform/update/node/updateIpc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
-import { LaunchService, LaunchChannel, ILaunchService } from './launch';
+import { LaunchService, LaunchChannel, ILaunchService } from 'vs/platform/launch/electron-main/launchService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -28,43 +28,46 @@ import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannelClient, URLServiceChannel } from 'vs/platform/url/node/urlIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel } from 'vs/base/parts/ipc/node/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { ProxyAuthHandler } from './auth';
+import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { CodeWindow } from 'vs/code/electron-main/window';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
-import URI from 'vs/base/common/uri';
-import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
+import { URI } from 'vs/base/common/uri';
+import { WorkspacesChannel } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
+import { IssueChannel } from 'vs/platform/issue/node/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
-import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannel } from 'vs/platform/log/node/logIpc';
 import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
-import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
-// TODO@sbatten: Remove after conversion to new dynamic menubar
+import { MenubarChannel } from 'vs/platform/menubar/node/menubarIpc';
+import { ILabelService, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 import { CodeMenu } from 'vs/code/electron-main/menus';
+import { hasArgs } from 'vs/platform/environment/node/argv';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
+import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
 
 export class CodeApplication {
 
@@ -87,7 +90,8 @@ export class CodeApplication {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
-		@IHistoryMainService private historyMainService: IHistoryMainService
+		@IHistoryMainService private historyMainService: IHistoryMainService,
+		@ILabelService private labelService: ILabelService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -100,6 +104,10 @@ export class CodeApplication {
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
 		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
+		process.on('SIGPIPE', () => this.onUnexpectedError(new Error('Unexpected SIGPIPE'))); // workaround https://github.com/electron/electron/issues/13254
+
+		// Contextmenu via IPC support
+		registerContextMenuListener();
 
 		app.on('will-quit', () => {
 			this.logService.trace('App#will-quit: disposing resources');
@@ -122,46 +130,49 @@ export class CodeApplication {
 			}
 		});
 
-		const isValidWebviewSource = (source: string): boolean => {
-			if (!source) {
-				return false;
-			}
-			if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
-				return true;
-			}
-			const srcUri: any = URI.parse(source.toLowerCase()).toString();
-			return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
-		};
-
+		// Security related measures (https://electronjs.org/docs/tutorial/security)
+		// DO NOT CHANGE without consulting the documentation
 		app.on('web-contents-created', (event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
+
+				// Ensure defaults
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
 
 				// Verify URLs being loaded
-				if (isValidWebviewSource(params.src) && isValidWebviewSource(webPreferences.preloadURL)) {
+				if (this.isValidWebviewSource(params.src) && this.isValidWebviewSource(webPreferences.preloadURL)) {
 					return;
 				}
 
+				delete webPreferences.preloadUrl;
+
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');
+
 				event.preventDefault();
 			});
 
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
+
 				event.preventDefault();
+			});
+
+			contents.on('new-window', (event: Event, url: string) => {
+				event.preventDefault(); // prevent code that wants to open links
+
+				shell.openExternal(url);
 			});
 		});
 
-		let macOpenFiles: string[] = [];
+		let macOpenFileURIs: URI[] = [];
 		let runningTimeout: number = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
-			macOpenFiles.push(path);
+			macOpenFileURIs.push(URI.file(path));
 
 			// Clear previous handler if any
 			if (runningTimeout !== null) {
@@ -175,10 +186,10 @@ export class CodeApplication {
 					this.windowsMainService.open({
 						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
 						cli: this.environmentService.args,
-						pathsToOpen: macOpenFiles,
+						urisToOpen: macOpenFileURIs,
 						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 					});
-					macOpenFiles = [];
+					macOpenFileURIs = [];
 					runningTimeout = null;
 				}
 			}, 100);
@@ -188,15 +199,15 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (event: any, code: number) => {
+		ipc.on('vscode:exit', (event: Event, code: number) => {
 			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on('vscode:fetchShellEnv', event => {
-			const webContents = event.sender.webContents;
+		ipc.on('vscode:fetchShellEnv', (event: Event) => {
+			const webContents = event.sender;
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
@@ -210,7 +221,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (event: Event, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -222,12 +233,41 @@ export class CodeApplication {
 			}
 		});
 
+		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
+			this.labelService.registerFormatter(data.scheme, data.formatter);
+		});
+
+		ipc.on('vscode:toggleDevTools', (event: Event) => {
+			event.sender.toggleDevTools();
+		});
+
+		ipc.on('vscode:openDevTools', (event: Event) => {
+			event.sender.openDevTools();
+		});
+
+		ipc.on('vscode:reloadWindow', (event: Event) => {
+			event.sender.reload();
+		});
+
 		// Keyboard layout changes
 		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
 			if (this.windowsMainService) {
 				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
+	}
+
+	private isValidWebviewSource(source: string): boolean {
+		if (!source) {
+			return false;
+		}
+
+		if (source === 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E') {
+			return true;
+		}
+
+		const srcUri: any = source.toLowerCase();
+		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -257,8 +297,8 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.stateService.setItem(CodeWindow.themeStorageKey, data.id);
-			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+			this.stateService.setItem(THEME_STORAGE_KEY, data.baseTheme);
+			this.stateService.setItem(THEME_BG_STORAGE_KEY, data.background);
 		}
 	}
 
@@ -298,7 +338,7 @@ export class CodeApplication {
 			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
-			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+			this.sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
@@ -401,7 +441,7 @@ export class CodeApplication {
 		const windowsService = accessor.get(IWindowsService);
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
-		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
+		this.sharedProcessClient.then(client => client.registerChannel('windows', windowsChannel));
 
 		const menubarService = accessor.get(IMenubarService);
 		const menubarChannel = new MenubarChannel(menubarService);
@@ -414,7 +454,7 @@ export class CodeApplication {
 		// Log level management
 		const logLevelChannel = new LogLevelSetterChannel(accessor.get(ILogService));
 		this.electronIpcServer.registerChannel('loglevel', logLevelChannel);
-		this.sharedProcessClient.done(client => client.registerChannel('loglevel', logLevelChannel));
+		this.sharedProcessClient.then(client => client.registerChannel('loglevel', logLevelChannel));
 
 		// Lifecycle
 		this.lifecycleService.ready();
@@ -462,12 +502,16 @@ export class CodeApplication {
 		// Open our first window
 		const macOpenFiles = (<any>global).macOpenFiles as string[];
 		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
-		if (args['new-window'] && args._.length === 0) {
+		const hasCliArgs = hasArgs(args._);
+		const hasFolderURIs = hasArgs(args['folder-uri']);
+		const hasFileURIs = hasArgs(args['file-uri']);
+
+		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (macOpenFiles && macOpenFiles.length && (!args._ || !args._.length)) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
+		} else if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
 		} else {
-			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 		}
 	}
 
@@ -511,11 +555,19 @@ export class CodeApplication {
 			}
 		}
 
-		// TODO@sbatten: Remove when menu is converted
+		// TODO@sbatten: Remove when switching back to dynamic menu
 		// Install Menu
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
-		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
+
+		let createNativeMenu = true;
+		if (platform.isLinux) {
+			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
+		} else if (platform.isWindows) {
+			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+		}
+
+		if (createNativeMenu) {
 			instantiationService.createInstance(CodeMenu);
 		}
 
@@ -524,7 +576,9 @@ export class CodeApplication {
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
 		// Start shared process after a while
-		TPromise.timeout(3000).then(() => this.sharedProcess.spawn());
+		const sharedProcess = new RunOnceScheduler(() => this.sharedProcess.spawn(), 3000);
+		sharedProcess.schedule();
+		this.toDispose.push(sharedProcess);
 	}
 
 	private dispose(): void {

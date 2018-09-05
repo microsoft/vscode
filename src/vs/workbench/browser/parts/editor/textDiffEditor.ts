@@ -31,12 +31,13 @@ import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/co
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -61,8 +62,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
 		this._register(this._actualConfigurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')) {
@@ -232,6 +234,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
 		options.readOnly = this.isReadOnly();
+		options.lineDecorationsWidth = '2ch';
 
 		return options;
 	}

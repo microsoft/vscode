@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
@@ -54,19 +54,17 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = undefined;
 		this._onDidChange.fire(this._entries.length);
 
-		return {
-			dispose: () => {
-				if (entry) {
-					let idx = this._entries.indexOf(entry);
-					if (idx >= 0) {
-						this._entries.splice(idx, 1);
-						this._lastCandidate = undefined;
-						this._onDidChange.fire(this._entries.length);
-						entry = undefined;
-					}
+		return toDisposable(() => {
+			if (entry) {
+				let idx = this._entries.indexOf(entry);
+				if (idx >= 0) {
+					this._entries.splice(idx, 1);
+					this._lastCandidate = undefined;
+					this._onDidChange.fire(this._entries.length);
+					entry = undefined;
 				}
 			}
-		};
+		});
 	}
 
 	has(model: ITextModel): boolean {

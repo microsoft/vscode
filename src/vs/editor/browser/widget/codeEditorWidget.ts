@@ -127,6 +127,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidType = this._onDidType.event;
 
+	private readonly _onCompositionStart: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onCompositionStart = this._onCompositionStart.event;
+
+	private readonly _onCompositionEnd: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onCompositionEnd = this._onCompositionEnd.event;
+
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
@@ -894,6 +900,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
+		if (handlerId === editorCommon.Handler.CompositionStart) {
+			this._onCompositionStart.fire();
+		}
+		if (handlerId === editorCommon.Handler.CompositionEnd) {
+			this._onCompositionEnd.fire();
+		}
+
 		const action = this.getAction(handlerId);
 		if (action) {
 			TPromise.as(action.run()).then(null, onUnexpectedError);
@@ -916,7 +929,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (command) {
 			payload = payload || {};
 			payload.source = source;
-			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			TPromise.as(command.runEditorCommand(null, this, payload)).then(null, onUnexpectedError);
 			return true;
 		}
 
@@ -1356,22 +1369,22 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this.isSimpleWidget) {
 			commandDelegate = {
 				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]) => {
-					this.cursor.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
+					this.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText });
 				},
 				type: (source: string, text: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.Type, { text });
+					this.trigger(source, editorCommon.Handler.Type, { text });
 				},
 				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
-					this.cursor.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
+					this.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
 				},
 				compositionStart: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.CompositionStart, undefined);
+					this.trigger(source, editorCommon.Handler.CompositionStart, undefined);
 				},
 				compositionEnd: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
+					this.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
 				},
 				cut: (source: string) => {
-					this.cursor.trigger(source, editorCommon.Handler.Cut, undefined);
+					this.trigger(source, editorCommon.Handler.Cut, undefined);
 				}
 			};
 		} else {
@@ -1550,6 +1563,8 @@ class EditorContextKeysManager extends Disposable {
 	private _editorReadonly: IContextKey<boolean>;
 	private _hasMultipleSelections: IContextKey<boolean>;
 	private _hasNonEmptySelection: IContextKey<boolean>;
+	private _canUndo: IContextKey<boolean>;
+	private _canRedo: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -1567,6 +1582,8 @@ class EditorContextKeysManager extends Disposable {
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
+		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
+		this._canRedo = EditorContextKeys.canRedo.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
@@ -1574,10 +1591,13 @@ class EditorContextKeysManager extends Disposable {
 		this._register(this._editor.onDidBlurEditorWidget(() => this._updateFromFocus()));
 		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
+		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
+		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
 
 		this._updateFromConfig();
 		this._updateFromSelection();
 		this._updateFromFocus();
+		this._updateFromModel();
 	}
 
 	private _updateFromConfig(): void {
@@ -1602,6 +1622,12 @@ class EditorContextKeysManager extends Disposable {
 		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
 		this._editorTextFocus.set(this._editor.hasTextFocus() && !this._editor.isSimpleWidget);
 		this._textInputFocus.set(this._editor.hasTextFocus());
+	}
+
+	private _updateFromModel(): void {
+		const model = this._editor.getModel();
+		this._canUndo.set(model && model.canUndo());
+		this._canRedo.set(model && model.canRedo());
 	}
 }
 
@@ -1805,7 +1831,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryInlineDecoration} { opacity: ${unnecessaryForeground.rgba.a}; will-change: opacity; }`); // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
 	}
 
 	const unnecessaryBorder = theme.getColor(editorUnnecessaryCodeBorder);

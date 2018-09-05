@@ -9,11 +9,12 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
-import { Git, GitErrorCodes } from './git';
+import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
+import { GitErrorCodes } from './api/git';
 
 const localize = nls.loadMessageBundle();
 

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/code/electron-main/contributions';
+import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -17,7 +17,7 @@ import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient } from 'vs/code/electron-main/launch';
+import { ILaunchChannel, LaunchChannelClient } from 'vs/platform/launch/electron-main/launchService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -35,7 +35,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-main/requestService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/common/urlService';
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -44,12 +44,13 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
-import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
+import { IDiagnosticsService, DiagnosticsService } from 'vs/platform/diagnostics/electron-main/diagnosticsService';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { uploadLogs } from 'vs/code/electron-main/logUploader';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -57,6 +58,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const consoleLogService = new ConsoleLogMainService(getLogLevel(environmentService));
 	const logService = new MultiplexLogService([consoleLogService, bufferLogService]);
+	const labelService = new LabelService(environmentService, undefined);
 
 	process.once('exit', () => logService.dispose());
 
@@ -64,6 +66,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(ILabelService, labelService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
@@ -74,6 +77,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IURLService, new SyncDescriptor(URLService));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 	services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
+	services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 
 	return new InstantiationService(services, true);
 }
@@ -111,6 +115,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
+	const diagnosticsService = accessor.get(IDiagnosticsService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
 		let promise = TPromise.wrap<void>(void 0);
@@ -198,7 +203,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Process Info
 					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
-							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
+							return diagnosticsService.printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
 						});
 					}
 
@@ -304,7 +309,7 @@ function main() {
 		console.error(err.message);
 		app.exit(1);
 
-		return;
+		return void 0;
 	}
 
 	// We need to buffer the spdlog logs until we are sure
@@ -337,7 +342,7 @@ function main() {
 				bufferLogService.logger = createSpdLogService('main', bufferLogService.getLevel(), environmentService.logsPath);
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup();
 			});
-	}).done(null, err => instantiationService.invokeFunction(quit, err));
+	}).then(null, err => instantiationService.invokeFunction(quit, err));
 }
 
 main();

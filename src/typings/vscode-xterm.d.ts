@@ -680,6 +680,8 @@ declare module 'vscode-xterm' {
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
 	interface TerminalCore {
+		debug: boolean;
+
 		buffer: {
 			y: number;
 			ybase: number;
@@ -690,7 +692,7 @@ declare module 'vscode-xterm' {
 			translateBufferLineToString(lineIndex: number, trimRight: boolean): string;
 		};
 
-		send(text: string): void;
+		handler(text: string): void;
 
 		/**
 		 * Emit an event on the terminal.

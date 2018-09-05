@@ -5,7 +5,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -212,7 +212,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
-	opacity: 'opacity:{0};',
+	opacity: 'opacity:{0}; will-change: opacity;', // TODO@Ben: 'will-change: opacity' is a workaround for https://github.com/Microsoft/vscode/issues/52196
 	backgroundColor: 'background-color:{0};',
 
 	outline: 'outline:{0};',

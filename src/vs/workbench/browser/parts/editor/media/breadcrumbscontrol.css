@@ -7,26 +7,49 @@
 	display: none;
 }
 
-.monaco-workbench>.part.editor>.content .editor-group-container:not(.active) .breadcrumbs-control {
-	opacity: .8;
+.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
+.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
+	text-decoration-line: underline;
 }
 
-.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item .symbol-icon{
-	margin-left: 4px;
-	padding-right: 2px;
+.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .hint-more,
+.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .hint-more {
+	text-decoration-line: underline;
 }
 
-.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) {
-	/*first-child is the style-element*/
-	margin-left: 8px;
+/* todo@joh move somewhere else */
+
+.monaco-workbench .monaco-breadcrumbs-picker .picker-item {
+	line-height: 22px;
+	flex: 1;
 }
 
-.monaco-workbench>.part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumbs .monaco-breadcrumb-item:last-child {
-	/*first-child is the style-element*/
-	margin-right: 8px;
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree {
+	height: 100%;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
-.monaco-breadcrumbs-picker {
-	border-style: solid;
-	border-width: 1px;
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.input {
+	padding: 5px 9px;
+	position: relative;
+	box-sizing: border-box;
+	height: 36px;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.tree {
+	height: calc(100% - 36px);
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.input {
+	display: none;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.tree {
+	height: 100%;
+}
+
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree .monaco-highlighted-label .highlight{
+	font-weight: bold;
 }

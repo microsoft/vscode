@@ -14,9 +14,11 @@ export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
 export const TERMINAL_SERVICE_ID = 'terminalService';
 
-/**  A context key that is set when the integrated terminal has focus. */
+/** A context key that is set when there is at least one opened integrated terminal. */
+export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
+/** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
-/**  A context key that is set when the integrated terminal does not have focus. */
+/** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
@@ -95,8 +97,6 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
-	experimentalRestore: boolean;
-	experimentalTextureCachingStrategy: 'static' | 'dynamic';
 }
 
 export interface ITerminalConfigHelper {
@@ -382,8 +382,11 @@ export interface ITerminalInstance {
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 *
+	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
+	 * immediately.
 	 */
-	dispose(): void;
+	dispose(isShuttingDown?: boolean): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
@@ -446,11 +449,19 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Focuses the terminal instance.
+	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
 	 *
 	 * @param focus Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
+
+	/**
+	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * when the terminal is being shown.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
+	focusWhenReady(force?: boolean): Promise<void>;
 
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
@@ -540,6 +551,8 @@ export interface ITerminalInstance {
 	setDimensions(dimensions: ITerminalDimensions): void;
 
 	addDisposable(disposable: IDisposable): void;
+
+	toggleEscapeSequenceLogging(): void;
 }
 
 export interface ITerminalCommandTracker {
@@ -563,6 +576,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	addDisposable(disposable: IDisposable);
+	dispose(immediate?: boolean);
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
@@ -596,9 +610,9 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitPid(pid: number): void;
 	emitExit(exitCode: number): void;
 
-	onInput(listener: (data: string) => void): void;
-	onResize(listener: (cols: number, rows: number) => void): void;
-	onShutdown(listener: () => void): void;
+	onInput: Event<string>;
+	onResize: Event<{ cols: number, rows: number }>;
+	onShutdown: Event<boolean>;
 }
 
 export interface ITerminalProcessExtHostRequest {

@@ -7,9 +7,6 @@
 const perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
-// Perf measurements
-global.perfStartTime = Date.now();
-
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
 
 const fs = require('fs');
@@ -80,6 +77,12 @@ if (isTempPortable) {
 //#endregion
 
 const app = require('electron').app;
+
+// TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
+app.commandLine.appendSwitch('disable-mojo-local-storage');
+
+// Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+app.commandLine.appendSwitch('disable-features', 'ColorCorrectRendering');
 
 const minimist = require('minimist');
 const paths = require('./paths');
@@ -257,9 +260,9 @@ function getNLSConfiguration(locale) {
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
 
-	// Check if we have an English locale. If so fall to default since that is our
+	// Check if we have an English or English US locale. If so fall to default since that is our
 	// English translation (we don't ship *.nls.en.json files)
-	if (locale && (locale == 'en' || locale.startsWith('en-'))) {
+	if (locale && (locale === 'en' || locale === 'en-us')) {
 		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	}
 
@@ -472,6 +475,7 @@ app.once('ready', function () {
 		// If that fails we fall back to English.
 		nlsConfiguration.then((nlsConfig) => {
 			let boot = (nlsConfig) => {
+				nlsConfig._languagePackSupport = true;
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				if (cachedDataDir) process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');

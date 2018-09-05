@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -82,6 +82,10 @@
           "light": "resources/light/refresh.svg",
           "dark": "resources/dark/refresh.svg"
         }
+      },
+      {
+        "command": "npm.runSelectedScript",
+        "title": "%command.runSelectedScript%"
       }
     ],
     "menus": {
@@ -105,6 +109,17 @@
         {
           "command": "npm.runInstall",
           "when": "false"
+        },
+        {
+          "command": "npm.runSelectedScript",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "npm.runSelectedScript",
+          "when": "resourceFilename == 'package.json'",
+          "group": "navigation@+1"
         }
       ],
       "view/title": [
@@ -176,7 +191,7 @@
           "type": "boolean",
           "default": false,
           "scope": "resource",
-          "description": "%config.npm.runSilent%"
+          "markdownDescription": "%config.npm.runSilent%"
         },
         "npm.packageManager": {
           "scope": "resource",
@@ -211,9 +226,18 @@
             "open",
             "run"
           ],
-          "description": "%config.npm.scriptExplorerAction%",
+          "markdownDescription": "%config.npm.scriptExplorerAction%",
           "scope": "window",
           "default": "open"
+        },
+        "npm.fetchOnlinePackageInfo": {
+          "type": "boolean",
+          "description": "%config.npm.fetchOnlinePackageInfo%",
+          "default": true,
+          "scope": "window",
+          "tags": [
+            "usesOnlineServices"
+          ]
         }
       }
     },

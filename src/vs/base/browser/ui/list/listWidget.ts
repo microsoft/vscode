@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
+import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, firstIndex } from 'vs/base/common/arrays';
@@ -352,6 +353,11 @@ class DOMFocusController<T> implements IDisposable {
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement)) {
+			return;
+		}
+
+		const style = window.getComputedStyle(tabIndexElement);
+		if (style.visibility === 'hidden' || style.display === 'none') {
 			return;
 		}
 
@@ -934,7 +940,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
-			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
+			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", options.ariaLabel));
 		}
 
 		this.style(options);
@@ -1216,5 +1222,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	dispose(): void {
 		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
+
+		this._onOpen.dispose();
+		this._onPin.dispose();
+		this._onDidDispose.dispose();
 	}
 }

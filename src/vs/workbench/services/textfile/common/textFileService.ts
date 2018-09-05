@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
@@ -334,7 +334,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 		// save all dirty when enabling auto save
 		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-			this.saveAll().done(null, errors.onUnexpectedError);
+			this.saveAll();
 		}
 
 		// Check for change in files associations
@@ -733,7 +733,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 			// Handle target models if existing (if target URI is a folder, this can be multiple)
 			let handleTargetModelPromise: TPromise<any> = TPromise.as(void 0);
-			const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, !platform.isLinux /* ignorecase */));
+			const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */));
 			if (dirtyTargetModels.length) {
 				handleTargetModelPromise = this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
 			}

@@ -12,7 +12,7 @@ import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -412,6 +412,23 @@ export const location = {
 		return new types.Location(value.uri, Range.to(value.range));
 	}
 };
+
+export namespace DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+		const definitionLink = <vscode.DefinitionLink>value;
+		const location = <vscode.Location>value;
+		return {
+			origin: definitionLink.originSelectionRange
+				? Range.from(definitionLink.originSelectionRange)
+				: undefined,
+			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
+			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
+			selectionRange: definitionLink.targetSelectionRange
+				? Range.from(definitionLink.targetSelectionRange)
+				: undefined,
+		};
+	}
+}
 
 export namespace Hover {
 	export function from(hover: vscode.Hover): modes.Hover {

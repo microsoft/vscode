@@ -11,7 +11,7 @@ import { ExtHostDocumentData } from './extHostDocumentData';
 import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Disposable } from './extHostTypes';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {

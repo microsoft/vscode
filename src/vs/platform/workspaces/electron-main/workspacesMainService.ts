@@ -24,7 +24,7 @@ import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { applyEdit } from 'vs/base/common/jsonFormatter';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IStoredWorkspace {
@@ -56,6 +56,14 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 	get onUntitledWorkspaceDeleted(): Event<IWorkspaceIdentifier> {
 		return this._onUntitledWorkspaceDeleted.event;
+	}
+
+	resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
+		if (!this.isWorkspacePath(path)) {
+			return TPromise.as(null); // does not look like a valid workspace config file
+		}
+
+		return readFile(path, 'utf8').then(contents => this.doResolveWorkspace(path, contents));
 	}
 
 	resolveWorkspaceSync(path: string): IResolvedWorkspace {

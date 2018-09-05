@@ -529,6 +529,7 @@
 		"inputValidation.errorBorder": "#f1897f",
 		"errorForeground": "#f1897f",
 		"badge.background": "#705697AA",
-		"progressBar.background": "#705697"
+		"progressBar.background": "#705697",
+		"walkThrough.embeddedEditorBackground": "#00000014"
 	}
 }

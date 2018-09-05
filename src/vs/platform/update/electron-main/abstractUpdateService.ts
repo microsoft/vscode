@@ -6,12 +6,12 @@
 'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, timeout } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IUpdateService, State, StateType, AvailableForDownload } from 'vs/platform/update/common/update';
+import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -72,11 +72,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		this.setState({ type: StateType.Idle });
+		this.setState(State.Idle(this.getUpdateType()));
 
 		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000)
-			.done(null, err => this.logService.error(err));
+		this.scheduleCheckForUpdates(30 * 1000).then(null, err => this.logService.error(err));
 	}
 
 	private getProductQuality(): string {
@@ -84,8 +83,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return quality === 'none' ? null : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
-		return TPromise.timeout(delay)
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(update => {
 				if (update) {
@@ -145,7 +144,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).done(vetod => {
+		this.lifecycleService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -171,6 +170,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 				return false;
 			}
 		});
+	}
+
+	protected getUpdateType(): UpdateType {
+		return UpdateType.Archive;
 	}
 
 	protected doQuitAndInstall(): void {

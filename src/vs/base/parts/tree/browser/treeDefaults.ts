@@ -134,6 +134,10 @@ export class DefaultController implements _.IController {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
 				}
 
+				if (dom.findParentWithClass(event.target, 'scrollbar', 'monaco-tree')) {
+					return false;
+				}
+
 				if (dom.findParentWithClass(event.target, 'monaco-action-bar', 'row')) { // TODO@Joao not very nice way of checking for the action bar (implicit knowledge)
 					return false; // Ignore event if target is over an action bar of the row
 				}
@@ -187,9 +191,9 @@ export class DefaultController implements _.IController {
 
 			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
-					tree.collapse(element).done(null, errors.onUnexpectedError);
+					tree.collapse(element).then(null, errors.onUnexpectedError);
 				} else {
-					tree.expand(element).done(null, errors.onUnexpectedError);
+					tree.expand(element).then(null, errors.onUnexpectedError);
 				}
 			}
 		}
@@ -278,7 +282,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPrevious(1, payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -290,7 +294,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusPreviousPage(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -302,7 +306,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNext(1, payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -314,7 +318,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusNextPage(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -326,7 +330,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusFirst(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -338,7 +342,7 @@ export class DefaultController implements _.IController {
 			tree.clearHighlight(payload);
 		} else {
 			tree.focusLast(payload);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus()).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -356,7 +360,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).done(null, errors.onUnexpectedError);
+			}).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}
@@ -374,7 +378,7 @@ export class DefaultController implements _.IController {
 					return tree.reveal(tree.getFocus());
 				}
 				return undefined;
-			}).done(null, errors.onUnexpectedError);
+			}).then(null, errors.onUnexpectedError);
 		}
 		return true;
 	}

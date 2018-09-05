@@ -13,10 +13,11 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { once, Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { Scope } from 'vs/workbench/common/memento';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -148,7 +149,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(storageService), limit, editorGroupService);
+			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(storageService, Scope.WORKSPACE), limit, editorGroupService);
 			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { asWinJsPromise } from 'vs/base/common/async';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { asThenable } from 'vs/base/common/async';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -15,6 +15,7 @@ import * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape } from './extHost.protocol';
 import { CommandsConverter } from './extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExtHostComments implements ExtHostCommentsShape {
 	private static handlePool = 0;
@@ -64,7 +65,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): TPromise<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -72,13 +73,13 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
+		return asThenable(() => {
 			let provider = this._documentProviders.get(handle);
-			return provider.createNewCommentThread(data.document, ran, text, token);
+			return provider.createNewCommentThread(data.document, ran, text, CancellationToken.None);
 		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): TPromise<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Thenable<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -86,33 +87,33 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
+		return asThenable(() => {
 			let provider = this._documentProviders.get(handle);
-			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, token);
+			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, CancellationToken.None);
 		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
 	}
 
-	$provideDocumentComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
+	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
+		return asThenable(() => {
 			let provider = this._documentProviders.get(handle);
-			return provider.provideDocumentComments(data.document, token);
+			return provider.provideDocumentComments(data.document, CancellationToken.None);
 		})
 			.then(commentInfo => commentInfo ? convertCommentInfo(handle, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
-			return provider.provideWorkspaceComments(token);
+		return asThenable(() => {
+			return provider.provideWorkspaceComments(CancellationToken.None);
 		}).then(comments =>
 			comments.map(x => convertToCommentThread(x, this._commandsConverter)
 			));

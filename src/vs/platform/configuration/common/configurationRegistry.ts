@@ -76,8 +76,8 @@ export enum ConfigurationScope {
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	scope?: ConfigurationScope;
-	notMultiRootAdopted?: boolean;
 	included?: boolean;
+	tags?: string[];
 }
 
 export interface IConfigurationNode {

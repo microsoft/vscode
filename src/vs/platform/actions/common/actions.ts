@@ -13,7 +13,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;
@@ -93,9 +93,10 @@ export class MenuId {
 	static readonly MenubarAppearanceMenu = new MenuId();
 	static readonly MenubarLayoutMenu = new MenuId();
 	static readonly MenubarGoMenu = new MenuId();
+	static readonly MenubarSwitchEditorMenu = new MenuId();
+	static readonly MenubarSwitchGroupMenu = new MenuId();
 	static readonly MenubarDebugMenu = new MenuId();
-	static readonly MenubarTasksMenu = new MenuId();
-	static readonly MenubarWindowMenu = new MenuId();
+	static readonly MenubarNewBreakpointMenu = new MenuId();
 	static readonly MenubarPreferencesMenu = new MenuId();
 	static readonly MenubarHelpMenu = new MenuId();
 	static readonly MenubarTerminalMenu = new MenuId();

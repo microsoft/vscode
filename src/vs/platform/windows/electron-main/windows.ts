@@ -13,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { URI } from 'vs/base/common/uri';
 
 export interface IWindowState {
 	width?: number;
@@ -35,7 +36,7 @@ export interface ICodeWindow {
 	win: Electron.BrowserWindow;
 	config: IWindowConfiguration;
 
-	openedFolderPath: string;
+	openedFolderUri: URI;
 	openedWorkspace: IWorkspaceIdentifier;
 	backupPath: string;
 
@@ -46,6 +47,8 @@ export interface ICodeWindow {
 
 	readyState: ReadyState;
 	ready(): TPromise<ICodeWindow>;
+
+	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void;
 	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
@@ -92,6 +95,7 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
+	enterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;
@@ -108,6 +112,7 @@ export interface IWindowsMainService {
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
 	openNewWindow(context: OpenContext): ICodeWindow[];
+	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
 	sendToFocused(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 	getFocusedWindow(): ICodeWindow;
@@ -122,9 +127,10 @@ export interface IOpenConfiguration {
 	contextWindowId?: number;
 	cli: ParsedArgs;
 	userEnv?: IProcessEnvironment;
-	pathsToOpen?: string[];
+	urisToOpen?: URI[];
 	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
+	forceNewTabbedWindow?: boolean;
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	diffMode?: boolean;

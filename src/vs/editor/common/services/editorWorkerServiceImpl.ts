@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IntervalTimer, ShallowCancelThenPromise, wireCancellationToken } from 'vs/base/common/async';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { IntervalTimer, ShallowCancelThenPromise } from 'vs/base/common/async';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
@@ -63,7 +63,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 				if (!canSyncModel(this._modelService, model.uri)) {
 					return TPromise.as([]); // File too large
 				}
-				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
 			}
 		}));
 		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
@@ -285,11 +285,9 @@ class EditorModelManager extends Disposable {
 		toDispose.push(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);
 		}));
-		toDispose.push({
-			dispose: () => {
-				this._proxy.acceptRemovedModel(modelUrl);
-			}
-		});
+		toDispose.push(toDisposable(() => {
+			this._proxy.acceptRemovedModel(modelUrl);
+		}));
 
 		this._syncedModels[modelUrl] = toDispose;
 	}

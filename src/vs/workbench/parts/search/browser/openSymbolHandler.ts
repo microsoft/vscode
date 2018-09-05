@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -16,28 +16,26 @@ import * as filters from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import * as labels from 'vs/base/common/labels';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
-	private _bearingResolve: TPromise<this>;
+	private _bearingResolve: Thenable<this>;
 
 	constructor(
 		private _bearing: IWorkspaceSymbol,
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService
+		@ILabelService private _labelService: ILabelService
 	) {
 		super(editorService);
 	}
@@ -56,7 +54,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			if (containerName) {
 				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
 			} else {
-				return labels.getPathLabel(this._bearing.location.uri, this._environmentService, this._contextService);
+				return this._labelService.getUriLabel(this._bearing.location.uri, true);
 			}
 		}
 		return containerName;
@@ -78,7 +76,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			&& !this._bearing.location.range
 		) {
 
-			this._bearingResolve = this._provider.resolveWorkspaceSymbol(this._bearing).then(result => {
+			this._bearingResolve = Promise.resolve(this._provider.resolveWorkspaceSymbol(this._bearing, CancellationToken.None)).then(result => {
 				this._bearing = result || this._bearing;
 				return this;
 			}, onUnexpectedError);
@@ -132,7 +130,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.symbols';
 
-	private static readonly SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
+	private static readonly SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
@@ -152,21 +150,27 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return true;
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string, token: CancellationToken = CancellationToken.None): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		let promise: TPromise<QuickOpenEntry[]>;
 		if (!this.options.skipDelay) {
-			promise = this.delayer.trigger(() => this.doGetResults(searchValue)); // Run search with delay as needed
+			promise = this.delayer.trigger(() => {
+				if (token.isCancellationRequested) {
+					return TPromise.wrap([]);
+				}
+
+				return this.doGetResults(searchValue, token);
+			});
 		} else {
-			promise = this.doGetResults(searchValue);
+			promise = this.doGetResults(searchValue, token);
 		}
 
 		return promise.then(e => new QuickOpenModel(e));
 	}
 
-	private doGetResults(searchValue: string): TPromise<SymbolEntry[]> {
-		return getWorkspaceSymbols(searchValue).then(tuples => {
+	private doGetResults(searchValue: string, token?: CancellationToken): TPromise<SymbolEntry[]> {
+		return getWorkspaceSymbols(searchValue, token).then(tuples => {
 			const result: SymbolEntry[] = [];
 			for (let tuple of tuples) {
 				const [provider, bearings] = tuple;
@@ -177,9 +181,9 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 			if (!this.options.skipSorting) {
 				searchValue = searchValue ? strings.stripWildcards(searchValue.toLowerCase()) : searchValue;
 				return result.sort((a, b) => SymbolEntry.compare(a, b, searchValue));
-			} else {
-				return result;
 			}
+
+			return result;
 		});
 	}
 

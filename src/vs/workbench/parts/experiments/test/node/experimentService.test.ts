@@ -27,7 +27,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 let experimentData = {
 	experiments: []
@@ -621,12 +621,12 @@ suite('Experiment Service', () => {
 		};
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		const custom = testObject.getExperimentsToRunByType(ExperimentActionType.Custom).then(result => {
+		const custom = testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'simple-experiment');
 			assert.equal(result[1].id, 'custom-experiment');
 		});
-		const prompt = testObject.getExperimentsToRunByType(ExperimentActionType.Prompt).then(result => {
+		const prompt = testObject.getExperimentsByType(ExperimentActionType.Prompt).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'prompt-with-no-commands');
 			assert.equal(result[1].id, 'prompt-with-commands');
@@ -634,7 +634,70 @@ suite('Experiment Service', () => {
 		return TPromise.join([custom, prompt]);
 	});
 
+	test('experimentsPreviouslyRun includes, excludes check', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment3',
+					enabled: true,
+					condition: {
+						experimentsPreviouslyRun: {
+							includes: ['experiment1'],
+							excludes: ['experiment2']
+						}
+					}
+				},
+				{
+					id: 'experiment4',
+					enabled: true,
+					condition: {
+						experimentsPreviouslyRun: {
+							includes: ['experiment1'],
+							excludes: ['experiment200']
+						}
+					}
+				}
+			]
+		};
 
+		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
+		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Evaluating };
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => {
+				switch (a) {
+					case 'currentOrPreviouslyRunExperiments':
+						return JSON.stringify(['experiment1', 'experiment2']);
+					default:
+						break;
+				}
+				return c;
+			},
+			store: (a, b, c) => {
+				switch (a) {
+					case 'experiments.experiment3':
+						storageDataExperiment3 = JSON.parse(b);
+						break;
+					case 'experiments.experiment4':
+						storageDataExperiment4 = JSON.parse(b);
+						break;
+					default:
+						break;
+				}
+			}
+		});
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
+			assert.equal(result.length, 2);
+			assert.equal(result[0].id, 'experiment3');
+			assert.equal(result[0].state, ExperimentState.NoRun);
+			assert.equal(result[1].id, 'experiment4');
+			assert.equal(result[1].state, ExperimentState.Run);
+			assert.equal(storageDataExperiment3.state, ExperimentState.NoRun);
+			assert.equal(storageDataExperiment4.state, ExperimentState.Run);
+			return TPromise.as(null);
+		});
+	});
 	// test('Experiment with condition type FileEdit should increment editcount as appropriate', () => {
 
 	// });

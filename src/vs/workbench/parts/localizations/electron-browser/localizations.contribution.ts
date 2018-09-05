@@ -12,7 +12,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ConfigureLocaleAction } from 'vs/workbench/parts/localizations/electron-browser/localizationsActions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, DidInstallExtensionEvent, LocalExtensionType, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -20,7 +20,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -98,24 +98,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private migrateToMarketplaceLanguagePack(language: string): void {
-		this.isLanguageInstalled(language)
-			.then(installed => {
-				if (!installed) {
-					this.getLanguagePackExtension(language)
-						.then(extension => {
-							if (extension) {
-								this.notificationService.prompt(Severity.Warning, localize('install language pack', "In the near future, VS Code will only support language packs in the form of Marketplace extensions. Please install the '{0}' extension in order to continue to use the currently configured language. ", extension.displayName || extension.displayName),
-									[
-										{ label: localize('install', "Install"), run: () => this.installExtension(extension) },
-										{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=872941') }
-									]);
-							}
-						});
-				}
-			});
-	}
-
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
@@ -124,11 +106,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (language !== 'en' && language.indexOf('en-') !== -1) {
-			this.migrateToMarketplaceLanguagePack(language);
-			return;
-		}
-		if (locale === 'en' || locale.indexOf('en-') !== -1) {
+		if (language === 'en' || language.indexOf('en-') === 0) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
@@ -141,19 +119,15 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				const extensionIdPostfix = this.getPossibleChineseMapping(locale);
-				const ceintlExtensionSearch = this.galleryService.query({ names: [`MS-CEINTL.vscode-language-pack-${extensionIdPostfix}`], pageSize: 1 });
-				const tagSearch = this.galleryService.query({ text: `tag:lp-${locale}`, pageSize: 1 });
-
-				TPromise.join([ceintlExtensionSearch, tagSearch]).then(([ceintlResult, tagResult]) => {
-					if (ceintlResult.total === 0 && tagResult.total === 0) {
+				this.galleryService.query({ text: `tag:lp-${locale}` }).then(tagResult => {
+					if (tagResult.total === 0) {
 						return;
 					}
 
-					const extensionToInstall = ceintlResult.total === 1 ? ceintlResult.firstPage[0] : tagResult.total === 1 ? tagResult.firstPage[0] : null;
-					const extensionToFetchTranslationsFrom = extensionToInstall || (tagResult.total > 0 ? tagResult.firstPage[0] : null);
+					const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0];
+					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.firstPage[0];
 
-					if (!extensionToFetchTranslationsFrom || !extensionToFetchTranslationsFrom.assets.manifest) {
+					if (!extensionToFetchTranslationsFrom.assets.manifest) {
 						return;
 					}
 
@@ -234,24 +208,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 				});
 			});
 
-	}
-
-	private getPossibleChineseMapping(locale: string): string {
-		locale = locale.toLowerCase();
-		return locale === 'zh-cn' ? 'zh-hans' : locale === 'zh-tw' ? 'zh-hant' : locale;
-	}
-
-	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {
-		return this.localizationService.getLanguageIds(LanguageType.Core)
-			.then(coreLanguages => {
-				if (coreLanguages.some(c => c.toLowerCase() === language)) {
-					const extensionIdPrefix = language === 'zh-cn' ? 'zh-hans' : language === 'zh-tw' ? 'zh-hant' : language;
-					const extensionId = `MS-CEINTL.vscode-language-pack-${extensionIdPrefix}`;
-					return this.galleryService.query({ names: [extensionId], pageSize: 1 })
-						.then(result => result.total === 1 ? result.firstPage[0] : null);
-				}
-				return null;
-			});
 	}
 
 	private isLanguageInstalled(language: string): TPromise<boolean> {

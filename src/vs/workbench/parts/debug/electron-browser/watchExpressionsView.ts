@@ -8,7 +8,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -55,7 +54,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
 			this.needsRefresh = false;
-			this.tree.refresh().done(undefined, errors.onUnexpectedError);
+			this.tree.refresh();
 		}, 50);
 	}
 
@@ -90,9 +89,9 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				return;
 			}
 
-			this.tree.refresh().done(() => {
+			this.tree.refresh().then(() => {
 				return we instanceof Expression ? this.tree.reveal(we) : TPromise.as(true);
-			}, errors.onUnexpectedError);
+			});
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
 			if (!this.isExpanded() || !this.isVisible()) {
@@ -107,7 +106,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (expression instanceof Expression) {
-				this.tree.refresh(expression, false).done(null, errors.onUnexpectedError);
+				this.tree.refresh(expression, false);
 			}
 		}));
 	}
@@ -177,7 +176,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 			if (element instanceof Variable) {
 				const variable = <Variable>element;
 				if (!variable.hasChildren) {
-					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable.value, this.debugService));
+					actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, this.debugService));
 				}
 				actions.push(new Separator());
 			}
@@ -300,16 +299,17 @@ class WatchExpressionsRenderer implements IRenderer {
 		}
 
 		data.name.textContent = watchExpression.name;
-		if (watchExpression.value) {
+		renderExpressionValue(watchExpression, data.value, {
+			showChanged: true,
+			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
+			preserveWhitespace: false,
+			showHover: true,
+			colorize: true
+		});
+		data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
+
+		if (typeof watchExpression.value === 'string') {
 			data.name.textContent += ':';
-			renderExpressionValue(watchExpression, data.value, {
-				showChanged: true,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-				preserveWhitespace: false,
-				showHover: true,
-				colorize: true
-			});
-			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
 	}
 

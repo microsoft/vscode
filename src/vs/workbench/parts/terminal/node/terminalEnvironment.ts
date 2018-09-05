@@ -7,8 +7,7 @@ import * as os from 'os';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import pkg from 'vs/platform/node/package';
-import Uri from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -17,7 +16,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: IStringDictionary<string>, other: IStringDictionary<string>) {
+export function mergeEnvironments(parent: platform.IProcessEnvironment, other: platform.IProcessEnvironment): void {
 	if (!other) {
 		return;
 	}
@@ -44,7 +43,7 @@ export function mergeEnvironments(parent: IStringDictionary<string>, other: IStr
 	}
 }
 
-function _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, value: string | null) {
+function _mergeEnvironmentValue(env: platform.IProcessEnvironment, key: string, value: string | null): void {
 	if (typeof value === 'string') {
 		env[key] = value;
 	} else {
@@ -52,34 +51,44 @@ function _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, val
 	}
 }
 
-export function createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale: string, cols?: number, rows?: number): IStringDictionary<string> {
-	const env = { ...parentEnv };
-	if (shell.env) {
-		mergeEnvironments(env, shell.env);
-	}
-
-	env['PTYPID'] = process.pid.toString();
-	env['PTYSHELL'] = shell.executable;
-	env['TERM_PROGRAM'] = 'vscode';
-	env['TERM_PROGRAM_VERSION'] = pkg.version;
-	if (shell.args) {
-		if (typeof shell.args === 'string') {
-			env[`PTYSHELLCMDLINE`] = shell.args;
-		} else {
-			shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
+export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
+	// Remove keys based on strings
+	const keysToRemove = [
+		'ELECTRON_ENABLE_STACK_DUMPING',
+		'ELECTRON_ENABLE_LOGGING',
+		'ELECTRON_NO_ASAR',
+		'ELECTRON_NO_ATTACH_CONSOLE',
+		'ELECTRON_RUN_AS_NODE',
+		'GOOGLE_API_KEY',
+		'VSCODE_CLI',
+		'VSCODE_DEV',
+		'VSCODE_IPC_HOOK',
+		'VSCODE_LOGS',
+		'VSCODE_NLS_CONFIG',
+		'VSCODE_PORTABLE',
+		'VSCODE_PID',
+	];
+	keysToRemove.forEach((key) => {
+		if (env[key]) {
+			delete env[key];
 		}
-	}
-	env['PTYCWD'] = cwd;
-	env['LANG'] = _getLangEnvVariable(locale);
-	if (cols && rows) {
-		env['PTYCOLS'] = cols.toString();
-		env['PTYROWS'] = rows.toString();
-	}
-	env['AMD_ENTRYPOINT'] = 'vs/workbench/parts/terminal/node/terminalProcess';
-	return env;
+	});
+
+	// Remove keys based on regexp
+	Object.keys(env).forEach(key => {
+		if (key.search(/^VSCODE_NODE_CACHED_DATA_DIR_\d+$/) === 0) {
+			delete env[key];
+		}
+	});
 }
 
-export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: IStringDictionary<string>, lastActiveWorkspaceRoot: IWorkspaceFolder): IStringDictionary<string> {
+export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, locale: string | undefined): void {
+	env['TERM_PROGRAM'] = 'vscode';
+	env['TERM_PROGRAM_VERSION'] = pkg.version;
+	env['LANG'] = _getLangEnvVariable(locale);
+}
+
+export function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: platform.IProcessEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder): platform.IProcessEnvironment {
 	Object.keys(env).forEach((key) => {
 		if (typeof env[key] === 'string') {
 			env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, env[key]);

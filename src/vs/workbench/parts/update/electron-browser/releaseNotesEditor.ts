@@ -8,7 +8,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { marked } from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asText } from 'vs/base/node/request';
 import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -25,8 +25,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 function renderBody(
 	body: string,
@@ -99,6 +99,11 @@ export class ReleaseNotesManager {
 					onDispose: () => { this._currentReleaseNotes = undefined; }
 				});
 
+			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
+			this._currentReleaseNotes.iconPath = {
+				light: iconPath,
+				dark: iconPath
+			};
 			this._currentReleaseNotes.html = html;
 		}
 
@@ -130,7 +135,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingIO.readKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
 
 				if (!keybinding) {
 					return unassigned;
@@ -153,6 +158,13 @@ export class ReleaseNotesManager {
 		if (!this._releaseNotesCache[version]) {
 			this._releaseNotesCache[version] = this._requestService.request({ url })
 				.then(asText)
+				.then(text => {
+					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+						return TPromise.wrapError<string>(new Error('Invalid release notes'));
+					}
+
+					return TPromise.wrap(text);
+				})
 				.then(text => patchKeybindings(text));
 		}
 

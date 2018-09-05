@@ -10,7 +10,7 @@ import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OS } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import * as nls from 'vs/nls';
@@ -123,17 +123,18 @@ export class FocusPreviousInputAction extends Action {
 export abstract class FindOrReplaceInFilesAction extends Action {
 
 	constructor(id: string, label: string, private viewletService: IViewletService, private panelService: IPanelService,
-		private expandSearchReplaceWidget: boolean, private selectWidgetText: boolean, private focusReplace: boolean) {
+		private expandSearchReplaceWidget: boolean
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return openSearchView(this.viewletService, this.panelService, true).then(openedView => {
+		return openSearchView(this.viewletService, this.panelService, false).then(openedView => {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
-			// Focus replace only when there is text in the searchInput box
-			const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
-			searchAndReplaceWidget.focus(this.selectWidgetText, !!focusReplace);
+
+			const updatedText = openedView.updateTextFromSelection(!this.expandSearchReplaceWidget);
+			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		});
 	}
 }
@@ -146,7 +147,7 @@ export class FindInFilesAction extends FindOrReplaceInFilesAction {
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false, /*selectWidgetText=*/true, /*focusReplace=*/false);
+		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
 }
 
@@ -159,7 +160,7 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/true, /*selectWidgetText=*/false, /*focusReplace=*/true);
+		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/true);
 	}
 }
 
@@ -233,7 +234,34 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
 
-			viewer.collapseDeepestExpandedLevel();
+			/**
+			 * The hierarchy is FolderMatch, FileMatch, Match. If the top level is FileMatches, then there is only
+			 * one level to collapse so collapse everything. If FolderMatch, check if there are visible grandchildren,
+			 * i.e. if Matches are returned by the navigator, and if so, collapse to them, otherwise collapse all levels.
+			 */
+			const navigator = viewer.getNavigator();
+			let node = navigator.first();
+			let collapseFileMatchLevel = false;
+			if (node instanceof FolderMatch) {
+				while (node = navigator.next()) {
+					if (node instanceof Match) {
+						collapseFileMatchLevel = true;
+						break;
+					}
+				}
+			}
+
+			if (collapseFileMatchLevel) {
+				node = navigator.first();
+				do {
+					if (node instanceof FileMatch) {
+						viewer.collapse(node);
+					}
+				} while (node = navigator.next());
+			} else {
+				viewer.collapseAll();
+			}
+
 			viewer.clearSelection();
 			viewer.clearFocus();
 			viewer.domFocus();
@@ -670,4 +698,12 @@ export const copyAllCommand: ICommandHandler = accessor => {
 export const clearHistoryCommand: ICommandHandler = accessor => {
 	const searchHistoryService = accessor.get(ISearchHistoryService);
 	searchHistoryService.clearHistory();
+};
+
+export const focusSearchListCommand: ICommandHandler = accessor => {
+	const viewletService = accessor.get(IViewletService);
+	const panelService = accessor.get(IPanelService);
+	openSearchView(viewletService, panelService).then(searchView => {
+		searchView.moveFocusToResults();
+	});
 };

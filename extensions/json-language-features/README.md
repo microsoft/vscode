@@ -1,11 +1,7 @@
-# Language Features for JSON files.
+# Language Features for JSON files
 
-**Notice** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
 ## Features
 
-This extension provides language support to JSON files.
-- auto-completion
-- diagnostics
-- extra information on hover
-- formatting
+See [JSON in Visual Studio Code](https://code.visualstudio.com/docs/languages/json) to learn about the features of this extension.

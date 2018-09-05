@@ -18,8 +18,8 @@ import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPosit
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class MessageController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -114,7 +114,7 @@ registerEditorCommand(new MessageCommand({
 	precondition: MessageController.MESSAGE_VISIBLE,
 	handler: c => c.closeMessage(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingWeight.EditorContrib + 30,
 		primary: KeyCode.Escape
 	}
 }));
@@ -193,5 +193,9 @@ registerThemingParticipant((theme, collector) => {
 	let background = theme.getColor(inputValidationInfoBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
+	}
+	let foreground = theme.getColor(inputValidationInfoForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
 	}
 });

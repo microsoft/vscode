@@ -9,8 +9,8 @@ import 'vs/css!./walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -117,7 +117,7 @@ export class WalkThroughPart extends BaseEditor {
 	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable;
 	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable {
 		element.addEventListener(type, listener, useCapture);
-		return { dispose: () => { element.removeEventListener(type, listener, useCapture); } };
+		return toDisposable(() => { element.removeEventListener(type, listener, useCapture); });
 	}
 
 	private registerFocusHandlers() {
@@ -517,7 +517,7 @@ export class WalkThroughPart extends BaseEditor {
 export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hc: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
 
 registerThemingParticipant((theme, collector) => {
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: 'rgba(0,0,0,.08)', hc: null });
+	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
 	if (color) {
 		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
 			.monaco-workbench > .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);

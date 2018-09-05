@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as stream from 'stream';
+import * as vscode from 'vscode';
+import { Disposable } from './dispose';
 
 const DefaultSize: number = 8192;
 const ContentLength: string = 'Content-Length: ';
@@ -78,26 +80,27 @@ class ProtocolBuffer {
 	}
 }
 
-export interface ICallback<T> {
-	(data: T): void;
-}
-
-export class Reader<T> {
+export class Reader<T> extends Disposable {
 
 	private readonly buffer: ProtocolBuffer = new ProtocolBuffer();
 	private nextMessageLength: number = -1;
 
-	public constructor(
-		private readonly readable: stream.Readable,
-		private readonly callback: ICallback<T>,
-		private readonly onError: (error: any) => void
-	) {
-		this.readable.on('data', (data: Buffer) => {
-			this.onLengthData(data);
-		});
+	public constructor(readable: stream.Readable) {
+		super();
+		readable.on('data', data => this.onLengthData(data));
 	}
 
-	private onLengthData(data: Buffer): void {
+	private readonly _onError = this._register(new vscode.EventEmitter<Error>());
+	public readonly onError = this._onError.event;
+
+	private readonly _onData = this._register(new vscode.EventEmitter<T>());
+	public readonly onData = this._onData.event;
+
+	private onLengthData(data: Buffer | string): void {
+		if (this.isDisposed) {
+			return;
+		}
+
 		try {
 			this.buffer.append(data);
 			while (true) {
@@ -113,10 +116,10 @@ export class Reader<T> {
 				}
 				this.nextMessageLength = -1;
 				const json = JSON.parse(msg);
-				this.callback(json);
+				this._onData.fire(json);
 			}
 		} catch (e) {
-			this.onError(e);
+			this._onError.fire(e);
 		}
 	}
 }

@@ -10,20 +10,17 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import { asJson } from 'vs/base/node/request';
-
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
-import { Emitter, Event } from 'vs/base/common/event';
-
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -55,9 +52,24 @@ interface IRawExperiment {
 			workspaceExcludes?: string[];
 			minEditCount: number;
 		},
+		experimentsPreviouslyRun?: {
+			excludes?: string[];
+			includes?: string[];
+		}
 		userProbability?: number;
 	};
-	action?: { type: string; properties: any };
+	action?: IExperimentAction;
+}
+
+interface IExperimentAction {
+	type: ExperimentActionType;
+	properties: any;
+}
+
+export enum ExperimentActionType {
+	Custom = 'Custom',
+	Prompt = 'Prompt',
+	AddToRecommendations = 'AddToRecommendations'
 }
 
 export interface IExperimentActionPromptProperties {
@@ -65,10 +77,9 @@ export interface IExperimentActionPromptProperties {
 	commands: IExperimentActionPromptCommand[];
 }
 
-interface IExperimentActionPromptCommand {
+export interface IExperimentActionPromptCommand {
 	text: string;
 	externalLink?: string;
-	dontShowAgain?: boolean;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];
 }
@@ -80,21 +91,10 @@ export interface IExperiment {
 	action?: IExperimentAction;
 }
 
-export enum ExperimentActionType {
-	Custom,
-	Prompt,
-	AddToRecommendations
-}
-
-interface IExperimentAction {
-	type: ExperimentActionType;
-	properties: any;
-}
-
 export interface IExperimentService {
 	_serviceBrand: any;
 	getExperimentById(id: string): TPromise<IExperiment>;
-	getExperimentsToRunByType(type: ExperimentActionType): TPromise<IExperiment[]>;
+	getExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]>;
 	getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]>;
 	markAsCompleted(experimentId: string): void;
 
@@ -120,7 +120,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IRequestService private requestService: IRequestService
+		@IRequestService private requestService: IRequestService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -133,12 +134,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		});
 	}
 
-	public getExperimentsToRunByType(type: ExperimentActionType): TPromise<IExperiment[]> {
+	public getExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]> {
 		return this._loadExperimentsPromise.then(() => {
 			if (type === ExperimentActionType.Custom) {
-				return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && (!x.action || x.action.type === type));
+				return this._experiments.filter(x => x.enabled && (!x.action || x.action.type === type));
 			}
-			return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && x.action && x.action.type === type);
+			return this._experiments.filter(x => x.enabled && x.action && x.action.type === type);
 		});
 	}
 
@@ -164,7 +165,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected getExperiments(): TPromise<IRawExperiment[]> {
-		if (!product.experimentsUrl) {
+		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return TPromise.as([]);
 		}
 		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
@@ -252,16 +253,48 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					this.storageService.store(storageKey, JSON.stringify(experimentState));
 
 					if (state === ExperimentState.Run) {
-						this._onExperimentEnabled.fire(processedExperiment);
+						this.fireRunExperiment(processedExperiment);
 					}
 					return TPromise.as(null);
 				});
 
 			});
 			return TPromise.join(promises).then(() => {
-				this.telemetryService.publicLog('experiments', this._experiments);
+				/* __GDPR__
+					"experiments" : {
+						"experiments" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('experiments', { experiments: this._experiments });
 			});
 		});
+	}
+
+	private fireRunExperiment(experiment: IExperiment) {
+		this._onExperimentEnabled.fire(experiment);
+		const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+		if (runExperimentIdsFromStorage.indexOf(experiment.id)) {
+			runExperimentIdsFromStorage.push(experiment.id);
+			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(runExperimentIdsFromStorage));
+		}
+	}
+
+	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
+		if (experiment.condition.experimentsPreviouslyRun) {
+			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+			let includeCheck = true;
+			let excludeCheck = true;
+			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
+				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
+			}
+			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
+				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
+			}
+			if (!includeCheck || !excludeCheck) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
@@ -275,6 +308,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 		if (!experiment.condition) {
 			return TPromise.wrap(ExperimentState.Run);
+		}
+
+		if (!this.checkExperimentDependencies(experiment)) {
+			return TPromise.wrap(ExperimentState.NoRun);
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
@@ -369,10 +406,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				});
 				if (latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
-					processedExperiment.state = latestExperimentState.state = Math.random() < experiment.condition.userProbability ? ExperimentState.Run : ExperimentState.NoRun;
+					processedExperiment.state = latestExperimentState.state = (Math.random() < experiment.condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
 					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
-						this._onExperimentEnabled.fire(processedExperiment);
+						this.fireRunExperiment(processedExperiment);
 					}
 				}
 			});

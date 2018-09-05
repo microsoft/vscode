@@ -5,20 +5,20 @@
 
 'use strict';
 
-import { RunOnceScheduler, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
+import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
+import { getCodeLensData, ICodeLensData } from './codelens';
 
 export class CodeLensContribution implements editorCommon.IEditorContribution {
 
@@ -167,22 +167,20 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(this._editor.onDidLayoutChange(e => {
 			this._detectVisibleLenses.schedule();
 		}));
-		this._localToDispose.push({
-			dispose: () => {
-				if (this._editor.getModel()) {
-					const scrollState = StableEditorScrollState.capture(this._editor);
-					this._editor.changeDecorations((changeAccessor) => {
-						this._editor.changeViewZones((accessor) => {
-							this._disposeAllLenses(changeAccessor, accessor);
-						});
+		this._localToDispose.push(toDisposable(() => {
+			if (this._editor.getModel()) {
+				const scrollState = StableEditorScrollState.capture(this._editor);
+				this._editor.changeDecorations((changeAccessor) => {
+					this._editor.changeViewZones((accessor) => {
+						this._disposeAllLenses(changeAccessor, accessor);
 					});
-					scrollState.restore(this._editor);
-				} else {
-					// No accessors available
-					this._disposeAllLenses(null, null);
-				}
+				});
+				scrollState.restore(this._editor);
+			} else {
+				// No accessors available
+				this._disposeAllLenses(null, null);
 			}
-		});
+		}));
 
 		scheduler.schedule();
 	}

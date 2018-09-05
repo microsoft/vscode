@@ -6,7 +6,6 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { toThenable } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
@@ -53,10 +52,10 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		return this._extHostDocumentsAndEditors.allEditors();
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Thenable<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Thenable<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
@@ -90,7 +89,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		return new TextEditorDecorationType(this._proxy, options);
 	}
 
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
+	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
 		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}

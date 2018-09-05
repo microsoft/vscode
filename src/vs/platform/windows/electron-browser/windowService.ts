@@ -12,6 +12,7 @@ import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
 
 export class WindowService implements IWindowService {
 
@@ -81,6 +82,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.closeWorkspace(this.windowId);
 	}
 
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult> {
+		return this.windowsService.enterWorkspace(this.windowId, path);
+	}
+
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		return this.windowsService.createAndEnterWorkspace(this.windowId, folders, path);
 	}
@@ -89,7 +94,7 @@ export class WindowService implements IWindowService {
 		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void> {
+	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void> {
 		return this.windowsService.openWindow(this.windowId, paths, options);
 	}
 

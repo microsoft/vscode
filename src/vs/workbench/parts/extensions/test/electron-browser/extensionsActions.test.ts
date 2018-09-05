@@ -16,7 +16,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServerService, IExtensionManagementServer
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
@@ -34,9 +34,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { Schemas } from 'vs/base/common/network';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('ExtensionsActions Test', () => {
 
@@ -60,7 +60,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IWindowService, TestWindowService);
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, onDidChangeConfiguration: () => { }, getConfiguration: () => ({}) });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
@@ -71,7 +71,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 
-		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(SingleServerExtensionManagementServerService, <IExtensionManagementServer>{ location: URI.from({ scheme: Schemas.file }), extensionManagementService: instantiationService.get(IExtensionManagementService) }));
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(SingleServerExtensionManagementServerService, <IExtensionManagementServer>{ authority: 'vscode-local', extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local' }));
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
@@ -79,12 +79,12 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stub(IURLService, URLService);
 	});
 
-	setup(() => {
+	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stub(IExtensionService, { getExtensions: () => TPromise.wrap([]) });
-		(<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 	});
@@ -1207,6 +1207,7 @@ suite('ExtensionsActions Test', () => {
 		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
 		localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
 		localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };
+		localExtension.galleryIdentifier = { id: getGalleryExtensionIdFromLocal(localExtension), uuid: void 0 };
 		return localExtension;
 	}
 

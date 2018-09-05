@@ -23,12 +23,11 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as DOM from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IDataSource, ITree, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar, IActionItemProvider, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -202,12 +201,18 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.root = new Root();
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
 		this._register(this.themeService.onThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('explorer.decorations')) {
+				this.doRefresh([this.root]); /** soft refresh **/
+			}
+		}));
 	}
 
 	get dataProvider(): ITreeViewDataProvider {
@@ -284,7 +289,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 			// Make sure the current selected element is revealed
 			const selectedElement = this.tree.getSelection()[0];
 			if (selectedElement) {
-				this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
+				this.tree.reveal(selectedElement, 0.5);
 			}
 
 			// Pass Focus to Viewer
@@ -442,7 +447,6 @@ class TreeDataSource implements IDataSource {
 }
 
 interface ITreeExplorerTemplateData {
-	label: HTMLElement;
 	resourceLabel: ResourceLabel;
 	icon: HTMLElement;
 	actionBar: ActionBar;
@@ -459,7 +463,8 @@ class TreeRenderer implements IRenderer {
 		private menus: TreeMenus,
 		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 	}
 
@@ -475,41 +480,37 @@ class TreeRenderer implements IRenderer {
 		DOM.addClass(container, 'custom-view-tree-node-item');
 
 		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
-		const label = DOM.append(container, DOM.$('.custom-view-tree-node-item-label'));
 		const resourceLabel = this.instantiationService.createInstance(ResourceLabel, container, {});
-		const actionsContainer = DOM.append(container, DOM.$('.actions'));
+		DOM.addClass(resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
+		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
 
-		return { label, resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
+		return { resourceLabel, icon, actionBar, aligner: new Aligner(container, tree, this.themeService) };
 	}
 
 	renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
 		const label = node.label ? node.label : resource ? basename(resource.path) : '';
 		const icon = this.themeService.getTheme().type === LIGHT ? node.icon : node.iconDark;
+		const iconUrl = icon ? URI.revive(icon) : null;
+		const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
 
 		// reset
 		templateData.resourceLabel.clear();
 		templateData.actionBar.clear();
-		templateData.label.textContent = '';
-		DOM.removeClass(templateData.label, 'custom-view-tree-node-item-label');
-		DOM.removeClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
 
-		if ((resource || node.themeIcon) && !icon) {
-			const title = node.tooltip ? node.tooltip : resource ? void 0 : label;
-			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('_icon_resource') }, { fileKind: this.getFileKind(node), title });
-			DOM.addClass(templateData.resourceLabel.element, 'custom-view-tree-node-item-resourceLabel');
+		if (resource || node.themeIcon) {
+			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
+			templateData.resourceLabel.setLabel({ name: label, resource: resource ? resource : URI.parse('missing:_icon_resource') }, { fileKind: this.getFileKind(node), title, hideIcon: !!iconUrl, fileDecorations, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
 		} else {
-			templateData.label.textContent = label;
-			DOM.addClass(templateData.label, 'custom-view-tree-node-item-label');
-			templateData.label.title = typeof node.tooltip === 'string' ? node.tooltip : label;
+			templateData.resourceLabel.setLabel({ name: label }, { title, hideIcon: true, extraClasses: ['custom-view-tree-node-item-resourceLabel'] });
 		}
 
-		templateData.icon.style.backgroundImage = icon ? `url('${icon}')` : '';
-		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!icon);
+		templateData.icon.style.backgroundImage = iconUrl ? `url('${iconUrl}')` : '';
+		DOM.toggleClass(templateData.icon, 'custom-view-tree-node-item-icon', !!iconUrl);
 		templateData.actionBar.context = (<TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle });
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
 

@@ -486,12 +486,13 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, canceled by another picker', function () {
 
+		const source = new CancellationTokenSource();
+
 		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			source.cancel();
 			assert.equal(result, undefined);
 		});
 
-		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 
 		return result;
@@ -688,7 +689,7 @@ suite('window namespace tests', () => {
 			const renderer = window.createTerminalRenderer('foo');
 		});
 
-		test('Terminal.sendText should fire Termnial.onInput', (done) => {
+		test('Terminal.sendText should fire Terminal.onInput', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
 				const reg2 = renderer.onDidAcceptInput(data => {

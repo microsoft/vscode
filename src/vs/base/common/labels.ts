@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { nativeSep, normalize, basename as pathsBasename, sep } from 'vs/base/common/paths';
 import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
@@ -23,9 +23,7 @@ export interface IUserHomeProvider {
 }
 
 /**
- * @param resource for which to compute the path label
- * @param userHomeProvider if a resource has a file schema userHomeProvider is used for tildifiying the label
- * @param rootProvider only passed in if the label should be relative to the workspace root
+ * @deprecated use LabelService instead
  */
 export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (!resource) {
@@ -84,7 +82,7 @@ export function getBaseLabel(resource: URI | string): string {
 		resource = URI.file(resource);
 	}
 
-	const base = pathsBasename(resource.fsPath) || resource.fsPath /* can be empty string if '/' is passed in */;
+	const base = pathsBasename(resource.path) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
 	if (hasDriveLetter(base)) {

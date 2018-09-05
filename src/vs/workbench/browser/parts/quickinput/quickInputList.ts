@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -24,20 +24,31 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { memoize } from 'vs/base/common/decorators';
 import { range } from 'vs/base/common/arrays';
 import * as platform from 'vs/base/common/platform';
-import { listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
+import { listFocusBackground, pickerGroupBorder, pickerGroupForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { getIconClass } from 'vs/workbench/browser/parts/quickinput/quickInputUtils';
 
 const $ = dom.$;
 
 interface IListElement {
 	index: number;
 	item: IQuickPickItem;
+	saneLabel: string;
+	saneDescription?: string;
+	saneDetail?: string;
 	checked: boolean;
+	separator: IQuickPickSeparator;
+	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
 class ListElement implements IListElement {
 	index: number;
 	item: IQuickPickItem;
+	saneLabel: string;
+	saneDescription?: string;
+	saneDetail?: string;
 	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
@@ -52,9 +63,11 @@ class ListElement implements IListElement {
 			this._onChecked.fire(value);
 		}
 	}
+	separator: IQuickPickSeparator;
 	labelHighlights?: IMatch[];
 	descriptionHighlights?: IMatch[];
 	detailHighlights?: IMatch[];
+	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
 		assign(this, init);
@@ -62,9 +75,12 @@ class ListElement implements IListElement {
 }
 
 interface IListElementTemplateData {
+	entry: HTMLDivElement;
 	checkbox: HTMLInputElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
+	separator: HTMLDivElement;
+	actionBar: ActionBar;
 	element: ListElement;
 	toDisposeElement: IDisposable[];
 	toDisposeTemplate: IDisposable[];
@@ -83,10 +99,10 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		data.toDisposeElement = [];
 		data.toDisposeTemplate = [];
 
-		const entry = dom.append(container, $('.quick-input-list-entry'));
+		data.entry = dom.append(container, $('.quick-input-list-entry'));
 
 		// Checkbox
-		const label = dom.append(entry, $('label.quick-input-list-label'));
+		const label = dom.append(data.entry, $('label.quick-input-list-label'));
 		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
 		data.checkbox.type = 'checkbox';
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
@@ -105,6 +121,14 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new HighlightedLabel(detailContainer);
 
+		// Separator
+		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
+
+		// Actions
+		data.actionBar = new ActionBar(data.entry);
+		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
+		data.toDisposeTemplate.push(data.actionBar);
+
 		return data;
 	}
 
@@ -119,16 +143,55 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		// Label
 		const options: IIconLabelValueOptions = Object.create(null);
 		options.matches = labelHighlights || [];
-		options.descriptionTitle = element.item.description;
+		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
-		data.label.setValue(element.item.label, element.item.description, options);
+		options.extraClasses = element.item.iconClasses;
+		data.label.setValue(element.saneLabel, element.saneDescription, options);
 
 		// Meta
-		data.detail.set(element.item.detail, detailHighlights);
+		data.detail.set(element.saneDetail, detailHighlights);
+
+		// ARIA label
+		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
+			.filter(s => !!s)
+			.join(', '));
+
+		// Separator
+		if (element.separator && element.separator.label) {
+			data.separator.textContent = element.separator.label;
+			data.separator.style.display = null;
+		} else {
+			data.separator.style.display = 'none';
+		}
+		if (element.separator) {
+			dom.addClass(data.entry, 'quick-input-list-separator-border');
+		} else {
+			dom.removeClass(data.entry, 'quick-input-list-separator-border');
+		}
+
+		// Actions
+		data.actionBar.clear();
+		const buttons = element.item.buttons;
+		if (buttons && buttons.length) {
+			data.actionBar.push(buttons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, () => {
+					element.fireButtonTriggered({
+						button,
+						item: element.item
+					});
+					return null;
+				});
+				action.tooltip = button.tooltip;
+				return action;
+			}), { icon: true, label: false });
+			dom.addClass(data.entry, 'has-actions');
+		} else {
+			dom.removeClass(data.entry, 'has-actions');
+		}
 	}
 
-	disposeElement(): void {
-		// noop
+	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
+		data.toDisposeElement = dispose(data.toDisposeElement);
 	}
 
 	disposeTemplate(data: IListElementTemplateData): void {
@@ -140,7 +203,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
-		return element.item.detail ? 44 : 22;
+		return element.saneDetail ? 44 : 22;
 	}
 
 	getTemplateId(element: ListElement): string {
@@ -150,8 +213,10 @@ class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 export class QuickInputList {
 
+	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
+	private inputElements: (IQuickPickItem | IQuickPickSeparator)[];
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
@@ -160,8 +225,12 @@ export class QuickInputList {
 	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
 	private _onChangedCheckedCount = new Emitter<number>();
 	onChangedCheckedCount: Event<number> = this._onChangedCheckedCount.event;
+	private _onChangedVisibleCount = new Emitter<number>();
+	onChangedVisibleCount: Event<number> = this._onChangedVisibleCount.event;
 	private _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
+	private _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	onButtonTriggered = this._onButtonTriggered.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -170,14 +239,17 @@ export class QuickInputList {
 
 	constructor(
 		private parent: HTMLElement,
+		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
+		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
@@ -191,12 +263,14 @@ export class QuickInputList {
 					}
 					break;
 				case KeyCode.UpArrow:
+				case KeyCode.PageUp:
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
 				case KeyCode.DownArrow:
+				case KeyCode.PageDown:
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
@@ -255,6 +329,17 @@ export class QuickInputList {
 		return count;
 	}
 
+	getVisibleCount() {
+		let count = 0;
+		const elements = this.elements;
+		for (let i = 0, n = elements.length; i < n; i++) {
+			if (!elements[i].hidden) {
+				count++;
+			}
+		}
+		return count;
+	}
+
 	setAllVisibleChecked(checked: boolean) {
 		try {
 			this._fireCheckedEvents = false;
@@ -269,13 +354,26 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(elements: IQuickPickItem[]): void {
+	setElements(inputElements: (IQuickPickItem | IQuickPickSeparator)[]): void {
 		this.elementDisposables = dispose(this.elementDisposables);
-		this.elements = elements.map((item, index) => new ListElement({
-			index,
-			item,
-			checked: false
-		}));
+		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
+		this.inputElements = inputElements;
+		this.elements = inputElements.reduce((result, item, index) => {
+			if (item.type !== 'separator') {
+				const previous = index && inputElements[index - 1];
+				result.push(new ListElement({
+					index,
+					item,
+					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
+					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
+					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
+					checked: false,
+					separator: previous && previous.type === 'separator' ? previous : undefined,
+					fireButtonTriggered
+				}));
+			}
+			return result;
+		}, [] as ListElement[]);
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
@@ -284,6 +382,7 @@ export class QuickInputList {
 		}, new Map<IQuickPickItem, number>());
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setFocus([]);
+		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
 	getFocusedElements() {
@@ -295,6 +394,10 @@ export class QuickInputList {
 		this.list.setFocus(items
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)));
+	}
+
+	getActiveDescendant() {
+		return this.list.getHTMLElement().getAttribute('aria-activedescendant');
 	}
 
 	getSelectedElements() {
@@ -338,10 +441,10 @@ export class QuickInputList {
 			return;
 		}
 
-		if (what === 'Next' && this.list.getFocus()[0] === this.list.length - 1) {
+		if ((what === 'Next' || what === 'NextPage') && this.list.getFocus()[0] === this.list.length - 1) {
 			what = 'First';
 		}
-		if (what === 'Previous' && this.list.getFocus()[0] === 0) {
+		if ((what === 'Previous' || what === 'PreviousPage') && this.list.getFocus()[0] === 0) {
 			what = 'Last';
 		}
 
@@ -371,15 +474,17 @@ export class QuickInputList {
 				element.descriptionHighlights = undefined;
 				element.detailHighlights = undefined;
 				element.hidden = false;
+				const previous = element.index && this.inputElements[element.index - 1];
+				element.separator = previous && previous.type === 'separator' ? previous : undefined;
 			});
 		}
 
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.item.label));
-				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.description || '')) : undefined;
-				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.detail || '')) : undefined;
+				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel));
+				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
+				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
 
 				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
@@ -390,21 +495,21 @@ export class QuickInputList {
 					element.labelHighlights = undefined;
 					element.descriptionHighlights = undefined;
 					element.detailHighlights = undefined;
-					element.hidden = true;
+					element.hidden = !element.item.alwaysShow;
 				}
+				element.separator = undefined;
 			});
 		}
 
 		const shownElements = this.elements.filter(element => !element.hidden);
 
 		// Sort by value
-		const normalizedSearchValue = query.toLowerCase();
-		shownElements.sort((a, b) => {
-			if (!query) {
-				return a.index - b.index; // restore natural order
-			}
-			return compareEntries(a, b, normalizedSearchValue);
-		});
+		if (query) {
+			const normalizedSearchValue = query.toLowerCase();
+			shownElements.sort((a, b) => {
+				return compareEntries(a, b, normalizedSearchValue);
+			});
+		}
 
 		this.elementsToIndexes = shownElements.reduce((map, element, index) => {
 			map.set(element.item, index);
@@ -415,6 +520,7 @@ export class QuickInputList {
 		this.list.layout();
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
+		this._onChangedVisibleCount.fire(shownElements.length);
 	}
 
 	toggleCheckbox() {
@@ -451,6 +557,10 @@ export class QuickInputList {
 			this._onChangedCheckedElements.fire(this.getCheckedElements());
 		}
 	}
+
+	private fireButtonTriggered(event: IQuickPickItemButtonEvent<IQuickPickItem>) {
+		this._onButtonTriggered.fire(event);
+	}
 }
 
 function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: string): number {
@@ -465,7 +575,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 1;
 	}
 
-	return compareAnything(elementA.item.label, elementB.item.label, lookFor);
+	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
 }
 
 registerThemingParticipant((theme, collector) => {
@@ -474,5 +584,13 @@ registerThemingParticipant((theme, collector) => {
 	if (listInactiveFocusBackground) {
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused { background-color:  ${listInactiveFocusBackground}; }`);
 		collector.addRule(`.quick-input-list .monaco-list .monaco-list-row.focused:hover { background-color:  ${listInactiveFocusBackground}; }`);
+	}
+	const pickerGroupBorderColor = theme.getColor(pickerGroupBorder);
+	if (pickerGroupBorderColor) {
+		collector.addRule(`.quick-input-list .quick-input-list-entry { border-top-color:  ${pickerGroupBorderColor}; }`);
+	}
+	const pickerGroupForegroundColor = theme.getColor(pickerGroupForeground);
+	if (pickerGroupForegroundColor) {
+		collector.addRule(`.quick-input-list .quick-input-list-separator { color:  ${pickerGroupForegroundColor}; }`);
 	}
 });

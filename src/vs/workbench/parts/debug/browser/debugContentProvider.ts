@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, ISession } from 'vs/workbench/parts/debug/common/debug';
+import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 /**
@@ -41,7 +41,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	public provideTextContent(resource: uri): TPromise<ITextModel> {
 
-		let session: ISession;
+		let session: IDebugSession;
 		let sourceRef: number;
 
 		if (resource.query) {

@@ -6,7 +6,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -43,7 +43,7 @@ import {
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsPicker, ActiveEditorGroupPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
@@ -380,7 +380,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousRecentlyUs
 const quickOpenNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigateNextInEditorPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigateNextInEditorPickerId, true),
 	when: editorPickerContext,
 	primary: openNextEditorKeybinding.primary,
@@ -390,7 +390,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 const quickOpenNavigatePreviousInEditorPickerId = 'workbench.action.quickOpenNavigatePreviousInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickOpenNavigatePreviousInEditorPickerId,
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInEditorPickerId, false),
 	when: editorPickerContext,
 	primary: openPreviousEditorKeybinding.primary,
@@ -536,3 +536,312 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorComman
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), category } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeOtherEditors', "Close Other Editors in Group"), category } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), category } });
+
+// File menu
+MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+	group: '1_editor',
+	command: {
+		id: ReopenClosedEditorAction.ID,
+		title: nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+	group: 'z_clear',
+	command: {
+		id: ClearRecentFilesAction.ID,
+		title: nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
+	},
+	order: 1
+});
+
+// Layout menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '2_appearance',
+	title: nls.localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
+	submenu: MenuId.MenubarLayoutMenu,
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '1_split',
+	command: {
+		id: editorCommands.SPLIT_EDITOR_UP,
+		title: nls.localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '1_split',
+	command: {
+		id: editorCommands.SPLIT_EDITOR_DOWN,
+		title: nls.localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '1_split',
+	command: {
+		id: editorCommands.SPLIT_EDITOR_LEFT,
+		title: nls.localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '1_split',
+	command: {
+		id: editorCommands.SPLIT_EDITOR_RIGHT,
+		title: nls.localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutSingleAction.ID,
+		title: nls.localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutTwoColumnsAction.ID,
+		title: nls.localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutThreeColumnsAction.ID,
+		title: nls.localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutTwoRowsAction.ID,
+		title: nls.localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
+	},
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutThreeRowsAction.ID,
+		title: nls.localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
+	},
+	order: 6
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutTwoByTwoGridAction.ID,
+		title: nls.localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
+	},
+	order: 7
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutTwoRowsRightAction.ID,
+		title: nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
+	},
+	order: 8
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_layouts',
+	command: {
+		id: EditorLayoutTwoColumnsBottomAction.ID,
+		title: nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")
+	},
+	order: 9
+});
+
+// Main Menu Bar Contributions:
+
+// Forward/Back
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '1_fwd_back',
+	command: {
+		id: 'workbench.action.navigateBack',
+		title: nls.localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"),
+		precondition: ContextKeyExpr.has('canNavigateBack')
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '1_fwd_back',
+	command: {
+		id: 'workbench.action.navigateForward',
+		title: nls.localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward"),
+		precondition: ContextKeyExpr.has('canNavigateForward')
+	},
+	order: 2
+});
+
+// Switch Editor
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+	group: '1_any',
+	command: {
+		id: 'workbench.action.nextEditor',
+		title: nls.localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+	group: '1_any',
+	command: {
+		id: 'workbench.action.previousEditor',
+		title: nls.localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+	group: '2_used',
+	command: {
+		id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
+		title: nls.localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+	group: '2_used',
+	command: {
+		id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+		title: nls.localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '2_switch',
+	title: nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor"),
+	submenu: MenuId.MenubarSwitchEditorMenu,
+	order: 1
+});
+
+// Switch Group
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '1_focus_index',
+	command: {
+		id: 'workbench.action.focusFirstEditorGroup',
+		title: nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "Group &&1")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '1_focus_index',
+	command: {
+		id: 'workbench.action.focusSecondEditorGroup',
+		title: nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '1_focus_index',
+	command: {
+		id: 'workbench.action.focusThirdEditorGroup',
+		title: nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '1_focus_index',
+	command: {
+		id: 'workbench.action.focusFourthEditorGroup',
+		title: nls.localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '1_focus_index',
+	command: {
+		id: 'workbench.action.focusFifthEditorGroup',
+		title: nls.localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5")
+	},
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '2_next_prev',
+	command: {
+		id: 'workbench.action.focusNextGroup',
+		title: nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '2_next_prev',
+	command: {
+		id: 'workbench.action.focusPreviousGroup',
+		title: nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '3_directional',
+	command: {
+		id: 'workbench.action.focusLeftGroup',
+		title: nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left")
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '3_directional',
+	command: {
+		id: 'workbench.action.focusRightGroup',
+		title: nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '3_directional',
+	command: {
+		id: 'workbench.action.focusAboveGroup',
+		title: nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
+	group: '3_directional',
+	command: {
+		id: 'workbench.action.focusBelowGroup',
+		title: nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+	group: '2_switch',
+	title: nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group"),
+	submenu: MenuId.MenubarSwitchGroupMenu,
+	order: 2
+});

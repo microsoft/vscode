@@ -11,12 +11,13 @@ import { Event, latch, anyEvent } from 'vs/base/common/event';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { PerformanceEntry } from 'vs/base/common/performance';
+import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -120,12 +121,13 @@ export interface IWindowsService {
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
+	enterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(windowId: number): TPromise<void>;
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
-	addRecentlyOpened(files: string[]): TPromise<void>;
-	removeFromRecentlyOpened(paths: string[]): TPromise<void>;
+	addRecentlyOpened(files: URI[]): TPromise<void>;
+	removeFromRecentlyOpened(paths: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string)[]): TPromise<void>;
 	clearRecentlyOpened(): TPromise<void>;
 	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened>;
 	focusWindow(windowId: number): TPromise<void>;
@@ -141,6 +143,7 @@ export interface IWindowsService {
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void>;
 
 	// macOS Native Tabs
+	newWindowTab(): TPromise<void>;
 	showPreviousWindowTab(): TPromise<void>;
 	showNextWindowTab(): TPromise<void>;
 	moveWindowTabToNewWindow(): TPromise<void>;
@@ -155,10 +158,10 @@ export interface IWindowsService {
 	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
+	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
-	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): TPromise<number>;
 	log(severity: string, ...messages: string[]): TPromise<void>;
 	showItemInFolder(path: string): TPromise<void>;
@@ -171,7 +174,6 @@ export interface IWindowsService {
 	// TODO: this is a bit backwards
 	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 
-	openAccessibilityOptions(): TPromise<void>;
 	openAboutDialog(): TPromise<void>;
 }
 
@@ -200,6 +202,7 @@ export interface IWindowService {
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
+	enterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
@@ -207,7 +210,7 @@ export interface IWindowService {
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
+	openWindow(paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
@@ -289,10 +292,25 @@ export enum ReadyState {
 	READY
 }
 
-export interface IPath {
+export interface IPath extends IPathData {
 
 	// the file path to open within a Code instance
-	filePath?: string;
+	fileUri?: URI;
+}
+
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFilePath: string;
+}
+
+export interface IPathData {
+
+	// the file path to open within a Code instance
+	fileUri?: UriComponents;
 
 	// the line number in the file path to open
 	lineNumber?: number;
@@ -301,27 +319,24 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IPathsToWaitFor {
-	paths: IPath[];
-	waitMarkerFilePath: string;
-}
-
 export interface IOpenFileRequest {
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	filesToDiff?: IPath[];
-	filesToWait?: IPathsToWaitFor;
+	filesToOpen?: IPathData[];
+	filesToCreate?: IPathData[];
+	filesToDiff?: IPathData[];
+	filesToWait?: IPathsToWaitForData;
 	termProgram?: string;
 }
 
 export interface IAddFoldersRequest {
-	foldersToAdd: IPath[];
+	foldersToAdd: UriComponents[];
 }
 
-export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+export interface IWindowConfiguration extends ParsedArgs {
 	machineId: string;
 	windowId: number;
 	logLevel: LogLevel;
+
+	mainPid: number;
 
 	appRoot: string;
 	execPath: string;
@@ -333,21 +348,25 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	backupPath?: string;
 
 	workspace?: IWorkspaceIdentifier;
-	folderPath?: string;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	maximized?: boolean;
 	highContrast?: boolean;
-	baseTheme?: string;
-	backgroundColor?: string;
 	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
-	perfEntries: PerformanceEntry[];
 	perfStartTime?: number;
 	perfAppReady?: number;
 	perfWindowLoadTime?: number;
+	perfEntries: ExportData;
+
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
+	filesToWait?: IPathsToWaitFor;
+	termProgram?: string;
 }
 
 export interface IRunActionInWindowRequest {

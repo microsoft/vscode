@@ -10,7 +10,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import DefinitionProviderBase from './definitionProviderBase';
 
 class TypeScriptImplementationProvider extends DefinitionProviderBase implements vscode.ImplementationProvider {
-	public provideImplementation(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken | boolean): Promise<vscode.Definition | undefined> {
+	public provideImplementation(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition | undefined> {
 		return this.getSymbolLocations('implementation', document, position, token);
 	}
 }

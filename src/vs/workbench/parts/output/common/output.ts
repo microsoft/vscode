@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Mime type used by the output editor.
@@ -78,9 +78,9 @@ export interface IOutputService {
 	getChannel(id: string): IOutputChannel;
 
 	/**
-	 * Returns an array of all known output channels as identifiers.
+	 * Returns an array of all known output channels descriptors.
 	 */
-	getChannels(): IOutputChannelIdentifier[];
+	getChannelDescriptors(): IOutputChannelDescriptor[];
 
 	/**
 	 * Returns the currently active channel.
@@ -132,9 +132,10 @@ export interface IOutputChannel {
 	dispose(): void;
 }
 
-export interface IOutputChannelIdentifier {
+export interface IOutputChannelDescriptor {
 	id: string;
 	label: string;
+	log: boolean;
 	file?: URI;
 }
 
@@ -146,17 +147,17 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Make an output channel known to the output world.
 	 */
-	registerChannel(id: string, name: string, file?: URI): void;
+	registerChannel(descriptor: IOutputChannelDescriptor): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): IOutputChannelIdentifier[];
+	getChannels(): IOutputChannelDescriptor[];
 
 	/**
 	 * Returns the channel with the passed id.
 	 */
-	getChannel(id: string): IOutputChannelIdentifier;
+	getChannel(id: string): IOutputChannelDescriptor;
 
 	/**
 	 * Remove the output channel with the passed id.
@@ -165,7 +166,7 @@ export interface IOutputChannelRegistry {
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels = new Map<string, IOutputChannelIdentifier>();
+	private channels = new Map<string, IOutputChannelDescriptor>();
 
 	private readonly _onDidRegisterChannel: Emitter<string> = new Emitter<string>();
 	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
@@ -173,20 +174,20 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 	private readonly _onDidRemoveChannel: Emitter<string> = new Emitter<string>();
 	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
 
-	public registerChannel(id: string, label: string, file?: URI): void {
-		if (!this.channels.has(id)) {
-			this.channels.set(id, { id, label, file });
-			this._onDidRegisterChannel.fire(id);
+	public registerChannel(descriptor: IOutputChannelDescriptor): void {
+		if (!this.channels.has(descriptor.id)) {
+			this.channels.set(descriptor.id, descriptor);
+			this._onDidRegisterChannel.fire(descriptor.id);
 		}
 	}
 
-	public getChannels(): IOutputChannelIdentifier[] {
-		const result: IOutputChannelIdentifier[] = [];
+	public getChannels(): IOutputChannelDescriptor[] {
+		const result: IOutputChannelDescriptor[] = [];
 		this.channels.forEach(value => result.push(value));
 		return result;
 	}
 
-	public getChannel(id: string): IOutputChannelIdentifier {
+	public getChannel(id: string): IOutputChannelDescriptor {
 		return this.channels.get(id);
 	}
 

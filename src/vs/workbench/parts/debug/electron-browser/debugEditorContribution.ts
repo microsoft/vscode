@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { visit } from 'vs/base/common/json';
 import severity from 'vs/base/common/severity';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -47,6 +46,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -379,7 +379,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get provideNonDebugHoverScheduler(): RunOnceScheduler {
 		const scheduler = new RunOnceScheduler(() => {
-			getHover(this.editor.getModel(), this.nonDebugHoverPosition);
+			getHover(this.editor.getModel(), this.nonDebugHoverPosition, CancellationToken.None);
 		}, HOVER_DELAY);
 		this.toDispose.push(scheduler);
 
@@ -515,7 +515,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (model && LAUNCH_JSON_REGEX.test(model.uri.toString())) {
 			this.configurationWidget = this.instantiationService.createInstance(FloatingClickWidget, this.editor, nls.localize('addConfiguration', "Add Configuration..."), null);
 			this.configurationWidget.render();
-			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration().done(undefined, errors.onUnexpectedError)));
+			this.toDispose.push(this.configurationWidget.onClick(() => this.addLaunchConfiguration()));
 		}
 	}
 

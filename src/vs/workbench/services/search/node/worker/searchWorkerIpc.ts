@@ -6,9 +6,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { ISerializedFileMatch } from '../search';
-import { IPatternInfo } from 'vs/platform/search/common/search';
+import { IPatternInfo, ITextSearchPreviewOptions } from 'vs/platform/search/common/search';
 import { SearchWorker } from './searchWorker';
 import { Event } from 'vs/base/common/event';
 
@@ -17,6 +17,7 @@ export interface ISearchWorkerSearchArgs {
 	fileEncoding: string;
 	absolutePaths: string[];
 	maxResults?: number;
+	previewOptions?: ITextSearchPreviewOptions;
 }
 
 export interface ISearchWorkerSearchResult {

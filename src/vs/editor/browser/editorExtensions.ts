@@ -5,21 +5,22 @@
 'use strict';
 
 import { illegalArgument } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry, ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
+import { IPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export type ServicesAccessor = ServicesAccessor;
 export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
@@ -28,53 +29,83 @@ export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editor
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
-	weight?: number;
+	weight: number;
+}
+export interface ICommandMenubarOptions {
+	menuId: MenuId;
+	group: string;
+	order: number;
+	when?: ContextKeyExpr;
+	title: string;
 }
 export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpr;
 	kbOpts?: ICommandKeybindingsOptions;
 	description?: ICommandHandlerDescription;
+	menubarOpts?: ICommandMenubarOptions;
 }
 export abstract class Command {
 	public readonly id: string;
 	public readonly precondition: ContextKeyExpr;
 	private readonly _kbOpts: ICommandKeybindingsOptions;
+	private readonly _menubarOpts: ICommandMenubarOptions;
 	private readonly _description: ICommandHandlerDescription;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
+		this._menubarOpts = opts.menubarOpts;
 		this._description = opts.description;
 	}
 
-	public toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
-		const kbOpts = this._kbOpts || { primary: 0 };
+	public register(): void {
 
-		let kbWhen = kbOpts.kbExpr;
-		if (this.precondition) {
-			if (kbWhen) {
-				kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
-			} else {
-				kbWhen = this.precondition;
-			}
+		if (this._menubarOpts) {
+			MenuRegistry.appendMenuItem(this._menubarOpts.menuId, {
+				group: this._menubarOpts.group,
+				command: {
+					id: this.id,
+					title: this._menubarOpts.title,
+					// precondition: this.precondition
+				},
+				when: this._menubarOpts.when,
+				order: this._menubarOpts.order
+			});
 		}
 
-		const weight = (typeof kbOpts.weight === 'number' ? kbOpts.weight : defaultWeight);
+		if (this._kbOpts) {
+			let kbWhen = this._kbOpts.kbExpr;
+			if (this.precondition) {
+				if (kbWhen) {
+					kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
+				} else {
+					kbWhen = this.precondition;
+				}
+			}
 
-		return {
-			id: this.id,
-			handler: (accessor, args) => this.runCommand(accessor, args),
-			weight: weight,
-			when: kbWhen,
-			primary: kbOpts.primary,
-			secondary: kbOpts.secondary,
-			win: kbOpts.win,
-			linux: kbOpts.linux,
-			mac: kbOpts.mac,
-			description: this._description
-		};
+			KeybindingsRegistry.registerCommandAndKeybindingRule({
+				id: this.id,
+				handler: (accessor, args) => this.runCommand(accessor, args),
+				weight: this._kbOpts.weight,
+				when: kbWhen,
+				primary: this._kbOpts.primary,
+				secondary: this._kbOpts.secondary,
+				win: this._kbOpts.win,
+				linux: this._kbOpts.linux,
+				mac: this._kbOpts.mac,
+				description: this._description
+			});
+
+		} else {
+
+			CommandsRegistry.registerCommand({
+				id: this.id,
+				handler: (accessor, args) => this.runCommand(accessor, args),
+				description: this._description
+			});
+		}
 	}
 
 	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
@@ -143,8 +174,8 @@ export abstract class EditorCommand extends Command {
 //#region EditorAction
 
 export interface IEditorCommandMenuOptions {
-	group?: string;
-	order?: number;
+	group: string;
+	order: number;
 	when?: ContextKeyExpr;
 }
 export interface IActionOptions extends ICommandOptions {
@@ -165,20 +196,21 @@ export abstract class EditorAction extends EditorCommand {
 		this.menuOpts = opts.menuOpts;
 	}
 
-	public toMenuItem(): IMenuItem {
-		if (!this.menuOpts) {
-			return null;
+	public register(): void {
+
+		if (this.menuOpts) {
+			MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+				command: {
+					id: this.id,
+					title: this.label
+				},
+				when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
+				group: this.menuOpts.group,
+				order: this.menuOpts.order
+			});
 		}
 
-		return {
-			command: {
-				id: this.id,
-				title: this.label
-			},
-			when: ContextKeyExpr.and(this.precondition, this.menuOpts.when),
-			group: this.menuOpts.group,
-			order: this.menuOpts.order
-		};
+		super.register();
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void> {
@@ -210,8 +242,14 @@ export function registerLanguageCommand(id: string, handler: (accessor: Services
 	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
 }
 
-export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: { [n: string]: any }) => any) {
-	registerLanguageCommand(id, function (accessor, args) {
+interface IDefaultArgs {
+	resource: URI;
+	position: IPosition;
+	[name: string]: any;
+}
+
+export function registerDefaultLanguageCommand(id: string, handler: (model: ITextModel, position: Position, args: IDefaultArgs) => any) {
+	registerLanguageCommand(id, function (accessor, args: IDefaultArgs) {
 
 		const { resource, position } = args;
 		if (!(resource instanceof URI)) {
@@ -288,14 +326,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorAction(action: EditorAction) {
-
-		let menuItem = action.toMenuItem();
-		if (menuItem) {
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, menuItem);
-		}
-
-		KeybindingsRegistry.registerCommandAndKeybindingRule(action.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
+		action.register();
 		this.editorActions.push(action);
 	}
 
@@ -308,7 +339,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerEditorCommand(editorCommand: EditorCommand) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(editorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+		editorCommand.register();
 		this.editorCommands[editorCommand.id] = editorCommand;
 	}
 

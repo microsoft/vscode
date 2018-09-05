@@ -27,6 +27,8 @@
 				"storage.type.boolean.go",
 				"storage.type.string.go",
 				"storage.type.uintptr.go",
+				"storage.type.error.go",
+				"storage.type.rune.go",
 				"storage.type.cs",
 				"storage.type.generic.cs",
 				"storage.type.modifier.cs",

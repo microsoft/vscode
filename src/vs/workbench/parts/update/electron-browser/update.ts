@@ -13,7 +13,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IGlobalActivity } from 'vs/workbench/common/activity';
@@ -209,60 +209,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	}
 }
 
-export class WinUserSetupContribution implements IWorkbenchContribution {
-
-	private static readonly KEY = 'update/win32-usersetup';
-
-	private static readonly STABLE_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/stable';
-	private static readonly STABLE_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/stable';
-	private static readonly INSIDER_URL = 'https://vscode-update.azurewebsites.net/latest/win32-x64-user/insider';
-	private static readonly INSIDER_URL_32BIT = 'https://vscode-update.azurewebsites.net/latest/win32-user/insider';
-
-	// TODO@joao this needs to change to the 1.26 release notes
-	private static readonly READ_MORE = 'https://aka.ms/vscode-win32-user-setup';
-
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IOpenerService private openerService: IOpenerService
-	) {
-		if (!environmentService.isBuilt || environmentService.disableUpdates) {
-			return;
-		}
-
-		const neverShowAgain = new NeverShowAgain(WinUserSetupContribution.KEY, storageService);
-
-		if (!neverShowAgain.shouldShow()) {
-			return;
-		}
-
-		const handle = notificationService.prompt(
-			severity.Info,
-			nls.localize('usersetup', "We recommend switching to our new User Setup distribution of {0} for Windows! Click [here]({1}) to learn more.", product.nameShort, WinUserSetupContribution.READ_MORE),
-			[
-				{
-					label: nls.localize('downloadnow', "Download"),
-					run: () => {
-						const url = product.quality === 'insider'
-							? (process.arch === 'ia32' ? WinUserSetupContribution.INSIDER_URL_32BIT : WinUserSetupContribution.INSIDER_URL)
-							: (process.arch === 'ia32' ? WinUserSetupContribution.STABLE_URL_32BIT : WinUserSetupContribution.STABLE_URL);
-
-						return this.openerService.open(URI.parse(url));
-					}
-				},
-				{
-					label: nls.localize('neveragain', "Don't Show Again"),
-					isSecondary: true,
-					run: () => {
-						neverShowAgain.action.run(handle);
-						neverShowAgain.action.dispose();
-					}
-				}]
-		);
-	}
-}
-
 class CommandAction extends Action {
 
 	constructor(
@@ -277,7 +223,7 @@ class CommandAction extends Action {
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openSettings2';
+	private static readonly openSettingsId = 'workbench.action.openSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
@@ -505,8 +451,8 @@ export class UpdateContribution implements IGlobalActivity {
 			new CommandAction(UpdateContribution.showCommandsId, nls.localize('commandPalette', "Command Palette..."), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openSettingsId, nls.localize('settings', "Settings"), this.commandService),
+			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Extensions"), this.commandService),
 			new CommandAction(UpdateContribution.openKeybindingsId, nls.localize('keyboardShortcuts', "Keyboard Shortcuts"), this.commandService),
-			new CommandAction(UpdateContribution.showExtensionsId, nls.localize('showExtensions', "Manage Extensions"), this.commandService),
 			new Separator(),
 			new CommandAction(UpdateContribution.openUserSnippets, nls.localize('userSnippets', "User Snippets"), this.commandService),
 			new Separator(),

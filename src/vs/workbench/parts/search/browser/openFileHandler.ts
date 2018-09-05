@@ -8,10 +8,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import * as labels from 'vs/base/common/labels';
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,7 +25,7 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
+import { IQueryOptions, ISearchService, IFileSearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -34,10 +33,13 @@ import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { prepareQuery, IPreparedQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { untildify } from 'vs/base/common/labels';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
-	constructor(entries: QuickOpenEntry[], public stats?: ISearchStats) {
+	constructor(entries: QuickOpenEntry[], public stats?: IFileSearchStats) {
 		super(entries);
 	}
 }
@@ -125,7 +127,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService private fileService: IFileService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
@@ -136,7 +139,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, maxSortedResults?: number, token: CancellationToken = CancellationToken.None): TPromise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
@@ -145,48 +148,54 @@ export class OpenFileHandler extends QuickOpenHandler {
 		}
 
 		// Untildify file pattern
-		query.value = labels.untildify(query.value, this.environmentService.userHome);
+		query.value = untildify(query.value, this.environmentService.userHome);
 
 		// Do find results
-		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults);
+		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults, token);
 	}
 
-	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number, token?: CancellationToken): TPromise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
+
 		let iconClass: string;
 		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
 		return this.getAbsolutePathResult(query).then(result => {
+			if (token.isCancellationRequested) {
+				return TPromise.wrap(<ISearchComplete>{ results: [] });
+			}
+
 			// If the original search value is an existing file on disk, return it immediately and bypass the search service
 			if (result) {
 				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
-			} else {
-				return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions));
 			}
+
+			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
 		}).then(complete => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.environmentService, this.contextService);
+				const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), true);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
 
-			return new FileQuickOpenModel(results, complete.stats);
+			return new FileQuickOpenModel(results, <IFileSearchStats>complete.stats);
 		});
 	}
 
 	private getAbsolutePathResult(query: IPreparedQuery): TPromise<URI> {
 		if (paths.isAbsolute(query.original)) {
 			const resource = URI.file(query.original);
+
 			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
-		} else {
-			return TPromise.as(null);
 		}
+
+		return TPromise.as(null);
 	}
 
 	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IQueryOptions {

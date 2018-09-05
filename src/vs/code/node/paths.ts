@@ -12,16 +12,17 @@ import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import { realpathSync } from 'vs/base/node/extfs';
+import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
+
 	// Track URLs if they're going to be used
 	if (args['open-url']) {
 		args._urls = args._;
 		args._ = [];
 	}
 
-	// Realpath/normalize paths and watch out for goto line mode
+	// Normalize paths and watch out for goto line mode
 	const paths = doValidatePaths(args._, args.goto);
 
 	// Update environment
@@ -46,26 +47,20 @@ function doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
 			pathCandidate = preparePath(cwd, pathCandidate);
 		}
 
-		let realPath: string;
-		try {
-			realPath = realpathSync(pathCandidate);
-		} catch (error) {
-			// in case of an error, assume the user wants to create this file
-			// if the path is relative, we join it to the cwd
-			realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(cwd, pathCandidate));
-		}
+		const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
 
-		const basename = path.basename(realPath);
+		const basename = path.basename(sanitizedFilePath);
 		if (basename /* can be empty if code is opened on root */ && !paths.isValidBasename(basename)) {
 			return null; // do not allow invalid file names
 		}
 
 		if (gotoLineMode) {
-			parsedPath.path = realPath;
+			parsedPath.path = sanitizedFilePath;
+
 			return toPath(parsedPath);
 		}
 
-		return realPath;
+		return sanitizedFilePath;
 	});
 
 	const caseInsensitive = platform.isWindows || platform.isMacintosh;

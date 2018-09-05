@@ -5,7 +5,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export const IIntegrityService = createDecorator<IIntegrityService>('integrityService');
 

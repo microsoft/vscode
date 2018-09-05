@@ -19,6 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, defaultWorkspacePath, defaultFilePath, defaultFolderPath } from 'vs/workbench/browser/actions/workspaceCommands';
+import { URI } from 'vs/base/common/uri';
 
 export class OpenFileAction extends Action {
 
@@ -239,7 +240,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-				return this.windowService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
+				return this.windowService.openWindow([URI.file(newWorkspace.configPath)], { forceNewWindow: true });
 			});
 		});
 	}

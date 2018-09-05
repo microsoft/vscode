@@ -23,7 +23,7 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export enum OutlineItemCompareType {
+export const enum OutlineItemCompareType {
 	ByPosition,
 	ByName,
 	ByKind
@@ -162,7 +162,7 @@ export class OutlineRenderer implements IRenderer {
 
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
-			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
+			template.icon.className = `outline-element-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
 			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);

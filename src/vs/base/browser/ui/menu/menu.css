@@ -35,24 +35,23 @@
 	background-color: #E4E4E4;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
-	background-color: #EEE;
-}
-
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
 	display: -ms-flexbox;
 	display: flex;
+	height: 2em;
+	align-items: center;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label {
 	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
 	text-decoration: none;
-	padding: 0.8em 1em;
-	line-height: 1.1em;
+	padding: 0 1em;
 	background: none;
+	font-size: 12px;
+	line-height: 1;
 }
 
 .monaco-menu .monaco-action-bar.vertical .keybinding,
@@ -60,15 +59,12 @@
 	display: inline-block;
 	-ms-flex: 2 1 auto;
 	flex: 2 1 auto;
-	padding: 0.8em 1em;
-	line-height: 1.1em;
-	font-size: 12px;
+	padding: 0 1em;
 	text-align: right;
+	font-size: 12px;
+	line-height: 1;
 }
 
-.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	padding: 0.8em .5em;
-}
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .submenu-indicator {
@@ -101,8 +97,18 @@
 	color: inherit;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-label.checked:after {
-	content: '  \2713';
+.monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	position: absolute;
+	visibility: hidden;
+	background-color: #646465;
+	-webkit-mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	mask: url('check.svg') no-repeat 50% 56%/15px 15px;
+	width: 1em;
+	height: 100%;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
+	visibility: visible;
 }
 
 /* Context Menu */
@@ -121,17 +127,19 @@
 	animation: fadeIn 0.083s linear;
 }
 
-.context-view.monaco-menu-container :focus {
+.context-view.monaco-menu-container :focus,
+.context-view.monaco-menu-container .monaco-action-bar.vertical:focus,
+.context-view.monaco-menu-container .monaco-action-bar.vertical :focus {
 	outline: 0;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item {
+	border: 1px solid transparent; /* prevents jumping behaviour on hover or focus */
 }
 
 /* Dark theme */
 .vs-dark .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background-color: #4B4C4D;
-}
-
-.vs-dark .monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
-	background-color: #3A3A3A;
 }
 
 .vs-dark .context-view.monaco-menu-container {
@@ -148,16 +156,11 @@
 	box-shadow: none;
 }
 
-.hc-black .monaco-menu .monaco-action-bar.vertical .action-item {
-	border: 1px solid transparent; /* prevents jumpig behaviour on hover or focus */
-}
-
 .hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 	border: 1px dotted #f38518;
 }
 
-.hc-black .monaco-menu .monaco-action-bar.vertical .action-item:hover:not(.disabled) {
-	background: none;
-	border: 1px dashed #f38518;
+.hc-black .monaco-menu .monaco-action-bar.vertical .menu-item-check {
+	background-color: white;
 }

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { basename, dirname, join } from 'path';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join, basename, dirname } from 'path';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
@@ -74,7 +74,7 @@ export class NodeCachedDataCleaner {
 
 				return TPromise.join(deletes);
 
-			}).done(undefined, onUnexpectedError);
+			}).then(undefined, onUnexpectedError);
 
 		}, 30 * 1000);
 

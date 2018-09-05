@@ -7,11 +7,11 @@
 import { basename, extname, join } from 'path';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { watch } from 'vs/base/node/extfs';
 import { exists, mkdirp, readdir } from 'vs/base/node/pfs';
 import { Position } from 'vs/editor/common/core/position';
@@ -76,7 +76,7 @@ namespace schema {
 
 		const extensionLocation = extension.description.extensionLocation;
 		const snippetLocation = resources.joinPath(extensionLocation, snippet.path);
-		if (snippetLocation.path.indexOf(extensionLocation.path) !== 0) {
+		if (!resources.isEqualOrParent(snippetLocation, extensionLocation)) {
 			extension.collector.error(localize(
 				'invalid.path.1',
 				"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",
@@ -253,14 +253,12 @@ class SnippetsService implements ISnippetsService {
 					}
 				});
 			}, (error: string) => this._logService.error(error));
-			this._disposables.push({
-				dispose: () => {
-					if (watcher) {
-						watcher.removeAllListeners();
-						watcher.close();
-					}
+			this._disposables.push(toDisposable(() => {
+				if (watcher) {
+					watcher.removeAllListeners();
+					watcher.close();
 				}
-			});
+			}));
 
 		}).then(undefined, err => {
 			this._logService.error('Failed to load user snippets', err);

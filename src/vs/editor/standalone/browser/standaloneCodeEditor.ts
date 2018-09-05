@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +17,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService, applyConfigurationValues } from 'vs/editor/standalone/browser/simpleServices';
-import { IEditorContextViewService } from 'vs/editor/standalone/browser/standaloneServices';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -84,7 +84,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: ITextModel;
+	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
@@ -272,11 +272,9 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		// Store it under the original id, such that trigger with the original id will work
 		this._actions[id] = internalAction;
-		toDispose.push({
-			dispose: () => {
-				delete this._actions[id];
-			}
-		});
+		toDispose.push(toDisposable(() => {
+			delete this._actions[id];
+		}));
 
 		return combinedDisposable(toDispose);
 	}
@@ -284,7 +282,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
-	private _contextViewService: IEditorContextViewService;
+	private _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 	private _ownsModel: boolean;
 
@@ -311,7 +309,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService);
 
-		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 		this._register(toDispose);
 
@@ -359,7 +357,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
-	private _contextViewService: IEditorContextViewService;
+	private _contextViewService: ContextViewService;
 	private readonly _configurationService: IConfigurationService;
 
 	constructor(
@@ -384,7 +382,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService);
 
-		this._contextViewService = <IEditorContextViewService>contextViewService;
+		this._contextViewService = <ContextViewService>contextViewService;
 		this._configurationService = configurationService;
 
 		this._register(toDispose);

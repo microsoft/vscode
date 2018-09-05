@@ -11,8 +11,8 @@ import * as env from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
 import { ITerminalLauncher, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -132,7 +132,7 @@ class MacTerminalService extends TerminalLauncher {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${script}.scpt`)).fsPath;
+				const scriptpath = getPathFromAmdModule(require, `vs/workbench/parts/execution/electron-browser/${script}.scpt`);
 
 				const osaArgs = [
 					scriptpath,
@@ -312,7 +312,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 
 	// try to determine the shell type
 	shell = shell.trim().toLowerCase();
-	if (shell.indexOf('powershell') >= 0) {
+	if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0) {
 		shellType = ShellType.powershell;
 	} else if (shell.indexOf('cmd.exe') >= 0) {
 		shellType = ShellType.cmd;

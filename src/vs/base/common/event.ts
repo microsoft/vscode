@@ -277,7 +277,7 @@ export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): E
 	return emitter.event;
 }
 
-export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
+export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 	const emitter = new Emitter<T>();
 	let shouldEmit = false;
 
@@ -295,21 +295,34 @@ export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
 	return emitter.event;
 }
 
-export function toPromise<T>(event: Event<T>): TPromise<T> {
-	return new TPromise(complete => {
-		const sub = event(e => {
-			sub.dispose();
-			complete(e);
-		});
-	});
+export function toPromise<T>(event: Event<T>): Thenable<T> {
+	return new TPromise(c => once(event)(c));
+}
+
+export function toNativePromise<T>(event: Event<T>): Thenable<T> {
+	return new Promise(c => once(event)(c));
 }
 
 export function once<T>(event: Event<T>): Event<T> {
 	return (listener, thisArgs = null, disposables?) => {
+		// we need this, in case the event fires during the listener call
+		let didFire = false;
+
 		const result = event(e => {
-			result.dispose();
+			if (didFire) {
+				return;
+			} else if (result) {
+				result.dispose();
+			} else {
+				didFire = true;
+			}
+
 			return listener.call(thisArgs, e);
 		}, null, disposables);
+
+		if (didFire) {
+			result.dispose();
+		}
 
 		return result;
 	};
@@ -413,6 +426,7 @@ export interface IChainableEvent<T> {
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
 	latch(): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+	once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
@@ -453,6 +467,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
+	}
+
+	once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+		return once(this._event)(listener, thisArgs, disposables);
 	}
 }
 

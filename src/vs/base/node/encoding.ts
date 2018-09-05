@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable, WritableOptions } from 'stream';
-import { toWinJsPromise } from 'vs/base/common/async';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -119,11 +118,11 @@ export function bomLength(encoding: string): number {
 	return 0;
 }
 
-export function decode(buffer: NodeBuffer, encoding: string): string {
+export function decode(buffer: Buffer, encoding: string): string {
 	return iconv.decode(buffer, toNodeEncoding(encoding));
 }
 
-export function encode(content: string | NodeBuffer, encoding: string, options?: { addBOM?: boolean }): NodeBuffer {
+export function encode(content: string | Buffer, encoding: string, options?: { addBOM?: boolean }): Buffer {
 	return iconv.encode(content, toNodeEncoding(encoding), options);
 }
 
@@ -147,7 +146,7 @@ function toNodeEncoding(enc: string): string {
 	return enc;
 }
 
-export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: number): string {
+export function detectEncodingByBOMFromBuffer(buffer: Buffer, bytesRead: number): string {
 	if (!buffer || bytesRead < 2) {
 		return null;
 	}
@@ -193,8 +192,8 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-export function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string> {
-	return toWinJsPromise(import('jschardet')).then(jschardet => {
+export function guessEncodingByBuffer(buffer: Buffer): TPromise<string> {
+	return TPromise.wrap(import('jschardet')).then(jschardet => {
 		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 		const guessed = jschardet.detect(buffer);

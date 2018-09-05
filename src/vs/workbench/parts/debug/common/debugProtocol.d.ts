@@ -429,6 +429,22 @@ declare module DebugProtocol {
 	export interface DisconnectResponse extends Response {
 	}
 
+	/** Terminate request; value of command field is 'terminate'.
+		The 'terminate' request is sent from the client to the debug adapter in order to give the debuggee a chance to terminate itself.
+	*/
+	export interface TerminateRequest extends Request {
+		// command: 'terminate';
+		arguments?: TerminateArguments;
+	}
+
+	/** Arguments for 'terminate' request. */
+	export interface TerminateArguments {
+	}
+
+	/** Response to 'terminate' request. This is just an acknowledgement, so no body field is required. */
+	export interface TerminateResponse extends Response {
+	}
+
 	/** SetBreakpoints request; value of command field is 'setBreakpoints'.
 		Sets multiple breakpoints for a single source and clears all previous breakpoints in that source.
 		To clear all breakpoint for a source, specify an empty array.
@@ -1176,6 +1192,8 @@ declare module DebugProtocol {
 		supportsTerminateThreadsRequest?: boolean;
 		/** The debug adapter supports the 'setExpression' request. */
 		supportsSetExpression?: boolean;
+		/** The debug adapter supports the 'terminate' request. */
+		supportsTerminateRequest?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */

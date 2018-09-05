@@ -6,8 +6,8 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/services/scm/common/scm';
@@ -270,6 +270,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ISCMService private scmService: ISCMService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
+
+		debounceEvent(scmService.onDidChangeSelectedRepositories, (_, e) => e, 100)
+			(this.onDidChangeSelectedRepositories, this, this._disposables);
 	}
 
 	dispose(): void {
@@ -416,5 +419,13 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		} else {
 			repository.input.validateInput = () => TPromise.as(undefined);
 		}
+	}
+
+	private onDidChangeSelectedRepositories(repositories: ISCMRepository[]): void {
+		const handles = repositories
+			.filter(r => r.provider instanceof MainThreadSCMProvider)
+			.map(r => (r.provider as MainThreadSCMProvider).handle);
+
+		this._proxy.$setSelectedSourceControls(handles);
 	}
 }

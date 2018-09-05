@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Returns the last element of an array.
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: T[], n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
@@ -252,11 +254,11 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param batch The number of elements to examine before yielding to the event loop.
  * @return The first n elemnts from array when sorted with compare.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
+export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): TPromise<T[]> {
 	if (n === 0) {
 		return TPromise.as([]);
 	}
-	let canceled = false;
+
 	return new TPromise((resolve, reject) => {
 		(async () => {
 			const o = array.length;
@@ -265,16 +267,14 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 				if (i > n) {
 					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
 				}
-				if (canceled) {
-					throw new Error('canceled');
+				if (token && token.isCancellationRequested) {
+					throw canceled();
 				}
 				topStep(array, compare, result, i, m);
 			}
 			return result;
 		})()
 			.then(resolve, reject);
-	}, () => {
-		canceled = true;
 	});
 }
 
@@ -474,14 +474,19 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
  * Uses Fisher-Yates shuffle to shuffle the given array
  * @param array
  */
-export function shuffle<T>(array: T[]): void {
-	var i = 0
-		, j = 0
-		, temp = null;
+export function shuffle<T>(array: T[], seed?: number): void {
+	// Seeded random number generator in JS. Modified from:
+	// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
+	const random = () => {
+		var x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
+		return x - Math.floor(x);
+	};
 
-	for (i = array.length - 1; i > 0; i -= 1) {
-		j = Math.floor(Math.random() * (i + 1));
-		temp = array[i];
+	const rand = typeof seed === 'number' ? random : Math.random;
+
+	for (let i = array.length - 1; i > 0; i -= 1) {
+		let j = Math.floor(rand() * (i + 1));
+		let temp = array[i];
 		array[i] = array[j];
 		array[j] = temp;
 	}

@@ -6,8 +6,7 @@
 import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import * as labels from 'vs/base/common/labels';
+import { URI } from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -37,6 +36,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { assign } from 'vs/base/common/objects';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -45,6 +45,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
+	private lastOpenedSettings2Input: SettingsEditor2Input = null;
 
 	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
@@ -69,7 +70,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService,
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -175,39 +177,68 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.userSettingsResource });
 	}
 
-	openSettings(): TPromise<IEditor> {
+	openSettings(jsonEditor?: boolean): TPromise<IEditor> {
+		if (!jsonEditor) {
+			return this.openSettings2();
+		}
+
 		const editorInput = this.getActiveSettingsEditorInput() || this.lastOpenedSettingsInput;
 		const resource = editorInput ? editorInput.master.getResource() : this.userSettingsResource;
 		const target = this.getConfigurationTargetFromSettingsResource(resource);
 		return this.openOrSwitchSettings(target, resource);
 	}
 
-	openGlobalSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
-		return this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, group);
+	private openSettings2(): TPromise<IEditor> {
+		const editorInput = this.getActiveSettingsEditor2Input() || this.lastOpenedSettings2Input;
+		const resource = editorInput ? editorInput.getResource() : this.userSettingsResource;
+		const target = this.getConfigurationTargetFromSettingsResource(resource);
+		return this.openOrSwitchSettings2(target);
 	}
 
-	openSettings2(): TPromise<IEditor> {
-		return this.editorService.openEditor(this.instantiationService.createInstance(SettingsEditor2Input), { pinned: true }).then(() => null);
+	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		return jsonEditor ?
+			this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, group) :
+			this.openOrSwitchSettings2(ConfigurationTarget.USER, undefined, options, group);
 	}
 
-	openWorkspaceSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+	openWorkspaceSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
-		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, group);
+
+		return jsonEditor ?
+			this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, group) :
+			this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE, undefined, options, group);
 	}
 
-	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
-		return this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, group);
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		return jsonEditor ?
+			this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, group) :
+			this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE_FOLDER, folder, options, group);
 	}
 
-	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void> {
+		if (!jsonEditor) {
+			const folderUri = target === ConfigurationTarget.WORKSPACE_FOLDER && resource;
+			return this.switchSettings2(target, folderUri);
+		}
+
 		const activeControl = this.editorService.activeControl;
 		if (activeControl && activeControl.input instanceof PreferencesEditorInput) {
 			return this.doSwitchSettings(target, resource, activeControl.input, activeControl.group).then(() => null);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => null);
+		}
+	}
+
+	switchSettings2(target: ConfigurationTarget, folderUri?: URI): TPromise<void> {
+		const activeControl = this.editorService.activeControl;
+		const resource = this.getDefaultSettingsResource(target);
+		if (activeControl && activeControl.input instanceof SettingsEditor2Input) {
+			return this.doSwitchSettings2(resource, target, folderUri, activeControl.input, activeControl.group).then(() => null);
+		} else {
+			return this.doOpenSettings2(resource, target, folderUri).then(() => null);
 		}
 	}
 
@@ -221,19 +252,28 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);
+			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
 			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				const activeEditorGroup = this.editorGroupService.activeGroup;
-				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
-
-				return TPromise.join([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-					this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
-				]).then(editors => void 0);
+				if (openDefaultKeybindings) {
+					const activeEditorGroup = this.editorGroupService.activeGroup;
+					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+					return TPromise.join([
+						this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+						this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
+					]).then(editors => void 0);
+				} else {
+					return this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }).then(() => void 0);
+				}
 			});
 		}
+
 		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+	}
+
+	openDefaultKeybindingsFile(): TPromise<IEditor> {
+		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
 	}
 
 	configureSettingsForLanguage(language: string): void {
@@ -261,6 +301,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.doOpenSettings(configurationTarget, resource, options, group);
 	}
 
+	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: IEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
+		const editorInput = this.getActiveSettingsEditor2Input(group);
+		const resource = this.getDefaultSettingsResource(configurationTarget);
+		if (editorInput && editorInput.getResource().fsPath !== resource.fsPath) {
+			return this.doSwitchSettings2(resource, configurationTarget, folderUri, editorInput, group);
+		}
+
+		return this.doOpenSettings2(resource, configurationTarget, folderUri, options, group);
+	}
+
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
@@ -281,6 +331,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
+	private doOpenSettings2(resource: URI, target: ConfigurationTarget, folderUri: URI | undefined, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		const settingsEditorInput = this.instantiationService.createInstance(SettingsEditor2Input, resource, target, folderUri);
+		this.lastOpenedSettings2Input = settingsEditorInput;
+		return this.editorService.openEditor(settingsEditorInput, options, group);
+	}
+
 	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup): TPromise<IEditor> {
 		return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
 			.then(toInput => {
@@ -298,8 +354,26 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
+	private doSwitchSettings2(resource: URI, configurationTarget: ConfigurationTarget, folderUri: URI | undefined, input: SettingsEditor2Input, group: IEditorGroup): TPromise<IEditor> {
+		return group.openEditor(input).then(() => {
+			const replaceWith = this.instantiationService.createInstance(SettingsEditor2Input, resource, configurationTarget, folderUri);
+
+			return group.replaceEditors([{
+				editor: input,
+				replacement: replaceWith
+			}]).then(() => {
+				this.lastOpenedSettings2Input = replaceWith;
+				return group.activeControl;
+			});
+		});
+	}
+
 	private getActiveSettingsEditorInput(group: IEditorGroup = this.editorGroupService.activeGroup): PreferencesEditorInput {
 		return <PreferencesEditorInput>group.editors.filter(e => e instanceof PreferencesEditorInput)[0];
+	}
+
+	private getActiveSettingsEditor2Input(group: IEditorGroup = this.editorGroupService.activeGroup): SettingsEditor2Input {
+		return <SettingsEditor2Input>group.editors.filter(e => e instanceof SettingsEditor2Input)[0];
 	}
 
 	private getConfigurationTargetFromSettingsResource(resource: URI): ConfigurationTarget {
@@ -435,7 +509,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.environmentService, this.contextService), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(resource, true), error)));
 				});
 			}
 

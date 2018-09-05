@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -234,6 +233,7 @@ export class OpenEditorsView extends ViewletPanel {
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
 
 		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
+		this.disposables.push(this.resourceContext);
 		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
 		this.dirtyEditorFocusedContext = DirtyEditorContext.bindTo(this.contextKeyService);
 
@@ -270,7 +270,7 @@ export class OpenEditorsView extends ViewletPanel {
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
 				if (isMiddleClick) {
-					element.group.closeEditor(element.editor).done(null, errors.onUnexpectedError);
+					element.group.closeEditor(element.editor);
 				} else {
 					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 				}
@@ -292,6 +292,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public setExpanded(expanded: boolean): void {
 		super.setExpanded(expanded);
+		this.updateListVisibility(expanded);
 		if (expanded && this.needsRefresh) {
 			this.listRefreshScheduler.schedule(0);
 		}
@@ -299,6 +300,7 @@ export class OpenEditorsView extends ViewletPanel {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
+			this.updateListVisibility(visible && this.isExpanded());
 			if (visible && this.needsRefresh) {
 				this.listRefreshScheduler.schedule(0);
 			}
@@ -320,13 +322,23 @@ export class OpenEditorsView extends ViewletPanel {
 		}
 	}
 
+	private updateListVisibility(isVisible: boolean): void {
+		if (this.list) {
+			if (isVisible) {
+				dom.show(this.list.getHTMLElement());
+			} else {
+				dom.hide(this.list.getHTMLElement()); // make sure the list goes out of the tabindex world by hiding it
+			}
+		}
+	}
+
 	private get showGroups(): boolean {
 		return this.editorGroupService.groups.length > 1;
 	}
 
 	private get elements(): (IEditorGroup | OpenEditor)[] {
 		const result: (IEditorGroup | OpenEditor)[] = [];
-		this.editorGroupService.groups.forEach(g => {
+		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(g => {
 			if (this.showGroups) {
 				result.push(g);
 			}
@@ -342,7 +354,7 @@ export class OpenEditorsView extends ViewletPanel {
 			return index;
 		}
 
-		for (let g of this.editorGroupService.groups) {
+		for (let g of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 			if (g.id === group.id) {
 				return index + (!!editor ? 1 : 0);
 			} else {
@@ -367,11 +379,11 @@ export class OpenEditorsView extends ViewletPanel {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.groupId); // needed for https://github.com/Microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).done(editor => {
+			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 				if (!preserveActivateGroup) {
 					this.editorGroupService.activateGroup(editor.group);
 				}
-			}, errors.onUnexpectedError);
+			});
 		}
 	}
 
@@ -389,7 +401,7 @@ export class OpenEditorsView extends ViewletPanel {
 	}
 
 	private focusActiveEditor(): void {
-		if (this.editorGroupService.activeGroup && this.editorGroupService.activeGroup.activeEditor /* could be empty */) {
+		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
 			this.list.setFocus([index]);
 			this.list.setSelection([index]);

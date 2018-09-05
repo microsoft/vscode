@@ -15,6 +15,7 @@ import { addDisposableListener, EventType, addClass, EventHelper, removeClass, t
 import { IEditorPartOptions, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -31,15 +32,18 @@ export class NoTabsTitleControl extends TitleControl {
 		// Gesture Support
 		Gesture.addTarget(this.titleContainer);
 
+		const labelContainer = document.createElement('div');
+		addClass(labelContainer, 'label-container');
+		this.titleContainer.appendChild(labelContainer);
+
 		// Editor Label
-		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, this.titleContainer, void 0));
+		this.editorLabel = this._register(this.instantiationService.createInstance(ResourceLabel, labelContainer, void 0));
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		const breadcrumbsContainer = document.createElement('div');
-		addClass(breadcrumbsContainer, 'no-tabs-breadcrumbs');
-		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showIcons: false, showDecorationColors: false });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: editorBackground });
+		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
+		this.toDispose.push({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -86,6 +90,8 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
+			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+
 			this.group.closeEditor(this.group.activeEditor);
 		}
 	}
@@ -146,6 +152,11 @@ export class NoTabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
+	protected handleBreadcrumbsEnablementChange(): void {
+		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
+		this.redraw();
+	}
+
 	private ifActiveEditorChanged(fn: () => void): void {
 		if (
 			!this.lastRenderedActiveEditor && this.group.activeEditor || 	// active editor changed from null => editor
@@ -169,6 +180,16 @@ export class NoTabsTitleControl extends TitleControl {
 		const isEditorPinned = this.group.isPinned(this.group.activeEditor);
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
+		// Update Breadcrumbs
+		if (this.breadcrumbsControl) {
+			if (isGroupActive) {
+				this.breadcrumbsControl.update();
+				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
+			} else {
+				this.breadcrumbsControl.hide();
+			}
+		}
+
 		// Clear if there is no editor
 		if (!editor) {
 			removeClass(this.titleContainer, 'dirty');
@@ -187,7 +208,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 			const { labelFormat } = this.accessor.partOptions;
 			let description: string;
-			if (this.breadcrumbsControl) {
+			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 				description = ''; // hide description when showing breadcrumbs
 			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
@@ -209,16 +230,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Update Editor Actions Toolbar
 			this.updateEditorActionsToolbar();
-		}
-
-		// Update Breadcrumbs
-		if (this.breadcrumbsControl) {
-			if (isGroupActive) {
-				this.breadcrumbsControl.update();
-				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
-			} else {
-				this.breadcrumbsControl.clear();
-			}
 		}
 	}
 

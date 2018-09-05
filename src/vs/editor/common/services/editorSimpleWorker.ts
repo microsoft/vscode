@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
-import { computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
@@ -50,7 +50,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel {
+export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
@@ -529,6 +529,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 			return TPromise.as(methods);
 		}
+		// ESM-comment-begin
 		return new TPromise<any>((c, e) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
@@ -544,6 +545,11 @@ export abstract class BaseEditorSimpleWorker {
 
 			}, e);
 		});
+		// ESM-comment-end
+
+		// ESM-uncomment-begin
+		// return TPromise.wrapError(new Error(`Unexpected usage`));
+		// ESM-uncomment-end
 	}
 
 	// foreign method request

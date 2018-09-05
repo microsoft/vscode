@@ -9,7 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export const enum ViewEventType {
@@ -356,17 +356,15 @@ export class ViewEventEmitter extends Disposable {
 
 	public addEventListener(listener: (events: ViewEvent[]) => void): IDisposable {
 		this._listeners.push(listener);
-		return {
-			dispose: () => {
-				let listeners = this._listeners;
-				for (let i = 0, len = listeners.length; i < len; i++) {
-					if (listeners[i] === listener) {
-						listeners.splice(i, 1);
-						break;
-					}
+		return toDisposable(() => {
+			let listeners = this._listeners;
+			for (let i = 0, len = listeners.length; i < len; i++) {
+				if (listeners[i] === listener) {
+					listeners.splice(i, 1);
+					break;
 				}
 			}
-		};
+		});
 	}
 }
 

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, debounceEvent } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -14,10 +15,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { getCodeActions } from './codeAction';
 import { CodeActionTrigger } from './codeActionTrigger';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
@@ -803,7 +803,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+	public terminateTask(execution: vscode.TaskExecution): Thenable<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}

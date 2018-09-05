@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as strings from 'vs/base/common/strings';
-import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
+import { LRUCache } from 'vs/base/common/map';
+import * as strings from 'vs/base/common/strings';
 
 export interface IFilter {
 	// Returns null if word doesn't match.
@@ -362,13 +362,19 @@ export function anyScore(pattern: string, word: string, patternMaxWhitespaceIgno
 
 //#region --- fuzzyScore ---
 
-export function createMatches(position: number[]): IMatch[] {
+export function createMatches(offsetOrScore: number[] | FuzzyScore): IMatch[] {
 	let ret: IMatch[] = [];
-	if (!position) {
+	if (!offsetOrScore) {
 		return ret;
 	}
+	let offsets: number[];
+	if (Array.isArray(offsetOrScore[1])) {
+		offsets = (offsetOrScore as FuzzyScore)[1];
+	} else {
+		offsets = offsetOrScore as number[];
+	}
 	let last: IMatch;
-	for (const pos of position) {
+	for (const pos of offsets) {
 		if (last && last.end === pos) {
 			last.end += 1;
 		} else {

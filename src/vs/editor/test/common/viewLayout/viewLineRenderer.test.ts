@@ -29,6 +29,7 @@ suite('viewLineRenderer.renderLine', () => {
 	function assertCharacterReplacement(lineContent: string, tabSize: number, expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			strings.isBasicASCII(lineContent),
@@ -77,6 +78,7 @@ suite('viewLineRenderer.renderLine', () => {
 	function assertParts(lineContent: string, tabSize: number, parts: ViewLineToken[], expected: string, expectedCharOffsetInPart: number[][], expectedPartLengts: number[]): void {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			true,
@@ -115,6 +117,7 @@ suite('viewLineRenderer.renderLine', () => {
 	test('overflow', () => {
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			'Hello world!',
 			false,
 			true,
@@ -218,6 +221,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineText,
 			false,
 			true,
@@ -279,6 +283,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineText,
 			false,
 			true,
@@ -340,6 +345,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineText,
 			false,
 			true,
@@ -378,6 +384,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 		let _actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineText,
 			false,
 			false,
@@ -407,6 +414,7 @@ suite('viewLineRenderer.renderLine', () => {
 			let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
 			let actual = renderViewLine(new RenderLineInput(
 				false,
+				true,
 				lineText,
 				false,
 				true,
@@ -506,6 +514,7 @@ suite('viewLineRenderer.renderLine', () => {
 			let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
 			let actual = renderViewLine(new RenderLineInput(
 				false,
+				true,
 				lineText,
 				false,
 				true,
@@ -541,6 +550,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineText,
 			false,
 			false,
@@ -569,6 +579,7 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineText,
 			false,
 			false,
@@ -613,6 +624,7 @@ suite('viewLineRenderer.renderLine', () => {
 		].join('');
 
 		let _actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			lineText,
 			false,
@@ -696,6 +708,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'all', expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
+			true,
 			lineContent,
 			false,
 			true,
@@ -720,6 +733,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			true,
@@ -749,6 +763,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let lineContent = '\'let url = `http://***/_api/web/lists/GetByTitle(\\\'Teambuildingaanvragen\\\')/items`;\'';
 
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			lineContent,
 			false,
@@ -1016,6 +1031,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	test('createLineParts can handle unsorted inline decorations', () => {
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			'Hello world',
 			false,
 			true,
@@ -1059,6 +1075,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			true,
@@ -1090,6 +1107,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			true,
@@ -1122,6 +1140,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			true,
@@ -1149,6 +1168,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			'  1. 🙏',
 			false,
@@ -1178,6 +1198,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	test('issue #37401: Allow both before and after decorations on empty line', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			'',
 			false,
@@ -1209,6 +1230,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	test('issue #38935: GitLens end-of-line blame no longer rendering', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			'\t}',
 			false,
@@ -1242,6 +1264,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			true,
+			true,
 			'asd = "擦"\t\t#asd',
 			false,
 			false,
@@ -1269,6 +1292,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	test('issue #22832: Consider fullwidth characters when rendering tabs (render whitespace)', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			'asd = "擦"\t\t#asd',
 			false,
@@ -1304,6 +1328,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			true,
+			true,
 			'12345689012345678901234568901234567890123456890abába',
 			false,
 			false,
@@ -1331,6 +1356,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	test('issue #22352: Partially Broken Complex Script Rendering of Tamil', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			' JoyShareல் பின்தொடர்ந்து, விடீயோ, ஜோக்குகள், அனிமேசன், நகைச்சுவை படங்கள் மற்றும் செய்திகளை பெறுவீர்',
 			false,
@@ -1364,6 +1390,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let actual = renderViewLine(new RenderLineInput(
 			true,
+			true,
 			' वो ऐसा क्या है जो हमारे अंदर भी है और बाहर भी है। जिसकी वजह से हम सब हैं। जिसने इस सृष्टि की रचना की है।',
 			false,
 			false,
@@ -1390,6 +1417,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 	test('issue #38123: editor.renderWhitespace: "boundary" renders whitespace at line wrap point when line is wrapped', () => {
 		let actual = renderViewLine(new RenderLineInput(
+			true,
 			true,
 			'This is a long line which never uses more than two spaces. ',
 			true,
@@ -1418,6 +1446,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			lineContent,
 			false,
 			true,

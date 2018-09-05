@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { validateFileName } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
@@ -18,7 +18,12 @@ function createStat(path: string, name: string, isFolder: boolean, hasChildren: 
 }
 
 function toResource(path) {
-	return URI.file(join('C:\\', path));
+	if (isWindows) {
+		return URI.file(join('C:\\', path));
+	} else {
+		return URI.file(join('/home/john', path));
+	}
+
 }
 
 suite('Files - View Model', () => {

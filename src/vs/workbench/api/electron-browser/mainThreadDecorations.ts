@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../node/extHost.protocol';
@@ -50,7 +50,7 @@ class DecorationRequestsQueue {
 			// make request
 			const requests = this._requests;
 			const resolver = this._resolver;
-			this._proxy.$provideDecorations(values(requests)).then(data => {
+			this._proxy.$provideDecorations(values(requests), CancellationToken.None).then(data => {
 				for (const id in resolver) {
 					resolver[id](data[id]);
 				}

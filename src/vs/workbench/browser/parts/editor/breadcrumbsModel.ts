@@ -12,30 +12,38 @@ import { size } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/paths';
-import { isEqual } from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { isEqual, dirname } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { FileKind } from 'vs/platform/files/common/files';
 
 export class FileElement {
 	constructor(
 		readonly uri: URI,
-		readonly isFile: boolean
+		readonly kind: FileKind
 	) { }
 }
 
-export type BreadcrumbElement = FileElement | OutlineGroup | OutlineElement;
+export type BreadcrumbElement = FileElement | OutlineModel | OutlineGroup | OutlineElement;
+
+type FileInfo = { path: FileElement[], folder: IWorkspaceFolder };
 
 export class EditorBreadcrumbsModel {
 
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _fileElements: FileElement[] = [];
+	private readonly _fileInfo: FileInfo;
 
-	private _outlineElements: (OutlineGroup | OutlineElement)[] = [];
+	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
+	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
+
+	private _outlineElements: (OutlineModel | OutlineGroup | OutlineElement)[] = [];
 	private _outlineDisposables: IDisposable[] = [];
 
 	private _onDidUpdate = new Emitter<this>();
@@ -45,33 +53,76 @@ export class EditorBreadcrumbsModel {
 		private readonly _uri: URI,
 		private readonly _editor: ICodeEditor | undefined,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		this._fileElements = EditorBreadcrumbsModel._getFileElements(this._uri, workspaceService);
+
+		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
+		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
+
+		this._disposables.push(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
+		this._disposables.push(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
+
+		this._fileInfo = EditorBreadcrumbsModel._initFilePathInfo(this._uri, workspaceService);
 		this._bindToEditor();
 		this._onDidUpdate.fire(this);
 	}
 
 	dispose(): void {
+		this._cfgFilePath.dispose();
+		this._cfgSymbolPath.dispose();
 		dispose(this._disposables);
 	}
 
-	getElements(): ReadonlyArray<BreadcrumbElement> {
-		return [].concat(this._fileElements, this._outlineElements);
+	isRelative(): boolean {
+		return Boolean(this._fileInfo.folder);
 	}
 
-	private static _getFileElements(uri: URI, workspaceService: IWorkspaceContextService): FileElement[] {
-		let result: FileElement[] = [];
-		let workspace = workspaceService.getWorkspaceFolder(uri);
-		let path = uri.path;
-		while (path !== '/') {
-			if (workspace && isEqual(workspace.uri, uri)) {
+	getElements(): ReadonlyArray<BreadcrumbElement> {
+		let result: BreadcrumbElement[] = [];
+
+		// file path elements
+		if (this._cfgFilePath.getValue() === 'on') {
+			result = result.concat(this._fileInfo.path);
+		} else if (this._cfgFilePath.getValue() === 'last' && this._fileInfo.path.length > 0) {
+			result = result.concat(this._fileInfo.path.slice(-1));
+		}
+
+		// symbol path elements
+		if (this._cfgSymbolPath.getValue() === 'on') {
+			result = result.concat(this._outlineElements);
+		} else if (this._cfgSymbolPath.getValue() === 'last' && this._outlineElements.length > 0) {
+			result = result.concat(this._outlineElements.slice(-1));
+		}
+
+		return result;
+	}
+
+	private static _initFilePathInfo(uri: URI, workspaceService: IWorkspaceContextService): FileInfo {
+
+		if (uri.scheme === Schemas.untitled) {
+			return {
+				folder: undefined,
+				path: []
+			};
+		}
+
+		let info: FileInfo = {
+			folder: workspaceService.getWorkspaceFolder(uri),
+			path: []
+		};
+
+		while (uri.path !== '/') {
+			if (info.folder && isEqual(info.folder.uri, uri)) {
 				break;
 			}
-			result.push(new FileElement(uri, result.length === 0));
-			path = paths.dirname(path);
-			uri = uri.with({ path });
+			info.path.unshift(new FileElement(uri, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
+			uri = dirname(uri);
 		}
-		return result.reverse();
+
+		if (info.folder && workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
+		}
+		return info;
 	}
 
 	private _bindToEditor(): void {
@@ -114,25 +165,37 @@ export class EditorBreadcrumbsModel {
 		});
 
 		OutlineModel.create(buffer, source.token).then(model => {
-			this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-			this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
-				timeout.cancelAndSet(() => {
-					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId()) {
-						this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
-					}
-				}, 150);
-			}));
+			if (TreeElement.empty(model)) {
+				// empty -> no outline elements
+				this._updateOutlineElements([]);
+
+			} else {
+				// copy the model
+				model = model.adopt();
+
+				this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+				this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
+					timeout.cancelAndSet(() => {
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.getModel()) {
+							this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
+						}
+					}, 150);
+				}));
+			}
 		}).catch(err => {
 			this._updateOutlineElements([]);
 			onUnexpectedError(err);
 		});
 	}
 
-	private _getOutlineElements(model: OutlineModel, position: IPosition): (OutlineGroup | OutlineElement)[] {
+	private _getOutlineElements(model: OutlineModel, position: IPosition): (OutlineModel | OutlineGroup | OutlineElement)[] {
 		if (!model) {
 			return [];
 		}
 		let item: OutlineGroup | OutlineElement = model.getItemEnclosingPosition(position);
+		if (!item) {
+			return [model];
+		}
 		let chain: (OutlineGroup | OutlineElement)[] = [];
 		while (item) {
 			chain.push(item);
@@ -148,14 +211,14 @@ export class EditorBreadcrumbsModel {
 		return chain.reverse();
 	}
 
-	private _updateOutlineElements(elements: (OutlineGroup | OutlineElement)[]): void {
+	private _updateOutlineElements(elements: (OutlineModel | OutlineGroup | OutlineElement)[]): void {
 		if (!equals(elements, this._outlineElements, EditorBreadcrumbsModel._outlineElementEquals)) {
 			this._outlineElements = elements;
 			this._onDidUpdate.fire(this);
 		}
 	}
 
-	private static _outlineElementEquals(a: OutlineGroup | OutlineElement, b: OutlineGroup | OutlineElement): boolean {
+	private static _outlineElementEquals(a: OutlineModel | OutlineGroup | OutlineElement, b: OutlineModel | OutlineGroup | OutlineElement): boolean {
 		if (a === b) {
 			return true;
 		} else if (!a || !b) {
