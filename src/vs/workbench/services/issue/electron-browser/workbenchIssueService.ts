@@ -15,6 +15,7 @@ import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: any;
@@ -24,24 +25,29 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IThemeService private themeService: IThemeService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IIntegrityService private integrityService: IIntegrityService
 	) {
 	}
 
 	openReporter(dataOverrides: Partial<IssueReporterData> = {}): TPromise<void> {
-		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+		return TPromise.wrap(Promise.all([
+			this.extensionManagementService.getInstalled(LocalExtensionType.User),
+			this.integrityService.isPure()
+		]).then(([extensions, integrity]) => {
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
 			const theme = this.themeService.getTheme();
 			const issueReporterData: IssueReporterData = assign(
 				{
 					styles: getIssueReporterStyles(theme),
 					zoomLevel: webFrame.getZoomLevel(),
-					enabledExtensions
+					enabledExtensions,
+					isPure: integrity.isPure
 				},
 				dataOverrides);
 
 			return this.issueService.openReporter(issueReporterData);
-		});
+		}));
 	}
 
 	openProcessExplorer(): TPromise<void> {

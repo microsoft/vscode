@@ -48,6 +48,7 @@ export interface IssueReporterStyles extends WindowStyles {
 export interface IssueReporterData extends WindowData {
 	styles: IssueReporterStyles;
 	enabledExtensions: ILocalExtension[];
+	isPure: boolean;
 	issueType?: IssueType;
 }
 
