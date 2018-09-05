@@ -266,8 +266,7 @@ export class CodeApplication {
 			return true;
 		}
 
-		const srcUri: any = URI.parse(source.toLowerCase()).toString();
-
+		const srcUri: any = source.toLowerCase();
 		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 	}
 
