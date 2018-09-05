@@ -346,7 +346,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			if (isVisibilityChanged) {
 				if (visible) {
 					this.searchBox.focus();
-					this.searchBox.selectAll();
 				}
 			}
 		});
