@@ -27,7 +27,7 @@ import Tracer from './utils/tracer';
 import { inferredProjectConfig } from './utils/tsconfig';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import { ICallback, Reader } from './utils/wireProtocol';
+import { Reader } from './utils/wireProtocol';
 
 
 const localize = nls.loadMessageBundle();
@@ -120,10 +120,15 @@ class RequestQueue {
 	}
 }
 
-class ForkedTsServerProcess {
+class ForkedTsServerProcess extends Disposable {
+	private readonly _reader: Reader<Proto.Response>;
+
 	constructor(
 		private childProcess: cp.ChildProcess
-	) { }
+	) {
+		super();
+		this._reader = new Reader<Proto.Response>(this.childProcess.stdout);
+	}
 
 	public onError(cb: (err: Error) => void): void {
 		this.childProcess.on('error', cb);
@@ -137,13 +142,9 @@ class ForkedTsServerProcess {
 		this.childProcess.stdin.write(JSON.stringify(serverRequest) + '\r\n', 'utf8');
 	}
 
-	public createReader(
-		callback: ICallback<Proto.Response>,
-		onError: (error: any) => void
-	) {
-		// tslint:disable-next-line:no-unused-expression
-		new Reader<Proto.Response>(this.childProcess.stdout, callback, onError);
-	}
+	public get onReaderError() { return this._reader.onError; }
+
+	public get onData() { return this._reader.onData; }
 
 	public kill() {
 		this.childProcess.kill();
@@ -458,9 +459,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.isRestarting = false;
 				});
 
-				handle.createReader(
-					msg => { this.dispatchMessage(msg); },
-					error => { this.error('ReaderError', error); });
+				handle.onData(msg => this.dispatchMessage(msg));
+				handle.onReaderError(error => this.error('ReaderError', error));
 
 				this._onReady!.resolve();
 				resolve(handle);
