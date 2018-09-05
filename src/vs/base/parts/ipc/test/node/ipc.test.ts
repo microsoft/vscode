@@ -9,7 +9,8 @@ import * as assert from 'assert';
 import { IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Emitter, toNativePromise, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 
 class QueueProtocol implements IMessagePassingProtocol {
 
@@ -98,6 +99,8 @@ const TestChannelId = 'testchannel';
 interface ITestService {
 	marco(): TPromise<string>;
 	error(message: string): TPromise<void>;
+	neverComplete(): TPromise<void>;
+	neverCompleteCT(cancellationToken: CancellationToken): TPromise<void>;
 }
 
 class TestService implements ITestService {
@@ -109,23 +112,39 @@ class TestService implements ITestService {
 	error(message: string): TPromise<void> {
 		return TPromise.wrapError(new Error(message));
 	}
+
+	neverComplete(): TPromise<void> {
+		return new TPromise(_ => { });
+	}
+
+	neverCompleteCT(cancellationToken: CancellationToken): TPromise<void> {
+		if (cancellationToken.isCancellationRequested) {
+			return TPromise.wrapError(canceled());
+		}
+
+		return new TPromise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
+	}
 }
 
 interface ITestChannel extends IChannel {
 	call(command: 'marco'): TPromise<string>;
 	call(command: 'error'): TPromise<void>;
+	call(command: 'neverComplete'): TPromise<void>;
+	call(command: 'neverCompleteCT', arg: undefined, cancellationToken: CancellationToken): TPromise<void>;
 	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): TPromise<T>;
 	listen<T>(event: string, arg?: any): Event<T>;
 }
 
 class TestChannel implements ITestChannel {
 
-	constructor(private service: TestService) { }
+	constructor(private service: ITestService) { }
 
 	call(command: string, arg?: any, cancellationToken?: CancellationToken): TPromise<any> {
 		switch (command) {
 			case 'marco': return this.service.marco();
 			case 'error': return this.service.error(arg);
+			case 'neverComplete': return this.service.neverComplete();
+			case 'neverCompleteCT': return this.service.neverCompleteCT(cancellationToken);
 			default: return TPromise.wrapError(new Error('not implemented'));
 		}
 	}
@@ -148,6 +167,14 @@ class TestChannelClient implements ITestService {
 	error(message: string): TPromise<void> {
 		return this.channel.call('error', message);
 	}
+
+	neverComplete(): TPromise<void> {
+		return this.channel.call('neverComplete');
+	}
+
+	neverCompleteCT(cancellationToken: CancellationToken): TPromise<void> {
+		return this.channel.call('neverCompleteCT', undefined, cancellationToken);
+	}
 }
 
 suite('Base IPC', function () {
@@ -168,26 +195,93 @@ suite('Base IPC', function () {
 		assert.strictEqual(b3, b4);
 	});
 
-	test('call', async function () {
-		const service = new TestService();
-		const server = new TestIPCServer();
-		server.registerChannel(TestChannelId, new TestChannel(service));
+	suite('one to one', function () {
+		let server: IPCServer;
+		let client: IPCClient;
+		let ipcService: ITestService;
 
-		const client = server.createConnection('client1');
-		const ipcService = new TestChannelClient(client.getChannel(TestChannelId));
+		setup(function () {
+			const service = new TestService();
+			const testServer = new TestIPCServer();
+			server = testServer;
 
-		assert.equal(await ipcService.marco(), 'polo');
+			server.registerChannel(TestChannelId, new TestChannel(service));
 
-		try {
-			await ipcService.error('nice error');
-			assert.fail('should not reach here');
-		} catch (err) {
-			assert.equal(err.message, 'nice error');
-		}
+			client = testServer.createConnection('client1');
+			ipcService = new TestChannelClient(client.getChannel(TestChannelId));
+		});
 
-		client.dispose();
-		server.dispose();
+		teardown(function () {
+			client.dispose();
+			server.dispose();
+		});
+
+		test('call success', function () {
+			return ipcService.marco()
+				.then(r => assert.equal(r, 'polo'));
+		});
+
+		test('call error', function () {
+			return ipcService.error('nice error').then(
+				() => assert.fail('should not reach here'),
+				err => assert.equal(err.message, 'nice error')
+			);
+		});
+
+		test('cancel call with TPromise.cancel (sync)', function () {
+			const promise = ipcService.neverComplete().then(
+				_ => assert.fail('should not reach here'),
+				err => assert(err.message === 'Canceled')
+			);
+
+			promise.cancel();
+
+			return promise;
+		});
+
+		test('cancel call with TPromise.cancel (async)', function () {
+			const promise = ipcService.neverComplete().then(
+				_ => assert.fail('should not reach here'),
+				err => assert(err.message === 'Canceled')
+			);
+
+			setTimeout(() => promise.cancel());
+
+			return promise;
+		});
+
+		test('cancel call with cancelled cancellation token', function () {
+			return ipcService.neverCompleteCT(CancellationToken.Cancelled).then(
+				_ => assert.fail('should not reach here'),
+				err => assert(err.message === 'Canceled')
+			);
+		});
+
+		test('cancel call with cancellation token (sync)', function () {
+			const cts = new CancellationTokenSource();
+			const promise = ipcService.neverCompleteCT(cts.token).then(
+				_ => assert.fail('should not reach here'),
+				err => assert(err.message === 'Canceled')
+			);
+
+			cts.cancel();
+
+			return promise;
+		});
+
+		test('cancel call with cancellation token (async)', function () {
+			const cts = new CancellationTokenSource();
+			const promise = ipcService.neverCompleteCT(cts.token).then(
+				_ => assert.fail('should not reach here'),
+				err => assert(err.message === 'Canceled')
+			);
+
+			setTimeout(() => cts.cancel());
+
+			return promise;
+		});
 	});
+
 
 	suite('getDelayedChannel', function () {
 
