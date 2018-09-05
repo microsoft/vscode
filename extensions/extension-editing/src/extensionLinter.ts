@@ -11,9 +11,9 @@ const localize = nls.loadMessageBundle();
 import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
+import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode';
 
-const product = require(path.posix.join(env.appRoot, 'product.json'));
+const product = require('../../../product.json');
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 
 const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");

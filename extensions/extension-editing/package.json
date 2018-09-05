@@ -18,7 +18,7 @@
 		"watch": "gulp watch-extension:extension-editing"
 	},
 	"dependencies": {
-		"jsonc-parser": "^1.0.0",
+		"jsonc-parser": "^2.0.2",
 		"markdown-it": "^8.3.1",
 		"parse5": "^3.0.2",
 		"vscode-nls": "^3.2.4"
