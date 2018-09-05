@@ -115,12 +115,12 @@ configurationRegistry.registerConfiguration({
 					type: 'array',
 					items: {
 						type: 'string',
-						description: nls.localize('terminal.integrated.shellArgs.windows.array', "An array of string of argments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+						description: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
 					},
 				},
 				{
 					type: 'string',
-					description: nls.localize('terminal.integrated.shellArgs.windows.string', "A single string of argments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+					description: nls.localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in command-line format (https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
 				}
 			],
 			default: []
