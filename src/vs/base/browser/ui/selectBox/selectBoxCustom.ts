@@ -351,7 +351,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		}
 		else if (this.styles.selectListBorder) {
 			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectListBorder} } `);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane { border-top: 1px solid ${this.styles.selectListBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-top { border-top: 1px solid ${this.styles.selectListBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-bottom { border-bottom: 1px solid ${this.styles.selectListBorder} } `);
+
+			// content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane { border-top: 1px solid ${this.styles.selectListBorder} } `);
 		}
 
 		// Hover foreground - ignore for disabled options
@@ -639,12 +642,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
+					dom.removeClass(this.selectionDetailsPane, 'border-top');
+					dom.addClass(this.selectionDetailsPane, 'border-bottom');
+
 				} else {
 					this._dropDownPosition = AnchorPosition.BELOW;
 					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
 					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
+
+					dom.removeClass(this.selectionDetailsPane, 'border-bottom');
+					dom.addClass(this.selectionDetailsPane, 'border-top');
 
 				}
 				// Do full layout on showSelectDropDown only
@@ -713,6 +722,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
+			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
 			return true;
 		} else {
 			return false;
