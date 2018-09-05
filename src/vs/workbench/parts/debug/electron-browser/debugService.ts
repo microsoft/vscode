@@ -375,11 +375,10 @@ export class DebugService implements IDebugService {
 
 				const workspace = launch ? launch.workspace : undefined;
 				return this.runTask(workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
-					if (!success) {
-						return undefined;
+					if (success) {
+						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
 					}
-
-					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
+					return undefined;
 				});
 			}, err => {
 				if (err && err.message) {
@@ -677,9 +676,12 @@ export class DebugService implements IDebugService {
 				return true;
 			}
 
-			const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
-				errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
-					nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", config.preLaunchTask, taskSummary.exitCode);
+			const taskId = typeof config.preLaunchTask === 'string' ? config.preLaunchTask : JSON.stringify(config.preLaunchTask);
+			const message = errorCount > 1
+				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskId)
+				: errorCount === 1
+					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskId)
+					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskId, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
 				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
