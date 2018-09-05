@@ -157,7 +157,7 @@ export class MockSession implements ISession {
 		return null;
 	}
 
-	get onDidExitAdapter(): Event<void> {
+	get onDidExitAdapter(): Event<Error> {
 		return null;
 	}
 

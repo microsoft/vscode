@@ -400,6 +400,10 @@ export class DebugService implements IDebugService {
 		});
 	}
 
+	private isExtensionHostDebugging(config: IConfig) {
+		return equalsIgnoreCase(config.type, 'extensionhost');
+	}
+
 	private attachExtensionHost(session: Session, port: number): TPromise<void> {
 
 		session.configuration.request = 'attach';
@@ -418,17 +422,24 @@ export class DebugService implements IDebugService {
 		const session = this.instantiationService.createInstance(Session, configuration, root, this.model);
 		this.allSessions.set(session.getId(), session);
 
+		// register listeners as the very first thing!
+		this.registerSessionListeners(session);
+
+		// since the Session is now properly registered under its ID and hooked, we can announce it
+		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
 		const resolved = configuration.resolved;
-		resolved.__sessionId = session.getId();
 		const dbgr = this.configurationManager.getDebugger(resolved.type);
 
 		return session.initialize(dbgr).then(() => {
 
-			this.registerSessionListeners(session);
-
 			const raw = <RawDebugSession>session.raw;
+
+			// pass the sessionID for EH debugging
+			if (this.isExtensionHostDebugging(resolved)) {
+				resolved.__sessionId = session.getId();
+			}
 
 			return (resolved.request === 'attach' ? raw.attach(resolved) : raw.launch(resolved)).then(result => {
 
@@ -438,6 +449,7 @@ export class DebugService implements IDebugService {
 
 				this.focusStackFrame(undefined, undefined, session);
 
+				// since the initialized response has arrived announce the new Session (including extensions)
 				this._onDidNewSession.fire(session);
 
 				const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
@@ -460,6 +472,7 @@ export class DebugService implements IDebugService {
 				return this.telemetryDebugSessionStart(root, resolved.type, dbgr.extensionDescription);
 
 			}).then(() => session, (error: Error | string) => {
+
 				if (session) {
 					session.dispose();
 				}
@@ -483,13 +496,18 @@ export class DebugService implements IDebugService {
 				}
 				return undefined;
 			});
-		}).then(undefined, err => {
+
+		}).then(undefined, error => {
 
 			if (session) {
 				session.dispose();
 			}
 
-			return TPromise.wrapError(err);
+			if (errors.isPromiseCanceledError(error)) {
+				// Do not show 'canceled' error messages to the user #7906
+				return TPromise.as(null);
+			}
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -502,10 +520,14 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 
-		this.toDispose.push(session.onDidExitAdapter(() => {
+		this.toDispose.push(session.onDidExitAdapter(err => {
+
+			if (err) {
+				this.notificationService.error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly ({0})", err.message || err.toString()));
+			}
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (equalsIgnoreCase(session.configuration.type, 'extensionhost') && session.state === State.Running && session.configuration.noDebug) {
+			if (this.isExtensionHostDebugging(session.configuration) && session.state === State.Running && session.configuration.noDebug) {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,
 					payload: [session.root.uri.toString()]
@@ -553,7 +575,7 @@ export class DebugService implements IDebugService {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
-			if (equalsIgnoreCase(session.configuration.type, 'extensionHost') && session.root) {
+			if (this.isExtensionHostDebugging(session.configuration) && session.root) {
 				return this.broadcastService.broadcast({
 					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
 					payload: [session.root.uri.toString()]

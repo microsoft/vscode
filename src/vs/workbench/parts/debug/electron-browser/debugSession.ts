@@ -41,7 +41,7 @@ export class Session implements ISession {
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 	private readonly _onDidChangeState = new Emitter<State>();
-	private readonly _onDidExitAdapter = new Emitter<void>();
+	private readonly _onDidExitAdapter = new Emitter<Error>();
 
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
@@ -93,149 +93,25 @@ export class Session implements ISession {
 		return this._onDidChangeState.event;
 	}
 
-	getSourceForUri(modelUri: uri): Source {
-		return this.sources.get(modelUri.toString());
-	}
-
-	getSource(raw: DebugProtocol.Source): Source {
-		let source = new Source(raw, this.getId());
-		if (this.sources.has(source.uri.toString())) {
-			source = this.sources.get(source.uri.toString());
-			source.raw = mixin(source.raw, raw);
-			if (source.raw && raw) {
-				// Always take the latest presentation hint from adapter #42139
-				source.raw.presentationHint = raw.presentationHint;
-			}
-		} else {
-			this.sources.set(source.uri.toString(), source);
-		}
-
-		return source;
-	}
-
-	getThread(threadId: number): Thread {
-		return this.threads.get(threadId);
-	}
-
-	getAllThreads(): IThread[] {
-		const result: IThread[] = [];
-		this.threads.forEach(t => result.push(t));
-		return result;
-	}
-
-	getLoadedSources(): TPromise<Source[]> {
-		return this._raw.loadedSources({}).then(response => {
-			return response.body.sources.map(src => this.getSource(src));
-		}, () => {
-			return [];
-		});
-	}
-
-	get onDidLoadedSource(): Event<LoadedSourceEvent> {
-		return this._onDidLoadedSource.event;
-	}
-
 	get onDidCustomEvent(): Event<DebugProtocol.Event> {
 		return this._onDidCustomEvent.event;
 	}
 
-	get onDidExitAdapter(): Event<void> {
+	get onDidExitAdapter(): Event<Error> {
 		return this._onDidExitAdapter.event;
 	}
 
-	rawUpdate(data: IRawModelUpdate): void {
-
-		if (data.thread && !this.threads.has(data.threadId)) {
-			// A new thread came in, initialize it.
-			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
-		} else if (data.thread && data.thread.name) {
-			// Just the thread name got updated #18244
-			this.threads.get(data.threadId).name = data.thread.name;
-		}
-
-		if (data.stoppedDetails) {
-			// Set the availability of the threads' callstacks depending on
-			// whether the thread is stopped or not
-			if (data.stoppedDetails.allThreadsStopped) {
-				this.threads.forEach(thread => {
-					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
-					thread.stopped = true;
-					thread.clearCallStack();
-				});
-			} else if (this.threads.has(data.threadId)) {
-				// One thread is stopped, only update that thread.
-				const thread = this.threads.get(data.threadId);
-				thread.stoppedDetails = data.stoppedDetails;
-				thread.clearCallStack();
-				thread.stopped = true;
-			}
-		}
-	}
-
-	clearThreads(removeThreads: boolean, reference: number = undefined): void {
-		if (reference !== undefined && reference !== null) {
-			if (this.threads.has(reference)) {
-				const thread = this.threads.get(reference);
-				thread.clearCallStack();
-				thread.stoppedDetails = undefined;
-				thread.stopped = false;
-
-				if (removeThreads) {
-					this.threads.delete(reference);
-				}
-			}
-		} else {
-			this.threads.forEach(thread => {
-				thread.clearCallStack();
-				thread.stoppedDetails = undefined;
-				thread.stopped = false;
-			});
-
-			if (removeThreads) {
-				this.threads.clear();
-				ExpressionContainer.allValues.clear();
-			}
-		}
-	}
-
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
-		if (!this._raw.capabilities.supportsCompletionsRequest) {
-			return TPromise.as([]);
-		}
-
-		return this._raw.completions({
-			frameId,
-			text,
-			column: position.column,
-			line: position.lineNumber
-		}).then(response => {
-			const result: ISuggestion[] = [];
-			if (response && response.body && response.body.targets) {
-				response.body.targets.forEach(item => {
-					if (item && item.label) {
-						result.push({
-							label: item.label,
-							insertText: item.text || item.label,
-							type: item.type,
-							filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
-							overwriteBefore: item.length || overwriteBefore
-						});
-					}
-				});
-			}
-
-			return result;
-		}, () => []);
-	}
-
 	initialize(dbgr: Debugger): TPromise<void> {
+
 		if (this._raw) {
-			// If there was already a connection make sure to remove old listeners
-			this.dispose();
+			// if there was already a connection make sure to remove old listeners
+			this.dispose();	// TODO: do not use dispose for this!
 		}
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
+
 			this._raw = this.instantiationService.createInstance(RawDebugSession, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
+
 			this.registerListeners();
 
 			return this._raw.initialize({
@@ -249,7 +125,7 @@ export class Session implements ISession {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true, // #10574
 				locale: platform.locale
-			}).then(() => {
+			}).then(response => {
 				this.model.addSession(this);
 				this.state = State.Running;
 				this.model.setExceptionBreakpoints(this._raw.capabilities.exceptionBreakpointFilters);
@@ -258,6 +134,7 @@ export class Session implements ISession {
 	}
 
 	private registerListeners(): void {
+
 		this.rawListeners.push(this._raw.onDidInitialize(() => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = () => {
@@ -415,7 +292,152 @@ export class Session implements ISession {
 			this._onDidCustomEvent.fire(event);
 		}));
 
-		this.rawListeners.push(this._raw.onDidExitAdapter(() => this._onDidExitAdapter.fire()));
+		this.rawListeners.push(this._raw.onDidExitAdapter(error => {
+			this._onDidExitAdapter.fire(error);
+		}));
+	}
+
+	dispose(): void {
+		dispose(this.rawListeners);
+		this.model.clearThreads(this.getId(), true);
+		this.model.removeSession(this.getId());
+		this.fetchThreadsScheduler = undefined;
+		if (this._raw && !this._raw.disconnected) {
+			this._raw.disconnect();
+		}
+		this._raw = undefined;
+	}
+
+	//---- sources
+
+	getSourceForUri(modelUri: uri): Source {
+		return this.sources.get(modelUri.toString());
+	}
+
+	getSource(raw: DebugProtocol.Source): Source {
+		let source = new Source(raw, this.getId());
+		if (this.sources.has(source.uri.toString())) {
+			source = this.sources.get(source.uri.toString());
+			source.raw = mixin(source.raw, raw);
+			if (source.raw && raw) {
+				// Always take the latest presentation hint from adapter #42139
+				source.raw.presentationHint = raw.presentationHint;
+			}
+		} else {
+			this.sources.set(source.uri.toString(), source);
+		}
+
+		return source;
+	}
+	getLoadedSources(): TPromise<Source[]> {
+		return this._raw.loadedSources({}).then(response => {
+			return response.body.sources.map(src => this.getSource(src));
+		}, () => {
+			return [];
+		});
+	}
+
+	get onDidLoadedSource(): Event<LoadedSourceEvent> {
+		return this._onDidLoadedSource.event;
+	}
+
+	//---- completions
+
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+		if (!this._raw.capabilities.supportsCompletionsRequest) {
+			return TPromise.as([]);
+		}
+
+		return this._raw.completions({
+			frameId,
+			text,
+			column: position.column,
+			line: position.lineNumber
+		}).then(response => {
+			const result: ISuggestion[] = [];
+			if (response && response.body && response.body.targets) {
+				response.body.targets.forEach(item => {
+					if (item && item.label) {
+						result.push({
+							label: item.label,
+							insertText: item.text || item.label,
+							type: item.type,
+							filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
+							overwriteBefore: item.length || overwriteBefore
+						});
+					}
+				});
+			}
+
+			return result;
+		}, () => []);
+	}
+
+	//---- threads
+
+	getThread(threadId: number): Thread {
+		return this.threads.get(threadId);
+	}
+
+	getAllThreads(): IThread[] {
+		const result: IThread[] = [];
+		this.threads.forEach(t => result.push(t));
+		return result;
+	}
+
+	clearThreads(removeThreads: boolean, reference: number = undefined): void {
+		if (reference !== undefined && reference !== null) {
+			if (this.threads.has(reference)) {
+				const thread = this.threads.get(reference);
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
+
+				if (removeThreads) {
+					this.threads.delete(reference);
+				}
+			}
+		} else {
+			this.threads.forEach(thread => {
+				thread.clearCallStack();
+				thread.stoppedDetails = undefined;
+				thread.stopped = false;
+			});
+
+			if (removeThreads) {
+				this.threads.clear();
+				ExpressionContainer.allValues.clear();
+			}
+		}
+	}
+
+	rawUpdate(data: IRawModelUpdate): void {
+
+		if (data.thread && !this.threads.has(data.threadId)) {
+			// A new thread came in, initialize it.
+			this.threads.set(data.threadId, new Thread(this, data.thread.name, data.thread.id));
+		} else if (data.thread && data.thread.name) {
+			// Just the thread name got updated #18244
+			this.threads.get(data.threadId).name = data.thread.name;
+		}
+
+		if (data.stoppedDetails) {
+			// Set the availability of the threads' callstacks depending on
+			// whether the thread is stopped or not
+			if (data.stoppedDetails.allThreadsStopped) {
+				this.threads.forEach(thread => {
+					thread.stoppedDetails = thread.threadId === data.threadId ? data.stoppedDetails : { reason: undefined };
+					thread.stopped = true;
+					thread.clearCallStack();
+				});
+			} else if (this.threads.has(data.threadId)) {
+				// One thread is stopped, only update that thread.
+				const thread = this.threads.get(data.threadId);
+				thread.stoppedDetails = data.stoppedDetails;
+				thread.clearCallStack();
+				thread.stopped = true;
+			}
+		}
 	}
 
 	private fetchThreads(stoppedDetails?: IRawStoppedDetails): TPromise<any> {
@@ -431,16 +453,5 @@ export class Session implements ISession {
 				});
 			}
 		});
-	}
-
-	dispose(): void {
-		dispose(this.rawListeners);
-		this.model.clearThreads(this.getId(), true);
-		this.model.removeSession(this.getId());
-		this.fetchThreadsScheduler = undefined;
-		if (!this._raw.disconnected) {
-			this._raw.disconnect();
-		}
-		this._raw = undefined;
 	}
 }

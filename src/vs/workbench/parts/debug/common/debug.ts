@@ -167,7 +167,7 @@ export interface ISession extends ITreeElement, IDisposable {
 	/**
 	 * Allows to register on DA events.
 	 */
-	onDidExitAdapter: Event<void>;
+	onDidExitAdapter: Event<Error>;
 }
 
 export interface IThread extends ITreeElement {
