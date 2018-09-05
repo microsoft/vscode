@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, once, filterEvent, toPromise, Relay } from 'vs/base/common/event';
+import { Event, Emitter, once, filterEvent, toNativePromise, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export enum RequestType {
@@ -295,10 +295,13 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
-		const activeRequest = this.whenInitialized().then(() => {
-			const id = request.id;
+		let uninitializedPromise: CancelablePromise<void> | null = null;
 
-			return new TPromise((c, e) => {
+		const result = new TPromise((c, e) => {
+			uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
+			uninitializedPromise.then(() => {
+				uninitializedPromise = null;
+
 				const handler: IHandler = response => {
 					switch (response.type) {
 						case ResponseType.PromiseSuccess:
@@ -323,14 +326,21 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 				this.handlers.set(id, handler);
 				this.sendRequest(request);
-			}, () => this.sendRequest({ id, type: RequestType.PromiseCancel }));
+			});
+		}, () => {
+			if (uninitializedPromise) {
+				uninitializedPromise.cancel();
+				uninitializedPromise = null;
+			} else {
+				this.sendRequest({ id, type: RequestType.PromiseCancel });
+			}
 		});
 
-		const disposable = toDisposable(() => activeRequest.cancel());
+		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
-		always(activeRequest, () => this.activeRequests.delete(disposable));
+		always(result, () => this.activeRequests.delete(disposable));
 
-		return activeRequest;
+		return result;
 	}
 
 	private requestEvent(channelName: string, name: string, arg: any): Event<any> {
@@ -416,11 +426,11 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
-	private whenInitialized(): TPromise<void> {
+	private whenInitialized(): Thenable<void> {
 		if (this.state === State.Idle) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		} else {
-			return TPromise.wrap(toPromise(this.onDidInitialize));
+			return toNativePromise(this.onDidInitialize);
 		}
 	}
 
