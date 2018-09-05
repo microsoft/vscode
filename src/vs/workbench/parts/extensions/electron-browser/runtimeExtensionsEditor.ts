@@ -318,6 +318,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							]
 						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
+				} else if (/^workspaceContainsTimeout:/.test(activationTimes.activationEvent)) {
+					const glob = activationTimes.activationEvent.substr('workspaceContainsTimeout:'.length);
+					title = nls.localize({
+						key: 'workspaceContainsTimeout',
+						comment: [
+							'{0} will be a glob pattern'
+						]
+					}, "Activated because searching for {0} took too long", glob);
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);

@@ -276,7 +276,7 @@ export class ExtensionHostMain {
 
 		const timer = setTimeout(async () => {
 			await this._mainThreadWorkspace.$cancelSearch(requestId);
-			this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout`))
+			this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout:${globPatterns.join(',')}`))
 				.then(null, err => console.error(err));
 		}, ExtensionHostMain.WORKSPACE_CONTAINS_TIMEOUT);
 
