@@ -132,9 +132,11 @@ export class BreadcrumbsControl {
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
 
+	static CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
 	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
 	static CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
 
+	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
 
@@ -172,6 +174,7 @@ export class BreadcrumbsControl {
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
 		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService, { breadcrumbsBackground: _options.breadcrumbsBackground }));
 
+		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
@@ -183,6 +186,7 @@ export class BreadcrumbsControl {
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
 		this._breadcrumbsDisposables = dispose(this._breadcrumbsDisposables);
+		this._ckBreadcrumbsPossible.reset();
 		this._ckBreadcrumbsVisible.reset();
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
@@ -216,6 +220,7 @@ export class BreadcrumbsControl {
 		if (!input || !input.getResource() || (input.getResource().scheme !== Schemas.untitled && !this._fileService.canHandleResource(input.getResource()))) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
+			this._ckBreadcrumbsPossible.set(false);
 			if (!this.isHidden()) {
 				this.hide();
 				return true;
@@ -226,6 +231,7 @@ export class BreadcrumbsControl {
 
 		dom.toggleClass(this.domNode, 'hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
+		this._ckBreadcrumbsPossible.set(true);
 
 		let editor = this._getActiveCodeEditor();
 		let model = new EditorBreadcrumbsModel(input.getResource(), editor, this._workspaceService, this._configurationService);
@@ -444,17 +450,10 @@ CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
 });
 
 // focus/focus-and-select
-async function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): Promise<void> {
+function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): void {
+	// find widget and focus/select
 	const groups = accessor.get(IEditorGroupsService);
 	const breadcrumbs = accessor.get(IBreadcrumbsService);
-	const config = accessor.get(IConfigurationService);
-	// check if enabled and iff not enable
-	const isEnabled = BreadcrumbsConfig.IsEnabled.bindTo(config);
-	if (!isEnabled.getValue()) {
-		await isEnabled.updateValue(true);
-		await timeout(50); // hacky - the widget might not be ready yet...
-	}
-	// find widget and focus/select
 	const widget = breadcrumbs.getWidget(groups.activeGroup.id);
 	if (widget) {
 		const item = tail(widget.getItems());
@@ -475,15 +474,35 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusAndSelect',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
-	when: undefined,
+	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, true)
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
-	when: undefined,
+	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, false)
+});
+
+// this commands is only enabled when breadcrumbs are
+// disabled which it then enables and focuses
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.toggleToOn',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	when: ContextKeyExpr.not('config.breadcrumbs.enabled'),
+	handler: async accessor => {
+		const instant = accessor.get(IInstantiationService);
+		const config = accessor.get(IConfigurationService);
+		// check if enabled and iff not enable
+		const isEnabled = BreadcrumbsConfig.IsEnabled.bindTo(config);
+		if (!isEnabled.getValue()) {
+			await isEnabled.updateValue(true);
+			await timeout(50); // hacky - the widget might not be ready yet...
+		}
+		return instant.invokeFunction(focusAndSelectHandler, true);
+	}
 });
 
 // navigation
