@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent, toPromise, Relay } from 'vs/base/common/event';
-import { always } from 'vs/base/common/async';
+import { always, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export enum RequestType {
 	Promise = 100,
@@ -332,11 +332,11 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const type = RequestType.EventListen;
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
-		let uninitializedPromise: TPromise<any> | null = null;
+		let uninitializedPromise: CancelablePromise<void> | null = null;
 
 		const emitter = new Emitter<any>({
 			onFirstListenerAdd: () => {
-				uninitializedPromise = this.whenInitialized();
+				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
 					this.activeRequests.add(emitter);
