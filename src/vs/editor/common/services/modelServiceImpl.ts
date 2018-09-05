@@ -87,9 +87,11 @@ class ModelMarkerHandler {
 		let ret = Range.lift(rawMarker);
 
 		if (rawMarker.severity === MarkerSeverity.Hint) {
-			// * never render hints on multiple lines
-			// * make enough space for three dots
-			ret = ret.setEndPosition(ret.startLineNumber, Math.min(ret.endColumn, ret.startColumn + 2));
+			if (!rawMarker.tags || rawMarker.tags.indexOf(MarkerTag.Unnecessary) === -1) {
+				// * never render hints on multiple lines
+				// * make enough space for three dots
+				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
+			}
 		}
 
 		ret = model.validateRange(ret);
