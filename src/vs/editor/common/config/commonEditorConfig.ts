@@ -609,13 +609,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestFontSize', "Font size for the suggest widget.")
+			'markdownDescription': nls.localize('suggestFontSize', "Font size for the suggest widget. When set to `0`, the value of `#editor.fontSize#` is used.")
 		},
 		'editor.suggestLineHeight': {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget.")
+			'markdownDescription': nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.")
 		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',
