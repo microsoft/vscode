@@ -620,17 +620,14 @@ declare module 'vscode' {
 
 	interface DocumentCommentProvider {
 		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	interface WorkspaceCommentProvider {
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	namespace workspace {

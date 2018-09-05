@@ -988,8 +988,8 @@ export interface ExtHostProgressShape {
 
 export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Thenable<modes.CommentInfo>;
-	$createNewCommentThread?(handle: number, document: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread>;
-	$replyToCommentThread?(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
+	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread>;
+	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 
