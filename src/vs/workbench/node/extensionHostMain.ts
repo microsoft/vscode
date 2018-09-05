@@ -90,17 +90,17 @@ export class ExtensionHostMain {
 	private _mainThreadWorkspace: MainThreadWorkspaceShape;
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
-		// ensure URIs are revived
-		initData = this.review(initData);
+		const rpcProtocol = new RPCProtocol(protocol);
+
+		// ensure URIs are transformed and revived
+		initData = this.transform(initData, rpcProtocol);
 		this._environment = initData.environment;
+		this._workspace = initData.workspace;
 
 		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
 
 		// services
-		const rpcProtocol = new RPCProtocol(protocol);
-		this._workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
-
 		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
 		this.disposables.push(this._extHostLogService);
 
@@ -311,7 +311,7 @@ export class ExtensionHostMain {
 		let testRunner: ITestRunner;
 		let requireError: Error;
 		try {
-			testRunner = <any>require.__$__nodeRequire(this._environment.extensionTestsPath.fsPath);
+			testRunner = <any>require.__$__nodeRequire(this._environment.extensionTestsPath);
 		} catch (error) {
 			requireError = error;
 		}
@@ -319,7 +319,7 @@ export class ExtensionHostMain {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new TPromise<void>((c, e) => {
-				testRunner.run(this._environment.extensionTestsPath.fsPath, (error, failures) => {
+				testRunner.run(this._environment.extensionTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -337,16 +337,16 @@ export class ExtensionHostMain {
 			this.gracefulExit(1 /* ERROR */);
 		}
 
-		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath.fsPath)));
+		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
-	private review(initData: IInitData): IInitData {
+	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
 		initData.environment.appRoot = URI.revive(initData.environment.appRoot);
 		initData.environment.appSettingsHome = URI.revive(initData.environment.appSettingsHome);
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(initData.environment.extensionDevelopmentLocationURI);
-		initData.environment.extensionTestsPath = URI.revive(initData.environment.extensionDevelopmentLocationURI);
 		initData.logsLocation = URI.revive(initData.logsLocation);
+		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}
 

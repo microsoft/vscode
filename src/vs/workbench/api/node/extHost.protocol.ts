@@ -49,7 +49,7 @@ export interface IEnvironment {
 	appRoot: URI;
 	appSettingsHome: URI;
 	extensionDevelopmentLocationURI: URI;
-	extensionTestsPath: URI;
+	extensionTestsPath: string;
 }
 
 export interface IWorkspaceData {
