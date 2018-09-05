@@ -97,7 +97,7 @@
 				"variable.language"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#A15F26"
 			}
 		},
 		{
@@ -155,7 +155,7 @@
 				"constant"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#A15F26"
 			}
 		},
 		{
@@ -183,7 +183,7 @@
 			"name": "Strings: Symbols",
 			"scope": "constant.other.symbol",
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#A15F26"
 			}
 		},
 		{
@@ -256,7 +256,7 @@
 				"punctuation.definition.entity"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#A15F26"
 			}
 		},
 		{
@@ -282,7 +282,7 @@
 				"support.type.property-name"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#A15F26"
 			}
 		},
 		{
@@ -427,7 +427,7 @@
 			"scope": "markup.inline.raw",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#AB6526"
+				"foreground": "#A15F26"
 			}
 		},
 		{
