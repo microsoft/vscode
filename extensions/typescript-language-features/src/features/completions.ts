@@ -610,12 +610,10 @@ function shouldExcludeCompletionEntry(
 	element: Proto.CompletionEntry,
 	completionConfiguration: CompletionConfiguration
 ) {
-	const isNameSuggestion = element.kind === PConst.Kind.warning;
-
 	return (
-		(!completionConfiguration.nameSuggestions && isNameSuggestion)
-		// if TypeScript suggestions turned off, remove everything that is not a name suggestion
-		|| (!completionConfiguration.typeScriptSuggestions && !isNameSuggestion)
+		// if TypeScript suggestions turned off, exclude every suggestion
+		!completionConfiguration.typeScriptSuggestions
+		|| (!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
 		|| (!completionConfiguration.quickSuggestionsForPaths &&
 			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script))
 		|| (!completionConfiguration.autoImportSuggestions && element.hasAction)
