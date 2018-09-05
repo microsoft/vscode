@@ -607,7 +607,7 @@ export interface ExtHostDiagnosticsShape {
 }
 
 export interface ExtHostDocumentContentProvidersShape {
-	$provideTextDocumentContent(handle: number, uri: UriComponents): TPromise<string>;
+	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string>;
 }
 
 export interface IModelAddedData {
