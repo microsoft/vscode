@@ -29,11 +29,11 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	public dispose(): void {
 	}
 
-	$getLanguages(): TPromise<string[]> {
+	$getLanguages(): Thenable<string[]> {
 		return TPromise.as(this._modeService.getRegisteredModes());
 	}
 
-	$changeLanguage(resource: UriComponents, languageId: string): TPromise<void> {
+	$changeLanguage(resource: UriComponents, languageId: string): Thenable<void> {
 		const uri = URI.revive(resource);
 		let model = this._modelService.getModel(uri);
 		if (!model) {

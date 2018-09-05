@@ -59,6 +59,7 @@ import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/workbench/browser/labels';
+import { timeout } from 'vs/base/common/async';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -1184,7 +1185,7 @@ export class ChangeEncodingAction extends Action {
 
 			const resource = toResource(activeControl.input, { supportSideBySide: true });
 
-			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
+			return timeout(50 /* quick open is sensitive to being opened so soon after another */)
 				.then(() => {
 					if (!resource || !this.fileService.canHandleResource(resource)) {
 						return TPromise.as(null); // encoding detection only possible for resources the file service can handle

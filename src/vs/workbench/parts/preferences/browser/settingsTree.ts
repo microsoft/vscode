@@ -35,7 +35,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout';
@@ -331,6 +331,11 @@ export interface ISettingChangeEvent {
 	value: any; // undefined => reset/unconfigure
 }
 
+export interface ISettingLinkClickEvent {
+	source: SettingsTreeSettingElement;
+	targetKey: string;
+}
+
 export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
@@ -344,8 +349,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidOpenSettings: Emitter<string> = new Emitter<string>();
 	public readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink: Emitter<string> = new Emitter<string>();
-	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
+	private readonly _onDidClickSettingLink: Emitter<ISettingLinkClickEvent> = new Emitter<ISettingLinkClickEvent>();
+	public readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
 	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
 	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
@@ -1019,7 +1024,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
-			const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
+			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, template.toDispose);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -1050,7 +1055,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.containerElement.parentElement.removeAttribute('aria-setsize');
 	}
 
-	private renderDescriptionMarkdown(text: string, disposeables: IDisposable[]): HTMLElement {
+	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: IDisposable[]): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
@@ -1058,7 +1063,11 @@ export class SettingsRenderer implements ITreeRenderer {
 			actionHandler: {
 				callback: (content: string) => {
 					if (startsWith(content, '#')) {
-						this._onDidClickSettingLink.fire(content.substr(1));
+						const e: ISettingLinkClickEvent = {
+							source: element,
+							targetKey: content.substr(1)
+						};
+						this._onDidClickSettingLink.fire(e);
 					} else {
 						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 					}
@@ -1481,6 +1490,11 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
 			if (invalidInputBackground) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+			}
+
+			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
+			if (invalidInputForeground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message { color: ${invalidInputForeground}; }`);
 			}
 
 			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);

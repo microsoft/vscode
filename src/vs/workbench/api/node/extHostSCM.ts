@@ -624,7 +624,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	$setSelectedSourceControls(selectedSourceControlHandles: number[]): TPromise<void> {
+	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void> {
 		this.logService.trace('ExtHostSCM#$setSelectedSourceControls', selectedSourceControlHandles);
 
 		const set = new Set<number>();

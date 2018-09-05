@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IntervalTimer, ShallowCancelThenPromise, wireCancellationToken } from 'vs/base/common/async';
+import { IntervalTimer, ShallowCancelThenPromise } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -63,7 +63,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 				if (!canSyncModel(this._modelService, model.uri)) {
 					return TPromise.as([]); // File too large
 				}
-				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
+				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
 			}
 		}));
 		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));

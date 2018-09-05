@@ -714,7 +714,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		return this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
+		this.extensionsService.getInstalled(LocalExtensionType.User).then(local => {
 			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
 
 			if (!recommendations.length) {

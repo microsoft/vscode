@@ -100,8 +100,9 @@ export class ExtensionHostMain {
 		this._workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		// ensure URIs are revived
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
+		initData.logsLocation = URI.revive(initData.logsLocation);
 
-		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, initData.logsPath);
+		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
 		this.disposables.push(this._extHostLogService);
 
 		this._searchRequestIdProvider = new Counter();
@@ -188,7 +189,7 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			TPromise.any<void>([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
 	}
 

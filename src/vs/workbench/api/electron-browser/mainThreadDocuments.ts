@@ -169,11 +169,11 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	// --- from extension host process
 
-	$trySaveDocument(uri: UriComponents): TPromise<boolean> {
+	$trySaveDocument(uri: UriComponents): Thenable<boolean> {
 		return this._textFileService.save(URI.revive(uri));
 	}
 
-	$tryOpenDocument(_uri: UriComponents): TPromise<any> {
+	$tryOpenDocument(_uri: UriComponents): Thenable<any> {
 		const uri = URI.revive(_uri);
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
 			return TPromise.wrapError(new Error(`Invalid uri. Scheme and authority or path must be set.`));
@@ -203,7 +203,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	$tryCreateDocument(options?: { language?: string, content?: string }): TPromise<URI> {
+	$tryCreateDocument(options?: { language?: string, content?: string }): Thenable<URI> {
 		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.content : void 0);
 	}
 

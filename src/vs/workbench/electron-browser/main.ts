@@ -21,7 +21,8 @@ import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { realpath } from 'vs/base/node/pfs';
+import { stat } from 'vs/base/node/pfs';
+import { normalize, join, isAbsolute } from 'path';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -147,18 +148,19 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 		return TPromise.as(folderUri);
 	}
 
-	// Otherwise: use realpath to resolve symbolic links to the truth
-	return realpath(folderUri.fsPath).then(realFolderPath => {
+	// Ensure absolute existing folder path
+	let absoluteFolderPath = normalize(isAbsolute(folderUri.fsPath) ? folderUri.fsPath : join(process.env['VSCODE_CWD'] || process.cwd(), folderUri.fsPath));
+	return stat(absoluteFolderPath).then(stat => {
 
 		// For some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
-		if (paths.isUNC(realFolderPath) && strings.endsWith(realFolderPath, paths.nativeSep)) {
-			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
+		if (paths.isUNC(absoluteFolderPath) && strings.endsWith(absoluteFolderPath, paths.nativeSep)) {
+			absoluteFolderPath = strings.rtrim(absoluteFolderPath, paths.nativeSep);
 		}
 
-		return uri.file(realFolderPath);
+		return uri.file(absoluteFolderPath);
 	}, error => {
 		if (verbose) {
 			errors.onUnexpectedError(error);
@@ -166,11 +168,6 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 
 		// Treat any error case as empty workbench case (no folder path)
 		return null;
-
-	}).then(realFolderUriOrNull => {
-
-		// Update config with real path if we have one
-		return realFolderUriOrNull;
 	});
 }
 

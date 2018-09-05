@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { MainThreadWindowShape, ExtHostWindowShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -27,7 +26,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 	}
 
-	$getWindowVisibility(): TPromise<boolean> {
+	$getWindowVisibility(): Thenable<boolean> {
 		return this.windowService.isFocused();
 	}
 

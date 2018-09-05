@@ -198,21 +198,21 @@ export interface IFileSystemProvider {
 	onDidChangeFile: Event<IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
 
-	stat(resource: URI): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<void>;
-	readdir(resource: URI): TPromise<[string, FileType][]>;
-	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
+	stat(resource: URI): Thenable<IStat>;
+	mkdir(resource: URI): Thenable<void>;
+	readdir(resource: URI): Thenable<[string, FileType][]>;
+	delete(resource: URI, opts: FileDeleteOptions): Thenable<void>;
 
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Thenable<void>;
 
-	readFile?(resource: URI): TPromise<Uint8Array>;
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
+	readFile?(resource: URI): Thenable<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Thenable<void>;
 
-	open?(resource: URI): TPromise<number>;
-	close?(fd: number): TPromise<void>;
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	open?(resource: URI): Thenable<number>;
+	close?(fd: number): Thenable<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Thenable<number>;
 }
 
 export interface IFileSystemProviderRegistrationEvent {

@@ -130,7 +130,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.symbols';
 
-	private static readonly SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
+	private static readonly SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;

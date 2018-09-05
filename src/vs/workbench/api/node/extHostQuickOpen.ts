@@ -15,6 +15,7 @@ import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, Qui
 import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenShape, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/node/extHostTypes';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export type Item = string | QuickPickItem;
 
@@ -51,9 +52,9 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			matchOnDetail: options && options.matchOnDetail,
 			ignoreFocusLost: options && options.ignoreFocusOut,
 			canPickMany: options && options.canPickMany
-		});
+		}, token);
 
-		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
+		return TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
 			if (values.key === '0') {
 				return undefined;
 			}
@@ -104,13 +105,16 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					}
 					return undefined;
 				});
-			}, (err) => {
-				this._proxy.$setError(err);
-
-				return TPromise.wrapError(err);
 			});
+		}).then(null, err => {
+			if (isPromiseCanceledError(err)) {
+				return undefined;
+			}
+
+			this._proxy.$setError(err);
+
+			return TPromise.wrapError(err);
 		});
-		return wireCancellationToken<Item | Item[]>(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {

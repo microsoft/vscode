@@ -6,6 +6,8 @@
 
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as arrays from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap, values } from 'vs/base/common/map';
@@ -18,20 +20,19 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as pfs from 'vs/base/node/pfs';
 import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Range } from 'vs/editor/common/core/range';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, ICachedSearchStats, IFileMatch, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, pathIncludedInQuery, QueryType, SearchProviderType, IFileSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
+import { FileMatch, ICachedSearchStats, IFileMatch, IFileSearchStats, IFolderQuery, IProgress, ISearchComplete, ISearchConfiguration, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType, SearchProviderType, TextSearchResult } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IRawSearch, IRawSearchService, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess } from './search';
 import { ISearchChannel, SearchChannelClient } from './searchIpc';
-import { Range } from 'vs/editor/common/core/range';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
 
 export class SearchService extends Disposable implements ISearchService {
 	public _serviceBrand: any;
@@ -363,10 +364,7 @@ export class SearchService extends Disposable implements ISearchService {
 					localResults.set(resource, fileMatch);
 
 					matches.forEach((match) => {
-						fileMatch.matches.push(new TextSearchResult(
-							model.getLineContent(match.range.startLineNumber),
-							new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, match.range.startLineNumber - 1, match.range.endColumn - 1),
-							query.previewOptions));
+						fileMatch.matches.push(editorMatchToTextSearchResult(match, model, query.previewOptions));
 					});
 				} else {
 					localResults.set(resource, null);
@@ -575,4 +573,21 @@ export class DiskSearch implements ISearchResultProvider {
 	public clearCache(cacheKey: string): TPromise<void> {
 		return this.raw.clearCache(cacheKey);
 	}
+}
+
+/**
+ * While search doesn't support multiline matches, collapse editor matches to a single line
+ */
+function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
+	let endLineNumber = match.range.endLineNumber - 1;
+	let endCol = match.range.endColumn - 1;
+	if (match.range.endLineNumber !== match.range.startLineNumber) {
+		endLineNumber = match.range.startLineNumber - 1;
+		endCol = model.getLineLength(match.range.startLineNumber);
+	}
+
+	return new TextSearchResult(
+		model.getLineContent(match.range.startLineNumber),
+		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, endLineNumber, endCol),
+		previewOptions);
 }

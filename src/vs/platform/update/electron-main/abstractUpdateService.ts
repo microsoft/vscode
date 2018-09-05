@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, timeout } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
@@ -83,8 +83,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return quality === 'none' ? null : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
-		return TPromise.timeout(delay)
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(update => {
 				if (update) {

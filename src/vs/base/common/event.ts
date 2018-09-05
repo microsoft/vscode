@@ -296,12 +296,11 @@ export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 }
 
 export function toPromise<T>(event: Event<T>): Thenable<T> {
-	return new TPromise(complete => {
-		const sub = event(e => {
-			sub.dispose();
-			complete(e);
-		});
-	});
+	return new TPromise(c => once(event)(c));
+}
+
+export function toNativePromise<T>(event: Event<T>): Thenable<T> {
+	return new Promise(c => once(event)(c));
 }
 
 export function once<T>(event: Event<T>): Event<T> {

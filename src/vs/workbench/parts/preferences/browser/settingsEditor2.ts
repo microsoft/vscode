@@ -34,19 +34,18 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource, ISettingLinkClickEvent } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 
 const $ = DOM.$;
 
@@ -98,8 +97,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchFocusContextKey: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
-
-	private tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
@@ -231,19 +228,16 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	focusSearch(): void {
+	focusSearch(filter?: string): void {
+		if (filter && this.searchWidget) {
+			this.searchWidget.setValue(filter);
+		}
+
 		this.searchWidget.focus();
 	}
 
 	clearSearchResults(): void {
 		this.searchWidget.setValue('');
-	}
-
-	search(text: string): void {
-		if (this.searchWidget) {
-			this.searchWidget.focus();
-			this.searchWidget.setValue(text);
-		}
 	}
 
 	private createHeader(parent: HTMLElement): void {
@@ -325,9 +319,9 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 		actions.push(new Action('settings.openSettingsJson', localize('openSettingsJsonLabel', "Open settings.json"), undefined, undefined, () => {
 			return this.openSettingsFile().then(editor => {
-				const currentSearch = this.searchWidget.getValue();
-				if (editor instanceof PreferencesEditor && currentSearch) {
-					editor.focusSearch(currentSearch);
+				const currentQuery = parseQuery(this.searchWidget.getValue());
+				if (editor instanceof PreferencesEditor && currentQuery) {
+					editor.focusSearch(currentQuery.query);
 				}
 			});
 		}));
@@ -336,12 +330,13 @@ export class SettingsEditor2 extends BaseEditor {
 		this.toolbar.context = <ISettingsToolbarContext>{ target: this.settingsTargetsWidget.settingsTarget };
 	}
 
-	private revealSettingByKey(settingKey: string): void {
-		const elements = this.currentSettingsModel.getElementsByName(settingKey);
+	private onDidClickSetting(evt: ISettingLinkClickEvent): void {
+		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
 		if (elements && elements[0]) {
-			this.settingsTree.reveal(elements[0]);
+			const sourceTop = this.settingsTree.getRelativeTop(evt.source);
+			this.settingsTree.reveal(elements[0], sourceTop);
 
-			const domElements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), settingKey);
+			const domElements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
 				const control = domElements[0].querySelector(SettingsRenderer.CONTROL_SELECTOR);
 				if (control) {
@@ -476,7 +471,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			});
 		}));
-		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.revealSettingByKey(settingName)));
+		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => {
 			this.settingsTree.reveal(element);
 		}));
@@ -758,9 +753,6 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			// Maybe settings were added, update count
-			this.renderResultCountMessages();
-
 			return this.renderTree();
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
@@ -773,8 +765,6 @@ export class SettingsEditor2 extends BaseEditor {
 			} else {
 				this.tocTree.setInput(this.tocTreeModel);
 			}
-
-			this.renderResultCountMessages();
 		}
 
 		return TPromise.wrap(null);
@@ -829,6 +819,8 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
+		this.renderResultCountMessages();
+
 		let refreshP: TPromise<any>;
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
@@ -877,17 +869,11 @@ export class SettingsEditor2 extends BaseEditor {
 	private triggerSearch(query: string): TPromise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		if (query) {
-			query = query.replace(this.tagRegex, (_, __, quotedTag, tag) => {
-				this.viewState.tagFilters.add(tag || quotedTag);
-				return '';
-			});
-			query = query.replace(`@${MODIFIED_SETTING_TAG}`, () => {
-				this.viewState.tagFilters.add(MODIFIED_SETTING_TAG);
-				return '';
-			});
+			const parsedQuery = parseQuery(query);
+			query = parsedQuery.query;
+			parsedQuery.tags.forEach(tag => this.viewState.tagFilters.add(tag));
 		}
 
-		query = query.trim();
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
@@ -1116,15 +1102,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.settingsTreeRenderer.updateWidth(dimension.width);
 	}
-
-	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void> {
-		if (visible) {
-			this.searchWidget.focus();
-			this.searchWidget.selectAll();
-		}
-
-		return TPromise.as(super.setVisible(visible, group));
-	}
 }
 
 interface ISettingsToolbarContext {
@@ -1143,7 +1120,7 @@ class FilterByTagAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		this.settingsEditor.search(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `);
+		this.settingsEditor.focusSearch(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `);
 		return TPromise.as(null);
 	}
 }
