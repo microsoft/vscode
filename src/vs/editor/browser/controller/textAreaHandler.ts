@@ -8,7 +8,7 @@ import 'vs/css!./textAreaHandler';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
-import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
+import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData, CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -193,7 +193,7 @@ export class TextAreaHandler extends ViewPart {
 			},
 
 			getHTMLToCopy: (): string => {
-				if (!this._copyWithSyntaxHighlighting) {
+				if (!this._copyWithSyntaxHighlighting && !CopyOptions.forceCopyWithSyntaxHighlighting) {
 					return null;
 				}
 
