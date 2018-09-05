@@ -404,7 +404,7 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {
-	$show(options: IPickOptions<TransferQuickPickItems>): Thenable<number | number[]>;
+	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]>;
 	$setItems(items: TransferQuickPickItems[]): Thenable<any>;
 	$setError(error: Error): Thenable<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;

@@ -11,6 +11,7 @@ import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -38,7 +39,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	public dispose(): void {
 	}
 
-	$show(options: IPickOptions<TransferQuickPickItems>): TPromise<number | number[]> {
+	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): TPromise<number | number[]> {
 		const myToken = ++this._token;
 
 		this._contents = new TPromise<TransferQuickPickItems[]>((c, e) => {
@@ -65,14 +66,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		};
 
 		if (options.canPickMany) {
-			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options as { canPickMany: true }, token)).then(items => {
+			return this._quickInputService.pick(this._contents, options as { canPickMany: true }, token).then(items => {
 				if (items) {
 					return items.map(item => item.handle);
 				}
 				return undefined;
 			});
 		} else {
-			return asWinJsPromise(token => this._quickInputService.pick(this._contents, options, token)).then(item => {
+			return this._quickInputService.pick(this._contents, options, token).then(item => {
 				if (item) {
 					return item.handle;
 				}
