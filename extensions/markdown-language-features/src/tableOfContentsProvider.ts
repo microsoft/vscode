@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
+import { Token } from 'markdown-it';
 import { Slug, githubSlugifier } from './slugify';
 
 export interface TocEntry {
@@ -48,15 +49,22 @@ export class TableOfContentsProvider {
 	}
 
 	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
-		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document.uri, document.getText());
+		return [
+			...this.buildHeadingToc(document, tokens),
+			...this.buildBulletToc(document, tokens),
+		];
+	}
+
+	private buildHeadingToc(document: SkinnyTextDocument, tokens: Token[]) {
+		const toc: TocEntry[] = [];
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 			toc.push({
 				slug: githubSlugifier.fromHeading(line.text),
-				text: TableOfContentsProvider.getHeaderText(line.text),
+				text: TableOfContentsProvider.getText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,
 				location: new vscode.Location(document.uri, line.range)
@@ -83,6 +91,51 @@ export class TableOfContentsProvider {
 		});
 	}
 
+	private buildBulletToc(document: SkinnyTextDocument, tokens: Token[]) {
+		const toc: TocEntry[] = [];
+		const trimedToc: TocEntry[] = [];
+
+		let bulletLevel = 1;
+		tokens.forEach(token => {
+			if (token.type === 'list_item_open') {
+				const lineNumber = token.map[0];
+				const line = document.lineAt(lineNumber);
+				toc.push({
+					slug: githubSlugifier.fromHeading(line.text),
+					text: TableOfContentsProvider.getText(line.text),
+					level: bulletLevel++,
+					line: lineNumber,
+					location: new vscode.Location(document.uri, line.range)
+				});
+			} else if (token.type === 'list_item_close') {
+				bulletLevel--;
+			}
+		});
+
+		toc.forEach((entry, startIndex) => {
+			let end: number | undefined = undefined;
+			for (let i = startIndex + 1; i < toc.length; ++i) {
+				if (toc[i].level <= entry.level) {
+					end = toc[i].line - 1;
+					break;
+				}
+			}
+			if (typeof end === 'undefined' && startIndex !== toc.length) {
+				end = toc[toc.length - 1].line;
+			}
+			if (typeof end === 'number') {
+				trimedToc.push({
+					...entry,
+					location: new vscode.Location(document.uri,
+						new vscode.Range(
+							entry.location.range.start,
+							new vscode.Position(end, document.lineAt(end).range.end.character)))
+				});
+			}
+		});
+		return trimedToc;
+	}
+
 	private static getHeaderLevel(markup: string): number {
 		if (markup === '=') {
 			return 1;
@@ -93,7 +146,7 @@ export class TableOfContentsProvider {
 		}
 	}
 
-	private static getHeaderText(header: string): string {
+	private static getText(header: string): string {
 		return header.replace(/^\s*#+\s*(.*?)\s*#*$/, (_, word) => word.trim());
 	}
 }
