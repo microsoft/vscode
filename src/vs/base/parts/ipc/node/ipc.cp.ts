@@ -6,12 +6,14 @@
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, always } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -95,37 +97,49 @@ export class Client implements IChannelClient, IDisposable {
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
-		const call = (command: string, arg: any) => this.requestPromise(channelName, command, arg);
-		const listen = (event: string, arg: any) => this.requestEvent(channelName, event, arg);
-		return { call, listen } as IChannel as T;
+		const that = this;
+
+		return {
+			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
+				return that.requestPromise(channelName, command, arg, cancellationToken);
+			},
+			listen(event: string, arg?: any) {
+				return that.requestEvent(channelName, event, arg);
+			}
+		} as T;
 	}
 
-	protected requestPromise(channelName: string, name: string, arg: any): TPromise<void> {
+	protected requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): TPromise<void> {
 		if (!this.disposeDelayer) {
 			return TPromise.wrapError(new Error('disposed'));
+		}
+
+		if (cancellationToken.isCancellationRequested) {
+			return TPromise.wrapError(errors.canceled());
 		}
 
 		this.disposeDelayer.cancel();
 
 		const channel = this.getCachedChannel(channelName);
-		const request: TPromise<void> = channel.call(name, arg);
-
-		const result = new TPromise<void>((c, e) => {
-			request.then(c, e).then(() => {
-				this.activeRequests.delete(disposable);
-
-				if (this.activeRequests.size === 0) {
-					this.disposeDelayer.trigger(() => this.disposeClient());
-				}
-			});
-		}, () => request.cancel());
+		const result: TPromise<void> = channel.call(name, arg, cancellationToken);
+		const cancellationTokenListener = cancellationToken.onCancellationRequested(() => result.cancel());
 
 		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
+
+		always(result, () => {
+			cancellationTokenListener.dispose();
+			this.activeRequests.delete(disposable);
+
+			if (this.activeRequests.size === 0) {
+				this.disposeDelayer.trigger(() => this.disposeClient());
+			}
+		});
+
 		return result;
 	}
 
-	protected requestEvent<T>(channelName: string, name: string, arg: any): Event<T> {
+	protected requestEvent<T>(channelName: string, name: string, arg?: any): Event<T> {
 		if (!this.disposeDelayer) {
 			return Event.None;
 		}

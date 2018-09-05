@@ -310,17 +310,6 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		let uninitializedPromise: CancelablePromise<void> | null = null;
 		let cancellationTokenListener: IDisposable = Disposable.None;
 
-		const cancel = () => {
-			if (uninitializedPromise) {
-				uninitializedPromise.cancel();
-				uninitializedPromise = null;
-			} else {
-				this.sendRequest({ id, type: RequestType.PromiseCancel });
-			}
-		};
-
-		cancellationTokenListener = once(cancellationToken.onCancellationRequested)(cancel);
-
 		const result = new TPromise((c, e) => {
 			uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
 			uninitializedPromise.then(() => {
@@ -351,7 +340,16 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				this.handlers.set(id, handler);
 				this.sendRequest(request);
 			});
-		}, cancel);
+		}, () => {
+			if (uninitializedPromise) {
+				uninitializedPromise.cancel();
+				uninitializedPromise = null;
+			} else {
+				this.sendRequest({ id, type: RequestType.PromiseCancel });
+			}
+		});
+
+		cancellationTokenListener = cancellationToken.onCancellationRequested(() => result.cancel());
 
 		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
