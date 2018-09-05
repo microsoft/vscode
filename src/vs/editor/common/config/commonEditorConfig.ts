@@ -589,6 +589,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
+		'editor.copyWithSyntaxHighlighting': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.copyWithSyntaxHighlighting,
+			'description': nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.")
+		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
