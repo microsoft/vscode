@@ -82,7 +82,7 @@ export class Client implements IChannelClient, IDisposable {
 	private activeRequests: IDisposable[];
 	private child: ChildProcess;
 	private _client: IPCClient;
-	private channels: { [name: string]: IChannel };
+	private channels = new Map<string, IChannel>();
 
 	private _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
 	readonly onDidProcessExit = this._onDidProcessExit.event;
@@ -93,7 +93,6 @@ export class Client implements IChannelClient, IDisposable {
 		this.activeRequests = [];
 		this.child = null;
 		this._client = null;
-		this.channels = Object.create(null);
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
@@ -109,7 +108,7 @@ export class Client implements IChannelClient, IDisposable {
 
 		this.disposeDelayer.cancel();
 
-		const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
+		const channel = this.getCachedChannel(channelName);
 		const request: TPromise<void> = channel.call(name, arg);
 
 		const result = new TPromise<void>((c, e) => {
@@ -141,7 +140,7 @@ export class Client implements IChannelClient, IDisposable {
 		let listener: IDisposable;
 		const emitter = new Emitter<any>({
 			onFirstListenerAdd: () => {
-				const channel = this.channels[channelName] || (this.channels[channelName] = this.client.getChannel(channelName));
+				const channel = this.getCachedChannel(channelName);
 				const event: Event<T> = channel.listen(name, arg);
 
 				listener = event(emitter.fire, emitter);
@@ -237,12 +236,23 @@ export class Client implements IChannelClient, IDisposable {
 		return this._client;
 	}
 
+	private getCachedChannel(name: string): IChannel {
+		let channel = this.channels.get(name);
+
+		if (!channel) {
+			channel = this.client.getChannel(name);
+			this.channels.set(name, channel);
+		}
+
+		return channel;
+	}
+
 	private disposeClient() {
 		if (this._client) {
 			this.child.kill();
 			this.child = null;
 			this._client = null;
-			this.channels = Object.create(null);
+			this.channels.clear();
 		}
 	}
 
