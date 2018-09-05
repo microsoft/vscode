@@ -34,7 +34,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -591,6 +590,7 @@ export class LogContentProvider {
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 
 	constructor(
+		@IOutputService private outputService: IOutputService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 	}
@@ -606,13 +606,16 @@ export class LogContentProvider {
 	}
 
 	private getChannel(resource: URI): OutputChannel {
-		const id = resource.path;
-		let channel = this.channels.get(id);
+		const channelId = resource.path;
+		let channel = this.channels.get(channelId);
 		if (!channel) {
 			const channelDisposables: IDisposable[] = [];
-			channel = this.instantiationService.createInstance(FileOutputChannel, { id, label: '', file: resource.with({ scheme: Schemas.file }), log: true }, resource);
-			channel.onDispose(() => dispose(channelDisposables), channelDisposables);
-			this.channels.set(id, channel);
+			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
+			if (outputChannelDescriptor && outputChannelDescriptor.file) {
+				channel = this.instantiationService.createInstance(FileOutputChannel, outputChannelDescriptor, resource);
+				channel.onDispose(() => dispose(channelDisposables), channelDisposables);
+				this.channels.set(channelId, channel);
+			}
 		}
 		return channel;
 	}

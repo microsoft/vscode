@@ -20,7 +20,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { Registry } from 'vs/platform/registry/common/platform';
 import { groupBy } from 'vs/base/common/arrays';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { URI } from 'vs/base/common/uri';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -180,16 +179,16 @@ export class OpenLogOutputFile extends Action {
 	}
 
 	private update(): void {
-		this.enabled = !!this.getLogFile();
+		const outputChannelDescriptor = this.getOutputChannelDescriptor();
+		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.getLogFile());
+		return this.enabled ? this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.getOutputChannelDescriptor()) : TPromise.as(null);
 	}
 
-	private getLogFile(): URI {
+	private getOutputChannelDescriptor(): IOutputChannelDescriptor {
 		const channel = this.outputService.getActiveChannel();
-		const descriptor = channel ? this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0] : null;
-		return descriptor && descriptor.log ? descriptor.file : null;
+		return channel ? this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0] : null;
 	}
 }

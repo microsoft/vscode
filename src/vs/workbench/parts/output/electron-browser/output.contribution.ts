@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/parts/output/electron-browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, IOutputChannelDescriptor } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -25,7 +25,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Register Service
@@ -180,10 +179,10 @@ registerAction({
 	}
 });
 
-CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: ServicesAccessor, file: URI) {
-	if (file) {
+CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: ServicesAccessor, outputChannelDescriptor: IOutputChannelDescriptor) {
+	if (outputChannelDescriptor && outputChannelDescriptor.file) {
 		const editorService = accessor.get(IEditorService);
-		return editorService.openEditor(accessor.get(IInstantiationService).createInstance(LogViewerInput, file));
+		return editorService.openEditor(accessor.get(IInstantiationService).createInstance(LogViewerInput, outputChannelDescriptor));
 	}
 	return null;
 });
