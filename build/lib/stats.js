@@ -106,7 +106,12 @@ function submitAllStats(productJson) {
             .setAutoCollectRequests(false)
             .start();
         appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-        appInsights.defaultClient.trackEvent("bundleStats", undefined, measurements);
+        /* __GDPR__
+            "monacoworkbench/bundleStats" : {
+                "outcome" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+            }
+        */
+        appInsights.defaultClient.trackEvent("monacoworkbench/bundleStats", undefined, measurements);
         appInsights.defaultClient.sendPendingData(function () { return resolve(); });
     });
 }
