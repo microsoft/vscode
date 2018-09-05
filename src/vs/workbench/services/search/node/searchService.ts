@@ -149,37 +149,33 @@ export class SearchService extends Disposable implements ISearchService {
 				return TPromise.wrapError(errs[0]);
 			});
 
-		return new TPromise((c, e) => {
-			providerPromise.then(value => {
-				const values = [value];
+		return providerPromise.then(value => {
+			const values = [value];
 
-				const result: ISearchComplete = {
-					limitHit: false,
-					results: [],
-					stats: undefined
-				};
+			const result: ISearchComplete = {
+				limitHit: false,
+				results: [],
+				stats: undefined
+			};
 
-				// TODO@joh
-				// sorting, disjunct results
-				for (const value of values) {
-					if (!value) {
-						continue;
-					}
-					// TODO@joh individual stats/limit
-					result.stats = value.stats || result.stats;
-					result.limitHit = value.limitHit || result.limitHit;
+			// TODO@joh
+			// sorting, disjunct results
+			for (const value of values) {
+				if (!value) {
+					continue;
+				}
+				// TODO@joh individual stats/limit
+				result.stats = value.stats || result.stats;
+				result.limitHit = value.limitHit || result.limitHit;
 
-					for (const match of value.results) {
-						if (!localResults.has(match.resource)) {
-							result.results.push(match);
-						}
+				for (const match of value.results) {
+					if (!localResults.has(match.resource)) {
+						result.results.push(match);
 					}
 				}
+			}
 
-				return result;
-			}).then(c, e);
-		}, () => {
-			// Need the OpenAnythingHandler to stop trying to cancel this promise, https://github.com/Microsoft/vscode/issues/56137
+			return result;
 		});
 
 	}
