@@ -26,6 +26,8 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 
 export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
+	cancelableThen<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): CancelablePromise<U>;
+	cancelableThen<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => void): CancelablePromise<U>;
 }
 
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Thenable<T>): CancelablePromise<T> {
@@ -54,6 +56,13 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		}
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Thenable<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
+		}
+		cancelableThen<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Thenable<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Thenable<TResult2>) | undefined | null): CancelablePromise<TResult1 | TResult2> {
+			return createCancelablePromise<TResult1 | TResult2>(token => {
+				const listener = token.onCancellationRequested(_ => this.cancel());
+				always(promise, () => listener.dispose());
+				return this.then(resolve, reject);
+			});
 		}
 	};
 }

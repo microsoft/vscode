@@ -25,7 +25,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
-import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
+import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken, timeout } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -1543,7 +1543,7 @@ export class TreeView extends HeightMap {
 				}
 
 				if (reaction.autoExpand) {
-					const promise = WinJS.TPromise.timeout(500)
+					const promise = WinJS.TPromise.wrap(timeout(500))
 						.then(() => this.context.tree.expand(this.currentDropElement))
 						.then(() => this.shouldInvalidateDropReaction = true);
 

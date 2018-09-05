@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent, toNativePromise, Relay } from 'vs/base/common/event';
-import { always, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 
@@ -611,7 +611,7 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 				return channel.call(command, arg, cancellationToken);
 			}
 
-			return TPromise.timeout(0)
+			return TPromise.wrap(timeout(0))
 				.then(() => didTick = true)
 				.then(() => channel.call(command, arg, cancellationToken));
 		},
@@ -622,7 +622,7 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 
 			const relay = new Relay();
 
-			TPromise.timeout(0)
+			timeout(0)
 				.then(() => didTick = true)
 				.then(() => relay.input = channel.listen(event, arg));
 
