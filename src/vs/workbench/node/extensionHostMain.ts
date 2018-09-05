@@ -13,7 +13,6 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
@@ -78,7 +77,6 @@ export class ExtensionHostMain {
 	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 5000;
 
 	private _isTerminating: boolean = false;
-	private _diskSearch: DiskSearch;
 	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
@@ -264,11 +262,6 @@ export class ExtensionHostMain {
 
 		if (globPatterns.length === 0) {
 			return TPromise.as(void 0);
-		}
-
-		if (!this._diskSearch) {
-			// Shut down this search process after 1s of inactivity
-			this._diskSearch = new DiskSearch(false, 1000);
 		}
 
 		const requestId = this._searchRequestIdProvider.getNext();
