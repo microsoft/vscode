@@ -5134,9 +5134,9 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.7.6:
-  version "0.7.6"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.6.tgz#bff6148c9c5836ca7e73c7aaaec067dcbdac2f7b"
+node-pty@0.7.7:
+  version "0.7.7"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.7.tgz#919a9de7f0462ee72b260a6e4d5459d28fde2d25"
   dependencies:
     nan "2.10.0"
 
