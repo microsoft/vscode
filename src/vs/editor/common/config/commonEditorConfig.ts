@@ -592,7 +592,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.copyWithSyntaxHighlighting': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.copyWithSyntaxHighlighting,
-			'description': nls.localize('copyWithSyntaxHighlighting', "Controls whether rich text should be copied.")
+			'description': nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.")
 		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
