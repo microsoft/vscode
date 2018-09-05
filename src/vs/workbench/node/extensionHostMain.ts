@@ -13,11 +13,9 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
@@ -273,27 +271,8 @@ export class ExtensionHostMain {
 			this._diskSearch = new DiskSearch(false, 1000);
 		}
 
-		const includes: glob.IExpression = {};
-		globPatterns.forEach((globPattern) => {
-			includes[globPattern] = true;
-		});
-
-		const folderQueries = this._workspace.folders.map(folder => ({ folder: URI.revive(folder.uri) }));
-		const config = this._extHostConfiguration.getConfiguration('search');
-		const useRipgrep = config.get('useRipgrep', true);
-		const followSymlinks = config.get('followSymlinks', true);
-
-		const query: ISearchQuery = {
-			folderQueries,
-			type: QueryType.File,
-			exists: true,
-			includePattern: includes,
-			useRipgrep,
-			ignoreSymlinks: !followSymlinks
-		};
-
 		const requestId = this._searchRequestIdProvider.getNext();
-		const searchP = this._mainThreadWorkspace.$checkExists(query, requestId);;
+		const searchP = this._mainThreadWorkspace.$checkExists(globPatterns, requestId);
 
 		const timer = setTimeout(async () => {
 			await this._mainThreadWorkspace.$cancelSearch(requestId);

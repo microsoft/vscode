@@ -214,8 +214,13 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(query: ISearchQuery, requestId: number): Thenable<boolean> {
-		query.exists = true;
+	$checkExists(includes: string[], requestId: number): Thenable<boolean> {
+		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+		const query = queryBuilder.file(folders, {
+			includePattern: includes.join(', '),
+			exists: true
+		});
 
 		const tokenSource = new CancellationTokenSource();
 		const search = this._searchService.search(query, tokenSource.token).then(

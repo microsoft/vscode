@@ -96,7 +96,8 @@ export class QueryBuilder {
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
 			ignoreSymlinks,
-			previewOptions: options.previewOptions
+			previewOptions: options.previewOptions,
+			exists: options.exists
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
