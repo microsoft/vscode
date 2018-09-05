@@ -6,10 +6,10 @@
 
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
-import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteWordPartLeft, DeleteWordPartRight, CursorWordPartLeft, CursorWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { deserializePipePositions, testRepeatedActionAndExtractPositions, serializePipePositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
 
 suite('WordPartOperations', () => {
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
@@ -31,73 +31,6 @@ suite('WordPartOperations', () => {
 	}
 	function deleteWordPartRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordPartRight);
-	}
-
-	function deserializePipePositions(text: string): [string, Position[]] {
-		let resultText = '';
-		let lineNumber = 1;
-		let charIndex = 0;
-		let positions: Position[] = [];
-		for (let i = 0, len = text.length; i < len; i++) {
-			const chr = text.charAt(i);
-			if (chr === '\n') {
-				resultText += chr;
-				lineNumber++;
-				charIndex = 0;
-				continue;
-			}
-			if (chr === '|') {
-				positions.push(new Position(lineNumber, charIndex + 1));
-			} else {
-				resultText += chr;
-				charIndex++;
-			}
-		}
-		return [resultText, positions];
-	}
-
-	function serializePipePositions(text: string, positions: Position[]): string {
-		positions.sort(Position.compare);
-		let resultText = '';
-		let lineNumber = 1;
-		let charIndex = 0;
-		for (let i = 0, len = text.length; i < len; i++) {
-			const chr = text.charAt(i);
-			if (positions.length > 0 && positions[0].lineNumber === lineNumber && positions[0].column === charIndex + 1) {
-				resultText += '|';
-				positions.shift();
-			}
-			resultText += chr;
-			if (chr === '\n') {
-				lineNumber++;
-				charIndex = 0;
-			} else {
-				charIndex++;
-			}
-		}
-		if (positions.length > 0 && positions[0].lineNumber === lineNumber && positions[0].column === charIndex + 1) {
-			resultText += '|';
-			positions.shift();
-		}
-		if (positions.length > 0) {
-			throw new Error(`Unexpected left over positions!!!`);
-		}
-		return resultText;
-	}
-
-	function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: TestCodeEditor) => void, record: (editor: TestCodeEditor) => Position, stopCondition: (editor: TestCodeEditor) => boolean): Position[] {
-		let actualStops: Position[] = [];
-		withTestCodeEditor(text, {}, (editor, _) => {
-			editor.setPosition(initialPosition);
-			while (true) {
-				action(editor);
-				actualStops.push(record(editor));
-				if (stopCondition(editor)) {
-					break;
-				}
-			}
-		});
-		return actualStops;
 	}
 
 	test('move word part left basic', () => {
