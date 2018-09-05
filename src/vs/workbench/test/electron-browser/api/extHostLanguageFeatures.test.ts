@@ -37,7 +37,6 @@ import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSi
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
 import { getLinks } from 'vs/editor/contrib/links/getLinks';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -228,10 +227,7 @@ suite('ExtHostLanguageFeatures', function () {
 			return getCodeLensData(model, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 				let data = value[0];
-
-				return asWinJsPromise((token) => {
-					return data.provider.resolveCodeLens(model, data.symbol, token);
-				}).then(symbol => {
+				return Promise.resolve(data.provider.resolveCodeLens(model, data.symbol, CancellationToken.None)).then(symbol => {
 					assert.equal(symbol.command.id, 'id');
 					assert.equal(symbol.command.title, 'Title');
 				});
@@ -253,9 +249,7 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 1);
 
 				let data = value[0];
-				return asWinJsPromise((token) => {
-					return data.provider.resolveCodeLens(model, data.symbol, token);
-				}).then(symbol => {
+				return Promise.resolve(data.provider.resolveCodeLens(model, data.symbol, CancellationToken.None)).then(symbol => {
 
 					assert.equal(symbol.command.id, 'missing');
 					assert.equal(symbol.command.title, '<<MISSING COMMAND>>');
