@@ -372,6 +372,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			}
 		}
 
+		if (token && token.isCancellationRequested) {
+			return TPromise.wrap([]);
+		}
+
 		const result = this._proxy.$startFileSearch(includePattern, includeFolder, excludePatternOrDisregardExcludes, maxResults, requestId);
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
@@ -428,10 +432,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		};
 
 		if (token) {
-			token.onCancellationRequested(() => {
-				isCanceled = true;
-				this._proxy.$cancelSearch(requestId);
-			});
+			if (token.isCancellationRequested) {
+				return TPromise.wrap(undefined);
+			} else {
+				token.onCancellationRequested(() => {
+					isCanceled = true;
+					this._proxy.$cancelSearch(requestId);
+				});
+			}
 		}
 
 		return this._proxy.$startTextSearch(query, queryOptions, requestId).then(
