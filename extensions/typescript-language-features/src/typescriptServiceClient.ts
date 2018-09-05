@@ -170,7 +170,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private tracer: Tracer;
 	public readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
-	private servicePromise: Thenable<ForkedTsServerProcess> | null;
+	private servicePromise: Thenable<ForkedTsServerProcess | null> | null;
 	private lastError: Error | null;
 	private lastStart: number;
 	private numberRestarts: number;
@@ -268,7 +268,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		if (this.servicePromise) {
 			this.servicePromise.then(childProcess => {
-				childProcess.kill();
+				if (childProcess) {
+					childProcess.kill();
+				}
 			}).then(undefined, () => void 0);
 		}
 	}
@@ -283,7 +285,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.servicePromise = this.servicePromise.then(childProcess => {
 				this.info('Killing TS Server');
 				this.isRestarting = true;
-				childProcess.kill();
+				if (childProcess) {
+					childProcess.kill();
+				}
 				this.resetClientVersion();
 			}).then(start);
 		} else {
@@ -335,7 +339,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
-	private service(): Thenable<ForkedTsServerProcess> {
+	private service(): Thenable<ForkedTsServerProcess | null> {
 		if (this.servicePromise) {
 			return this.servicePromise;
 		}
@@ -356,7 +360,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private token: number = 0;
-	private startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> {
+	private startService(resendModels: boolean = false): Promise<ForkedTsServerProcess> | null {
+		if (this.isDisposed) {
+			return null;
+		}
+
 		let currentVersion = this.versionPicker.currentVersion;
 
 		this.info(`Using tsserver from: ${currentVersion.path}`);
@@ -802,8 +810,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.callbacks.add(serverRequest.seq, requestItem.callbacks, requestItem.isAsync);
 		}
 		this.service()
-			.then((childProcess) => {
-				childProcess.write(serverRequest);
+			.then(childProcess => {
+				if (childProcess) {
+					childProcess.write(serverRequest);
+				}
 			})
 			.then(undefined, err => {
 				const callback = this.callbacks.fetch(serverRequest.seq);
