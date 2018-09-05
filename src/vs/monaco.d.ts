@@ -2898,9 +2898,9 @@ declare namespace monaco.editor {
 		 */
 		emptySelectionClipboard?: boolean;
 		/**
-		 * Only plain text is copied.
+		 * Syntax highlighting is copied.
 		 */
-		plainTextToClipboard?: boolean;
+		copyWithSyntaxHighlighting?: boolean;
 		/**
 		 * Enable word based suggestions. Defaults to 'true'
 		 */
@@ -3299,7 +3299,7 @@ declare namespace monaco.editor {
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
-		readonly plainTextToClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
@@ -3440,7 +3440,7 @@ declare namespace monaco.editor {
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
-		readonly plainTextToClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
 		readonly viewInfo: boolean;

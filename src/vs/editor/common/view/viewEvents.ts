@@ -42,7 +42,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly readOnly: boolean;
 	public readonly accessibilitySupport: boolean;
 	public readonly emptySelectionClipboard: boolean;
-	public readonly plainTextToClipboard: boolean;
+	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly layoutInfo: boolean;
 	public readonly fontInfo: boolean;
 	public readonly viewInfo: boolean;
@@ -56,7 +56,7 @@ export class ViewConfigurationChangedEvent {
 		this.readOnly = source.readOnly;
 		this.accessibilitySupport = source.accessibilitySupport;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.plainTextToClipboard = source.plainTextToClipboard;
+		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;

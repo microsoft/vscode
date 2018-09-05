@@ -100,7 +100,7 @@ export class TextAreaHandler extends ViewPart {
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
-	private _plainTextToClipboard: boolean;
+	private _copyWithSyntaxHighlighting: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -129,7 +129,7 @@ export class TextAreaHandler extends ViewPart {
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
 		this._emptySelectionClipboard = conf.emptySelectionClipboard;
-		this._plainTextToClipboard = conf.plainTextToClipboard;
+		this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -193,7 +193,7 @@ export class TextAreaHandler extends ViewPart {
 			},
 
 			getHTMLToCopy: (): string => {
-				if (this._plainTextToClipboard) {
+				if (!this._copyWithSyntaxHighlighting) {
 					return null;
 				}
 
@@ -393,8 +393,8 @@ export class TextAreaHandler extends ViewPart {
 		if (e.emptySelectionClipboard) {
 			this._emptySelectionClipboard = conf.emptySelectionClipboard;
 		}
-		if (e.plainTextToClipboard) {
-			this._plainTextToClipboard = conf.plainTextToClipboard;
+		if (e.copyWithSyntaxHighlighting) {
+			this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
 		}
 
 		return true;

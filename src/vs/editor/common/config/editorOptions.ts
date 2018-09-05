@@ -544,9 +544,9 @@ export interface IEditorOptions {
 	 */
 	emptySelectionClipboard?: boolean;
 	/**
-	 * Only plain text is copied.
+	 * Syntax highlighting is copied.
 	 */
-	plainTextToClipboard?: boolean;
+	copyWithSyntaxHighlighting?: boolean;
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
@@ -1010,7 +1010,7 @@ export interface IValidatedEditorOptions {
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
-	readonly plainTextToClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
@@ -1050,7 +1050,7 @@ export class InternalEditorOptions {
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
-	readonly plainTextToClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
 
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
@@ -1080,7 +1080,7 @@ export class InternalEditorOptions {
 		tabFocusMode: boolean;
 		dragAndDrop: boolean;
 		emptySelectionClipboard: boolean;
-		plainTextToClipboard: boolean;
+		copyWithSyntaxHighlighting: boolean;
 		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
@@ -1105,7 +1105,7 @@ export class InternalEditorOptions {
 		this.tabFocusMode = source.tabFocusMode;
 		this.dragAndDrop = source.dragAndDrop;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.plainTextToClipboard = source.plainTextToClipboard;
+		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;
@@ -1137,7 +1137,7 @@ export class InternalEditorOptions {
 			&& this.dragAndDrop === other.dragAndDrop
 			&& this.showUnused === other.showUnused
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.plainTextToClipboard === other.plainTextToClipboard
+			&& this.copyWithSyntaxHighlighting === other.copyWithSyntaxHighlighting
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
@@ -1168,7 +1168,7 @@ export class InternalEditorOptions {
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
 			emptySelectionClipboard: (this.emptySelectionClipboard !== newOpts.emptySelectionClipboard),
-			plainTextToClipboard: (this.plainTextToClipboard !== newOpts.plainTextToClipboard),
+			copyWithSyntaxHighlighting: (this.copyWithSyntaxHighlighting !== newOpts.copyWithSyntaxHighlighting),
 			layoutInfo: (!InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
@@ -1552,7 +1552,7 @@ export interface IConfigurationChangedEvent {
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
-	readonly plainTextToClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
 	readonly layoutInfo: boolean;
 	readonly fontInfo: boolean;
 	readonly viewInfo: boolean;
@@ -1762,7 +1762,7 @@ export class EditorOptionsValidator {
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
-			plainTextToClipboard: _boolean(opts.plainTextToClipboard, defaults.plainTextToClipboard),
+			copyWithSyntaxHighlighting: _boolean(opts.copyWithSyntaxHighlighting, defaults.copyWithSyntaxHighlighting),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
 			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
@@ -2046,7 +2046,7 @@ export class InternalEditorOptionsFactory {
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
-			plainTextToClipboard: opts.plainTextToClipboard,
+			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
@@ -2272,7 +2272,7 @@ export class InternalEditorOptionsFactory {
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
-			plainTextToClipboard: opts.plainTextToClipboard,
+			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
 			layoutInfo: layoutInfo,
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
@@ -2506,7 +2506,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
-	plainTextToClipboard: false,
+	copyWithSyntaxHighlighting: true,
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
 	multiCursorMergeOverlapping: true,
