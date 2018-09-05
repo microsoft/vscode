@@ -331,6 +331,11 @@ export interface ISettingChangeEvent {
 	value: any; // undefined => reset/unconfigure
 }
 
+export interface ISettingLinkClickEvent {
+	source: SettingsTreeSettingElement;
+	targetKey: string;
+}
+
 export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
@@ -344,8 +349,8 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidOpenSettings: Emitter<string> = new Emitter<string>();
 	public readonly onDidOpenSettings: Event<string> = this._onDidOpenSettings.event;
 
-	private readonly _onDidClickSettingLink: Emitter<string> = new Emitter<string>();
-	public readonly onDidClickSettingLink: Event<string> = this._onDidClickSettingLink.event;
+	private readonly _onDidClickSettingLink: Emitter<ISettingLinkClickEvent> = new Emitter<ISettingLinkClickEvent>();
+	public readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
 	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
 	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
@@ -1019,7 +1024,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.renderValue(element, templateId, <ISettingItemTemplate>template);
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
-			const renderedDescription = this.renderDescriptionMarkdown(element.description, template.toDispose);
+			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, template.toDispose);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -1050,7 +1055,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.containerElement.parentElement.removeAttribute('aria-setsize');
 	}
 
-	private renderDescriptionMarkdown(text: string, disposeables: IDisposable[]): HTMLElement {
+	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: IDisposable[]): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
@@ -1058,7 +1063,11 @@ export class SettingsRenderer implements ITreeRenderer {
 			actionHandler: {
 				callback: (content: string) => {
 					if (startsWith(content, '#')) {
-						this._onDidClickSettingLink.fire(content.substr(1));
+						const e: ISettingLinkClickEvent = {
+							source: element,
+							targetKey: content.substr(1)
+						};
+						this._onDidClickSettingLink.fire(e);
 					} else {
 						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 					}
