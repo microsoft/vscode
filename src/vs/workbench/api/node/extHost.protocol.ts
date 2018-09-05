@@ -697,9 +697,9 @@ export interface ExtHostFileSystemShape {
 }
 
 export interface ExtHostSearchShape {
-	$provideFileSearchResults(handle: number, session: number, query: IRawSearchQuery): TPromise<ISearchCompleteStats>;
-	$clearCache(cacheKey: string): TPromise<void>;
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery): TPromise<ISearchCompleteStats>;
+	$provideFileSearchResults(handle: number, session: number, query: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats>;
+	$clearCache(cacheKey: string): Thenable<void>;
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, query: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats>;
 }
 
 export interface ExtHostExtensionServiceShape {

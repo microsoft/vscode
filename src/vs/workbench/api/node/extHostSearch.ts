@@ -78,23 +78,18 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
+	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
 		if (provider) {
-			let cancelSource = new CancellationTokenSource();
-			return new TPromise((c, e) => {
+			return new Promise((c, e) => {
 				this._fileSearchManager.fileSearch(query, provider, batch => {
 					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}, cancelSource.token).then(c, err => {
+				}, token).then(c, err => {
 					if (!isPromiseCanceledError(err)) {
 						e(err);
 					}
 				});
-			}, () => {
-				// TODO IPC promise cancellation #53526
-				cancelSource.cancel();
-				cancelSource.dispose();
 			});
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
@@ -110,13 +105,13 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 	}
 
-	$clearCache(cacheKey: string): TPromise<void> {
+	$clearCache(cacheKey: string): Thenable<void> {
 		// Actually called once per provider.
 		// Only relevant to file index search.
 		return this._fileIndexSearchManager.clearCache(cacheKey);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
@@ -124,7 +119,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 		const query = reviveQuery(rawQuery);
 		const engine = new TextSearchEngine(pattern, query, provider, this._extfs);
-		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress));
+		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 }
 
@@ -304,9 +299,10 @@ class TextSearchEngine {
 	constructor(private pattern: IPatternInfo, private config: ISearchQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
 	}
 
-	public search(onProgress: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
+	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
 		const folderQueries = this.config.folderQueries;
 		const tokenSource = new CancellationTokenSource();
+		token.onCancellationRequested(() => tokenSource.cancel());
 
 		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
@@ -349,9 +345,6 @@ class TextSearchEngine {
 
 				reject(new Error(errMsg));
 			});
-		}, () => {
-			// From IPC
-			tokenSource.cancel();
 		});
 	}
 
