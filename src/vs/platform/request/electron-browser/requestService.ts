@@ -8,18 +8,20 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IRequestOptions, IRequestContext, IRequestFunction } from 'vs/base/node/request';
 import { Readable } from 'stream';
 import { RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
+import { CancellationToken } from 'vscode';
+import { canceled } from 'vs/base/common/errors';
 
 /**
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
 export class RequestService extends NodeRequestService {
-	request(options: IRequestOptions): TPromise<IRequestContext> {
-		return super.request(options, xhrRequest);
+	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> {
+		return super.request(options, token, xhrRequest);
 	}
 }
 
-export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise<IRequestContext> => {
+export const xhrRequest: IRequestFunction = (options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> => {
 
 	const xhr = new XMLHttpRequest();
 	return new TPromise<IRequestContext>((resolve, reject) => {
@@ -70,9 +72,11 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 		xhr.send(options.data as any);
 		return null;
 
-	}, () => {
 		// cancel
-		xhr.abort();
+		token.onCancellationRequested(() => {
+			xhr.abort();
+			reject(canceled());
+		});
 	});
 };
 

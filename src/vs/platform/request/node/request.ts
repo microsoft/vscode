@@ -10,13 +10,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IRequestOptions, IRequestContext } from 'vs/base/node/request';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IRequestService = createDecorator<IRequestService>('requestService2');
 
 export interface IRequestService {
 	_serviceBrand: any;
 
-	request(options: IRequestOptions): TPromise<IRequestContext>;
+	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext>;
 }
 
 export interface IHTTPConfiguration {

@@ -9,6 +9,7 @@ import { IRequestOptions, IRequestContext, request, IRawRequestFunction } from '
 import { RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
 import { assign } from 'vs/base/common/objects';
 import { net } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 	return net.request as any as IRawRequestFunction;
@@ -16,7 +17,7 @@ function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 
 export class RequestService extends NodeRequestService {
 
-	request(options: IRequestOptions): TPromise<IRequestContext> {
-		return super.request(options, options => request(assign({}, options || {}, { getRawRequest })));
+	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> {
+		return super.request(options, token, options => request(assign({}, options || {}, { getRawRequest }), token));
 	}
 }

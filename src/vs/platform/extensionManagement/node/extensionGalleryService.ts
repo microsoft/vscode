@@ -24,7 +24,6 @@ import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { wireCancellationToken } from 'vs/base/common/async';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -375,7 +374,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withFilter(FilterType.ExtensionName, id);
 		}
 
-		return this.queryGallery(query).then(({ galleryExtensions }) => {
+		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions }) => {
 			if (galleryExtensions.length) {
 				const galleryExtension = galleryExtensions[0];
 				const versionAsset = version ? galleryExtension.versions.filter(v => v.version === version)[0] : galleryExtension.versions[0];
@@ -447,7 +446,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
+		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions, total }) => {
 			const extensions = galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, query, options.source));
 			const pageSize = query.pageSize;
 			const getPage = (pageIndex: number, ct: CancellationToken) => {
@@ -456,17 +455,15 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				}
 
 				const nextPageQuery = query.withPage(pageIndex + 1);
-				const promise = this.queryGallery(nextPageQuery)
+				return this.queryGallery(nextPageQuery, ct)
 					.then(({ galleryExtensions }) => galleryExtensions.map((e, index) => toExtension(e, e.versions[0], index, nextPageQuery, options.source)));
-
-				return wireCancellationToken(ct, promise);
 			};
 
 			return { firstPage: extensions, total, pageSize, getPage } as IPager<IGalleryExtension>;
 		});
 	}
 
-	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+	private queryGallery(query: Query, token: CancellationToken): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const data = JSON.stringify(query.raw);
 			const headers = assign({}, commonHeaders, {
@@ -481,7 +478,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				url: this.api('/extensionquery'),
 				data,
 				headers
-			}).then(context => {
+			}, token).then(context => {
 
 				if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
 					return { galleryExtensions: [], total: 0 };
@@ -511,7 +508,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				type: 'POST',
 				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
 				headers
-			}).then(null, () => null);
+			}, CancellationToken.None).then(null, () => null);
 		});
 	}
 
@@ -584,7 +581,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
 			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
 
-		return this.queryGallery(query)
+		return this.queryGallery(query, CancellationToken.None)
 			.then(({ galleryExtensions }) => {
 				const [rawExtension] = galleryExtensions;
 
@@ -619,7 +616,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX)
 			.withFilter(FilterType.ExtensionName, ...extensionNames);
 
-		return this.queryGallery(query).then(result => {
+		return this.queryGallery(query, CancellationToken.None).then(result => {
 			const dependencies = [];
 			const ids = [];
 
@@ -658,7 +655,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			});
 	}
 
-	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}): TPromise<IRequestContext> {
+	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<IRequestContext> {
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const baseOptions = { type: 'GET' };
 			const headers = assign({}, commonHeaders, options.headers || {});
@@ -668,7 +665,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const fallbackUrl = asset.fallbackUri;
 			const firstOptions = assign({}, options, { url });
 
-			return this.requestService.request(firstOptions)
+			return this.requestService.request(firstOptions, token)
 				.then(context => {
 					if (context.res.statusCode === 200) {
 						return TPromise.as(context);
@@ -700,7 +697,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					this.telemetryService.publicLog('galleryService:cdnFallback', { url, message });
 
 					const fallbackOptions = assign({}, options, { url: fallbackUrl });
-					return this.requestService.request(fallbackOptions).then(null, err => {
+					return this.requestService.request(fallbackOptions, token).then(null, err => {
 						if (isPromiseCanceledError(err)) {
 							return TPromise.wrapError<IRequestContext>(err);
 						}
@@ -783,7 +780,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return TPromise.as([]);
 		}
 
-		return this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }).then(context => {
+		return this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
 				return TPromise.wrapError(new Error('Could not get extensions report.'));
 			}

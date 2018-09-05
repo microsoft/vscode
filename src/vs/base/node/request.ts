@@ -14,6 +14,8 @@ import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
 import { createGunzip } from 'zlib';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 
 export type Agent = any;
 
@@ -46,7 +48,7 @@ export interface IRequestContext {
 }
 
 export interface IRequestFunction {
-	(options: IRequestOptions): TPromise<IRequestContext>;
+	(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext>;
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
@@ -55,7 +57,7 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 	return module.request;
 }
 
-export function request(options: IRequestOptions): TPromise<IRequestContext> {
+export function request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> {
 	let req: http.ClientRequest;
 
 	const rawRequestPromise = options.getRawRequest
@@ -88,7 +90,7 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 					request(assign({}, options, {
 						url: res.headers['location'],
 						followRedirects: followRedirects - 1
-					})).then(c, e);
+					}), token).then(c, e);
 				} else {
 					let stream: Stream = res;
 
@@ -116,7 +118,12 @@ export function request(options: IRequestOptions): TPromise<IRequestContext> {
 			}
 
 			req.end();
-		}, () => req && req.abort());
+
+			token.onCancellationRequested(() => {
+				req.abort();
+				e(canceled());
+			});
+		});
 	});
 }
 

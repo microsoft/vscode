@@ -21,6 +21,7 @@ import { asJson } from 'vs/base/node/request';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -168,7 +169,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return TPromise.as([]);
 		}
-		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
+		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
 				return TPromise.as(null);
 			}
