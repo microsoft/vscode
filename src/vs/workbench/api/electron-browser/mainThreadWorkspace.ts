@@ -178,7 +178,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void> {
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): Thenable<void> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -214,7 +214,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(query: ISearchQuery, requestId: number): TPromise<boolean> {
+	$checkExists(query: ISearchQuery, requestId: number): Thenable<boolean> {
 		query.exists = true;
 
 		const tokenSource = new CancellationTokenSource();

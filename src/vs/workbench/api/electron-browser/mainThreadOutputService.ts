@@ -37,13 +37,13 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		// Leave all the existing channels intact (e.g. might help with troubleshooting)
 	}
 
-	public $register(label: string, file?: UriComponents): TPromise<string> {
+	public $register(label: string, file?: UriComponents): Thenable<string> {
 		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log: false });
 		return TPromise.as(id);
 	}
 
-	public $append(channelId: string, value: string): TPromise<void> {
+	public $append(channelId: string, value: string): Thenable<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			channel.append(value);
@@ -51,7 +51,7 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		return undefined;
 	}
 
-	public $clear(channelId: string): TPromise<void> {
+	public $clear(channelId: string): Thenable<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			channel.clear();
@@ -59,7 +59,7 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		return undefined;
 	}
 
-	public $reveal(channelId: string, preserveFocus: boolean): TPromise<void> {
+	public $reveal(channelId: string, preserveFocus: boolean): Thenable<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			this._outputService.showChannel(channel.id, preserveFocus);
@@ -67,7 +67,7 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		return undefined;
 	}
 
-	public $close(channelId: string): TPromise<void> {
+	public $close(channelId: string): Thenable<void> {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === OUTPUT_PANEL_ID && channelId === this._outputService.getActiveChannel().id) {
 			return this._partService.setPanelHidden(true);
@@ -76,7 +76,7 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		return undefined;
 	}
 
-	public $dispose(channelId: string): TPromise<void> {
+	public $dispose(channelId: string): Thenable<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			channel.dispose();

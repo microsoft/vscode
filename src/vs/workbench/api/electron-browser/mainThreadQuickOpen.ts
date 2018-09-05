@@ -39,7 +39,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	public dispose(): void {
 	}
 
-	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): TPromise<number | number[]> {
+	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]> {
 		const myToken = ++this._token;
 
 		this._contents = new TPromise<TransferQuickPickItems[]>((c, e) => {
@@ -82,14 +82,14 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		}
 	}
 
-	$setItems(items: TransferQuickPickItems[]): TPromise<any> {
+	$setItems(items: TransferQuickPickItems[]): Thenable<void> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
 		}
 		return undefined;
 	}
 
-	$setError(error: Error): TPromise<any> {
+	$setError(error: Error): Thenable<void> {
 		if (this._doSetError) {
 			this._doSetError(error);
 		}
@@ -123,7 +123,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private sessions = new Map<number, QuickInputSession>();
 
-	$createOrUpdate(params: TransferQuickInput): TPromise<void> {
+	$createOrUpdate(params: TransferQuickInput): Thenable<void> {
 		const sessionId = params.id;
 		let session = this.sessions.get(sessionId);
 		if (!session) {
@@ -215,7 +215,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		return TPromise.as(undefined);
 	}
 
-	$dispose(sessionId: number): TPromise<void> {
+	$dispose(sessionId: number): Thenable<void> {
 		const session = this.sessions.get(sessionId);
 		if (session) {
 			session.input.dispose();

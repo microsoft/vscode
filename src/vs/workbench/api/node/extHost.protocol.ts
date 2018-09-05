@@ -405,8 +405,8 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 
 export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]>;
-	$setItems(items: TransferQuickPickItems[]): Thenable<any>;
-	$setError(error: Error): Thenable<any>;
+	$setItems(items: TransferQuickPickItems[]): Thenable<void>;
+	$setError(error: Error): Thenable<void>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
 	$createOrUpdate(params: TransferQuickInput): Thenable<void>;
 	$dispose(id: number): Thenable<void>;
@@ -577,12 +577,12 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): Thenable<any>;
-	$unregisterDebugConfigurationProvider(handle: number): Thenable<any>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): Thenable<void>;
+	$unregisterDebugConfigurationProvider(handle: number): Thenable<void>;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Thenable<any>;
-	$appendDebugConsole(value: string): Thenable<any>;
-	$startBreakpointEvents(): Thenable<any>;
+	$appendDebugConsole(value: string): Thenable<void>;
+	$startBreakpointEvents(): Thenable<void>;
 	$registerBreakpoints(breakpoints: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Thenable<void>;
 }
@@ -888,7 +888,7 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents): TPromise<UriComponents>;
-	$onInputBoxValueChange(sourceControlHandle: number, value: string): Thenable<void>;
+	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
 	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void>;

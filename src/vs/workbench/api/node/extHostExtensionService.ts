@@ -402,7 +402,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// -- called by main thread
 
-	public $activateByEvent(activationEvent: string): TPromise<void> {
+	public $activateByEvent(activationEvent: string): Thenable<void> {
 		return this.activateByEvent(activationEvent, false);
 	}
 }

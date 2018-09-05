@@ -64,7 +64,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		};
 	}
 
-	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): TPromise<modes.CommentThread> {
+	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -78,7 +78,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
 	}
 
-	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): TPromise<modes.CommentThread> {
+	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): Thenable<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
@@ -92,7 +92,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
 	}
 
-	$provideDocumentComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
+	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
 			return TPromise.as(null);
@@ -105,7 +105,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 			.then(commentInfo => commentInfo ? convertCommentInfo(handle, commentInfo, this._commandsConverter) : null);
 	}
 
-	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]> {
+	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]> {
 		const provider = this._workspaceProviders.get(handle);
 		if (!provider) {
 			return TPromise.as(null);

@@ -79,7 +79,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	public $startBreakpointEvents(): TPromise<any> {
+	public $startBreakpointEvents(): Thenable<void> {
 
 		if (!this._breakpointEventsActive) {
 			this._breakpointEventsActive = true;
@@ -118,7 +118,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): TPromise<void> {
+	public $registerBreakpoints(DTOs: (ISourceMultiBreakpointDto | IFunctionBreakpointDto)[]): Thenable<void> {
 
 		for (let dto of DTOs) {
 			if (dto.type === 'sourceMulti') {
@@ -141,7 +141,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return void 0;
 	}
 
-	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): TPromise<void> {
+	public $unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[]): Thenable<void> {
 		breakpointIds.forEach(id => this.debugService.removeBreakpoints(id));
 		functionBreakpointIds.forEach(id => this.debugService.removeFunctionBreakpoints(id));
 		return void 0;
@@ -177,7 +177,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		});
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasDebugAdapterExecutable: boolean, handle: number): TPromise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasDebugAdapterExecutable: boolean, handle: number): Thenable<void> {
 
 		const provider = <IDebugConfigurationProvider>{
 			type: debugType
@@ -202,12 +202,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $unregisterDebugConfigurationProvider(handle: number): TPromise<any> {
+	public $unregisterDebugConfigurationProvider(handle: number): Thenable<void> {
 		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
 		return TPromise.wrap<void>(undefined);
 	}
 
-	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
+	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
 		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		return this.debugService.startDebugging(launch, nameOrConfiguration).then(x => {
@@ -217,7 +217,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		});
 	}
 
-	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
+	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Thenable<any> {
 		const session = this.debugService.getSession(sessionId);
 		if (session) {
 			return session.raw.custom(request, args).then(response => {
@@ -231,7 +231,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return TPromise.wrapError(new Error('debug session not found'));
 	}
 
-	public $appendDebugConsole(value: string): TPromise<any> {
+	public $appendDebugConsole(value: string): Thenable<void> {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		this.debugService.logToRepl(value, severity.Warning);
 		return TPromise.wrap<void>(undefined);
