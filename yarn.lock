@@ -7859,9 +7859,9 @@ vm-browserify@0.0.4:
   dependencies:
     indexof "0.0.1"
 
-vsce@1.47.0:
-  version "1.47.0"
-  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.47.0.tgz#12bddee4af644ac0c3d61a385c644e248b61554c"
+vsce@1.48.0:
+  version "1.48.0"
+  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.48.0.tgz#31c1a4c6909c3b8bdc48b3d32cc8c8e94c7113a2"
   dependencies:
     cheerio "^1.0.0-rc.1"
     commander "^2.8.1"

@@ -127,7 +127,7 @@
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
-    "vsce": "1.47.0",
+    "vsce": "1.48.0",
     "vscode-nls-dev": "3.2.2",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0",
