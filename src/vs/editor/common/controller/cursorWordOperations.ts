@@ -468,12 +468,30 @@ export class WordOperations {
 export function _lastWordPartEnd(str: string, startIndex: number = str.length - 1): number {
 	let ignoreUpperCase = !strings.isLowerAsciiLetter(str.charCodeAt(startIndex + 1));
 	for (let i = startIndex; i >= 0; i--) {
-		let chCode = str.charCodeAt(i);
-		if (chCode === CharCode.Space || chCode === CharCode.Tab || (!ignoreUpperCase && strings.isUpperAsciiLetter(chCode)) || chCode === CharCode.Underline) {
+		const chCode = str.charCodeAt(i);
+		if (chCode === CharCode.Space || chCode === CharCode.Tab) {
+			if (i === 0) {
+				return 0;
+			}
+			const prevChCode = str.charCodeAt(i - 1);
+			if (prevChCode !== CharCode.Space && prevChCode !== CharCode.Tab) {
+				return i - 1;
+			}
+		}
+		if (!ignoreUpperCase && strings.isUpperAsciiLetter(chCode)) {
 			return i - 1;
 		}
 		if (ignoreUpperCase && i < startIndex && strings.isLowerAsciiLetter(chCode)) {
 			return i;
+		}
+		if (chCode === CharCode.Underline) {
+			if (i === 0) {
+				return 0;
+			}
+			const prevChCode = str.charCodeAt(i - 1);
+			if (prevChCode !== CharCode.Underline) {
+				return i - 1;
+			}
 		}
 		ignoreUpperCase = ignoreUpperCase && strings.isUpperAsciiLetter(chCode);
 	}
@@ -490,7 +508,16 @@ export function _nextWordPartBegin(str: string, startIndex: number = 0): number 
 	let ignoreUpperCase = strings.isUpperAsciiLetter(chCode);
 	for (let i = startIndex; i < str.length; ++i) {
 		chCode = str.charCodeAt(i);
-		if (chCode === CharCode.Space || chCode === CharCode.Tab || (!ignoreUpperCase && strings.isUpperAsciiLetter(chCode))) {
+		if (chCode === CharCode.Space || chCode === CharCode.Tab) {
+			if (i + 1 >= str.length) {
+				return i + 1;
+			}
+			const nextChCode = str.charCodeAt(i + 1);
+			if (nextChCode !== CharCode.Space && nextChCode !== CharCode.Tab) {
+				return i + 2;
+			}
+		}
+		if (!ignoreUpperCase && strings.isUpperAsciiLetter(chCode)) {
 			return i + 1;
 		}
 		if (ignoreUpperCase && strings.isLowerAsciiLetter(chCode)) {
@@ -498,7 +525,13 @@ export function _nextWordPartBegin(str: string, startIndex: number = 0): number 
 		}
 		ignoreUpperCase = ignoreUpperCase && strings.isUpperAsciiLetter(chCode);
 		if (chCode === CharCode.Underline) {
-			return i + 2;
+			if (i + 1 >= str.length) {
+				return i + 1;
+			}
+			const nextChCode = str.charCodeAt(i + 1);
+			if (nextChCode !== CharCode.Underline) {
+				return i + 2;
+			}
 		}
 	}
 	return str.length + 1;

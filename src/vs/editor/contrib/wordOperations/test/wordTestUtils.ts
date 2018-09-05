@@ -69,6 +69,10 @@ export function testRepeatedActionAndExtractPositions(text: string, initialPosit
 			if (stopCondition(editor)) {
 				break;
 			}
+
+			if (actualStops.length > 1000) {
+				throw new Error(`Endless loop detected!`);
+			}
 		}
 	});
 	return actualStops;
