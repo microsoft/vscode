@@ -25,6 +25,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as async from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -325,7 +326,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		const { link } = occurrence;
 
-		link.resolve().then(uri => {
+		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
 			return this.openerService.open(uri, { openToSide });
 

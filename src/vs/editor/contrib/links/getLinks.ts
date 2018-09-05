@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -41,7 +40,7 @@ export class Link implements ILink {
 		return this._link.url;
 	}
 
-	resolve(): TPromise<URI> {
+	resolve(token: CancellationToken): Thenable<URI> {
 		if (this._link.url) {
 			try {
 				return TPromise.as(URI.parse(this._link.url));
@@ -51,11 +50,11 @@ export class Link implements ILink {
 		}
 
 		if (typeof this._provider.resolveLink === 'function') {
-			return asWinJsPromise(token => this._provider.resolveLink(this._link, token)).then(value => {
+			return Promise.resolve(this._provider.resolveLink(this._link, token)).then(value => {
 				this._link = value || this._link;
 				if (this._link.url) {
 					// recurse
-					return this.resolve();
+					return this.resolve(token);
 				}
 
 				return TPromise.wrapError<URI>(new Error('missing'));
