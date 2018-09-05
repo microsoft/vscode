@@ -316,12 +316,4 @@ suite('Base IPC', function () {
 			assert.deepEqual(messages, ['hello', 'world']);
 		});
 	});
-
-	suite('getDelayedChannel', function () {
-
-	});
-
-	suite('getNextTickChannel', function () {
-
-	});
 });
