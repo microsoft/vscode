@@ -240,6 +240,7 @@ interface CompletionConfiguration {
 	readonly nameSuggestions: boolean;
 	readonly quickSuggestionsForPaths: boolean;
 	readonly autoImportSuggestions: boolean;
+	readonly typeScriptSuggestions: boolean;
 }
 
 namespace CompletionConfiguration {
@@ -247,6 +248,7 @@ namespace CompletionConfiguration {
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
 	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
+	export const typeScriptSuggestions = 'suggestions.enabled';
 
 	export function getConfigurationForResource(
 		resource: vscode.Uri
@@ -257,6 +259,7 @@ namespace CompletionConfiguration {
 			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
 			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(CompletionConfiguration.quickSuggestionsForPaths, true),
 			autoImportSuggestions: typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
+			typeScriptSuggestions: typeScriptConfig.get<boolean>(CompletionConfiguration.typeScriptSuggestions, true),
 			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions, true)
 		};
 	}
@@ -607,8 +610,12 @@ function shouldExcludeCompletionEntry(
 	element: Proto.CompletionEntry,
 	completionConfiguration: CompletionConfiguration
 ) {
+	const isNameSuggestion = element.kind === PConst.Kind.warning
+
 	return (
-		(!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
+		(!completionConfiguration.nameSuggestions && isNameSuggestion)
+		// if TypeScript suggestions turned off, remove everything that is not a name suggestion
+		|| (!completionConfiguration.typeScriptSuggestions && !isNameSuggestion)
 		|| (!completionConfiguration.quickSuggestionsForPaths &&
 			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script))
 		|| (!completionConfiguration.autoImportSuggestions && element.hasAction)
