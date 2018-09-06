@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { posix } from 'path';
 import { OutputAppender } from 'vs/platform/output/node/outputAppender';
+import { toLocalISOString } from 'vs/base/common/date';
 
 export abstract class AbstractExtHostOutputChannel implements vscode.OutputChannel {
 
@@ -64,7 +65,7 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 	}
 }
 
-export class ExtHostOutputChannel extends AbstractExtHostOutputChannel {
+export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, proxy: MainThreadOutputServiceShape) {
 		super(name, null, proxy);
@@ -76,13 +77,13 @@ export class ExtHostOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
-export class ExtHostLoggingOutputChannel extends AbstractExtHostOutputChannel {
+export class ExtHostPullOutputChannel extends AbstractExtHostOutputChannel {
 
 	private static _namePool = 1;
 	private _appender: OutputAppender;
 
 	constructor(name: string, outputDir: string, proxy: MainThreadOutputServiceShape) {
-		const fileName = `${ExtHostLoggingOutputChannel._namePool++}-${name}`;
+		const fileName = `${ExtHostPullOutputChannel._namePool++}-${name}`;
 		const file = URI.file(posix.join(outputDir, `${fileName}.log`));
 
 		super(name, file, proxy);
@@ -100,18 +101,17 @@ export class ExtHostOutputService {
 	private _proxy: MainThreadOutputServiceShape;
 	private _outputDir: string;
 
-	constructor(outputDir: string, mainContext: IMainContext) {
-		this._outputDir = outputDir;
+	constructor(logsLocation: URI, mainContext: IMainContext) {
+		this._outputDir = posix.join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
-	createOutputChannel(name: string, logging?: boolean): vscode.OutputChannel {
+	createOutputChannel(name: string, push: boolean): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			// return logging ? new ExtHostLoggingOutputChannel(name, this._outputDir, this._proxy) : new ExtHostOutputChannel(name, this._proxy);
-			return new ExtHostLoggingOutputChannel(name, this._outputDir, this._proxy);
+			return push ? new ExtHostPushOutputChannel(name, this._proxy) : new ExtHostPullOutputChannel(name, this._outputDir, this._proxy);
 		}
 	}
 }
