@@ -38,10 +38,6 @@ declare namespace monaco {
 
 
 
-
-	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
-
-
 	export class Promise<T = any> {
 		constructor(
 			executor: (
