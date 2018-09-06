@@ -14,6 +14,10 @@ class WindowManager {
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
+	private _zoomLevelDefault: number = 5;
+	private _zoomLevelMin: number = -8;
+	private _zoomLevelMax: number = 9;
+
 	private _lastZoomLevelChangeTime: number = 0;
 	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 
@@ -21,11 +25,19 @@ class WindowManager {
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
+	public isZoomLevelValid(zoomLevel: number): boolean {
+		return zoomLevel <= this._zoomLevelMax &&
+			zoomLevel >= this._zoomLevelMin;
+	}
 	public getTimeSinceLastZoomLevelChanged(): number {
 		return Date.now() - this._lastZoomLevelChangeTime;
 	}
 	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 		if (this._zoomLevel === zoomLevel) {
+			return;
+		}
+
+		if (!this.isZoomLevelValid(zoomLevel)) {
 			return;
 		}
 
