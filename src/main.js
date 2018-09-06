@@ -113,8 +113,6 @@ function stripComments(content) {
 
 const mkdir = dir => new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 const exists = file => new Promise(c => fs.exists(file, c));
-const readFile = file => new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
-const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 const touch = file => new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
 const lstat = file => new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
 const readdir = dir => new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
@@ -179,7 +177,7 @@ function getUserDefinedLocale() {
 	let localeConfig = path.join(userDataPath, 'User', 'locale.json');
 	return exists(localeConfig).then((result) => {
 		if (result) {
-			return readFile(localeConfig).then((content) => {
+			return bootstrap.readFile(localeConfig).then((content) => {
 				content = stripComments(content);
 				try {
 					let value = JSON.parse(content).locale;
@@ -304,7 +302,7 @@ function getNLSConfiguration(locale) {
 							return result;
 						}
 						return mkdirp(coreLocation).then(() => {
-							return Promise.all([readFile(path.join(__dirname, 'nls.metadata.json')), readFile(mainPack)]);
+							return Promise.all([bootstrap.readFile(path.join(__dirname, 'nls.metadata.json')), bootstrap.readFile(mainPack)]);
 						}).then((values) => {
 							let metadata = JSON.parse(values[0]);
 							let packData = JSON.parse(values[1]).contents;
@@ -334,9 +332,9 @@ function getNLSConfiguration(locale) {
 									}
 									target[module] = targetStrings;
 								}
-								writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+								writes.push(bootstrap.writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
 							}
-							writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
+							writes.push(bootstrap.writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 							return Promise.all(writes);
 						}).then(() => {
 							perf.mark('nlsGeneration:end');

@@ -39,11 +39,42 @@ exports.enableASARSupport = function () {
 //#region Renderer helpers
 exports.uriFromPath = function (_path) {
 	const path = require('path');
+
 	let pathName = path.resolve(_path).replace(/\\/g, '/');
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;
 	}
 
 	return encodeURI('file://' + pathName).replace(/#/g, '%23');
+};
+//#endregion
+
+//#region FS helpers
+exports.readFile = function (file) {
+	const fs = require('fs');
+
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve(data);
+		});
+	});
+};
+
+exports.writeFile = function (file, content) {
+	const fs = require('fs');
+
+	return new Promise(function (resolve, reject) {
+		fs.writeFile(file, content, 'utf8', function (err) {
+			if (err) {
+				reject(err);
+				return;
+			}
+			resolve();
+		});
+	});
 };
 //#endregion

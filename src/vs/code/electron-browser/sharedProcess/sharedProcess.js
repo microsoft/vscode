@@ -6,7 +6,6 @@
 'use strict';
 
 const path = require('path');
-const fs = require('fs');
 const bootstrap = require('../../../../bootstrap');
 
 function assign(destination, source) {
@@ -32,20 +31,6 @@ function createScript(src, onload) {
 	const head = document.getElementsByTagName('head')[0];
 	head.insertBefore(script, head.lastChild);
 }
-
-function readFile(file) {
-	return new Promise(function (resolve, reject) {
-		fs.readFile(file, 'utf8', function (err, data) {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(data);
-		});
-	});
-}
-
-const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 
 function main() {
 	const args = parseURLQueryArgs();
@@ -74,14 +59,14 @@ function main() {
 				return;
 			}
 			let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
-			readFile(bundleFile).then(function (content) {
+			bootstrap.readFile(bundleFile).then(function (content) {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 				cb(undefined, json);
 			}).catch((error) => {
 				try {
 					if (nlsConfig._corruptedFile) {
-						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+						bootstrap.writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
 					}
 				} finally {
 					cb(error, undefined);
