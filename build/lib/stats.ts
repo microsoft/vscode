@@ -111,14 +111,16 @@ export function submitAllStats(productJson: any): Promise<void> {
 			.setAutoCollectRequests(false)
 			.start();
 
-		appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		const client = appInsights.getClient(productJson.aiConfig.asimovKey);
+		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+
 		/* __GDPR__
 			"monacoworkbench/bundleStats" : {
 				"outcome" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		appInsights.defaultClient.trackEvent(`monacoworkbench/bundleStats`, undefined, measurements);
-		appInsights.defaultClient.sendPendingData(() => resolve());
+		client.trackEvent(`monacoworkbench/bundleStats`, undefined, measurements);
+		client.sendPendingData(() => resolve());
 	});
 
 }

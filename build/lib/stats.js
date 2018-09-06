@@ -105,14 +105,15 @@ function submitAllStats(productJson) {
             .setAutoCollectPerformance(false)
             .setAutoCollectRequests(false)
             .start();
-        appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+        var client = appInsights.getClient(productJson.aiConfig.asimovKey);
+        client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
         /* __GDPR__
             "monacoworkbench/bundleStats" : {
                 "outcome" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
             }
         */
-        appInsights.defaultClient.trackEvent("monacoworkbench/bundleStats", undefined, measurements);
-        appInsights.defaultClient.sendPendingData(function () { return resolve(); });
+        client.trackEvent("monacoworkbench/bundleStats", undefined, measurements);
+        client.sendPendingData(function () { return resolve(); });
     });
 }
 exports.submitAllStats = submitAllStats;
