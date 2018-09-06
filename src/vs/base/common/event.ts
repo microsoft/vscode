@@ -576,18 +576,34 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 
 export class Relay<T> implements IDisposable {
 
-	private emitter = new Emitter<T>();
+	private listening = false;
+	private inputEvent: Event<T> = Event.None;
+	private inputEventListener: IDisposable = Disposable.None;
+
+	private emitter = new Emitter<T>({
+		onFirstListenerDidAdd: () => {
+			this.listening = true;
+			this.inputEventListener = this.inputEvent(this.emitter.fire, this.emitter);
+		},
+		onLastListenerRemove: () => {
+			this.listening = false;
+			this.inputEventListener.dispose();
+		}
+	});
+
 	readonly event: Event<T> = this.emitter.event;
 
-	private disposable: IDisposable = Disposable.None;
-
 	set input(event: Event<T>) {
-		this.disposable.dispose();
-		this.disposable = event(this.emitter.fire, this.emitter);
+		this.inputEvent = event;
+
+		if (this.listening) {
+			this.inputEventListener.dispose();
+			this.inputEventListener = event(this.emitter.fire, this.emitter);
+		}
 	}
 
 	dispose() {
-		this.disposable.dispose();
+		this.inputEventListener.dispose();
 		this.emitter.dispose();
 	}
 }
