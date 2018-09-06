@@ -11,9 +11,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { keys } from 'vs/base/common/map';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -40,9 +39,9 @@ export interface ICommentService {
 	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: number): void;
 	updateComments(event: CommentThreadChangedEvent): void;
-	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread>;
-	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): TPromise<CommentThread>;
-	getComments(resource: URI): TPromise<CommentInfo[]>;
+	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread>;
+	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread>;
+	getComments(resource: URI): Promise<CommentInfo[]>;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -95,35 +94,35 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidUpdateCommentThreads.fire(event);
 	}
 
-	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread> {
+	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): Promise<CommentThread> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
-			return asWinJsPromise(token => commentProvider.createNewCommentThread(resource, range, text, token));
+			return commentProvider.createNewCommentThread(resource, range, text, CancellationToken.None);
 		}
 
 		return null;
 	}
 
-	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): TPromise<CommentThread> {
+	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): Promise<CommentThread> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
-			return asWinJsPromise(token => commentProvider.replyToCommentThread(resource, range, thread, text, token));
+			return commentProvider.replyToCommentThread(resource, range, thread, text, CancellationToken.None);
 		}
 
 		return null;
 	}
 
-	getComments(resource: URI): TPromise<CommentInfo[]> {
+	getComments(resource: URI): Promise<CommentInfo[]> {
 		const result = [];
 		for (const handle of keys(this._commentProviders)) {
 			const provider = this._commentProviders.get(handle);
 			if ((<DocumentCommentProvider>provider).provideDocumentComments) {
-				result.push(asWinJsPromise(token => (<DocumentCommentProvider>provider).provideDocumentComments(resource, token)));
+				result.push((<DocumentCommentProvider>provider).provideDocumentComments(resource, CancellationToken.None));
 			}
 		}
 
-		return TPromise.join(result);
+		return Promise.all(result);
 	}
 }
