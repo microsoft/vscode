@@ -6221,11 +6221,16 @@ declare module 'vscode' {
 		export function createInputBox(): InputBox;
 
 		/**
-		 * Create a new [output channel](#OutputChannel) with the given name.
+		 * Creates a new [output channel](#OutputChannel) with the given name.
+		 * By default the channel will not push the appended data and hence there will be a delay while showing it in the UI.
+		 * Pass `true` for `push` argument to push the data and show immediately.
+		 *
+		 * *NOTE* Default output channels help in improving the performance of VS Code.
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param push Set to `true` to push the data and show in the UI immediately.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		export function createOutputChannel(name: string, push?: boolean): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
