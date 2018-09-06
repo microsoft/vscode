@@ -122,7 +122,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, showOptions.preserveFocus);
 	}
 
-	public $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
+	public $postMessage(handle: WebviewPanelHandle, message: any): Thenable<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)

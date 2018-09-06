@@ -5128,9 +5128,9 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.7.6:
-  version "0.7.6"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.6.tgz#bff6148c9c5836ca7e73c7aaaec067dcbdac2f7b"
+node-pty@0.7.7:
+  version "0.7.7"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.7.tgz#919a9de7f0462ee72b260a6e4d5459d28fde2d25"
   dependencies:
     nan "2.10.0"
 
@@ -7513,9 +7513,9 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@2.9.2:
-  version "2.9.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.9.2.tgz#1cbf61d05d6b96269244eb6a3bce4bd914e0f00c"
+typescript@3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.0.1.tgz#43738f29585d3a87575520a4b93ab6026ef11fdb"
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -7948,9 +7948,9 @@ vscode-textmate@Microsoft/vscode-textmate#electron-3.0.x:
   dependencies:
     oniguruma bpasero/node-oniguruma#nan-2.10.0
 
-vscode-xterm@3.7.0-beta5:
-  version "3.7.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta5.tgz#04c7564d1cc8d73b268f04046b3da050c6e59be7"
+vscode-xterm@3.8.0-beta1:
+  version "3.8.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta1.tgz#d4e7810bc61c9798f353832844974c18f213c053"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

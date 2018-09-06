@@ -17,6 +17,7 @@ import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/node/extHostTypes';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import * as vscode from 'vscode';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -74,10 +75,11 @@ suite('ExtHostSearch', () => {
 	async function runFileSearch(query: IRawSearchQuery, cancel = false): Promise<{ results: URI[]; stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
-			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query);
+			const cancellation = new CancellationTokenSource();
+			const p = extHostSearch.$provideFileSearchResults(mockMainThreadSearch.lastHandle, 0, query, cancellation.token);
 			if (cancel) {
 				await new TPromise(resolve => process.nextTick(resolve));
-				p.cancel();
+				cancellation.cancel();
 			}
 
 			stats = await p;
@@ -98,10 +100,11 @@ suite('ExtHostSearch', () => {
 	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): Promise<{ results: IFileMatch[], stats: ISearchCompleteStats }> {
 		let stats: ISearchCompleteStats;
 		try {
-			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query);
+			const cancellation = new CancellationTokenSource();
+			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query, cancellation.token);
 			if (cancel) {
 				await new TPromise(resolve => process.nextTick(resolve));
-				p.cancel();
+				cancellation.cancel();
 			}
 
 			stats = await p;

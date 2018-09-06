@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { WorkbenchTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { renderViewTree, twistiePixels } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IAccessibilityProvider, ITree, IRenderer, IDataSource } from 'vs/base/parts/tree/browser/tree';
-import { ISession, IDebugService, IModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IDebugService, IModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -47,7 +47,7 @@ class BaseTreeItem {
 		this._showedMoreThanOne = false;
 	}
 
-	setSource(session: ISession, source: Source): void {
+	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
 	}
 
@@ -188,7 +188,7 @@ class RootTreeItem extends BaseTreeItem {
 		});
 	}
 
-	add(session: ISession): SessionTreeItem {
+	add(session: IDebugSession): SessionTreeItem {
 		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this, session, this._environmentService, this._contextService));
 	}
 }
@@ -197,10 +197,10 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private static URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
-	private _session: ISession;
+	private _session: IDebugSession;
 	private _initialized: boolean;
 
-	constructor(parent: BaseTreeItem, session: ISession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getName(true));
 		this._initialized = false;
 		this._session = session;
@@ -387,7 +387,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 		this.tree.setInput(root);
 
-		const registerLoadedSourceListener = (session: ISession) => {
+		const registerLoadedSourceListener = (session: IDebugSession) => {
 			this.disposables.push(session.onDidLoadedSource(event => {
 				const sessionRoot = root.add(session);
 				sessionRoot.addPath(event.source);

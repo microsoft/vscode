@@ -16,7 +16,7 @@ import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
-	ITreeElement, IExpression, IExpressionContainer, ISession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
+	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
 	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -112,7 +112,7 @@ export class ExpressionContainer implements IExpressionContainer {
 	protected children: TPromise<IExpression[]>;
 
 	constructor(
-		protected session: ISession,
+		protected session: IDebugSession,
 		private _reference: number,
 		private id: string,
 		public namedVariables = 0,
@@ -230,7 +230,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	public evaluate(session: ISession, stackFrame: IStackFrame, context: string): TPromise<void> {
+	public evaluate(session: IDebugSession, stackFrame: IStackFrame, context: string): TPromise<void> {
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
 			this.available = false;
@@ -271,7 +271,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	public errorMessage: string;
 
 	constructor(
-		session: ISession,
+		session: IDebugSession,
 		public parent: IExpressionContainer,
 		reference: number,
 		public name: string,
@@ -409,7 +409,7 @@ export class Thread implements IThread {
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
-	constructor(public session: ISession, public name: string, public threadId: number) {
+	constructor(public session: IDebugSession, public name: string, public threadId: number) {
 		this.stoppedDetails = null;
 		this.callStack = [];
 		this.staleCallStack = [];
@@ -750,7 +750,7 @@ export class ThreadAndSessionIds implements ITreeElement {
 
 export class Model implements IModel {
 
-	private sessions: ISession[];
+	private sessions: IDebugSession[];
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
 	private schedulers = new Map<string, RunOnceScheduler>();
@@ -781,11 +781,11 @@ export class Model implements IModel {
 		return 'root';
 	}
 
-	public getSessions(): ISession[] {
+	public getSessions(): IDebugSession[] {
 		return this.sessions;
 	}
 
-	public addSession(session: ISession): void {
+	public addSession(session: IDebugSession): void {
 		this.sessions.push(session);
 	}
 
@@ -1043,7 +1043,7 @@ export class Model implements IModel {
 		return this.replElements;
 	}
 
-	public addReplExpression(session: ISession, stackFrame: IStackFrame, name: string): TPromise<void> {
+	public addReplExpression(session: IDebugSession, stackFrame: IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name);
 		this.addReplElements([expression]);
 		return expression.evaluate(session, stackFrame, 'repl')

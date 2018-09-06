@@ -53,10 +53,6 @@ declare namespace monaco {
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
-		public done(
-			onfulfilled?: (value: T) => void,
-			onrejected?: (reason: any) => void): void;
-
 		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
@@ -2902,6 +2898,10 @@ declare namespace monaco.editor {
 		 */
 		emptySelectionClipboard?: boolean;
 		/**
+		 * Syntax highlighting is copied.
+		 */
+		copyWithSyntaxHighlighting?: boolean;
+		/**
 		 * Enable word based suggestions. Defaults to 'true'
 		 */
 		wordBasedSuggestions?: boolean;
@@ -3299,6 +3299,7 @@ declare namespace monaco.editor {
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
@@ -3439,6 +3440,7 @@ declare namespace monaco.editor {
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
 		readonly viewInfo: boolean;

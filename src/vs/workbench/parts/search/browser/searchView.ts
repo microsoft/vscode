@@ -61,6 +61,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { SettingsEditor2 } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
 
 const $ = dom.$;
 
@@ -731,10 +732,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	public focus(): void {
 		super.focus();
 
+		const updatedText = this.updateTextFromSelection();
+		this.searchWidget.focus(undefined, undefined, updatedText);
+	}
+
+	public updateTextFromSelection(allowUnselectedWord = true): boolean {
 		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
-			let selectedText = this.getSearchTextFromEditor();
+			let selectedText = this.getSearchTextFromEditor(allowUnselectedWord);
 			if (selectedText) {
 				if (this.searchWidget.searchInput.getRegex()) {
 					selectedText = strings.escapeRegExpCharacters(selectedText);
@@ -745,7 +751,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			}
 		}
 
-		this.searchWidget.focus(undefined, undefined, updatedText);
+		return updatedText;
 	}
 
 	public focusNextInputBox(): void {
@@ -898,7 +904,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	private getSearchTextFromEditor(): string {
+	private getSearchTextFromEditor(allowUnselectedWord: boolean): string {
 		if (!this.editorService.activeEditor) {
 			return null;
 		}
@@ -921,7 +927,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return null;
 		}
 
-		if (range.isEmpty() && !this.searchWidget.searchInput.getValue()) {
+		if (range.isEmpty() && !this.searchWidget.searchInput.getValue() && allowUnselectedWord) {
 			const wordAtPosition = activeTextEditorWidget.getModel().getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
@@ -1247,7 +1253,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 						let editorPromise = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? this.preferencesService.openWorkspaceSettings() : this.preferencesService.openGlobalSettings();
 						editorPromise.then(editor => {
-							if (editor instanceof PreferencesEditor) {
+							if (editor instanceof PreferencesEditor || editor instanceof SettingsEditor2) {
 								editor.focusSearch('.exclude');
 							}
 						});

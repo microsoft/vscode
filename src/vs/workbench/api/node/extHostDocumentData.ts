@@ -99,7 +99,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		this._isDirty = isDirty;
 	}
 
-	private _save(): TPromise<boolean> {
+	private _save(): Thenable<boolean> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<boolean>(new Error('Document has been closed'));
 		}

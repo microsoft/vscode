@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
+import { timeout } from 'vs/base/common/async';
 
 export interface IMarcoPoloEvent {
 	answer: string;
@@ -34,7 +35,7 @@ export class TestService implements ITestService {
 	}
 
 	cancelMe(): TPromise<boolean> {
-		return TPromise.timeout(100).then(() => true);
+		return TPromise.wrap(timeout(100)).then(() => true);
 	}
 }
 

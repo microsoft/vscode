@@ -82,7 +82,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	private resolveTextModelContent(key: string): TPromise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => p.provideTextContent(resource));
+		const factories = providers.map(p => () => TPromise.wrap(p.provideTextContent(resource)));
 
 		return first(factories).then(model => {
 			if (!model) {

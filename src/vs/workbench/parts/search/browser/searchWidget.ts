@@ -384,6 +384,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputChanged(): void {
+		this.searchInput.clearMessage();
 		this.setReplaceAllActionState(false);
 	}
 

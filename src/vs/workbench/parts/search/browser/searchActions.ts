@@ -123,17 +123,18 @@ export class FocusPreviousInputAction extends Action {
 export abstract class FindOrReplaceInFilesAction extends Action {
 
 	constructor(id: string, label: string, private viewletService: IViewletService, private panelService: IPanelService,
-		private expandSearchReplaceWidget: boolean, private selectWidgetText: boolean, private focusReplace: boolean) {
+		private expandSearchReplaceWidget: boolean
+	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return openSearchView(this.viewletService, this.panelService, true).then(openedView => {
+		return openSearchView(this.viewletService, this.panelService, false).then(openedView => {
 			const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 			searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
-			// Focus replace only when there is text in the searchInput box
-			const focusReplace = this.focusReplace && searchAndReplaceWidget.searchInput.getValue();
-			searchAndReplaceWidget.focus(this.selectWidgetText, !!focusReplace);
+
+			const updatedText = openedView.updateTextFromSelection(!this.expandSearchReplaceWidget);
+			openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 		});
 	}
 }
@@ -146,7 +147,7 @@ export class FindInFilesAction extends FindOrReplaceInFilesAction {
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false, /*selectWidgetText=*/true, /*focusReplace=*/false);
+		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
 	}
 }
 
@@ -159,7 +160,7 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 		@IViewletService viewletService: IViewletService,
 		@IPanelService panelService: IPanelService
 	) {
-		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/true, /*selectWidgetText=*/false, /*focusReplace=*/true);
+		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/true);
 	}
 }
 

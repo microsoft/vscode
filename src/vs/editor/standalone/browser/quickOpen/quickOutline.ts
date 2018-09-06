@@ -23,6 +23,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 let SCOPE_PREFIX = ':';
 
@@ -140,13 +141,13 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		}
 
 		// Resolve outline
-		return getDocumentSymbols(model).then((result: DocumentSymbol[]) => {
+		return TPromise.wrap(getDocumentSymbols(model, CancellationToken.None).then((result: DocumentSymbol[]) => {
 			if (result.length === 0) {
 				return;
 			}
 
 			this._run(editor, result);
-		});
+		}));
 	}
 
 	private _run(editor: ICodeEditor, result: DocumentSymbol[]): void {

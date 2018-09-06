@@ -803,7 +803,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+	public terminateTask(execution: vscode.TaskExecution): Thenable<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}

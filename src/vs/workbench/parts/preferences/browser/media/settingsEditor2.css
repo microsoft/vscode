@@ -159,22 +159,27 @@
 	display: none !important;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-toolbar {
-	display: none;
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
 	position: absolute;
 	left: -23px;
 	top: 11px;
+	bottom: 0px;
+	width: 26px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row:hover .monaco-toolbar {
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container:hover > .monaco-toolbar {
 	display: flex;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .monaco-toolbar {
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar {
 	display: flex;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more {
 	display: block;
 	width: 22px;
 	height: 22px;

@@ -55,7 +55,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
-	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
+	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
 
 // Quickopen
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(

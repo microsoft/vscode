@@ -14,6 +14,7 @@ import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Terminal } from 'vscode-xterm';
+import { timeout } from 'vs/base/common/async';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -89,9 +90,9 @@ class WindowDriver implements IWindowDriver {
 			const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
 			webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 
-			return TPromise.timeout(10).then(() => {
+			return TPromise.wrap(timeout(10)).then(() => {
 				webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
-				return TPromise.timeout(100);
+				return TPromise.wrap(timeout(100));
 			});
 		});
 	}

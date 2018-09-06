@@ -2503,7 +2503,7 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask',
 
 // Tasks Output channel. Register it before using it in Task Service.
 let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
+outputChannelRegistry.registerChannel({ id: TaskService.OutputChannelId, label: TaskService.OutputChannelLabel, log: false });
 
 // Task Service
 registerSingleton(ITaskService, TaskService);

@@ -40,7 +40,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): TPromise<void> {
+	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): Thenable<void> {
 		return this.viewsService.openView(treeViewId, options.focus)
 			.then(() => {
 				const viewer = this.getTreeViewer(treeViewId);

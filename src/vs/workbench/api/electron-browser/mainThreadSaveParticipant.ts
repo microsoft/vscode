@@ -213,7 +213,7 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 		const versionNow = model.getVersionId();
 		const { tabSize, insertSpaces } = model.getOptions();
 
-		const timeout = this._configurationService.getValue('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
+		const timeout = this._configurationService.getValue<number>('editor.formatOnSaveTimeout', { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() });
 
 		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
 			let source = new CancellationTokenSource();

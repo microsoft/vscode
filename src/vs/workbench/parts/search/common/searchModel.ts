@@ -230,10 +230,7 @@ export class FileMatch extends Disposable {
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean) {
 		matches.forEach(m => {
-			const textSearchResult = new TextSearchResult(
-				this._model.getLineContent(m.range.startLineNumber),
-				new Range(m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.startLineNumber - 1, m.range.endColumn - 1),
-				this._previewOptions);
+			const textSearchResult = editorMatchToTextSearchResult(m, this._model, this._previewOptions);
 			const match = new Match(this, textSearchResult);
 
 			if (!this._removedMatches.has(match.id())) {
@@ -985,4 +982,21 @@ export class RangeHighlightDecorations implements IDisposable {
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
+}
+
+/**
+ * While search doesn't support multiline matches, collapse editor matches to a single line
+ */
+export function editorMatchToTextSearchResult(match: FindMatch, model: ITextModel, previewOptions: ITextSearchPreviewOptions): TextSearchResult {
+	let endLineNumber = match.range.endLineNumber - 1;
+	let endCol = match.range.endColumn - 1;
+	if (match.range.endLineNumber !== match.range.startLineNumber) {
+		endLineNumber = match.range.startLineNumber - 1;
+		endCol = model.getLineLength(match.range.startLineNumber);
+	}
+
+	return new TextSearchResult(
+		model.getLineContent(match.range.startLineNumber),
+		new Range(match.range.startLineNumber - 1, match.range.startColumn - 1, endLineNumber, endCol),
+		previewOptions);
 }

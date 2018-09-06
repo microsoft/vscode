@@ -486,12 +486,13 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, canceled by another picker', function () {
 
+		const source = new CancellationTokenSource();
+
 		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			source.cancel();
 			assert.equal(result, undefined);
 		});
 
-		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 
 		return result;

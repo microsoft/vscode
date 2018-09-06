@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler, wireCancellationToken } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { LinkProviderRegistry, ILink } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -46,7 +46,7 @@ export class OutputLinkProvider {
 			if (!this.linkProviderRegistration) {
 				this.linkProviderRegistration = LinkProviderRegistry.register([{ language: OUTPUT_MODE_ID, scheme: '*' }, { language: LOG_MODE_ID, scheme: '*' }], {
 					provideLinks: (model, token): Thenable<ILink[]> => {
-						return wireCancellationToken(token, this.provideLinks(model.uri));
+						return this.provideLinks(model.uri);
 					}
 				});
 			}

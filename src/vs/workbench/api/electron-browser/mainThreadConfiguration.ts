@@ -36,12 +36,12 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		this._configurationListener.dispose();
 	}
 
-	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resourceUriComponenets: UriComponents): TPromise<void> {
+	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any, resourceUriComponenets: UriComponents): Thenable<void> {
 		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, value, resource);
 	}
 
-	$removeConfigurationOption(target: ConfigurationTarget, key: string, resourceUriComponenets: UriComponents): TPromise<void> {
+	$removeConfigurationOption(target: ConfigurationTarget, key: string, resourceUriComponenets: UriComponents): Thenable<void> {
 		const resource = resourceUriComponenets ? URI.revive(resourceUriComponenets) : null;
 		return this.writeConfiguration(target, key, undefined, resource);
 	}

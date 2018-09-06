@@ -107,7 +107,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): TPromise<ISearchComplete> {
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
 		if (isFalsyOrEmpty(query.folderQueries)) {
 			return TPromise.as(undefined);
 		}
@@ -116,14 +116,10 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		this._searches.set(search.id, search);
 
 		const searchP = query.type === QueryType.File
-			? this._proxy.$provideFileSearchResults(this._handle, search.id, query)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query);
+			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
+			: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query, token);
 
-		if (token) {
-			token.onCancellationRequested(() => searchP.cancel());
-		}
-
-		return searchP.then((result: ISearchCompleteStats) => {
+		return TPromise.wrap(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
 			return { results: values(search.matches), stats: result.stats, limitHit: result.limitHit };
 		}, err => {
@@ -133,7 +129,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 	}
 
 	clearCache(cacheKey: string): TPromise<void> {
-		return this._proxy.$clearCache(cacheKey);
+		return TPromise.wrap(this._proxy.$clearCache(cacheKey));
 	}
 
 	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {

@@ -38,7 +38,7 @@ class TypeOnlyStat implements IStat {
 	size: number = 0;
 }
 
-function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
+function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): Thenable<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		resource,
@@ -72,7 +72,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	return TPromise.as(fileStat);
 }
 
-export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
+export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): Thenable<IFileStat> {
 
 	const trie = TernarySearchTree.forPaths<true>();
 	trie.set(tuple[0].toString(), true);

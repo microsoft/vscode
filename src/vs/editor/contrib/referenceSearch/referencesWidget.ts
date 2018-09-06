@@ -663,6 +663,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposables.push(controller.onDidFocus(element => onEvent(element, 'show')));
 		this._disposables.push(controller.onDidSelect(element => onEvent(element, 'goto')));
 		this._disposables.push(controller.onDidOpenToSide(element => onEvent(element, 'side')));
+		dom.hide(this._treeContainer);
 	}
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {

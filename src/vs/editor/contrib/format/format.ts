@@ -6,13 +6,12 @@
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { asWinJsPromise, first2 } from 'vs/base/common/async';
+import { first2 } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -55,18 +54,16 @@ export function getDocumentFormattingEdits(model: ITextModel, options: Formattin
 	}), result => !isFalsyOrEmpty(result));
 }
 
-export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): TPromise<TextEdit[]> {
+export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): Promise<TextEdit[]> {
 	const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 	if (!support) {
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 	if (support.autoFormatTriggerCharacters.indexOf(ch) < 0) {
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
-	return asWinJsPromise((token) => {
-		return support.provideOnTypeFormattingEdits(model, position, ch, options, token);
-	}).then(r => r, onUnexpectedExternalError);
+	return Promise.resolve(support.provideOnTypeFormattingEdits(model, position, ch, options, CancellationToken.None)).then(r => r, onUnexpectedExternalError);
 }
 
 registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {

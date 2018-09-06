@@ -31,6 +31,7 @@ import { attachStyler, IStyleOverrides, IThemable } from 'vs/platform/theme/comm
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 interface SuggestResultsProvider {
 	/**
@@ -191,7 +192,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
-		this.inputWidget.setValue(val);
+		const fullRange = new Range(1, 1, 1, this.getValue().length + 1);
+		this.inputWidget.executeEdits('suggestEnabledInput.setValue', [EditOperation.replace(fullRange, val)]);
 		this.inputWidget.setScrollTop(0);
 		this.inputWidget.setPosition(new Position(1, val.length + 1));
 	}
@@ -220,6 +222,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	public focus(): void {
 		this.inputWidget.focus();
+
+		if (this.inputWidget.getValue()) {
+			this.selectAll();
+		}
 	}
 
 	public layout(dimension: Dimension): void {
@@ -227,7 +233,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.placeholderText.style.width = `${dimension.width}px`;
 	}
 
-	public selectAll(): void {
+	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
 	}
 

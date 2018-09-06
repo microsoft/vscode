@@ -9,7 +9,7 @@ import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -111,10 +111,13 @@ export class QuickInputBox {
 			inputBackground: theme.getColor(inputBackground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		});
 	}

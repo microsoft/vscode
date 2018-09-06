@@ -196,7 +196,7 @@ suite('Event', function () {
 		// If the source event is fired once, the debounced (on the leading edge) event should be fired only once
 		emitter.fire();
 
-		return TPromise.timeout(1).then(() => {
+		return timeout(1).then(() => {
 			assert.equal(calls, 1);
 		});
 	});
@@ -214,7 +214,7 @@ suite('Event', function () {
 		emitter.fire();
 		emitter.fire();
 		emitter.fire();
-		return TPromise.timeout(1).then(() => {
+		return timeout(1).then(() => {
 			assert.equal(calls, 2);
 		});
 	});
@@ -422,7 +422,7 @@ suite('Event utils', () => {
 
 			assert.equal(count, 0);
 
-			return TPromise.timeout(10).then(() => {
+			return timeout(10).then(() => {
 				assert.equal(count, 1);
 			});
 		});
@@ -430,7 +430,7 @@ suite('Event utils', () => {
 		test('should emit when done - setTimeout', async () => {
 			let count = 0;
 
-			const promise = TPromise.timeout(5);
+			const promise = timeout(5);
 			const event = fromPromise(promise);
 			event(() => count++);
 
@@ -500,7 +500,7 @@ suite('Event utils', () => {
 			const listener = bufferedEvent(num => result.push(num));
 			assert.deepEqual(result, []);
 
-			return TPromise.timeout(10).then(() => {
+			return timeout(10).then(() => {
 				emitter.fire(4);
 				assert.deepEqual(result, [1, 2, 3, 4]);
 

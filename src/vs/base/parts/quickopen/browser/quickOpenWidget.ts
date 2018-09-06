@@ -184,10 +184,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 			inputForeground: this.styles.inputForeground,
 			inputBorder: this.styles.inputBorder,
 			inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+			inputValidationInfoForeground: this.styles.inputValidationInfoForeground,
 			inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
 			inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+			inputValidationWarningForeground: this.styles.inputValidationWarningForeground,
 			inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
 			inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+			inputValidationErrorForeground: this.styles.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 		}));
 
@@ -398,10 +401,13 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 				inputForeground: this.styles.inputForeground,
 				inputBorder: this.styles.inputBorder,
 				inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+				inputValidationInfoForeground: this.styles.inputValidationInfoForeground,
 				inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
 				inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+				inputValidationWarningForeground: this.styles.inputValidationWarningForeground,
 				inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
 				inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+				inputValidationErrorForeground: this.styles.inputValidationErrorForeground,
 				inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 			});
 		}

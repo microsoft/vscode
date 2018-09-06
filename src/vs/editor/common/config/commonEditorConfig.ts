@@ -589,6 +589,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
+		'editor.copyWithSyntaxHighlighting': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.copyWithSyntaxHighlighting,
+			'description': nls.localize('copyWithSyntaxHighlighting', "Controls whether syntax highlighting should be copied into the clipboard.")
+		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
@@ -609,13 +614,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestFontSize', "Font size for the suggest widget.")
+			'markdownDescription': nls.localize('suggestFontSize', "Font size for the suggest widget. When set to `0`, the value of `#editor.fontSize#` is used.")
 		},
 		'editor.suggestLineHeight': {
 			'type': 'integer',
 			'default': 0,
 			'minimum': 0,
-			'description': nls.localize('suggestLineHeight', "Line height for the suggest widget.")
+			'markdownDescription': nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.")
 		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',

@@ -202,7 +202,7 @@ class SnippetsService implements ISnippetsService {
 								extension.collector.warn(localize(
 									'badFile',
 									"The snippet file \"{0}\" could not be read.",
-									file.location
+									file.location.toString()
 								));
 							});
 						}

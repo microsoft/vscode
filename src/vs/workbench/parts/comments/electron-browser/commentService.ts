@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo, WorkspaceCommentProvider } from 'vs/editor/common/modes';
+import { CommentThread, DocumentCommentProvider, CommentThreadChangedEvent, CommentInfo } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -37,7 +37,7 @@ export interface ICommentService {
 	setDocumentComments(resource: URI, commentInfos: CommentInfo[]): void;
 	setWorkspaceComments(owner: number, commentsByResource: CommentThread[]): void;
 	removeWorkspaceComments(owner: number): void;
-	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider | WorkspaceCommentProvider): void;
+	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider): void;
 	unregisterDataProvider(owner: number): void;
 	updateComments(event: CommentThreadChangedEvent): void;
 	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread>;
