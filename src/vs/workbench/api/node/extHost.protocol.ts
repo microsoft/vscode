@@ -894,12 +894,12 @@ export interface ExtHostSCMShape {
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<TaskSet>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSet>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
-	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): TPromise<any>;
+	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): Thenable<any>;
 }
 
 export interface IBreakpointDto {
