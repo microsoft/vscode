@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.0-beta.8
+// Type definitions for Electron 3.0.0-beta.9
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -1717,6 +1717,14 @@ declare namespace Electron {
 		 */
 		setResizable(resizable: boolean): void;
 		/**
+		 * Setting a window shape determines the area within the window where the system
+		 * permits drawing and user interaction. Outside of the given region, no pixels
+		 * will be drawn and no mouse events will be registered. Mouse events outside of
+		 * the region will not be received by that window, but will fall through to
+		 * whatever is behind the window.
+		 */
+		setShape(rects: Rectangle[]): void;
+		/**
 		 * Changes the attachment point for sheets on macOS. By default, sheets are
 		 * attached just below the window frame, but you may want to display them beneath a
 		 * HTML-rendered toolbar. For example:
@@ -2046,6 +2054,11 @@ declare namespace Electron {
 		 */
 		followRedirect(): void;
 		getHeader(name: string): Header;
+		/**
+		 * You can use this method in conjunction with POST requests to get the progress of
+		 * a file upload or other data transfer.
+		 */
+		getUploadProgress(): UploadProgress;
 		/**
 		 * Removes a previously set extra header name. This method can be called only
 		 * before first write. Trying to call it after the first write will throw an error.
@@ -8753,6 +8766,27 @@ declare namespace Electron {
 		url: string;
 	}
 
+	interface UploadProgress {
+		/**
+		 * Whether the request is currently active. If this is false no other properties
+		 * will be set
+		 */
+		active: boolean;
+		/**
+		 * Whether the upload has started. If this is false both current and total will be
+		 * set to 0.
+		 */
+		started: boolean;
+		/**
+		 * The number of bytes that have been uploaded so far
+		 */
+		current: number;
+		/**
+		 * The number of bytes that will be uploaded this request
+		 */
+		total: number;
+	}
+
 	interface Versions {
 		/**
 		 * A String representing Chrome's version string.
@@ -9091,6 +9125,7 @@ declare namespace Electron {
 		 */
 		fantasy?: string;
 	}
+
 }
 
 declare module 'electron' {
