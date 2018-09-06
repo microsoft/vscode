@@ -70,7 +70,6 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions, token: Ca
 
 		// TODO: remove any
 		xhr.send(options.data as any);
-		return null;
 
 		// cancel
 		token.onCancellationRequested(() => {
