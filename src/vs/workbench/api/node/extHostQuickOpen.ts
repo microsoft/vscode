@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { asWinJsPromise, wireCancellationToken } from 'vs/base/common/async';
+import { wireCancellationToken, asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -134,9 +134,9 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		return wireCancellationToken(token, promise, true);
 	}
 
-	$validateInput(input: string): TPromise<string> {
+	$validateInput(input: string): Thenable<string> {
 		if (this._validateInput) {
-			return asWinJsPromise(_ => this._validateInput(input));
+			return asThenable(() => this._validateInput(input));
 		}
 		return undefined;
 	}
