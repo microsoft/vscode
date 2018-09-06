@@ -386,7 +386,7 @@ function settingTypeEnumRenderable(_type: string | string[]) {
 	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
 }
 
-export enum SearchResultIdx {
+export const enum SearchResultIdx {
 	Local = 0,
 	Remote = 1,
 	NewExtensions = 2

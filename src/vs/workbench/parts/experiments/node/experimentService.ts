@@ -30,7 +30,7 @@ interface IExperimentStorageState {
 	lastEditedDate?: string;
 }
 
-export enum ExperimentState {
+export const enum ExperimentState {
 	Evaluating,
 	NoRun,
 	Run,

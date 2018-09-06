@@ -12,7 +12,7 @@ import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 
-export enum RequestType {
+export const enum RequestType {
 	Promise = 100,
 	PromiseCancel = 101,
 	EventListen = 102,
@@ -25,7 +25,7 @@ type IRawEventListenRequest = { type: RequestType.EventListen; id: number; chann
 type IRawEventDisposeRequest = { type: RequestType.EventDispose, id: number };
 type IRawRequest = IRawPromiseRequest | IRawPromiseCancelRequest | IRawEventListenRequest | IRawEventDisposeRequest;
 
-export enum ResponseType {
+export const enum ResponseType {
 	Initialize = 200,
 	PromiseSuccess = 201,
 	PromiseError = 202,

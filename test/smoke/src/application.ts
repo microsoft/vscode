@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import { Code, spawn, SpawnOptions } from './vscode/code';
 import { Logger } from './logger';
 
-export enum Quality {
+export const enum Quality {
 	Dev,
 	Insiders,
 	Stable

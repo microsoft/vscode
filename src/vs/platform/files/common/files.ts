@@ -182,7 +182,7 @@ export interface IWatchOptions {
 	excludes: string[];
 }
 
-export enum FileSystemProviderCapabilities {
+export const enum FileSystemProviderCapabilities {
 	FileReadWrite = 1 << 1,
 	FileOpenReadWriteClose = 1 << 2,
 	FileFolderCopy = 1 << 3,
@@ -221,7 +221,7 @@ export interface IFileSystemProviderRegistrationEvent {
 	provider?: IFileSystemProvider;
 }
 
-export enum FileOperation {
+export const enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
@@ -249,7 +249,7 @@ export class FileOperationEvent {
 /**
  * Possible changes that can occur to a file.
  */
-export enum FileChangeType {
+export const enum FileChangeType {
 	UPDATED = 0,
 	ADDED = 1,
 	DELETED = 2
@@ -622,7 +622,7 @@ export class FileOperationError extends Error {
 	}
 }
 
-export enum FileOperationResult {
+export const enum FileOperationResult {
 	FILE_IS_BINARY,
 	FILE_IS_DIRECTORY,
 	FILE_NOT_FOUND,

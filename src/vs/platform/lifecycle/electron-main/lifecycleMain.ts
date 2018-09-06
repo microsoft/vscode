@@ -18,7 +18,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-export enum UnloadReason {
+export const enum UnloadReason {
 	CLOSE = 1,
 	QUIT = 2,
 	RELOAD = 3,

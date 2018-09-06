@@ -61,7 +61,7 @@ export interface IInputValidationOptions {
 	validation: IInputValidator;
 }
 
-export enum MessageType {
+export const enum MessageType {
 	INFO = 1,
 	WARNING = 2,
 	ERROR = 3

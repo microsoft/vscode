@@ -201,7 +201,7 @@ export interface IGalleryMetadata {
 	publisherDisplayName: string;
 }
 
-export enum LocalExtensionType {
+export const enum LocalExtensionType {
 	System,
 	User
 }
@@ -220,7 +220,7 @@ export interface ILocalExtension {
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
-export enum SortBy {
+export const enum SortBy {
 	NoneOrRelevance = 0,
 	LastUpdatedDate = 1,
 	Title = 2,
@@ -231,7 +231,7 @@ export enum SortBy {
 	WeightedRating = 12
 }
 
-export enum SortOrder {
+export const enum SortOrder {
 	Default = 0,
 	Ascending = 1,
 	Descending = 2
@@ -247,7 +247,7 @@ export interface IQueryOptions {
 	source?: string;
 }
 
-export enum StatisticType {
+export const enum StatisticType {
 	Uninstall = 'uninstall'
 }
 
@@ -256,7 +256,7 @@ export interface IReportedExtension {
 	malicious: boolean;
 }
 
-export enum InstallOperation {
+export const enum InstallOperation {
 	None = 0,
 	Install,
 	Update
@@ -337,7 +337,7 @@ export interface IExtensionManagementServerService {
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 
-export enum EnablementState {
+export const enum EnablementState {
 	Disabled,
 	WorkspaceDisabled,
 	Enabled,
@@ -427,7 +427,7 @@ export interface IExtensionTipsService {
 	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
-export enum ExtensionRecommendationReason {
+export const enum ExtensionRecommendationReason {
 	Workspace,
 	File,
 	Executable,

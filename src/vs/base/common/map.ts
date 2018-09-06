@@ -455,7 +455,7 @@ interface Item<K, V> {
 	value: V;
 }
 
-export enum Touch {
+export const enum Touch {
 	None = 0,
 	AsOld = 1,
 	AsNew = 2

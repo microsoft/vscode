@@ -37,7 +37,7 @@ export interface ISaveParticipant {
 /**
  * States the text text file editor model can be in.
  */
-export enum ModelState {
+export const enum ModelState {
 	SAVED,
 	DIRTY,
 	PENDING_SAVE,
@@ -60,7 +60,7 @@ export enum ModelState {
 	ERROR
 }
 
-export enum StateChange {
+export const enum StateChange {
 	DIRTY,
 	SAVING,
 	SAVE_ERROR,
@@ -108,7 +108,7 @@ export interface IAutoSaveConfiguration {
 	autoSaveApplicationChange: boolean;
 }
 
-export enum AutoSaveMode {
+export const enum AutoSaveMode {
 	OFF,
 	AFTER_SHORT_DELAY,
 	AFTER_LONG_DELAY,
@@ -116,14 +116,14 @@ export enum AutoSaveMode {
 	ON_WINDOW_CHANGE
 }
 
-export enum SaveReason {
+export const enum SaveReason {
 	EXPLICIT = 1,
 	AUTO = 2,
 	FOCUS_CHANGE = 3,
 	WINDOW_CHANGE = 4
 }
 
-export enum LoadReason {
+export const enum LoadReason {
 	EDITOR = 1,
 	REFERENCE = 2,
 	OTHER = 3

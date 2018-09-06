@@ -19,7 +19,7 @@ export interface INotificationsModel {
 	notify(notification: INotification): INotificationHandle;
 }
 
-export enum NotificationChangeType {
+export const enum NotificationChangeType {
 	ADD,
 	CHANGE,
 	REMOVE
@@ -208,7 +208,7 @@ export function isNotificationViewItem(obj: any): obj is INotificationViewItem {
 	return obj instanceof NotificationViewItem;
 }
 
-export enum NotificationViewItemLabelKind {
+export const enum NotificationViewItemLabelKind {
 	SEVERITY,
 	MESSAGE,
 	ACTIONS,

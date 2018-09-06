@@ -32,7 +32,7 @@ export interface ShutdownEvent {
 	reason: ShutdownReason;
 }
 
-export enum ShutdownReason {
+export const enum ShutdownReason {
 
 	/** Window is closed */
 	CLOSE = 1,

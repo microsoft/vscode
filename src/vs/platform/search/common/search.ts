@@ -49,7 +49,7 @@ export interface ISearchHistoryService {
 /**
  * TODO@roblou - split text from file search entirely, or share code in a more natural way.
  */
-export enum SearchProviderType {
+export const enum SearchProviderType {
 	file,
 	fileIndex,
 	text
@@ -107,7 +107,7 @@ export interface ISearchQueryProps<U extends UriComponents> extends ICommonQuery
 export type ISearchQuery = ISearchQueryProps<uri>;
 export type IRawSearchQuery = ISearchQueryProps<UriComponents>;
 
-export enum QueryType {
+export const enum QueryType {
 	File = 1,
 	Text = 2
 }

@@ -15,7 +15,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
 
-export enum TaskErrors {
+export const enum TaskErrors {
 	NotConfigured,
 	RunningTask,
 	NoBuildTask,
@@ -78,7 +78,7 @@ export interface ITaskSummary {
 	exitCode?: number;
 }
 
-export enum TaskExecuteKind {
+export const enum TaskExecuteKind {
 	Started = 1,
 	Active = 2
 }

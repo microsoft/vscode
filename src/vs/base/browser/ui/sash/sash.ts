@@ -46,12 +46,12 @@ export interface ISashOptions {
 	orthogonalEndSash?: Sash;
 }
 
-export enum Orientation {
+export const enum Orientation {
 	VERTICAL,
 	HORIZONTAL
 }
 
-export enum SashState {
+export const enum SashState {
 	Disabled,
 	Minimum,
 	Maximum,

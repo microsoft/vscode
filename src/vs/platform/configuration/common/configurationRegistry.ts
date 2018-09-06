@@ -67,7 +67,7 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
-export enum ConfigurationScope {
+export const enum ConfigurationScope {
 	APPLICATION = 1,
 	WINDOW,
 	RESOURCE,

@@ -361,7 +361,7 @@ export interface CodeAction {
 /**
  * @internal
  */
-export enum CodeActionTrigger {
+export const enum CodeActionTrigger {
 	Automatic = 1,
 	Manual = 2,
 }

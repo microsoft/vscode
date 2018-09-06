@@ -348,7 +348,7 @@ export class ActionItem extends BaseActionItem {
 	}
 }
 
-export enum ActionsOrientation {
+export const enum ActionsOrientation {
 	HORIZONTAL,
 	HORIZONTAL_REVERSE,
 	VERTICAL,

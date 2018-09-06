@@ -5,7 +5,7 @@
 
 'use strict';
 
-export enum MessageType {
+export const enum MessageType {
 	Initialized,
 	Ready,
 	Terminate

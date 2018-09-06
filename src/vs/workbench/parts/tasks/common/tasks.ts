@@ -297,7 +297,7 @@ export namespace TaskGroup {
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 
-export enum TaskScope {
+export const enum TaskScope {
 	Global = 1,
 	Workspace = 2,
 	Folder = 3
@@ -357,7 +357,7 @@ export interface TaskDependency {
 	task: string | KeyedTaskIdentifier;
 }
 
-export enum GroupType {
+export const enum GroupType {
 	default = 'default',
 	user = 'user'
 }
@@ -674,7 +674,7 @@ export namespace ExecutionEngine {
 	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
 }
 
-export enum JsonSchemaVersion {
+export const enum JsonSchemaVersion {
 	V0_1_0 = 1,
 	V2_0_0 = 2
 }
@@ -724,7 +724,7 @@ export class TaskSorter {
 	}
 }
 
-export enum TaskEventKind {
+export const enum TaskEventKind {
 	Start = 'start',
 	ProcessStarted = 'processStarted',
 	Active = 'active',
@@ -736,7 +736,7 @@ export enum TaskEventKind {
 }
 
 
-export enum TaskRunType {
+export const enum TaskRunType {
 	SingleRun = 'singleRun',
 	Background = 'background'
 }

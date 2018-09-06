@@ -248,7 +248,7 @@ export interface IWindowSettings {
 	clickThroughInactive: boolean;
 }
 
-export enum OpenContext {
+export const enum OpenContext {
 
 	// opening when running from the command line
 	CLI,
@@ -269,7 +269,7 @@ export enum OpenContext {
 	API
 }
 
-export enum ReadyState {
+export const enum ReadyState {
 
 	/**
 	 * This window has not loaded any HTML yet

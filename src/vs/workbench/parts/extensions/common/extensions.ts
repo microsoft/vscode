@@ -20,7 +20,7 @@ export interface IExtensionsViewlet extends IViewlet {
 	search(text: string): void;
 }
 
-export enum ExtensionState {
+export const enum ExtensionState {
 	Installing,
 	Installed,
 	Uninstalling,

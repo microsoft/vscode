@@ -16,11 +16,11 @@ export interface IAnchor {
 	height?: number;
 }
 
-export enum AnchorAlignment {
+export const enum AnchorAlignment {
 	LEFT, RIGHT
 }
 
-export enum AnchorPosition {
+export const enum AnchorPosition {
 	BELOW, ABOVE
 }
 
@@ -53,7 +53,7 @@ export interface ISize {
 
 export interface IView extends IPosition, ISize { }
 
-export enum LayoutAnchorPosition {
+export const enum LayoutAnchorPosition {
 	Before,
 	After
 }

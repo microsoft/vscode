@@ -9,7 +9,7 @@ import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/co
 
 export const IJSONEditingService = createDecorator<IJSONEditingService>('jsonEditingService');
 
-export enum JSONEditingErrorCode {
+export const enum JSONEditingErrorCode {
 
 	/**
 	 * Error when trying to write and save to the file while it is dirty in the editor.

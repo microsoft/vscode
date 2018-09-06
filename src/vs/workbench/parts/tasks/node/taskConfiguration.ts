@@ -25,7 +25,7 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
-export enum ShellQuoting {
+export const enum ShellQuoting {
 	/**
 	 * Default is character escaping.
 	 */

@@ -26,12 +26,12 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
-export enum RepositoryState {
+export const enum RepositoryState {
 	Idle,
 	Disposed
 }
 
-export enum Status {
+export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
 	INDEX_DELETED,
@@ -52,7 +52,7 @@ export enum Status {
 	BOTH_MODIFIED
 }
 
-export enum ResourceGroupType {
+export const enum ResourceGroupType {
 	Merge,
 	Index,
 	WorkingTree
@@ -275,7 +275,7 @@ export class Resource implements SourceControlResourceState {
 	) { }
 }
 
-export enum Operation {
+export const enum Operation {
 	Status = 'Status',
 	Config = 'Config',
 	Diff = 'Diff',

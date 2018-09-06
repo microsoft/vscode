@@ -68,7 +68,7 @@ export interface ISCMProvider extends IDisposable {
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 
-export enum InputValidationType {
+export const enum InputValidationType {
 	Error = 0,
 	Warning = 1,
 	Information = 2
