@@ -68,11 +68,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-		return this._proxy.$substituteVariables(folder ? folder.uri : undefined, config);
+		return TPromise.wrap(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return this._proxy.$runInTerminal(args, config);
+		return TPromise.wrap(this._proxy.$runInTerminal(args, config));
 	}
 
 	public dispose(): void {
@@ -184,17 +184,17 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = folder => {
-				return this._proxy.$provideDebugConfigurations(handle, folder);
+				return TPromise.wrap(this._proxy.$provideDebugConfigurations(handle, folder));
 			};
 		}
 		if (hasResolve) {
 			provider.resolveDebugConfiguration = (folder, debugConfiguration) => {
-				return this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration);
+				return TPromise.wrap(this._proxy.$resolveDebugConfiguration(handle, folder, debugConfiguration));
 			};
 		}
 		if (hasDebugAdapterExecutable) {
 			provider.debugAdapterExecutable = (folder) => {
-				return this._proxy.$debugAdapterExecutable(handle, folder);
+				return TPromise.wrap(this._proxy.$debugAdapterExecutable(handle, folder));
 			};
 		}
 		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
@@ -275,7 +275,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public startSession(): TPromise<void> {
-		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable, this._debugPort);
+		return TPromise.wrap(this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable, this._debugPort));
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -292,6 +292,6 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public stopSession(): TPromise<void> {
-		return this._proxy.$stopDASession(this._handle);
+		return TPromise.wrap(this._proxy.$stopDASession(this._handle));
 	}
 }

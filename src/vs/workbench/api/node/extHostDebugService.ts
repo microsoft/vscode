@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
@@ -31,6 +31,7 @@ import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/co
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -451,7 +452,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): TPromise<vscode.DebugConfiguration[]> {
+	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): Thenable<vscode.DebugConfiguration[]> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('no handler found'));
@@ -459,10 +460,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!handler.provideDebugConfigurations) {
 			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('handler has no method provideDebugConfigurations'));
 		}
-		return asWinJsPromise(token => handler.provideDebugConfigurations(this.getFolder(folderUri), token));
+		return asThenable(() => handler.provideDebugConfigurations(this.getFolder(folderUri), CancellationToken.None));
 	}
 
-	public $resolveDebugConfiguration(handle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): TPromise<vscode.DebugConfiguration> {
+	public $resolveDebugConfiguration(handle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Thenable<vscode.DebugConfiguration> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('no handler found'));
@@ -470,10 +471,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!handler.resolveDebugConfiguration) {
 			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('handler has no method resolveDebugConfiguration'));
 		}
-		return asWinJsPromise(token => handler.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, token));
+		return asThenable(() => handler.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, CancellationToken.None));
 	}
 
-	public $debugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): TPromise<vscode.DebugAdapterExecutable> {
+	public $debugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): Thenable<vscode.DebugAdapterExecutable> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('no handler found'));
@@ -481,7 +482,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!handler.debugAdapterExecutable) {
 			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('handler has no method debugAdapterExecutable'));
 		}
-		return asWinJsPromise(token => handler.debugAdapterExecutable(this.getFolder(folderUri), token));
+		return asThenable(() => handler.debugAdapterExecutable(this.getFolder(folderUri), CancellationToken.None));
 	}
 
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean> {
