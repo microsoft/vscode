@@ -38,6 +38,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -205,10 +206,10 @@ class Extension implements IExtension {
 		return this.local && this.gallery && semver.gt(this.local.manifest.version, this.gallery.version);
 	}
 
-	getManifest(): TPromise<IExtensionManifest> {
+	getManifest(token: CancellationToken): TPromise<IExtensionManifest> {
 		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.manifest) {
-				return this.galleryService.getManifest(this.gallery);
+				return this.galleryService.getManifest(this.gallery, token);
 			}
 			this.logService.error(nls.localize('Manifest is not found', "Manifest is not found"), this.id);
 			return TPromise.as(undefined);
@@ -229,10 +230,10 @@ class Extension implements IExtension {
 		return this.type === LocalExtensionType.System;
 	}
 
-	getReadme(): TPromise<string> {
+	getReadme(token: CancellationToken): TPromise<string> {
 		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.readme) {
-				return this.galleryService.getReadme(this.gallery);
+				return this.galleryService.getReadme(this.gallery, token);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
 		}
@@ -266,9 +267,9 @@ ${this.description}
 		return this.type === LocalExtensionType.System;
 	}
 
-	getChangelog(): TPromise<string> {
+	getChangelog(token: CancellationToken): TPromise<string> {
 		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
-			return this.galleryService.getChangelog(this.gallery);
+			return this.galleryService.getChangelog(this.gallery, token);
 		}
 
 		const changelogUrl = this.local && this.local.changelogUrl;
@@ -468,7 +469,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			});
 	}
 
-	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
+	loadDependencies(extension: IExtension, token: CancellationToken): TPromise<IExtensionDependencies> {
 		if (!extension.dependencies.length) {
 			return TPromise.wrap<IExtensionDependencies>(null);
 		}
@@ -477,7 +478,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			.then(report => {
 				const maliciousSet = getMaliciousExtensionsSet(report);
 
-				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => ({ id })))
+				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => ({ id })), token)
 					.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet)))
 					.then(extensions => [...this.local, ...extensions])
 					.then(extensions => {

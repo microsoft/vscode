@@ -13,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -271,12 +272,12 @@ export interface IExtensionGalleryService {
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
-	getReadme(extension: IGalleryExtension): TPromise<string>;
-	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
-	getChangelog(extension: IGalleryExtension): TPromise<string>;
+	getReadme(extension: IGalleryExtension, token: CancellationToken): TPromise<string>;
+	getManifest(extension: IGalleryExtension, token: CancellationToken): TPromise<IExtensionManifest>;
+	getChangelog(extension: IGalleryExtension, token: CancellationToken): TPromise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): TPromise<ITranslation>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
-	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
+	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
 	getExtension(id: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension>;
 }

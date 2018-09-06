@@ -29,6 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/platform/node/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -131,7 +132,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
+					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
 							const languageName = loc ? (loc.languageName || locale) : locale;

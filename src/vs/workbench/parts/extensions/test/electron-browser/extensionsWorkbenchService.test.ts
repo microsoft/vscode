@@ -38,6 +38,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -474,7 +475,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
 
 		return testObject.queryGallery().then(page => {
-			return testObject.loadDependencies(page.firstPage[0]).then(dependencies => {
+			return testObject.loadDependencies(page.firstPage[0], CancellationToken.None).then(dependencies => {
 				assert.equal(null, dependencies);
 			});
 		});
@@ -487,7 +488,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
-			return testObject.loadDependencies(extension).then(actual => {
+			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual.hasDependencies);
 				assert.equal(extension, actual.extension);
 				assert.equal(null, actual.dependent);
@@ -526,7 +527,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
-			return testObject.loadDependencies(extension).then(actual => {
+			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual.hasDependencies);
 				assert.equal(extension, actual.extension);
 				assert.equal(null, actual.dependent);
@@ -558,7 +559,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
-			return testObject.loadDependencies(extension).then(actual => {
+			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual.hasDependencies);
 				assert.equal(extension, actual.extension);
 				assert.equal(null, actual.dependent);
@@ -592,7 +593,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
-			return testObject.loadDependencies(extension).then(actual => {
+			return testObject.loadDependencies(extension, CancellationToken.None).then(actual => {
 				assert.ok(actual.hasDependencies);
 				assert.equal(extension, actual.extension);
 				assert.equal(null, actual.dependent);
@@ -630,7 +631,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
-			return testObject.loadDependencies(extension).then(a => {
+			return testObject.loadDependencies(extension, CancellationToken.None).then(a => {
 				assert.ok(a.hasDependencies);
 				assert.equal(extension, a.extension);
 				assert.equal(null, a.dependent);

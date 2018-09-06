@@ -9,7 +9,7 @@ import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
-import { createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
+import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter, once, chain } from 'vs/base/common/event';
@@ -283,10 +283,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, extension.getReadme())));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, extension.getChangelog())));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, extension.getManifest())));
-		this.extensionDependencies = new Cache(() => createCancelablePromise(token => wireCancellationToken(token, this.extensionsWorkbenchService.loadDependencies(extension))));
+		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
+		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
+		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+		this.extensionDependencies = new Cache(() => createCancelablePromise(token => this.extensionsWorkbenchService.loadDependencies(extension, token)));
 
 		const onError = once(domEvent(this.icon, 'error'));
 		onError(() => this.icon.src = extension.iconUrlFallback, null, this.transientDisposables);

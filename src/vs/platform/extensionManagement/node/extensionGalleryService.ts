@@ -538,13 +538,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.then(() => zipPath);
 	}
 
-	getReadme(extension: IGalleryExtension): TPromise<string> {
-		return this.getAsset(extension.assets.readme)
+	getReadme(extension: IGalleryExtension, token: CancellationToken): TPromise<string> {
+		return this.getAsset(extension.assets.readme, {}, token)
 			.then(asText);
 	}
 
-	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest> {
-		return this.getAsset(extension.assets.manifest)
+	getManifest(extension: IGalleryExtension, token: CancellationToken): TPromise<IExtensionManifest> {
+		return this.getAsset(extension.assets.manifest, {}, token)
 			.then(asText)
 			.then(JSON.parse);
 	}
@@ -559,13 +559,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return TPromise.as(null);
 	}
 
-	getChangelog(extension: IGalleryExtension): TPromise<string> {
-		return this.getAsset(extension.assets.changelog)
+	getChangelog(extension: IGalleryExtension, token: CancellationToken): TPromise<string> {
+		return this.getAsset(extension.assets.changelog, {}, token)
 			.then(asText);
 	}
 
-	loadAllDependencies(extensions: IExtensionIdentifier[]): TPromise<IGalleryExtension[]> {
-		return this.getDependenciesReccursively(extensions.map(e => e.id), []);
+	loadAllDependencies(extensions: IExtensionIdentifier[], token: CancellationToken): TPromise<IGalleryExtension[]> {
+		return this.getDependenciesReccursively(extensions.map(e => e.id), [], token);
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
@@ -603,7 +603,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			});
 	}
 
-	private loadDependencies(extensionNames: string[]): TPromise<IGalleryExtension[]> {
+	private loadDependencies(extensionNames: string[], token: CancellationToken): TPromise<IGalleryExtension[]> {
 		if (!extensionNames || extensionNames.length === 0) {
 			return TPromise.as([]);
 		}
@@ -616,7 +616,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX)
 			.withFilter(FilterType.ExtensionName, ...extensionNames);
 
-		return this.queryGallery(query, CancellationToken.None).then(result => {
+		return this.queryGallery(query, token).then(result => {
 			const dependencies = [];
 			const ids = [];
 
@@ -631,7 +631,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[], token: CancellationToken): TPromise<IGalleryExtension[]> {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
 		}
@@ -640,7 +640,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return TPromise.wrap(result);
 		}
 
-		return this.loadDependencies(toGet)
+		return this.loadDependencies(toGet, token)
 			.then(loadedDependencies => {
 				const dependenciesSet = new Set<string>();
 				for (const dep of loadedDependencies) {
@@ -651,7 +651,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
 				const dependencies: string[] = [];
 				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
-				return this.getDependenciesReccursively(dependencies, result);
+				return this.getDependenciesReccursively(dependencies, result, token);
 			});
 	}
 
