@@ -189,7 +189,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				}
 			};
 		}
-		return asWinJsPromise(token => this._variableResolver.resolveAny(ws, config));
+		return TPromise.wrap(this._variableResolver.resolveAny(ws, config));
 	}
 
 	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
