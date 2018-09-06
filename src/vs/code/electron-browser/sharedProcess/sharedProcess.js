@@ -7,6 +7,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const bootstrap = require('../../../../bootstrap-shared');
 
 function assign(destination, source) {
 	return Object.keys(source)
@@ -59,34 +60,7 @@ function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
-	//#region Add support for using node_modules.asar
-	(function () {
-		const path = require('path');
-		const Module = require('module');
-		let NODE_MODULES_PATH = path.join(configuration.appRoot, 'node_modules');
-		if (/[a-z]\:/.test(NODE_MODULES_PATH)) {
-			// Make drive letter uppercase
-			NODE_MODULES_PATH = NODE_MODULES_PATH.charAt(0).toUpperCase() + NODE_MODULES_PATH.substr(1);
-		}
-		const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
-
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
-		Module._resolveLookupPaths = function (request, parent, newReturn) {
-			const result = originalResolveLookupPaths(request, parent, newReturn);
-
-			const paths = newReturn ? result : result[1];
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
-				}
-			}
-
-			return result;
-		};
-	})();
-	//#endregion
-
+	bootstrap.enableASARSupport();
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
 

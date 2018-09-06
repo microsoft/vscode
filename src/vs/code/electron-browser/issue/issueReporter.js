@@ -8,6 +8,7 @@
 const path = require('path');
 const fs = require('fs');
 const ipc = require('electron').ipcRenderer;
+const bootstrap = require('../../../../bootstrap-shared');
 
 function assign(destination, source) {
 	return Object.keys(source)
@@ -34,8 +35,8 @@ function uriFromPath(_path) {
 }
 
 function readFile(file) {
-	return new Promise(function(resolve, reject) {
-		fs.readFile(file, 'utf8', function(err, data) {
+	return new Promise(function (resolve, reject) {
+		fs.readFile(file, 'utf8', function (err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -53,33 +54,7 @@ function main() {
 
 	assign(process.env, configuration.userEnv);
 
-	//#region Add support for using node_modules.asar
-	(function () {
-		const path = require('path');
-		const Module = require('module');
-		let NODE_MODULES_PATH = path.join(configuration.appRoot, 'node_modules');
-		if (/[a-z]\:/.test(NODE_MODULES_PATH)) {
-			// Make drive letter uppercase
-			NODE_MODULES_PATH = NODE_MODULES_PATH.charAt(0).toUpperCase() + NODE_MODULES_PATH.substr(1);
-		}
-		const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
-
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
-		Module._resolveLookupPaths = function (request, parent, newReturn) {
-			const result = originalResolveLookupPaths(request, parent, newReturn);
-
-			const paths = newReturn ? result : result[1];
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
-				}
-			}
-
-			return result;
-		};
-	})();
-	//#endregion
+	bootstrap.enableASARSupport();
 
 	const extractKey = function (e) {
 		return [
@@ -118,7 +93,7 @@ function main() {
 
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function(bundle, language, cb) {
+		nlsConfig.loadBundle = function (bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);

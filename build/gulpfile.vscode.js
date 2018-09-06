@@ -56,6 +56,7 @@ const vscodeResources = [
 	'out-build/driver.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
+	'out-build/bootstrap-shared.js',
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',

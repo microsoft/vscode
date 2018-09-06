@@ -15,15 +15,15 @@ const fs = require('fs');
 const electron = require('electron');
 const ipc = electron.ipcRenderer;
 
-Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+const bootstrap = require('../../../../bootstrap-shared');
 
-process.lazyEnv = new Promise(function (resolve) {
-	const handle = setTimeout(function () {
+process.lazyEnv = new Promise(function(resolve) {
+	const handle = setTimeout(function() {
 		resolve();
 		console.warn('renderer did not receive lazyEnv in time');
 	}, 10000);
 
-	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+	ipc.once('vscode:acceptShellEnv', function(event, shellEnv) {
 		clearTimeout(handle);
 		assign(process.env, shellEnv);
 		resolve(process.env);
@@ -45,17 +45,17 @@ function onError(error, enableDeveloperTools) {
 }
 
 function assign(destination, source) {
-	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+	return Object.keys(source).reduce(function(r, key) { r[key] = source[key]; return r; }, destination);
 }
 
 function parseURLQueryArgs() {
 	const search = window.location.search || '';
 
 	return search.split(/[?&]/)
-		.filter(function (param) { return !!param; })
-		.map(function (param) { return param.split('='); })
-		.filter(function (param) { return param.length === 2; })
-		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
+		.filter(function(param) { return !!param; })
+		.map(function(param) { return param.split('='); })
+		.filter(function(param) { return param.length === 2; })
+		.reduce(function(r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 }
 
 function uriFromPath(_path) {
@@ -68,8 +68,8 @@ function uriFromPath(_path) {
 }
 
 function readFile(file) {
-	return new Promise(function (resolve, reject) {
-		fs.readFile(file, 'utf8', function (err, data) {
+	return new Promise(function(resolve, reject) {
+		fs.readFile(file, 'utf8', function(err, data) {
 			if (err) {
 				reject(err);
 				return;
@@ -151,7 +151,7 @@ function registerListeners(enableDeveloperTools) {
 	// Devtools & reload support
 	var listener;
 	if (enableDeveloperTools) {
-		const extractKey = function (e) {
+		const extractKey = function(e) {
 			return [
 				e.ctrlKey ? 'ctrl-' : '',
 				e.metaKey ? 'meta-' : '',
@@ -164,7 +164,7 @@ function registerListeners(enableDeveloperTools) {
 		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		listener = function (e) {
+		listener = function(e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
 				ipc.send('vscode:toggleDevTools');
@@ -175,10 +175,10 @@ function registerListeners(enableDeveloperTools) {
 		window.addEventListener('keydown', listener);
 	}
 
-	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools); });
-	process.on('SIGPIPE', function () { onError(new Error('Unexpected SIGPIPE'), false); }); // workaround https://github.com/electron/electron/issues/13254
+	process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools); });
+	process.on('SIGPIPE', function() { onError(new Error('Unexpected SIGPIPE'), false); }); // workaround https://github.com/electron/electron/issues/13254
 
-	return function () {
+	return function() {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
 			listener = void 0;
@@ -191,33 +191,7 @@ function main() {
 	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
-	//#region Add support for using node_modules.asar
-	(function () {
-		const path = require('path');
-		const Module = require('module');
-		let NODE_MODULES_PATH = path.join(configuration.appRoot, 'node_modules');
-		if (/[a-z]\:/.test(NODE_MODULES_PATH)) {
-			// Make drive letter uppercase
-			NODE_MODULES_PATH = NODE_MODULES_PATH.charAt(0).toUpperCase() + NODE_MODULES_PATH.substr(1);
-		}
-		const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
-
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
-		Module._resolveLookupPaths = function (request, parent, newReturn) {
-			const result = originalResolveLookupPaths(request, parent, newReturn);
-
-			const paths = newReturn ? result : result[1];
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === NODE_MODULES_PATH) {
-					paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-					break;
-				}
-			}
-
-			return result;
-		};
-	})();
-	//#endregion
+	bootstrap.enableASARSupport();
 
 	// Correctly inherit the parent's environment
 	assign(process.env, configuration.userEnv);
@@ -244,21 +218,21 @@ function main() {
 
 	if (nlsConfig._resolvedLanguagePackCoreLocation) {
 		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function (bundle, language, cb) {
+		nlsConfig.loadBundle = function(bundle, language, cb) {
 			let result = bundles[bundle];
 			if (result) {
 				cb(undefined, result);
 				return;
 			}
 			let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
-			readFile(bundleFile).then(function (content) {
+			readFile(bundleFile).then(function(content) {
 				let json = JSON.parse(content);
 				bundles[bundle] = json;
 				cb(undefined, json);
 			}).catch((error) => {
 				try {
 					if (nlsConfig._corruptedFile) {
-						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+						writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function(error) { console.error(error); });
 					}
 				} finally {
 					cb(error, undefined);
@@ -287,7 +261,7 @@ function main() {
 
 	window.nodeRequire = require.__$__nodeRequire;
 
-	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+	define('fs', ['original-fs'], function(originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
 	window.MonacoEnvironment = {};
 
@@ -297,12 +271,12 @@ function main() {
 		'vs/nls': nlsConfig,
 		recordStats: !!configuration.performance,
 		nodeCachedDataDir: configuration.nodeCachedDataDir,
-		onNodeCachedData: function () { onNodeCachedData.push(arguments); },
+		onNodeCachedData: function() { onNodeCachedData.push(arguments); },
 		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 	});
 
 	if (nlsConfig.pseudo) {
-		require(['vs/nls'], function (nlsPlugin) {
+		require(['vs/nls'], function(nlsPlugin) {
 			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
 	}
@@ -312,16 +286,16 @@ function main() {
 		'vs/workbench/workbench.main',
 		'vs/nls!vs/workbench/workbench.main',
 		'vs/css!vs/workbench/workbench.main'
-	], function () {
+	], function() {
 		perf.mark('didLoadWorkbenchMain');
 
-		process.lazyEnv.then(function () {
+		process.lazyEnv.then(function() {
 			perf.mark('main/startup');
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)
-				.then(function () {
+				.then(function() {
 					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
-				}, function (error) {
+				}, function(error) {
 					onError(error, enableDeveloperTools);
 				});
 		});
