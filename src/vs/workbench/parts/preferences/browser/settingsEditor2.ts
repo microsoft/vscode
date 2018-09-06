@@ -1020,7 +1020,7 @@ export class SettingsEditor2 extends BaseEditor {
 								TPromise.wrap(null);
 						});
 					}
-				}).then(() => this.renderResultCountMessages());
+				});
 			} else {
 				return TPromise.wrap(null);
 			}
@@ -1064,7 +1064,11 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTree.setFocus(null);
 			expandAll(this.tocTree);
 
-			return this.renderTree().then(() => result);
+			return this.renderTree().then(() => {
+				this.renderResultCountMessages();
+
+				return result;
+			});
 		});
 	}
 
