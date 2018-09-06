@@ -107,6 +107,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	private detailsProvider: (index: number) => { details: string, isMarkdown: boolean };
 	private selectionDetailsPane: HTMLElement;
 
+	private detailsPaneMirrorFloatAnchor: HTMLElement;
+	private detailsPaneMirrorFloatContainer: HTMLElement;
+	private detailsPaneMirrorContainer: HTMLElement;
+	private detailsPaneMirrorMarkdown: HTMLElement;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -139,6 +143,18 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.constructSelectDropDown(contextViewProvider);
 
 		this.setOptions(options, selected);
+
+		this.detailsPaneMirrorFloatAnchor = document.createElement('div'); // relative anchor
+
+		this.detailsPaneMirrorFloatContainer = document.createElement('div'); // absolute flex
+		this.detailsPaneMirrorContainer = document.createElement('div'); // absolute flex
+		this.detailsPaneMirrorMarkdown = document.createElement('div'); // absolute flex
+		this.detailsPaneMirrorFloatAnchor.appendChild(this.detailsPaneMirrorFloatContainer);
+		this.detailsPaneMirrorFloatContainer.appendChild(this.detailsPaneMirrorContainer);
+		this.detailsPaneMirrorContainer.appendChild(this.detailsPaneMirrorMarkdown);
+		// this.tempDescriptionContainerElement.style.display = 'none';
+		// this.detailsPaneMirrorFloatAnchor.style.position = 'relative';
+		// this.detailsPaneMirrorFloatContainer.style.position = 'absolute';
 	}
 
 	// IDelegate - List renderer
@@ -314,6 +330,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
 		this.applyStyles();
+		dom.addClass(this.detailsPaneMirrorFloatAnchor, 'select-box-details-pane-mirror-float-anchor');
+		this.selectElement.parentElement.appendChild(this.detailsPaneMirrorFloatAnchor);
+		dom.addClass(this.detailsPaneMirrorFloatContainer, 'select-box-details-pane-mirror-float-container');
+		dom.addClass(this.detailsPaneMirrorContainer, 'select-box-details-pane-mirror-container');
 	}
 
 	public style(styles: ISelectBoxStyles): void {
@@ -444,6 +464,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		}
 
 		this._isVisible = false;
+		this.detailsPaneMirrorContainer.style.display = 'none';
 
 		if (focusSelect) {
 			this.selectElement.focus();
@@ -469,6 +490,45 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		};
 	}
 
+
+	private layoutMirrorDescriptions(): number {
+
+		let detailsPaneMirrorFloatContainer = this.detailsPaneMirrorFloatContainer;
+		let detailsPaneMirrorContainer = this.detailsPaneMirrorContainer;
+
+		// test for non MD
+		// let description  = {details: 'test description 1' , isMarkdown: false};
+
+		let description = this.detailsProvider ? this.detailsProvider(this.selected) : { details: '', isMarkdown: false };
+
+		if (description.details) {
+			if (description.isMarkdown) {
+				this.detailsPaneMirrorContainer.removeChild(this.detailsPaneMirrorMarkdown);
+				this.detailsPaneMirrorMarkdown = detailsPaneMirrorContainer.appendChild(this.renderDescriptionMarkdown(description.details));
+			} else {
+				this.detailsPaneMirrorContainer.innerText = description.details;
+				this.detailsPaneMirrorContainer.style.padding = '5px';
+			}
+			this.detailsPaneMirrorContainer.style.display = 'block';
+		} else {
+			detailsPaneMirrorContainer.style.display = 'none';
+		}
+
+		this.cloneElementFont(this.selectElement, detailsPaneMirrorContainer);
+
+		// Float container is absolutely positioned and used for measurement
+		// VisibleForDebug
+		detailsPaneMirrorFloatContainer.style.opacity = '0';
+
+		detailsPaneMirrorFloatContainer.style.top = '-100px';
+		detailsPaneMirrorFloatContainer.style.left = '-0px';
+
+		detailsPaneMirrorContainer.style.width = this.selectElement.offsetWidth.toString() + 'px';
+
+		let h = dom.getDomNodePagePosition(this.detailsPaneMirrorMarkdown);
+		return h.height;
+	}
+
 	private layoutSelectDropDown(preLayoutPosition?: boolean): boolean {
 
 		// Layout ContextView drop down select list and container
@@ -479,9 +539,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 			const styles = getComputedStyle(this.selectElement);
+			// Layout mirror description pane for measurements
+			const detailsPaneHeight = this.layoutMirrorDescriptions();
+
 			const verticalPadding = parseFloat(styles.getPropertyValue('--dropdown-padding-top')) + parseFloat(styles.getPropertyValue('--dropdown-padding-bottom'));
-			const maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
-			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
+			const maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin - detailsPaneHeight);
+			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN - detailsPaneHeight);
 
 			// Get initial list height and determine space above and below
 			this.selectList.layout();
@@ -490,12 +553,15 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding) / this.getHeight())));
 			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - verticalPadding) / this.getHeight())));
 
+
+
 			// If we are only doing pre-layout check/adjust position only
 			// Calculate vertical space available, flip up if insufficient
 			// Use reflected padding on parent select, ContextView style
 			// properties not available before DOM attachment
 
 			if (preLayoutPosition) {
+
 				// Check if select moved out of viewport , do not open
 				// If at least one option cannot be shown, don't open the drop-down or hide/remove if open
 
@@ -550,7 +616,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			} else {
 				// Set container height to max from select top to margin (default/minTopMargin)
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightAbove) {
-					// listHeight = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding) / this.getHeight())) * this.getHeight());
 					listHeight = (maxVisibleOptionsAbove * this.getHeight() + verticalPadding);
 				}
 			}
@@ -579,9 +644,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
+			// Set final container height after adjustments
+			this.selectDropDownContainer.style.height = (listHeight + verticalPadding + detailsPaneHeight) + 'px';
+
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
+			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
+
 			return true;
 		} else {
 			return false;
@@ -740,13 +810,21 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
 		let description = this.detailsProvider ? this.detailsProvider(selectedIndex) : { details: '', isMarkdown: false };
+
 		if (description.details) {
 			if (description.isMarkdown) {
 				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description.details));
+				this.detailsPaneMirrorMarkdown.innerHTML = this.selectionDetailsPane.firstElementChild.innerHTML;
 			} else {
 				this.selectionDetailsPane.innerText = description.details;
+				this.detailsPaneMirrorContainer.innerText = description.details;
 			}
+			this.cloneElementFont(this.selectElement, this.detailsPaneMirrorMarkdown);
 			this.selectionDetailsPane.style.display = 'block';
+
+			// PROBLEM: This adjust container but anchor point does not
+			this.selectDropDownContainer.style.height = (this.selectList.contentHeight + 5 + this.selectionDetailsPane.offsetHeight) + 'px';
+			// this.detailsPaneMirrorFloatContainer.style.opacity = '0';
 		} else {
 			this.selectionDetailsPane.style.display = 'none';
 		}
