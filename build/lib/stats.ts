@@ -98,10 +98,10 @@ export function submitAllStats(productJson: any): Promise<void> {
 
 	return new Promise(resolve => {
 
-		const measurements = Object.create(null);
+		const properties = { size: {}, count: {} };
 		for (const entry of sorted) {
-			measurements[`size:${entry.name}`] = entry.totalSize;
-			measurements[`count:${entry.name}`] = entry.totalCount;
+			properties.size[entry.name] = entry.totalSize;
+			properties.count[entry.name] = entry.totalCount;
 		}
 
 		appInsights.setup(productJson.aiConfig.asimovKey)
@@ -116,11 +116,11 @@ export function submitAllStats(productJson: any): Promise<void> {
 
 		/* __GDPR__
 			"monacoworkbench/packagemetrics" : {
-				"size:???" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				"count:???" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		client.trackEvent(`monacoworkbench/packagemetrics`, undefined, measurements);
+		client.trackEvent(`monacoworkbench/packagemetrics`, properties);
 		client.sendPendingData(() => resolve());
 	});
 

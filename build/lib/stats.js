@@ -93,11 +93,11 @@ function submitAllStats(productJson) {
         return Promise.resolve();
     }
     return new Promise(function (resolve) {
-        var measurements = Object.create(null);
+        var properties = { size: {}, count: {} };
         for (var _i = 0, sorted_2 = sorted; _i < sorted_2.length; _i++) {
             var entry = sorted_2[_i];
-            measurements["size:" + entry.name] = entry.totalSize;
-            measurements["count:" + entry.name] = entry.totalCount;
+            properties.size[entry.name] = entry.totalSize;
+            properties.count[entry.name] = entry.totalCount;
         }
         appInsights.setup(productJson.aiConfig.asimovKey)
             .setAutoCollectConsole(false)
@@ -109,11 +109,11 @@ function submitAllStats(productJson) {
         client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
         /* __GDPR__
             "monacoworkbench/packagemetrics" : {
-                "size:???" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-                "count:???" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+                "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
             }
         */
-        client.trackEvent("monacoworkbench/packagemetrics", undefined, measurements);
+        client.trackEvent("monacoworkbench/packagemetrics", properties);
         client.sendPendingData(function () { return resolve(); });
     });
 }
