@@ -49,11 +49,8 @@ export class CodeActionOracle {
 
 	private _onMarkerChanges(resources: URI[]): void {
 		const { uri } = this._editor.getModel();
-		for (const resource of resources) {
-			if (resource.toString() === uri.toString()) {
-				this.trigger({ type: 'auto' });
-				return;
-			}
+		if (resources.some(resource => resource.toString() === uri.toString())) {
+			this.trigger({ type: 'auto' });
 		}
 	}
 
