@@ -18,7 +18,7 @@ import * as os from 'os';
 import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { timeout } from 'vs/base/common/async';
-import { StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -34,7 +34,7 @@ class Info {
 		table['nls:start => nls:end'] = new Info(metrics.timers.ellapsedNlsGeneration, '[main]', metrics.initialStartup);
 		table['app.isReady => window.loadUrl()'] = new Info(metrics.timers.ellapsedWindowLoad, '[main]', metrics.initialStartup);
 
-		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKind[metrics.windowKind]);
+		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind));
 		table['require(workbench.main.js)'] = new Info(metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${nodeModuleLoadTime ? `, node_modules took ${nodeModuleLoadTime}ms` : ''}`);
 
 		table['register extensions & spawn extension host'] = new Info(metrics.timers.ellapsedExtensions, '[renderer]');

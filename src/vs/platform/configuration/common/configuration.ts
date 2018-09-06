@@ -28,12 +28,21 @@ export interface IConfigurationOverrides {
 	resource?: URI;
 }
 
-export enum ConfigurationTarget {
+export const enum ConfigurationTarget {
 	USER = 1,
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
 	MEMORY
+}
+export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
+	switch (configurationTarget) {
+		case ConfigurationTarget.USER: return 'USER';
+		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
+		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
+		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
+		case ConfigurationTarget.MEMORY: return 'MEMORY';
+	}
 }
 
 export interface IConfigurationChangeEvent {
