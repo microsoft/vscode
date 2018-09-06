@@ -13,7 +13,7 @@ import { createCancelablePromise, wireCancellationToken } from 'vs/base/common/a
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
 import { Event, Emitter, once, chain } from 'vs/base/common/event';
-import Cache, { CacheResult } from 'vs/base/common/cache';
+import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
