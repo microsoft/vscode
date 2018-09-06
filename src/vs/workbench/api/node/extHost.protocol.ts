@@ -886,10 +886,10 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents): TPromise<UriComponents>;
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Thenable<UriComponents>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Thenable<void>;
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Thenable<[string, number] | undefined>;
 	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void>;
 }
 
