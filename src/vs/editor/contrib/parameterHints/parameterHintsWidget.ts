@@ -38,11 +38,11 @@ export class ParameterHintsModel extends Disposable {
 
 	static DELAY = 120; // ms
 
-	private _onHint = this._register(new Emitter<IHintEvent>());
-	onHint: Event<IHintEvent> = this._onHint.event;
+	private readonly _onHint = this._register(new Emitter<IHintEvent>());
+	public readonly onHint: Event<IHintEvent> = this._onHint.event;
 
-	private _onCancel = this._register(new Emitter<void>());
-	onCancel: Event<void> = this._onCancel.event;
+	private readonly _onCancel = this._register(new Emitter<void>());
+	public readonly onCancel: Event<void> = this._onCancel.event;
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
