@@ -100,8 +100,8 @@ export function submitAllStats(productJson: any): Promise<void> {
 
 		const measurements = Object.create(null);
 		for (const entry of sorted) {
-			measurements[`${entry.name}.size`] = entry.totalSize;
-			measurements[`${entry.name}.count`] = entry.totalCount;
+			measurements[`size:${entry.name}`] = entry.totalSize;
+			measurements[`count:${entry.name}`] = entry.totalCount;
 		}
 
 		appInsights.setup(productJson.aiConfig.asimovKey)
@@ -115,11 +115,12 @@ export function submitAllStats(productJson: any): Promise<void> {
 		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
 
 		/* __GDPR__
-			"monacoworkbench/bundleStats" : {
-				"outcome" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			"monacoworkbench/packagemetrics" : {
+				"size:???" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"count:???" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		client.trackEvent(`monacoworkbench/bundleStats`, undefined, measurements);
+		client.trackEvent(`monacoworkbench/packagemetrics`, undefined, measurements);
 		client.sendPendingData(() => resolve());
 	});
 
