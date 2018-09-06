@@ -106,7 +106,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	private _dropDownPosition: AnchorPosition;
 	private detailsProvider: (index: number) => { details: string, isMarkdown: boolean };
 	private selectionDetailsPane: HTMLElement;
-
+	private _skipLayout: boolean = false;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -182,6 +182,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
+			this.selected = e.target.selectedIndex;
 			this._onDidSelect.fire({
 				index: e.target.selectedIndex,
 				selected: e.target.value
@@ -334,11 +335,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		if (!this.styles.selectBorder.equals(this.styles.selectBackground)) {
 			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectBorder} } `);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane { border-top: 1px solid ${this.styles.selectBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-top { border-top: 1px solid ${this.styles.selectBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-bottom { border-bottom: 1px solid ${this.styles.selectBorder} } `);
+
 		}
 		else if (this.styles.selectListBorder) {
-			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectListBorder} } `);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane { border-top: 1px solid ${this.styles.selectListBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-top { border-top: 1px solid ${this.styles.selectListBorder} } `);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-bottom { border-bottom: 1px solid ${this.styles.selectListBorder} } `);
 		}
 
 		// Hover foreground - ignore for disabled options
@@ -356,6 +359,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		// Match quickOpen outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
+
 		}
 
 		if (this.styles.listHoverOutline) {
@@ -414,13 +418,28 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			return;
 		}
 
+		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
+
+		// This allows us to flip the position based on measurement
 		// Set drop-down position above/below from required height and margins
 		// If pre-layout cannot fit at least one option do not show drop-down
-		if (!this.layoutSelectDropDown(true)) {
-			return;
-		}
 
-		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
+		this.contextViewProvider.showContextView({
+			getAnchor: () => this.selectElement,
+			render: (container: HTMLElement) => this.renderSelectDropDown(container, true),
+			layout: () => {
+				this.layoutSelectDropDown();
+			},
+			onHide: () => {
+				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
+				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
+			},
+			anchorPosition: this._dropDownPosition
+		});
+
+		// Hide so we can relay out
+		this._isVisible = true;
+		this.hideSelectDropDown(false);
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
@@ -452,10 +471,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		this.contextViewProvider.hideContextView();
 	}
 
-	private renderSelectDropDown(container: HTMLElement): IDisposable {
+	private renderSelectDropDown(container: HTMLElement, preLayoutPosition?: boolean): IDisposable {
 		container.appendChild(this.selectDropDownContainer);
 
-		this.layoutSelectDropDown();
+		// Pre-Layout allows us to change position
+		this.layoutSelectDropDown(preLayoutPosition);
+
 		return {
 			dispose: () => {
 				// contextView will dispose itself if moving from one View to another
@@ -469,7 +490,59 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		};
 	}
 
+	// Iterate over detailed descriptions, find max height
+	private measureMaxDetailsHeight(): number {
+
+		if (!this.detailsProvider) {
+			return 0;
+		}
+
+		let maxDetailsPaneHeight = 0;
+		let description = { details: '', isMarkdown: false };
+
+		this.options.forEach((option, index) => {
+
+			this.selectionDetailsPane.innerText = '';
+
+			description = this.detailsProvider ? this.detailsProvider(index) : { details: '', isMarkdown: false };
+			if (description.details) {
+				if (description.isMarkdown) {
+					this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description.details));
+				} else {
+					this.selectionDetailsPane.innerText = description.details;
+				}
+				this.selectionDetailsPane.style.display = 'block';
+			} else {
+				this.selectionDetailsPane.style.display = 'none';
+			}
+
+			if (this.selectionDetailsPane.offsetHeight > maxDetailsPaneHeight) {
+				maxDetailsPaneHeight = this.selectionDetailsPane.offsetHeight;
+			}
+		});
+
+		// Reset description to selected
+		description = this.detailsProvider ? this.detailsProvider(this.selected) : { details: '', isMarkdown: false };
+		this.selectionDetailsPane.innerText = '';
+
+		if (description.details) {
+			if (description.isMarkdown) {
+				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description.details));
+			} else {
+				this.selectionDetailsPane.innerText = description.details;
+			}
+			this.selectionDetailsPane.style.display = 'block';
+		}
+
+		return maxDetailsPaneHeight;
+	}
+
 	private layoutSelectDropDown(preLayoutPosition?: boolean): boolean {
+
+		// Avoid recursion from layout called in onListFocus
+		if (this._skipLayout) {
+			return false;
+		}
 
 		// Layout ContextView drop down select list and container
 		// Have to manage our vertical overflow, sizing, position below or above
@@ -477,18 +550,31 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		if (this.selectList) {
 
+			// Make visible to enable measurements
+			dom.toggleClass(this.selectDropDownContainer, 'visible', true);
+
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 			const styles = getComputedStyle(this.selectElement);
 			const verticalPadding = parseFloat(styles.getPropertyValue('--dropdown-padding-top')) + parseFloat(styles.getPropertyValue('--dropdown-padding-bottom'));
 			const maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
 			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);
 
-			// Get initial list height and determine space above and below
+			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
+			const selectWidth = this.selectElement.offsetWidth;
+			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
+			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
+
+			this.selectDropDownContainer.style.width = selectOptimalWidth;
+
+			// Get initial list height and determine space ab1you knowove and below
 			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
-			const minRequiredDropDownHeight = listHeight + verticalPadding;
-			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding) / this.getHeight())));
-			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - verticalPadding) / this.getHeight())));
+
+			const maxDetailsPaneHeight = this.measureMaxDetailsHeight();
+
+			const minRequiredDropDownHeight = listHeight + verticalPadding + maxDetailsPaneHeight;
+			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));
+			const maxVisibleOptionsAbove = ((Math.floor((maxSelectDropDownHeightAbove - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));
 
 			// If we are only doing pre-layout check/adjust position only
 			// Calculate vertical space available, flip up if insufficient
@@ -496,6 +582,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// properties not available before DOM attachment
 
 			if (preLayoutPosition) {
+
 				// Check if select moved out of viewport , do not open
 				// If at least one option cannot be shown, don't open the drop-down or hide/remove if open
 
@@ -513,8 +600,23 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 					&& this.options.length > maxVisibleOptionsBelow
 				) {
 					this._dropDownPosition = AnchorPosition.ABOVE;
+					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
+
+					dom.removeClass(this.selectionDetailsPane, 'border-top');
+					dom.addClass(this.selectionDetailsPane, 'border-bottom');
+
 				} else {
 					this._dropDownPosition = AnchorPosition.BELOW;
+					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
+
+					dom.removeClass(this.selectionDetailsPane, 'border-bottom');
+					dom.addClass(this.selectionDetailsPane, 'border-top');
 				}
 				// Do full layout on showSelectDropDown only
 				return true;
@@ -530,9 +632,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				return false;
 			}
 
-			// Make visible to enable measurements
-			dom.toggleClass(this.selectDropDownContainer, 'visible', true);
-
 			// SetUp list dimensions and layout - account for container padding
 			// Use position to check above or below available space
 			if (this._dropDownPosition === AnchorPosition.BELOW) {
@@ -543,15 +642,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 					return false;
 				}
 
-				// Set container height to max from select bottom to margin (default/minBottomMargin)
+				// Adjust list height to max from select bottom to margin (default/minBottomMargin)
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightBelow) {
-					listHeight = (maxVisibleOptionsBelow * this.getHeight() + verticalPadding);
+					listHeight = (maxVisibleOptionsBelow * this.getHeight());
 				}
 			} else {
-				// Set container height to max from select top to margin (default/minTopMargin)
 				if (minRequiredDropDownHeight > maxSelectDropDownHeightAbove) {
-					// listHeight = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding) / this.getHeight())) * this.getHeight());
-					listHeight = (maxVisibleOptionsAbove * this.getHeight() + verticalPadding);
+					listHeight = (maxVisibleOptionsAbove * this.getHeight());
 				}
 			}
 
@@ -572,16 +669,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
 			}
 
-			// Determine optimal width - min(longest option), opt(parent select, excluding margins), max(ContextView controlled)
-			const selectWidth = this.selectElement.offsetWidth;
-			const selectMinWidth = this.setWidthControlElement(this.widthControlElement);
-			const selectOptimalWidth = Math.max(selectMinWidth, Math.round(selectWidth)).toString() + 'px';
-
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
 			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
+			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
+
 			return true;
 		} else {
 			return false;
@@ -737,6 +831,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 	// List Focus Change - passive - update details pane with newly focused element's data
 	private onListFocus(e: IListEvent<ISelectOptionItem>) {
+		// Skip during initial layout
+		if (!this._isVisible) {
+			return;
+		}
 		this.selectionDetailsPane.innerText = '';
 		const selectedIndex = e.indexes[0];
 		let description = this.detailsProvider ? this.detailsProvider(selectedIndex) : { details: '', isMarkdown: false };
@@ -750,6 +848,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 		} else {
 			this.selectionDetailsPane.style.display = 'none';
 		}
+
+		// Avoid recursion
+		this._skipLayout = true;
+		this.contextViewProvider.layout();
+		this._skipLayout = false;
+
 	}
 
 	// List keyboard controller
