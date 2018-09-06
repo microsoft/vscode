@@ -15,6 +15,7 @@ import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -64,7 +65,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	constructor(
 		@INotificationService private notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -76,6 +78,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 				return;
 			}
 			this._prompt();
+
+			this.windowsService.updateIntegrity(r.isPure);
 		});
 	}
 

@@ -86,7 +86,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this.properties = { isPure: true, isAdmin: false };
+		this.properties = { isAdmin: false };
 		this.activeEditorListeners = [];
 
 		this.registerListeners();
@@ -193,11 +193,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	updateProperties(properties: ITitleProperties): void {
 		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
-		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;
 
-		if (isAdmin !== this.properties.isAdmin || isPure !== this.properties.isPure) {
+		if (isAdmin !== this.properties.isAdmin) {
 			this.properties.isAdmin = isAdmin;
-			this.properties.isPure = isPure;
 
 			this.setTitle(this.getWindowTitle());
 		}

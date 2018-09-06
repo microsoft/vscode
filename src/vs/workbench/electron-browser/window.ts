@@ -37,7 +37,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -84,8 +83,7 @@ export class ElectronWindow extends Themable {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
 		@IMenuService private menuService: IMenuService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IIntegrityService private integrityService: IIntegrityService
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(themeService);
 
@@ -284,12 +282,6 @@ export class ElectronWindow extends Themable {
 		// Emit event when vscode has loaded
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
-		});
-
-		// Integrity warning
-		this.integrityService.isPure().then(res => {
-			this.titleService.updateProperties({ isPure: res.isPure });
-			this.windowsService.updateIntegrity(res.isPure);
 		});
 
 		// Root warning

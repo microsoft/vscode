@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ITitleService = createDecorator<ITitleService>('titleService');
 
 export interface ITitleProperties {
-	isPure?: boolean;
 	isAdmin?: boolean;
 }
 
