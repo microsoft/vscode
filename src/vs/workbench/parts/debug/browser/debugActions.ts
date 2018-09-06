@@ -26,6 +26,7 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { memoize } from 'vs/base/common/decorators';
+import { Schemas } from 'vs/base/common/network';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -138,7 +139,7 @@ export class StartAction extends AbstractDebugAction {
 		const configurationManager = this.debugService.getConfigurationManager();
 		let launch = configurationManager.selectedConfiguration.launch;
 		if (!launch || launch.getConfigurationNames().length === 0) {
-			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
+			const rootUri = this.historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			launch = configurationManager.getLaunch(rootUri);
 			if (!launch || launch.getConfigurationNames().length === 0) {
 				const launches = configurationManager.getLaunches();

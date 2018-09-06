@@ -359,11 +359,11 @@ export class TestHistoryService implements IHistoryService {
 		return [];
 	}
 
-	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter: string): URI {
 		return this.root;
 	}
 
-	public getLastActiveFile(): URI {
+	public getLastActiveFile(schemeFilter: string): URI {
 		return void 0;
 	}
 }

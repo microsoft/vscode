@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { Schemas } from 'vs/base/common/network';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -95,7 +96,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
 
-			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 
 			// Resolve env vars from config and shell
