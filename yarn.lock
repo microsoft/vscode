@@ -5349,9 +5349,9 @@ onetime@^2.0.0:
   dependencies:
     mimic-fn "^1.0.0"
 
-oniguruma@bpasero/node-oniguruma#nan-2.10.0:
-  version "7.0.0"
-  resolved "https://codeload.github.com/bpasero/node-oniguruma/tar.gz/ee02dceee2e45f4edf7b1eeef518f5d3ad19a7bd"
+oniguruma@^7.0.0:
+  version "7.0.1"
+  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.1.tgz#76230211e96bb27b10cf2a7ccb99a6057ff1b9bf"
   dependencies:
     nan "^2.10.0"
 
@@ -7942,11 +7942,11 @@ vscode-ripgrep@1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.1.0.tgz#93c1e39d88342ee1b15530a12898ce930d511948"
 
-vscode-textmate@Microsoft/vscode-textmate#electron-3.0.x:
+vscode-textmate@^4.0.1:
   version "4.0.1"
-  resolved "https://codeload.github.com/Microsoft/vscode-textmate/tar.gz/a29af05076a6ad0d598c00d65fe130fe9b84b164"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.0.1.tgz#6c36f28e9059ce12bc34907f7a33ea43166b26a8"
   dependencies:
-    oniguruma bpasero/node-oniguruma#nan-2.10.0
+    oniguruma "^7.0.0"
 
 vscode-xterm@3.8.0-beta1:
   version "3.8.0-beta1"
