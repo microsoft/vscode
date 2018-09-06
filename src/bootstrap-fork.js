@@ -5,23 +5,50 @@
 
 const bootstrap = require('./bootstrap');
 
+// Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 
-// Will be defined if we got forked from another node process
-// In that case we override console.log/warn/error to be able
-// to send loading issues to the main side for logging.
+// Configure: pipe logging to parent process
 if (!!process.send && process.env.PIPE_LOGGING === 'true') {
-	var MAX_LENGTH = 100000;
+	pipeLoggingToParent();
+}
+
+// Disable IO if configured
+if (!process.env['VSCODE_ALLOW_IO']) {
+	disableSTDIO();
+}
+
+// Handle Exceptions
+if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
+	handleExceptions();
+}
+
+// Terminate when parent terminates
+if (process.env['VSCODE_PARENT_PID']) {
+	terminateWhenParentTerminates();
+}
+
+// Configure Crash Reporter
+configureCrashReporter();
+
+// Load AMD entry point
+require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
+
+//#region Helpers
+
+function pipeLoggingToParent() {
+	const MAX_LENGTH = 100000;
 
 	// Prevent circular stringify and convert arguments to real array
 	function safeToArray(args) {
-		var seen = [];
-		var res;
-		var argsArray = [];
+		const seen = [];
+		const argsArray = [];
+
+		let res;
 
 		// Massage some arguments with special treatment
 		if (args.length) {
-			for (var i = 0; i < args.length; i++) {
+			for (let i = 0; i < args.length; i++) {
 
 				// Any argument of type 'undefined' needs to be specially treated because
 				// JSON.stringify will simply ignore those. We replace them with the string
@@ -33,7 +60,7 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 				// Any argument that is an Error will be changed to be just the error stack/message
 				// itself because currently cannot serialize the error over entirely.
 				else if (args[i] instanceof Error) {
-					var errorObj = args[i];
+					const errorObj = args[i];
 					if (errorObj.stack) {
 						args[i] = errorObj.stack;
 					} else {
@@ -107,11 +134,12 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
 }
 
-if (!process.env['VSCODE_ALLOW_IO']) {
-	// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
+function disableSTDIO() {
+
+	// const stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
 	// error when we are inside a forked process and this process tries to access those channels.
-	var stream = require('stream');
-	var writable = new stream.Writable({
+	const stream = require('stream');
+	const writable = new stream.Writable({
 		write: function () { /* No OP */ }
 	});
 
@@ -120,7 +148,7 @@ if (!process.env['VSCODE_ALLOW_IO']) {
 	process.__defineGetter__('stdin', function () { return writable; });
 }
 
-if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
+function handleExceptions() {
 
 	// Handle uncaught exceptions
 	process.on('uncaughtException', function (err) {
@@ -133,8 +161,7 @@ if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
 	});
 }
 
-// Kill oneself if one's parent dies. Much drama.
-if (process.env['VSCODE_PARENT_PID']) {
+function terminateWhenParentTerminates() {
 	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
 
 	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
@@ -148,22 +175,18 @@ if (process.env['VSCODE_PARENT_PID']) {
 	}
 }
 
-const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
-if (typeof crashReporterOptionsRaw === 'string') {
-	try {
-		const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-		if (crashReporterOptions) {
-			process.crashReporter.start(crashReporterOptions);
+function configureCrashReporter() {
+	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+	if (typeof crashReporterOptionsRaw === 'string') {
+		try {
+			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
+			if (crashReporterOptions) {
+				process.crashReporter.start(crashReporterOptions);
+			}
+		} catch (error) {
+			console.error(error);
 		}
-	} catch (error) {
-		console.error(error);
 	}
 }
 
-// Workaround for Electron not installing a handler to ignore SIGPIPE
-// (https://github.com/electron/electron/issues/13254)
-process.on('SIGPIPE', () => {
-	console.error(new Error('Unexpected SIGPIPE'));
-});
-
-require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
+//#endregion

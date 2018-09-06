@@ -10,21 +10,20 @@
 const perf = require('../../../base/common/performance');
 perf.mark('renderer/started');
 
-const path = require('path');
 const electron = require('electron');
 const ipc = electron.ipcRenderer;
 
 const bootstrap = require('../../../../bootstrap');
 
-process.lazyEnv = new Promise(function(resolve) {
-	const handle = setTimeout(function() {
+process.lazyEnv = new Promise(function (resolve) {
+	const handle = setTimeout(function () {
 		resolve();
 		console.warn('renderer did not receive lazyEnv in time');
 	}, 10000);
 
-	ipc.once('vscode:acceptShellEnv', function(event, shellEnv) {
+	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 		clearTimeout(handle);
-		assign(process.env, shellEnv);
+		bootstrap.assign(process.env, shellEnv);
 		resolve(process.env);
 	});
 
@@ -41,20 +40,6 @@ function onError(error, enableDeveloperTools) {
 	if (error.stack) {
 		console.error(error.stack);
 	}
-}
-
-function assign(destination, source) {
-	return Object.keys(source).reduce(function(r, key) { r[key] = source[key]; return r; }, destination);
-}
-
-function parseURLQueryArgs() {
-	const search = window.location.search || '';
-
-	return search.split(/[?&]/)
-		.filter(function(param) { return !!param; })
-		.map(function(param) { return param.split('='); })
-		.filter(function(param) { return param.length === 2; })
-		.reduce(function(r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 }
 
 function showPartsSplash(configuration) {
@@ -125,7 +110,7 @@ function registerListeners(enableDeveloperTools) {
 	// Devtools & reload support
 	var listener;
 	if (enableDeveloperTools) {
-		const extractKey = function(e) {
+		const extractKey = function (e) {
 			return [
 				e.ctrlKey ? 'ctrl-' : '',
 				e.metaKey ? 'meta-' : '',
@@ -138,7 +123,7 @@ function registerListeners(enableDeveloperTools) {
 		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-		listener = function(e) {
+		listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB) {
 				ipc.send('vscode:toggleDevTools');
@@ -149,10 +134,9 @@ function registerListeners(enableDeveloperTools) {
 		window.addEventListener('keydown', listener);
 	}
 
-	process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools); });
-	process.on('SIGPIPE', function() { onError(new Error('Unexpected SIGPIPE'), false); }); // workaround https://github.com/electron/electron/issues/13254
+	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools); });
 
-	return function() {
+	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
 			listener = void 0;
@@ -162,13 +146,14 @@ function registerListeners(enableDeveloperTools) {
 
 function main() {
 	const webFrame = require('electron').webFrame;
-	const args = parseURLQueryArgs();
+	const args = bootstrap.parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
-	bootstrap.enableASARSupport();
-
 	// Correctly inherit the parent's environment
-	assign(process.env, configuration.userEnv);
+	bootstrap.assign(process.env, configuration.userEnv);
+
+	// Enable ASAR support
+	bootstrap.enableASARSupport();
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
@@ -181,39 +166,7 @@ function main() {
 	showPartsSplash(configuration);
 
 	// Get the nls configuration into the process.env as early as possible.
-	var nlsConfig = { availableLanguages: {} };
-	const config = process.env['VSCODE_NLS_CONFIG'];
-	if (config) {
-		process.env['VSCODE_NLS_CONFIG'] = config;
-		try {
-			nlsConfig = JSON.parse(config);
-		} catch (e) { /*noop*/ }
-	}
-
-	if (nlsConfig._resolvedLanguagePackCoreLocation) {
-		let bundles = Object.create(null);
-		nlsConfig.loadBundle = function(bundle, language, cb) {
-			let result = bundles[bundle];
-			if (result) {
-				cb(undefined, result);
-				return;
-			}
-			let bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
-			bootstrap.readFile(bundleFile).then(function(content) {
-				let json = JSON.parse(content);
-				bundles[bundle] = json;
-				cb(undefined, json);
-			}).catch((error) => {
-				try {
-					if (nlsConfig._corruptedFile) {
-						bootstrap.writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function(error) { console.error(error); });
-					}
-				} finally {
-					cb(error, undefined);
-				}
-			});
-		};
-	}
+	const nlsConfig = bootstrap.setupNLS();
 
 	var locale = nlsConfig.availableLanguages['*'] || 'en';
 	if (locale === 'zh-tw') {
@@ -235,7 +188,7 @@ function main() {
 
 	window.nodeRequire = require.__$__nodeRequire;
 
-	define('fs', ['original-fs'], function(originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
 	window.MonacoEnvironment = {};
 
@@ -245,12 +198,12 @@ function main() {
 		'vs/nls': nlsConfig,
 		recordStats: !!configuration.performance,
 		nodeCachedDataDir: configuration.nodeCachedDataDir,
-		onNodeCachedData: function() { onNodeCachedData.push(arguments); },
+		onNodeCachedData: function () { onNodeCachedData.push(arguments); },
 		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 	});
 
 	if (nlsConfig.pseudo) {
-		require(['vs/nls'], function(nlsPlugin) {
+		require(['vs/nls'], function (nlsPlugin) {
 			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
 	}
@@ -260,16 +213,16 @@ function main() {
 		'vs/workbench/workbench.main',
 		'vs/nls!vs/workbench/workbench.main',
 		'vs/css!vs/workbench/workbench.main'
-	], function() {
+	], function () {
 		perf.mark('didLoadWorkbenchMain');
 
-		process.lazyEnv.then(function() {
+		process.lazyEnv.then(function () {
 			perf.mark('main/startup');
 			require('vs/workbench/electron-browser/main')
 				.startup(configuration)
-				.then(function() {
+				.then(function () {
 					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
-				}, function(error) {
+				}, function (error) {
 					onError(error, enableDeveloperTools);
 				});
 		});

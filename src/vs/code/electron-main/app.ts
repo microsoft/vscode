@@ -104,7 +104,6 @@ export class CodeApplication {
 		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
 		process.on('unhandledRejection', (reason: any, promise: Promise<any>) => errors.onUnexpectedError(reason));
-		process.on('SIGPIPE', () => this.onUnexpectedError(new Error('Unexpected SIGPIPE'))); // workaround https://github.com/electron/electron/issues/13254
 
 		// Contextmenu via IPC support
 		registerContextMenuListener();

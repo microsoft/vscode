@@ -10,46 +10,9 @@ perf.mark('main:started');
 const fs = require('fs');
 const path = require('path');
 const product = require('../product.json');
-const appRoot = path.dirname(__dirname);
 const bootstrap = require('./bootstrap');
 
-function getApplicationPath() {
-	if (process.env['VSCODE_DEV']) {
-		return appRoot;
-	} else if (process.platform === 'darwin') {
-		return path.dirname(path.dirname(path.dirname(appRoot)));
-	} else {
-		return path.dirname(path.dirname(appRoot));
-	}
-}
-
-function getPortableDataPath() {
-	if (process.env['VSCODE_PORTABLE']) {
-		return process.env['VSCODE_PORTABLE'];
-	}
-
-	if (process.platform === 'win32' || process.platform === 'linux') {
-		return path.join(getApplicationPath(), 'data');
-	} else {
-		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
-		return path.join(path.dirname(getApplicationPath()), portableDataName);
-	}
-}
-
-const portableDataPath = getPortableDataPath();
-const isPortable = fs.existsSync(portableDataPath);
-const portableTempPath = path.join(portableDataPath, 'tmp');
-const isTempPortable = isPortable && fs.existsSync(portableTempPath);
-
-if (isPortable) {
-	process.env['VSCODE_PORTABLE'] = portableDataPath;
-} else {
-	delete process.env['VSCODE_PORTABLE'];
-}
-
-if (isTempPortable) {
-	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
-}
+const portable = bootstrap.configurePortable();
 
 bootstrap.enableASARSupport();
 
@@ -74,8 +37,8 @@ const args = minimist(process.argv, {
 });
 
 function getUserDataPath() {
-	if (isPortable) {
-		return path.join(portableDataPath, 'user-data');
+	if (portable.isPortable) {
+		return path.join(portable.portableDataPath, 'user-data');
 	}
 
 	return path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
@@ -453,7 +416,7 @@ app.once('ready', function () {
 				nlsConfig._languagePackSupport = true;
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				if (cachedDataDir) process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
-				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
+				require('./bootstrap-amd').load('vs/code/electron-main/main');
 			};
 			// We recevied a valid nlsConfig from a user defined locale
 			if (nlsConfig) {
