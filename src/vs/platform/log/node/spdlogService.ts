@@ -25,6 +25,11 @@ export function createSpdLogService(processName: string, logLevel: LogLevel, log
 	return new NullLogService();
 }
 
+export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): spdlog.RotatingLogger {
+	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
+	return new _spdlog.RotatingLogger(name, filename, filesize, filecount);
+}
+
 class SpdLogService extends AbstractLogService implements ILogService {
 
 	_serviceBrand: any;
