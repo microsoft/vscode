@@ -27,12 +27,14 @@ const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 
 export interface ISelectOptionItem {
 	optionText: string;
+	optionDescriptionText?: string;
 	optionDisabled: boolean;
 }
 
 interface ISelectListTemplateData {
 	root: HTMLElement;
 	optionText: HTMLElement;
+	optionDescriptionText: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -47,6 +49,7 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		data.disposables = [];
 		data.root = container;
 		data.optionText = dom.append(container, $('.option-text'));
+		data.optionDescriptionText = dom.append(container, $('.option-text-description'));
 
 		return data;
 	}
@@ -57,7 +60,14 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		const optionDisabled = (<ISelectOptionItem>element).optionDisabled;
 
 		data.optionText.textContent = optionText;
-		data.root.setAttribute('aria-label', nls.localize('selectAriaOption', "{0}", optionText));
+		data.root.setAttribute('aria-label', nls.localize('selectAriaOption', "{0}", optionText) + ',.');
+
+		if (typeof element.optionDescriptionText === 'string') {
+			const optionDescriptionId = (optionText.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
+			data.root.setAttribute('aria-describedby', optionDescriptionId);
+			data.optionDescriptionText.id = optionDescriptionId;
+			data.optionDescriptionText.setAttribute('aria-label', element.optionDescriptionText);
+		}
 
 		// Workaround for list labels
 		data.root.setAttribute('aria-selected', 'true');
@@ -258,7 +268,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 					const element = this.options[index];
 					let optionDisabled: boolean;
 					index === this.disabledOptionIndex ? optionDisabled = true : optionDisabled = false;
-					listEntries.push({ optionText: element, optionDisabled: optionDisabled });
+					const optionDescription = this.detailsProvider ? this.detailsProvider(index) : { details: null, isMarkdown: false };
+
+					listEntries.push({ optionText: element, optionDisabled: optionDisabled, optionDescriptionText: optionDescription.details });
 				}
 
 				this.selectList.splice(0, this.selectList.length, listEntries);
@@ -296,6 +308,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 	public setDetailsProvider(provider: (index: number) => { details: string, isMarkdown: boolean }): void {
 		this.detailsProvider = provider;
+
+
+		if (this.options) {
+			const currentOptions = this.options;
+			this.options = [];
+			this.setOptions(currentOptions, this.selected, this.disabledOptionIndex);
+		}
+
 	}
 
 	public focus(): void {
