@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as fs from 'fs';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -11,9 +12,9 @@ const localize = nls.loadMessageBundle();
 import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode';
+import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
 
-const product = require('../../../product.json');
+const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 
 const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");
