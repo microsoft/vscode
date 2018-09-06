@@ -43,6 +43,7 @@ import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -898,7 +899,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				return null;
 			}
 
-			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }).then(context => {
+			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
 				if (context.res.statusCode !== 200) {
 					return TPromise.as(null);
 				}

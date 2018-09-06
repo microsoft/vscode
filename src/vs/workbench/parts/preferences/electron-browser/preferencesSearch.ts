@@ -271,7 +271,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				'api-key': this.options.endpoint.key
 			},
 			timeout: 5000
-		}).then(context => {
+		}, CancellationToken.None).then(context => {
 			if (context.res.statusCode >= 300) {
 				throw new Error(`${details} returned status code: ${context.res.statusCode}`);
 			}
