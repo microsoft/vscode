@@ -261,7 +261,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 export interface IWillMoveEvent {
 	oldResource: URI;
 	newResource: URI;
-	waitUntil(p: TPromise<any>): void;
+	waitUntil(p: Thenable<any>): void;
 }
 
 export interface ITextFileService extends IDisposable {

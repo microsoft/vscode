@@ -721,7 +721,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		this._onWillMove.fire({
 			oldResource: source,
 			newResource: target,
-			waitUntil(p: TPromise<any>) {
+			waitUntil(p: Thenable<any>) {
 				waitForPromises.push(TPromise.wrap(p).then(undefined, errors.onUnexpectedError));
 			}
 		});

@@ -713,7 +713,7 @@ export interface FileSystemEvents {
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
 	$onFileRename(oldUri: UriComponents, newUri: UriComponents): void;
-	$onWillRename(oldUri: UriComponents, newUri: UriComponents): TPromise<any>;
+	$onWillRename(oldUri: UriComponents, newUri: UriComponents): Thenable<any>;
 }
 
 export interface ObjectIdentifier {
