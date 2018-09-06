@@ -77,13 +77,13 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
-export class ExtHostPullOutputChannel extends AbstractExtHostOutputChannel {
+export class ExtHostFileOutputChannel extends AbstractExtHostOutputChannel {
 
 	private static _namePool = 1;
 	private _appender: OutputAppender;
 
 	constructor(name: string, outputDir: string, proxy: MainThreadOutputServiceShape) {
-		const fileName = `${ExtHostPullOutputChannel._namePool++}-${name}`;
+		const fileName = `${ExtHostFileOutputChannel._namePool++}-${name}`;
 		const file = URI.file(posix.join(outputDir, `${fileName}.log`));
 
 		super(name, file, proxy);
@@ -111,7 +111,7 @@ export class ExtHostOutputService {
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			return push ? new ExtHostPushOutputChannel(name, this._proxy) : new ExtHostPullOutputChannel(name, this._outputDir, this._proxy);
+			return push ? new ExtHostPushOutputChannel(name, this._proxy) : new ExtHostFileOutputChannel(name, this._outputDir, this._proxy);
 		}
 	}
 }
