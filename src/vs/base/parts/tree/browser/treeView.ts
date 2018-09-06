@@ -6,7 +6,6 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as Browser from 'vs/base/browser/browser';
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as Lifecycle from 'vs/base/common/lifecycle';
 import * as DOM from 'vs/base/browser/dom';
 import * as Diff from 'vs/base/common/diff/diff';
@@ -25,7 +24,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
-import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken, timeout } from 'vs/base/common/async';
+import { Delayer, timeout } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -443,7 +442,7 @@ export class TreeView extends HeightMap {
 	private currentDropTarget: ViewItem;
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[];
-	private currentDropPromise: CancelablePromise<any>;
+	private currentDropDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
 	private dragAndDropMouseY: number;
@@ -1446,11 +1445,7 @@ export class TreeView extends HeightMap {
 
 				this.currentDropTargets.forEach(i => i.dropTarget = false);
 				this.currentDropTargets = [];
-
-				if (this.currentDropPromise) {
-					this.currentDropPromise.cancel();
-					this.currentDropPromise = null;
-				}
+				this.currentDropDisposable.dispose();
 			}
 
 			this.cancelDragAndDropScrollInterval();
@@ -1523,11 +1518,7 @@ export class TreeView extends HeightMap {
 			if (this.currentDropTarget) {
 				this.currentDropTargets.forEach(i => i.dropTarget = false);
 				this.currentDropTargets = [];
-
-				if (this.currentDropPromise) {
-					this.currentDropPromise.cancel();
-					this.currentDropPromise = null;
-				}
+				this.currentDropDisposable.dispose();
 			}
 
 			this.currentDropTarget = currentDropTarget;
@@ -1554,11 +1545,12 @@ export class TreeView extends HeightMap {
 				}
 
 				if (reaction.autoExpand) {
-					const promise = WinJS.TPromise.wrap(timeout(500))
+					const timeoutPromise = timeout(500);
+					this.currentDropDisposable = Lifecycle.toDisposable(() => timeoutPromise.cancel());
+
+					timeoutPromise
 						.then(() => this.context.tree.expand(this.currentDropElement))
 						.then(() => this.shouldInvalidateDropReaction = true);
-
-					this.currentDropPromise = createCancelablePromise(token => wireCancellationToken(token, promise));
 				}
 			}
 		}
@@ -1583,10 +1575,7 @@ export class TreeView extends HeightMap {
 			this.currentDropTargets = [];
 		}
 
-		if (this.currentDropPromise) {
-			this.currentDropPromise.cancel();
-			this.currentDropPromise = null;
-		}
+		this.currentDropDisposable.dispose();
 
 		this.cancelDragAndDropScrollInterval();
 		this.currentDragAndDropData = null;
