@@ -58,15 +58,6 @@ function parseURLQueryArgs() {
 		.reduce(function(r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 }
 
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-}
-
 function readFile(file) {
 	return new Promise(function(resolve, reject) {
 		fs.readFile(file, 'utf8', function(err, data) {
@@ -267,7 +258,7 @@ function main() {
 
 	const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 	require.config({
-		baseUrl: uriFromPath(configuration.appRoot) + '/out',
+		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 		'vs/nls': nlsConfig,
 		recordStats: !!configuration.performance,
 		nodeCachedDataDir: configuration.nodeCachedDataDir,

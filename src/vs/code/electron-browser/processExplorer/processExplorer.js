@@ -25,15 +25,6 @@ function parseURLQueryArgs() {
 		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 }
 
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-}
-
 function readFile(file) {
 	return new Promise(function (resolve, reject) {
 		fs.readFile(file, 'utf8', function (err, data) {
@@ -134,7 +125,7 @@ function main() {
 	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
 	window.MonacoEnvironment = {};
-	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
+	const rootUrl = bootstrap.uriFromPath(configuration.appRoot) + '/out';
 
 	require.config({
 		baseUrl: rootUrl,

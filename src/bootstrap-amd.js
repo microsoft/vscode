@@ -3,18 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var path = require('path');
-var fs = require('fs');
-var loader = require('./vs/loader');
-
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-}
+const path = require('path');
+const fs = require('fs');
+const loader = require('./vs/loader');
+const bootstrap = require('./bootstrap');
 
 function readFile(file) {
 	return new Promise(function (resolve, reject) {
@@ -30,8 +22,8 @@ function readFile(file) {
 
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 
-var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
-var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
+const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+const nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
 
 // We have a special location of the nls files. They come from a language pack
 if (nlsConfig._resolvedLanguagePackCoreLocation) {
@@ -60,7 +52,7 @@ if (nlsConfig._resolvedLanguagePackCoreLocation) {
 }
 
 loader.config({
-	baseUrl: uriFromPath(__dirname),
+	baseUrl: bootstrap.uriFromPath(__dirname),
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,

@@ -25,15 +25,6 @@ function parseURLQueryArgs() {
 		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 }
 
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-}
-
 function readFile(file) {
 	return new Promise(function (resolve, reject) {
 		fs.readFile(file, 'utf8', function (err, data) {
@@ -79,7 +70,7 @@ function main() {
 	});
 
 	// Load the loader and start loading the workbench
-	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
+	const rootUrl = bootstrap.uriFromPath(configuration.appRoot) + '/out';
 
 	// Get the nls configuration into the process.env as early as possible.
 	var nlsConfig = { availableLanguages: {} };

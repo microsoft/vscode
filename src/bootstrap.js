@@ -8,7 +8,7 @@ Error.stackTraceLimit = 100;
 //#endregion
 
 //#region Add support for using node_modules.asar
-function enableASARSupport() {
+exports.enableASARSupport = function () {
 	const path = require('path');
 	const Module = require('module');
 
@@ -33,6 +33,17 @@ function enableASARSupport() {
 
 		return result;
 	};
-}
-exports.enableASARSupport = enableASARSupport;
+};
+//#endregion
+
+//#region Renderer helpers
+exports.uriFromPath = function (_path) {
+	const path = require('path');
+	let pathName = path.resolve(_path).replace(/\\/g, '/');
+	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+		pathName = '/' + pathName;
+	}
+
+	return encodeURI('file://' + pathName).replace(/#/g, '%23');
+};
 //#endregion

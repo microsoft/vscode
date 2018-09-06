@@ -33,15 +33,6 @@ function createScript(src, onload) {
 	head.insertBefore(script, head.lastChild);
 }
 
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-}
-
 function readFile(file) {
 	return new Promise(function (resolve, reject) {
 		fs.readFile(file, 'utf8', function (err, data) {
@@ -109,7 +100,7 @@ function main() {
 	window.document.documentElement.setAttribute('lang', locale);
 
 	// Load the loader and start loading the workbench
-	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
+	const rootUrl = bootstrap.uriFromPath(configuration.appRoot) + '/out';
 
 	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
 	// loads as soon as the loader loads. To be able to have pseudo translation
