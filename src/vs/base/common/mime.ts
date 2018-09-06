@@ -233,7 +233,7 @@ export function isUnspecific(mime: string[] | string): boolean {
  */
 export function suggestFilename(langId: string, prefix: string): string {
 	const extensions = registeredAssociations
-		.filter(assoc => assoc.id === langId && assoc.extension)
+		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === langId)
 		.map(assoc => assoc.extension);
 	const extensionsWithDotFirst = extensions
 		.filter(assoc => strings.startsWith(assoc, '.'));

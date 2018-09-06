@@ -147,4 +147,20 @@ suite('Mime', () => {
 		let suggested = suggestFilename('plumbus2', 'Untitled-1');
 		assert.equal(suggested, 'plumbus');
 	});
+
+	test('Filename Suggestion - Should ignore user-configured associations', () => {
+		registerTextMime({ id: 'plumbus3', mime: 'text/plumbus3', extension: 'plumbus', userConfigured: true });
+		registerTextMime({ id: 'plumbus3', mime: 'text/plumbus3', extension: '.shleem', userConfigured: true });
+		registerTextMime({ id: 'plumbus3', mime: 'text/plumbus3', extension: '.gazorpazorp', userConfigured: false });
+
+		let suggested = suggestFilename('plumbus3', 'Untitled-1');
+		assert.equal(suggested, 'Untitled-1.gazorpazorp');
+
+		registerTextMime({ id: 'plumbus4', mime: 'text/plumbus4', extension: 'plumbus', userConfigured: true });
+		registerTextMime({ id: 'plumbus4', mime: 'text/plumbus4', extension: '.shleem', userConfigured: true });
+		registerTextMime({ id: 'plumbus4', mime: 'text/plumbus4', extension: '.gazorpazorp', userConfigured: true });
+
+		suggested = suggestFilename('plumbus4', 'Untitled-1');
+		assert.equal(suggested, 'Untitled-1');
+	});
 });
