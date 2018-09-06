@@ -466,7 +466,7 @@ export interface MainThreadUrlsShape extends IDisposable {
 }
 
 export interface ExtHostUrlsShape {
-	$handleExternalUri(handle: number, uri: UriComponents): TPromise<void>;
+	$handleExternalUri(handle: number, uri: UriComponents): Thenable<void>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
