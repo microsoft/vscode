@@ -16,7 +16,7 @@ export enum Quality {
 
 export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
-	workspacePath: string;
+	folderPath: string;
 	workspaceFilePath: string;
 	waitTime: number;
 }
@@ -61,20 +61,29 @@ export class Application {
 	}
 
 	async start(): Promise<any> {
+		this.options.workspacePath = this.options.folderPath;
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
 		await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
 	}
 
-	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async restart(options: { workspaceFilePath?: string, userDataDir?: string, extraArgs?: string[] }): Promise<any> {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
-		await this._start(options.workspaceOrFolder, options.extraArgs);
+		Object.keys(options).forEach(key => {
+			if (options[key] === null || options[key] === undefined) {
+				delete options[key];
+			}
+		});
+		this.options = { ...this.options, ...options };
+		this.options.workspacePath = options.workspaceFilePath ? options.workspaceFilePath : this.options.workspacePath;
+		await this._start();
 	}
 
-	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
-		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(workspaceOrFolder, extraArgs);
+	private async _start(): Promise<any> {
+		cp.execSync('git checkout .', { cwd: this.options.folderPath });
+		this._code = await spawn(this.options);
+		this._workbench = new Workbench(this._code, this.userDataPath);
 		await this.checkWindowReady();
 	}
 
@@ -96,21 +105,6 @@ export class Application {
 
 	async capturePage(): Promise<string> {
 		return this.code.capturePage();
-	}
-
-	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
-		this._code = await spawn({
-			codePath: this.options.codePath,
-			workspacePath: workspaceOrFolder,
-			userDataDir: this.options.userDataDir,
-			extensionsPath: this.options.extensionsPath,
-			logger: this.options.logger,
-			verbose: this.options.verbose,
-			log: this.options.log,
-			extraArgs,
-		});
-
-		this._workbench = new Workbench(this._code, this.userDataPath);
 	}
 
 	private async checkWindowReady(): Promise<any> {

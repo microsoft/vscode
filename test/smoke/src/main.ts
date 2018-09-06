@@ -27,6 +27,7 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
@@ -53,7 +54,7 @@ const opts = minimist(args, {
 
 const workspaceFilePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
+const folderPath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
 
@@ -158,13 +159,13 @@ async function createWorkspaceFile(): Promise<void> {
 	const workspace = {
 		folders: [
 			{
-				path: toUri(path.join(workspacePath, 'public'))
+				path: toUri(path.join(folderPath, 'public'))
 			},
 			{
-				path: toUri(path.join(workspacePath, 'routes'))
+				path: toUri(path.join(folderPath, 'routes'))
 			},
 			{
-				path: toUri(path.join(workspacePath, 'views'))
+				path: toUri(path.join(folderPath, 'views'))
 			}
 		]
 	};
@@ -175,22 +176,22 @@ async function createWorkspaceFile(): Promise<void> {
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		console.log('*** Copying test project repository:', opts['test-repo']);
-		rimraf.sync(workspacePath);
+		rimraf.sync(folderPath);
 		// not platform friendly
-		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		cp.execSync(`cp -R "${opts['test-repo']}" "${folderPath}"`);
 	} else {
-		if (!fs.existsSync(workspacePath)) {
+		if (!fs.existsSync(folderPath)) {
 			console.log('*** Cloning test project repository...');
-			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
+			cp.spawnSync('git', ['clone', testRepoUrl, folderPath]);
 		} else {
 			console.log('*** Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
+			cp.spawnSync('git', ['fetch'], { cwd: folderPath });
+			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: folderPath });
+			cp.spawnSync('git', ['clean', '-xdf'], { cwd: folderPath });
 		}
 
 		console.log('*** Running yarn...');
-		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
+		cp.execSync('yarn', { cwd: folderPath, stdio: 'inherit' });
 	}
 }
 
@@ -221,7 +222,8 @@ function createApp(quality: Quality): Application {
 	return new Application({
 		quality,
 		codePath: opts.build,
-		workspacePath,
+		folderPath,
+		workspacePath: folderPath,
 		userDataDir,
 		extensionsPath,
 		workspaceFilePath,
@@ -308,4 +310,5 @@ describe('Test', () => {
 	setupTerminalTests();
 	setupDataMultirootTests();
 	setupDataLocalizationTests();
+	setupLaunchTests();
 });
