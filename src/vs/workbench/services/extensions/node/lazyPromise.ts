@@ -7,9 +7,7 @@
 import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class LazyPromise implements TPromise<any> {
-
-	private _onCancel: () => void;
+export class LazyPromise implements Thenable<any> {
 
 	private _actual: TPromise<any>;
 	private _actualOk: ValueCallback;
@@ -21,10 +19,7 @@ export class LazyPromise implements TPromise<any> {
 	private _hasErr: boolean;
 	private _err: any;
 
-	private _isCanceled: boolean;
-
-	constructor(onCancel: () => void) {
-		this._onCancel = onCancel;
+	constructor() {
 		this._actual = null;
 		this._actualOk = null;
 		this._actualErr = null;
@@ -32,7 +27,6 @@ export class LazyPromise implements TPromise<any> {
 		this._value = null;
 		this._hasErr = false;
 		this._err = null;
-		this._isCanceled = false;
 	}
 
 	private _ensureActual(): TPromise<any> {
@@ -40,7 +34,7 @@ export class LazyPromise implements TPromise<any> {
 			this._actual = new TPromise<any>((c, e) => {
 				this._actualOk = c;
 				this._actualErr = e;
-			}, this._onCancel);
+			});
 
 			if (this._hasValue) {
 				this._actualOk(this._value);
@@ -54,7 +48,7 @@ export class LazyPromise implements TPromise<any> {
 	}
 
 	public resolveOk(value: any): void {
-		if (this._isCanceled || this._hasErr) {
+		if (this._hasValue || this._hasErr) {
 			return;
 		}
 
@@ -67,7 +61,7 @@ export class LazyPromise implements TPromise<any> {
 	}
 
 	public resolveErr(err: any): void {
-		if (this._isCanceled || this._hasValue) {
+		if (this._hasValue || this._hasErr) {
 			return;
 		}
 
@@ -84,24 +78,6 @@ export class LazyPromise implements TPromise<any> {
 	}
 
 	public then(success: any, error: any): any {
-		if (this._isCanceled) {
-			return;
-		}
-
 		return this._ensureActual().then(success, error);
-	}
-
-	public cancel(): void {
-		if (this._hasValue || this._hasErr) {
-			return;
-		}
-
-		this._isCanceled = true;
-
-		if (this._actual) {
-			this._actual.cancel();
-		} else {
-			this._onCancel();
-		}
 	}
 }
