@@ -115,6 +115,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	clear(): void {
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
+			this.onUpdateModelCancelled();
 		}
 		if (this.model) {
 			this.model.setValue('');
@@ -149,6 +150,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 
 	protected onModelCreated(model: ITextModel) { }
 	protected onModelWillDispose(model: ITextModel) { }
+	protected onUpdateModelCancelled() { }
 	protected updateModel() { }
 
 	dispose(): void {
@@ -369,6 +371,10 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	protected onModelWillDispose(model: ITextModel): void {
 		this.fileHandler.unwatch();
+	}
+
+	protected onUpdateModelCancelled(): void {
+		this.updateInProgress = false;
 	}
 
 	private onDidContentChange(): void {
