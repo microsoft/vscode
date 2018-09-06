@@ -173,7 +173,7 @@ export class Debugger {
 			return telemetryInfo;
 		}).then(data => {
 			const client = new TelemetryClient(
-				getPathFromAmdModule(require, 'bootstrap'),
+				getPathFromAmdModule(require, 'bootstrap-fork'),
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,

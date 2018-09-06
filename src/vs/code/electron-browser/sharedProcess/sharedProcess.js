@@ -7,7 +7,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const bootstrap = require('../../../../bootstrap-shared');
+const bootstrap = require('../../../../bootstrap');
 
 function assign(destination, source) {
 	return Object.keys(source)

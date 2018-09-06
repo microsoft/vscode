@@ -15,7 +15,7 @@ const fs = require('fs');
 const electron = require('electron');
 const ipc = electron.ipcRenderer;
 
-const bootstrap = require('../../../../bootstrap-shared');
+const bootstrap = require('../../../../bootstrap');
 
 process.lazyEnv = new Promise(function(resolve) {
 	const handle = setTimeout(function() {

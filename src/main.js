@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const product = require('../product.json');
 const appRoot = path.dirname(__dirname);
-const bootstrap = require('./bootstrap-shared');
+const bootstrap = require('./bootstrap');
 
 function getApplicationPath() {
 	if (process.env['VSCODE_DEV']) {

@@ -188,7 +188,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(getPathFromAmdModule(require, 'bootstrap'), ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };

@@ -46,7 +46,7 @@ function initLoader(opts) {
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
-			'bootstrap': `../${outdir}/bootstrap`
+			'bootstrap-fork': `../${outdir}/bootstrap-fork`
 		}
 	};
 
