@@ -93,11 +93,12 @@ function submitAllStats(productJson) {
         return Promise.resolve();
     }
     return new Promise(function (resolve) {
-        var properties = { size: {}, count: {} };
+        var sizes = {};
+        var counts = {};
         for (var _i = 0, sorted_2 = sorted; _i < sorted_2.length; _i++) {
             var entry = sorted_2[_i];
-            properties.size[entry.name] = entry.totalSize;
-            properties.count[entry.name] = entry.totalCount;
+            sizes[entry.name] = entry.totalSize;
+            counts[entry.name] = entry.totalCount;
         }
         appInsights.setup(productJson.aiConfig.asimovKey)
             .setAutoCollectConsole(false)
@@ -113,7 +114,7 @@ function submitAllStats(productJson) {
                 "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
             }
         */
-        client.trackEvent("monacoworkbench/packagemetrics", properties);
+        client.trackEvent("monacoworkbench/packagemetrics", { size: JSON.stringify(sizes), count: JSON.stringify(counts) });
         client.sendPendingData(function () { return resolve(); });
     });
 }

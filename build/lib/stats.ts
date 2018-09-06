@@ -98,10 +98,11 @@ export function submitAllStats(productJson: any): Promise<void> {
 
 	return new Promise(resolve => {
 
-		const properties = { size: {}, count: {} };
+		const sizes = {};
+		const counts = {};
 		for (const entry of sorted) {
-			properties.size[entry.name] = entry.totalSize;
-			properties.count[entry.name] = entry.totalCount;
+			sizes[entry.name] = entry.totalSize;
+			counts[entry.name] = entry.totalCount;
 		}
 
 		appInsights.setup(productJson.aiConfig.asimovKey)
@@ -120,7 +121,7 @@ export function submitAllStats(productJson: any): Promise<void> {
 				"count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		client.trackEvent(`monacoworkbench/packagemetrics`, properties);
+		client.trackEvent(`monacoworkbench/packagemetrics`, { size: JSON.stringify(sizes), count: JSON.stringify(counts) });
 		client.sendPendingData(() => resolve());
 	});
 
