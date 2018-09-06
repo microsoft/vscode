@@ -505,8 +505,8 @@ suite('window namespace tests', () => {
 		});
 
 		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showInputBox(undefined, source.token);
+		source.cancel();
 
 		return result;
 	});
