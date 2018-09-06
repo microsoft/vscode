@@ -25,6 +25,9 @@ module.exports = withDefaults({
 		path: path.join(__dirname, 'dist'),
 		libraryTarget: "commonjs",
 	},
+	externals: {
+		"vscode-nls": 'commonjs vscode-nls',
+	},
 	plugins: [
 		new webpack.NormalModuleReplacementPlugin(
 			/(\/|\\)vscode-languageserver(\/|\\)lib(\/|\\)files\.js/,

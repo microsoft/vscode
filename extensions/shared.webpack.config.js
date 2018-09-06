@@ -53,7 +53,6 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist
 
 			"vscode-extension-telemetry": 'commonjs vscode-extension-telemetry', // commonly used
-			"vscode-nls": 'commonjs vscode-nls',
 		},
 		output: {
 			// all output goes into `dist`.
