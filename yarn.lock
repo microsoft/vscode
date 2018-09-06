@@ -4568,6 +4568,10 @@ lodash@^4.0.0, lodash@^4.13.1, lodash@^4.14.0, lodash@^4.15.0, lodash@^4.3.0:
   version "4.17.4"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 
+lodash@^4.17.10:
+  version "4.17.10"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.10.tgz#1b7793cf7259ea38fb3661d4d38b3260af8ae4e7"
+
 lodash@~1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-1.0.2.tgz#8f57560c83b59fc270bd3d561b690043430e2551"
@@ -7855,15 +7859,15 @@ vm-browserify@0.0.4:
   dependencies:
     indexof "0.0.1"
 
-vsce@1.33.2:
-  version "1.33.2"
-  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.33.2.tgz#3645f69aaf984e22f74ea49d35f38dd18d66ff5f"
+vsce@1.48.0:
+  version "1.48.0"
+  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.48.0.tgz#31c1a4c6909c3b8bdc48b3d32cc8c8e94c7113a2"
   dependencies:
     cheerio "^1.0.0-rc.1"
     commander "^2.8.1"
     denodeify "^1.2.1"
     glob "^7.0.6"
-    lodash "^4.15.0"
+    lodash "^4.17.10"
     markdown-it "^8.3.1"
     mime "^1.3.4"
     minimatch "^3.0.3"
@@ -7873,7 +7877,7 @@ vsce@1.33.2:
     semver "^5.1.0"
     tmp "0.0.29"
     url-join "^1.1.0"
-    vso-node-api "^6.1.2-preview"
+    vso-node-api "6.1.2-preview"
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
@@ -7949,7 +7953,7 @@ vscode-xterm@3.8.0-beta1:
   version "3.8.0-beta1"
   resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta1.tgz#d4e7810bc61c9798f353832844974c18f213c053"
 
-vso-node-api@^6.1.2-preview:
+vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
   resolved "https://registry.yarnpkg.com/vso-node-api/-/vso-node-api-6.1.2-preview.tgz#aab3546df2451ecd894e071bb99b5df19c5fa78f"
   dependencies:

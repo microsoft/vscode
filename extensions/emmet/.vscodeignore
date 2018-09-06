@@ -2,7 +2,5 @@ test/**
 src/**
 out/**
 tsconfig.json
-node_modules/@emmetio/css-parser/**
-node_modules/@emmetio/html-matcher/**
-node_modules/@emmetio/math-expression/**
-node_modules/image-size/**
+extension.webpack.config.js
+
