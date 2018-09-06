@@ -395,7 +395,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				childProcess.once('error', (err: Error) => {
 					this.lastError = err;
 					this.error('Starting TSServer failed with error.', err);
-					vscode.window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
+					vscode.window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err.name));
 					/* __GDPR__
 						"error" : {
 							"${include}": [

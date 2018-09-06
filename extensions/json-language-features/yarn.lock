@@ -60,9 +60,9 @@ vscode-languageserver-types@^3.13.0-next.1:
   version "3.13.0-next.1"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0-next.1.tgz#dd91b78b13a2a6c7131e8291e3db3183cf566280"
 
-vscode-nls@^3.2.5:
-  version "3.2.5"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.5.tgz#25520c1955108036dec607c85e00a522f247f1a4"
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
 
 zone.js@0.7.6:
   version "0.7.6"

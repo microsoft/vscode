@@ -13,7 +13,7 @@
     "vscode-html-languageservice": "^2.1.7",
     "vscode-languageserver": "^5.1.0-next.5",
     "vscode-languageserver-types": "^3.10.0",
-    "vscode-nls": "^3.2.5",
+    "vscode-nls": "^4.0.0",
     "vscode-uri": "^1.0.6"
   },
   "devDependencies": {
