@@ -31,7 +31,7 @@ exports.assign = function assign(destination, source) {
  *
  * @param {string[]} modulePaths
  * @param {(result, configuration) => any} resultCallback
- * @param {{ removeDeveloperKeybindingsAfterLoad: boolean, canModifyDOM: (config) => void, beforeLoaderConfig: (config, loaderConfig) => void, beforeRequire: () => void }=} options
+ * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config) => void, beforeLoaderConfig?: (config, loaderConfig) => void, beforeRequire?: () => void }=} options
  */
 exports.load = function (modulePaths, resultCallback, options) {
 	// @ts-ignore
@@ -47,7 +47,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	// Developer tools
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	let developerToolsUnbind;
-	if (enableDeveloperTools) {
+	if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
 		developerToolsUnbind = registerDeveloperKeybindings();
 	}
 
@@ -122,7 +122,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 			const callbackResult = resultCallback(result, configuration);
 			if (callbackResult && typeof callbackResult.then === 'function') {
 				callbackResult.then(() => {
-					if (options && options.removeDeveloperKeybindingsAfterLoad) {
+					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
 						developerToolsUnbind();
 					}
 				}, error => {
