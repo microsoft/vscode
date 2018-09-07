@@ -413,6 +413,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				dom.addClass(this._domNode, 'visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
 			}, 0);
+
+			// validate query again as it's being dismissed when we hide the find widget.
+			setTimeout(() => {
+				this._findInput.validate();
+			}, 200);
+
 			this._codeEditor.layoutOverlayWidget(this);
 
 			let adjustEditorScrollTop = true;
@@ -450,6 +456,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			dom.removeClass(this._domNode, 'visible');
 			this._domNode.setAttribute('aria-hidden', 'true');
+			this._findInput.clearMessage();
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
