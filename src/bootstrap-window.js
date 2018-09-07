@@ -5,15 +5,29 @@
 
 const bootstrap = require('./bootstrap');
 
+exports.parseURLQueryArgs = function () {
+	const search = window.location.search || '';
+
+	return search.split(/[?&]/)
+		.filter(function (param) { return !!param; })
+		.map(function (param) { return param.split('='); })
+		.filter(function (param) { return param.length === 2; })
+		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
+};
+
+exports.assign = function (destination, source) {
+	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
+};
+
 exports.load = function (modulePath, loaderCallback, resultCallback) {
 	const fs = require('fs');
 	const ipc = require('electron').ipcRenderer;
 
-	const args = bootstrap.parseURLQueryArgs();
+	const args = exports.parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
 	// Correctly inherit the parent's environment
-	bootstrap.assign(process.env, configuration.userEnv);
+	exports.assign(process.env, configuration.userEnv);
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport();
@@ -57,18 +71,18 @@ exports.load = function (modulePath, loaderCallback, resultCallback) {
 	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
 	const loaderSource = fs.readFileSync(loaderFilename);
 
-	loaderCallback(loaderFilename, loaderSource, function (amdRequire) {
+	loaderCallback(loaderFilename, loaderSource, function (loader) {
 		const define = global.define;
 		global.define = undefined;
 
-		window.nodeRequire = amdRequire.__$__nodeRequire;
+		window.nodeRequire = loader.__$__nodeRequire;
 
 		// replace the patched electron fs with the original node fs for all AMD code
 		define('fs', ['original-fs'], function (originalFS) { return originalFS; });
 
 		window.MonacoEnvironment = {};
 
-		amdRequire.config({
+		loader.config({
 			baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 			'vs/nls': nlsConfig,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
@@ -76,11 +90,11 @@ exports.load = function (modulePath, loaderCallback, resultCallback) {
 		});
 
 		if (nlsConfig.pseudo) {
-			amdRequire(['vs/nls'], function (nlsPlugin) {
+			loader(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}
 
-		amdRequire([modulePath], result => resultCallback(result, configuration));
+		loader([modulePath], result => resultCallback(result, configuration));
 	});
 };

@@ -14,6 +14,7 @@ const electron = require('electron');
 const ipc = electron.ipcRenderer;
 
 const bootstrap = require('../../../../bootstrap');
+const bootstrapWindow = require('../../../../bootstrap-window');
 
 process.lazyEnv = new Promise(function (resolve) {
 	const handle = setTimeout(function () {
@@ -23,7 +24,7 @@ process.lazyEnv = new Promise(function (resolve) {
 
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 		clearTimeout(handle);
-		bootstrap.assign(process.env, shellEnv);
+		bootstrapWindow.assign(process.env, shellEnv);
 		resolve(process.env);
 	});
 
@@ -146,11 +147,11 @@ function registerListeners(enableDeveloperTools) {
 
 function main() {
 	const webFrame = require('electron').webFrame;
-	const args = bootstrap.parseURLQueryArgs();
+	const args = bootstrapWindow.parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
 	// Correctly inherit the parent's environment
-	bootstrap.assign(process.env, configuration.userEnv);
+	bootstrapWindow.assign(process.env, configuration.userEnv);
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport();

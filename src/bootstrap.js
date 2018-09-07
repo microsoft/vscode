@@ -45,7 +45,7 @@ exports.enableASARSupport = function () {
 };
 //#endregion
 
-//#region Renderer helpers
+//#region URI helpers
 exports.uriFromPath = function (_path) {
 	const path = require('path');
 
@@ -55,20 +55,6 @@ exports.uriFromPath = function (_path) {
 	}
 
 	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-};
-
-exports.parseURLQueryArgs = function () {
-	const search = window.location.search || '';
-
-	return search.split(/[?&]/)
-		.filter(function (param) { return !!param; })
-		.map(function (param) { return param.split('='); })
-		.filter(function (param) { return param.length === 2; })
-		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-};
-
-exports.assign = function (destination, source) {
-	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
 };
 //#endregion
 
