@@ -21,12 +21,6 @@ bootstrapWindow.load([
 	'vs/nls!vs/workbench/workbench.main',
 	'vs/css!vs/workbench/workbench.main'
 ],
-	function (loaderFilename, loaderSource, clb) {
-		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
-
-		clb(require);
-	},
-
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
 

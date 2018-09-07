@@ -19,8 +19,7 @@ exports.assign = function (destination, source) {
 	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
 };
 
-exports.load = function (modulePaths, loaderCallback, resultCallback, options) {
-	const fs = require('fs');
+exports.load = function (modulePaths, resultCallback, options) {
 	const webFrame = require('electron').webFrame;
 
 	const args = exports.parseURLQueryArgs();
@@ -66,59 +65,57 @@ exports.load = function (modulePaths, loaderCallback, resultCallback, options) {
 	window.document.documentElement.setAttribute('lang', locale);
 
 	// Load the loader
-	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
-	const loaderSource = fs.readFileSync(loaderFilename);
+	const amdLoader = require(configuration.appRoot + '/out/vs/loader.js');
+	const amdRequire = amdLoader.require;
+	const amdDefine = amdLoader.require.define;
+	const nodeRequire = amdLoader.require.nodeRequire;
 
-	loaderCallback(loaderFilename, loaderSource, function (loader) {
-		const define = global.define;
-		global.define = undefined;
+	window.nodeRequire = nodeRequire;
+	window.require = amdRequire;
 
-		window.nodeRequire = loader.__$__nodeRequire;
+	// replace the patched electron fs with the original node fs for all AMD code
+	amdDefine('fs', ['original-fs'], function (originalFS) { return originalFS; });
 
-		// replace the patched electron fs with the original node fs for all AMD code
-		define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+	window.MonacoEnvironment = {};
 
-		window.MonacoEnvironment = {};
+	const loaderConfig = {
+		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
+		'vs/nls': nlsConfig,
+		nodeCachedDataDir: configuration.nodeCachedDataDir,
+		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+	};
 
-		const loaderConfig = {
-			baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
-			'vs/nls': nlsConfig,
-			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
-		};
+	if (options && typeof options.beforeLoaderConfig === 'function') {
+		options.beforeLoaderConfig(configuration, loaderConfig);
+	}
 
-		if (options && typeof options.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(configuration, loaderConfig);
-		}
+	amdRequire.config(loaderConfig);
 
-		loader.config(loaderConfig);
-
-		if (nlsConfig.pseudo) {
-			loader(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
-
-		if (options && typeof options.beforeRequire === 'function') {
-			options.beforeRequire();
-		}
-
-		loader(modulePaths, result => {
-			try {
-				const callbackResult = resultCallback(result, configuration);
-				if (callbackResult && typeof callbackResult.then === 'function') {
-					callbackResult.then(() => {
-						if (options && options.removeDeveloperKeybindingsAfterLoad) {
-							developerToolsUnbind();
-						}
-					}, error => {
-						onUnexpectedError(error, enableDeveloperTools);
-					});
-				}
-			} catch (error) {
-				onUnexpectedError(error, enableDeveloperTools);
-			}
+	if (nlsConfig.pseudo) {
+		amdRequire(['vs/nls'], function (nlsPlugin) {
+			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
+	}
+
+	if (options && typeof options.beforeRequire === 'function') {
+		options.beforeRequire();
+	}
+
+	amdRequire(modulePaths, result => {
+		try {
+			const callbackResult = resultCallback(result, configuration);
+			if (callbackResult && typeof callbackResult.then === 'function') {
+				callbackResult.then(() => {
+					if (options && options.removeDeveloperKeybindingsAfterLoad) {
+						developerToolsUnbind();
+					}
+				}, error => {
+					onUnexpectedError(error, enableDeveloperTools);
+				});
+			}
+		} catch (error) {
+			onUnexpectedError(error, enableDeveloperTools);
+		}
 	});
 };
 
