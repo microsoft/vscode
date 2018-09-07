@@ -266,7 +266,7 @@ export class CodeApplication {
 		}
 
 		const srcUri: any = source.toLowerCase();
-		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
+		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString(true));
 	}
 
 	private onUnexpectedError(err: Error): void {
