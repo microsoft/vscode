@@ -131,4 +131,22 @@ suite('TokenSelectionSupport', () => {
 				new Range(2, 11, 4, 3)
 			]);
 	});
+
+	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo){',
+			'\tif (bar) {',
+			' ',
+			'\t}',
+			'}'
+		], 3, 1, [
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3),
+				new Range(3, 1, 4, 2),
+				new Range(3, 1, 3, 2)
+			]);
+	});
 });
