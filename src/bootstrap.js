@@ -21,18 +21,11 @@ process.on('SIGPIPE', () => {
 //#endregion
 
 //#region Add support for using node_modules.asar
-/**
- * @param {string=} nodeModulesPath
- */
-exports.enableASARSupport = function (nodeModulesPath) {
+exports.enableASARSupport = function () {
 	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
-	let NODE_MODULES_PATH = nodeModulesPath;
-	if (!NODE_MODULES_PATH) {
-		NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-	}
-
+	const NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
 
 	const originalResolveLookupPaths = Module._resolveLookupPaths;
