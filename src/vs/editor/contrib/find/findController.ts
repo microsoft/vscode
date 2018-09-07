@@ -184,6 +184,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleCaseSensitive(): void {
 		this._state.change({ matchCase: !this._state.matchCase }, false);
+		this.highlightFindOptions();
 	}
 
 	public toggleWholeWords(): void {
