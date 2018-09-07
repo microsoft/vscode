@@ -296,8 +296,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private onDidSettingsTargetChange(target: SettingsTarget): void {
 		this.viewState.settingsTarget = target;
 
-		// Instead of rebuilding the whole model, refresh and uncache the inspected setting value
-		this.onConfigUpdate();
+		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
+		this.onConfigUpdate(undefined, true);
 	}
 
 	private createHeaderControls(parent: HTMLElement): void {
@@ -732,7 +732,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private onConfigUpdate(keys?: string[]): TPromise<void> {
+	private onConfigUpdate(keys?: string[], forceRefresh = false): TPromise<void> {
 		if (keys) {
 			return this.updateElementsByKey(keys);
 		}
@@ -765,7 +765,7 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			return this.renderTree();
+			return this.renderTree(undefined, forceRefresh);
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
