@@ -220,7 +220,7 @@
 	display: inline-block;
 	font-size: 13px;
 	margin-left: 20px;
-	cursor: pointer;
+	cursor: default;
 }
 
 .monaco-editor .review-widget .head .review-title .dirname:not(:empty) {
