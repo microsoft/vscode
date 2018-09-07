@@ -115,4 +115,20 @@ suite('TokenSelectionSupport', () => {
 				// new Range(3, 19, 3, 20)
 			]);
 	});
+
+	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo){',
+			'\tif (bar) {',
+			'',
+			'\t}',
+			'}'
+		], 3, 1, [
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3)
+			]);
+	});
 });
