@@ -293,7 +293,7 @@ export class TerminalInstance implements ITerminalInstance {
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
-			allowTransparency: true
+			allowTransparency: true,
 			// TODO: Remove this once the setting is removed upstream
 			experimentalCharAtlas: 'dynamic'
 		});
