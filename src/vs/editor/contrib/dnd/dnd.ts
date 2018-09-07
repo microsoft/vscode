@@ -54,10 +54,18 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this._toUnhook.push(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this._toUnhook.push(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
 		this._modiferPressed = false;
 		this._dragSelection = null;
+	}
+
+	private onEditorBlur() {
+		this._removeDecoration();
+		this._dragSelection = null;
+		this._mouseDown = false;
+		this._modiferPressed = false;
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
