@@ -438,10 +438,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		});
 	}
 
-	public getLogsLocations(): TPromise<URI[]> {
-		return TPromise.as([this._extensionHostLogsLocation]);
-	}
-
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
 		return this._installedExtensionsReady.wait().then(() => {
 			let availableExtensions = this._registry.getAllExtensionDescriptions();
