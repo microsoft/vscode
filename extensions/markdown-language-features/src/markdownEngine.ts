@@ -107,6 +107,7 @@ export class MarkdownEngine {
 		return engine.parse(text, {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
+				token.map[1] += offset;
 			}
 			return token;
 		});

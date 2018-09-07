@@ -122,6 +122,36 @@ d`);
 		assert.strictEqual(firstFold.start, 1);
 		assert.strictEqual(firstFold.end, 3);
 	});
+
+	test('Should fold fenced code blocks', async () => {
+		const folds = await getFoldsForDocument(`~~~ts
+a
+~~~
+b`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 0);
+		assert.strictEqual(firstFold.end, 2);
+	});
+
+	test('Should fold fenced code blocks with yaml front matter', async () => {
+		const folds = await getFoldsForDocument(`---
+title: bla
+---
+
+~~~ts
+a
+~~~
+
+a
+a
+b
+a`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 4);
+		assert.strictEqual(firstFold.end, 6);
+	});
 });
 
 
