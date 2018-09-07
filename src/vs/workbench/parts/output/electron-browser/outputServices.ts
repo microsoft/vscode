@@ -374,10 +374,6 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 					if (content.value) {
 						this.endOffset = this.endOffset + Buffer.from(content.value).byteLength;
 						this.appendToModel(content.value);
-					} else {
-						// Reset (Content is cleared)
-						this.startOffset = this.endOffset = 0;
-						this.model.setValue('');
 					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
