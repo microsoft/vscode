@@ -39,8 +39,7 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
 const COMMENT_SCHEME = 'comment';
 
 export class CommentNode {
@@ -113,7 +112,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
-	private _toggleAction: Action;
+	private _collapseAction: Action;
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
@@ -215,28 +214,22 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer, {});
 		this._disposables.push(this._actionbarWidget);
 
-		this._toggleAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
-			if (this._isCollapsed) {
-				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
-				this._toggleAction.label = nls.localize('label.collapse', "Collapse");
+		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => {
+			if (this._commentThread.comments.length === 0) {
+				this.dispose();
+				return null;
 			}
-			else {
-				if (this._commentThread.comments.length === 0) {
-					this.dispose();
-					return null;
-				}
-				this._isCollapsed = true;
-				this.hide();
-				this._toggleAction.label = nls.localize('label.expand', "Expand");
-			}
+			this._isCollapsed = true;
+			this.hide();
+
 			return null;
 		});
 
-		this._actionbarWidget.push(this._toggleAction, { label: false, icon: true });
+		this._actionbarWidget.push(this._collapseAction, { label: false, icon: true });
 	}
 
 	toggleExpand() {
-		this._toggleAction.run();
+		this._collapseAction.run();
 	}
 
 	update(commentThread: modes.CommentThread) {
