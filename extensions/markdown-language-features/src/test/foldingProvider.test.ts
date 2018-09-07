@@ -152,6 +152,17 @@ a`);
 		assert.strictEqual(firstFold.start, 4);
 		assert.strictEqual(firstFold.end, 6);
 	});
+
+	test('Should fold html blocks', async () => {
+		const folds = await getFoldsForDocument(`x
+<div>
+	fa
+</div>`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
 });
 
 
