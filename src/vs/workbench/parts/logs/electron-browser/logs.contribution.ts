@@ -16,8 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import * as Constants from 'vs/workbench/parts/logs/common/logConstants';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ShowLogsAction, OpenLogsFolderAction, SetLogLevelAction, OpenLogFileAction } from 'vs/workbench/parts/logs/electron-browser/logsActions';
-
+import { OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/parts/logs/electron-browser/logsActions';
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -35,8 +34,6 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		const devCategory = nls.localize('developer', "Developer");
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Log Folder', devCategory);
 		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.LABEL), 'Developer: Set Log Level', devCategory);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsAction, ShowLogsAction.ID, ShowLogsAction.LABEL), 'Developer: Show Logs...', devCategory);
-		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogFileAction, OpenLogFileAction.ID, OpenLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
 	}
 }
 

@@ -10,10 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
-import { IOutputService, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { URI } from 'vs/base/common/uri';
-import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -29,61 +26,6 @@ export class OpenLogsFolderAction extends Action {
 
 	run(): TPromise<void> {
 		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
-	}
-}
-
-export class ShowLogsAction extends Action {
-
-	static ID = 'workbench.action.showLogs';
-	static LABEL = nls.localize('showLogs', "Show Logs...");
-
-	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IOutputService private outputService: IOutputService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
-			.map(({ label, id }) => (<IQuickPickItem>{ id, label }));
-
-		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") })
-			.then(entry => {
-				if (entry) {
-					return this.outputService.showChannel(entry.id);
-				}
-				return null;
-			});
-	}
-}
-
-export class OpenLogFileAction extends Action {
-
-	static ID = 'workbench.action.openLogFile';
-	static LABEL = nls.localize('openLogFile', "Open Log File...");
-
-	constructor(id: string, label: string,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ICommandService private commandService: ICommandService,
-		@IOutputService private outputService: IOutputService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<void> {
-		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
-			.map(({ label, file }) => (<IQuickPickItem>{ id: file.toString(), label }));
-		entries.push({ id: URI.file(paths.join(this.environmentService.logsPath, `telemetry.log`)).toString(), label: nls.localize('telemetry', "Telemetry") });
-
-		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
-			.then(entry => {
-				if (entry) {
-					return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, URI.parse(entry.id));
-				}
-				return null;
-			});
 	}
 }
 
