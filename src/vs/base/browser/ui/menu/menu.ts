@@ -303,7 +303,7 @@ class MenuActionItem extends BaseActionItem {
 				}
 			}
 
-			this.label.textContent = label.trim();
+			this.label.innerHTML = label.trim();
 		}
 	}
 
