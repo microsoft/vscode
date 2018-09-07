@@ -29,11 +29,11 @@ exports.load = function (modulePaths, loaderCallback, resultCallback, options) {
 	// Error handler
 	process.on('uncaughtException', function (error) { onUnexpectedError(error, enableDeveloperTools); });
 
-	// Window listeners
+	// Developer tools
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-	let unbind;
+	let developerToolsUnbind;
 	if (enableDeveloperTools) {
-		unbind = registerDeveloperKeybindings();
+		developerToolsUnbind = registerDeveloperKeybindings();
 	}
 
 	// Correctly inherit the parent's environment
@@ -87,7 +87,7 @@ exports.load = function (modulePaths, loaderCallback, resultCallback, options) {
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		};
 
-		if (options && typeof options.beforeConfig === 'function') {
+		if (options && typeof options.beforeLoaderConfig === 'function') {
 			options.beforeLoaderConfig(configuration, loaderConfig);
 		}
 
@@ -109,7 +109,7 @@ exports.load = function (modulePaths, loaderCallback, resultCallback, options) {
 				if (callbackResult && typeof callbackResult.then === 'function') {
 					callbackResult.then(() => {
 						if (options && options.removeDeveloperKeybindingsAfterLoad) {
-							unbind();
+							developerToolsUnbind();
 						}
 					}, error => {
 						onUnexpectedError(error, enableDeveloperTools);

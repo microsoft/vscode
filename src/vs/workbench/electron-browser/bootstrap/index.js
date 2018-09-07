@@ -10,25 +10,48 @@
 const perf = require('../../../base/common/performance');
 perf.mark('renderer/started');
 
-const electron = require('electron');
-const ipc = electron.ipcRenderer;
-
 const bootstrapWindow = require('../../../../bootstrap-window');
 
-process.lazyEnv = new Promise(function (resolve) {
-	const handle = setTimeout(function () {
-		resolve();
-		console.warn('renderer did not receive lazyEnv in time');
-	}, 10000);
+// Setup shell environment
+process.lazyEnv = getLazyEnv();
 
-	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
-		clearTimeout(handle);
-		bootstrapWindow.assign(process.env, shellEnv);
-		resolve(process.env);
+// Load workbench main
+bootstrapWindow.load([
+	'vs/workbench/workbench.main',
+	'vs/nls!vs/workbench/workbench.main',
+	'vs/css!vs/workbench/workbench.main'
+],
+	function (loaderFilename, loaderSource, clb) {
+		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
+
+		clb(require);
+	},
+
+	function (workbench, configuration) {
+		perf.mark('didLoadWorkbenchMain');
+
+		return process.lazyEnv.then(function () {
+			perf.mark('main/startup');
+
+			return require('vs/workbench/electron-browser/main').startup(configuration);
+		});
+	}, {
+		removeDeveloperKeybindingsAfterLoad: true,
+		canModifyDOM: function (windowConfig) {
+			showPartsSplash(windowConfig);
+		},
+		beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
+			loaderConfig.onNodeCachedData = function () {
+				onNodeCachedData.push(arguments);
+			};
+
+			loaderConfig.recordStats = !!windowConfig.performance;
+		},
+		beforeRequire: function () {
+			perf.mark('willLoadWorkbenchMain');
+		}
 	});
-
-	ipc.send('vscode:fetchShellEnv');
-});
 
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
@@ -93,37 +116,21 @@ function showPartsSplash(configuration) {
 	perf.mark('didShowPartsSplash');
 }
 
-bootstrapWindow.load([
-	'vs/workbench/workbench.main',
-	'vs/nls!vs/workbench/workbench.main',
-	'vs/css!vs/workbench/workbench.main'
-],
-	function (loaderFilename, loaderSource, clb) {
-		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
+function getLazyEnv() {
+	const ipc = require('electron').ipcRenderer;
 
-		clb(require);
-	},
+	return new Promise(function (resolve) {
+		const handle = setTimeout(function () {
+			resolve();
+			console.warn('renderer did not receive lazyEnv in time');
+		}, 10000);
 
-	function (workbench, configuration) {
-		perf.mark('didLoadWorkbenchMain');
-
-		return process.lazyEnv.then(function () {
-			perf.mark('main/startup');
-
-			return require('vs/workbench/electron-browser/main').startup(configuration);
+		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+			clearTimeout(handle);
+			bootstrapWindow.assign(process.env, shellEnv);
+			resolve(process.env);
 		});
-	}, {
-		removeDeveloperKeybindingsAfterLoad: true,
-		canModifyDOM: function (windowConfig) {
-			showPartsSplash(windowConfig);
-		},
-		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 
-			loaderConfig.recordStats = !!windowConfig.performance;
-			loaderConfig.onNodeCachedData = function () { onNodeCachedData.push(arguments); };
-		},
-		beforeRequire: function () {
-			perf.mark('willLoadWorkbenchMain');
-		}
+		ipc.send('vscode:fetchShellEnv');
 	});
+}
