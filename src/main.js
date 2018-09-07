@@ -12,7 +12,6 @@ const path = require('path');
 const product = require('../product.json');
 const bootstrap = require('./bootstrap');
 const app = require('electron').app;
-const minimist = require('minimist');
 const paths = require('./paths');
 
 // Enable portable support
@@ -138,6 +137,8 @@ function getUserDataPath(cliArgs) {
 }
 
 function parseCLIArgs() {
+	const minimist = require('minimist');
+	
 	return minimist(process.argv, {
 		string: [
 			'user-data-dir',
