@@ -282,31 +282,43 @@ class OutputFileListener extends Disposable {
 	readonly onDidContentChange: Event<void> = this._onDidChange.event;
 
 	private watching: boolean = false;
-	private disposables: IDisposable[] = [];
+	private syncDelayer: ThrottledDelayer<void>;
+	private etag: string;
 
 	constructor(
 		private readonly file: URI,
 		private readonly fileService: IFileService
 	) {
 		super();
+		this.syncDelayer = new ThrottledDelayer<void>(500);
 	}
 
-	watch(): void {
+	watch(eTag: string): void {
 		if (!this.watching) {
-			this.fileService.watchFileChanges(this.file);
-			this.disposables.push(this.fileService.onFileChanges(e => {
-				if (e.contains(this.file)) {
-					this._onDidChange.fire();
-				}
-			}));
+			this.etag = eTag;
+			this.poll();
 			this.watching = true;
 		}
 	}
 
+	private poll(): void {
+		const loop = () => this.doWatch().then(() => this.poll());
+		this.syncDelayer.trigger(loop);
+	}
+
+	private doWatch(): TPromise<void> {
+		return this.fileService.resolveFile(this.file)
+			.then(stat => {
+				if (stat.etag !== this.etag) {
+					this.etag = stat.etag;
+					this._onDidChange.fire();
+				}
+			});
+	}
+
 	unwatch(): void {
 		if (this.watching) {
-			this.fileService.unwatchFileChanges(this.file);
-			this.disposables = dispose(this.disposables);
+			this.syncDelayer.cancel();
 			this.watching = false;
 		}
 	}
@@ -325,14 +337,14 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	private readonly fileHandler: OutputFileListener;
 
 	private updateInProgress: boolean = false;
+	private etag: string = '';
 
 	constructor(
 		outputChannelDescriptor: IOutputChannelDescriptor,
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService,
+		@IModeService modeService: IModeService
 	) {
 		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
@@ -345,6 +357,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
 				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
+				this.etag = content.etag;
 				return this.createModel(content.value);
 			});
 	}
@@ -357,9 +370,14 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		if (this.model) {
 			this.fileService.resolveContent(this.file, { position: this.endOffset, encoding: 'utf8' })
 				.then(content => {
+					this.etag = content.etag;
 					if (content.value) {
 						this.endOffset = this.endOffset + Buffer.from(content.value).byteLength;
 						this.appendToModel(content.value);
+					} else {
+						// Reset (Content is cleared)
+						this.startOffset = this.endOffset = 0;
+						this.model.setValue('');
 					}
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
@@ -369,7 +387,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	}
 
 	protected onModelCreated(model: ITextModel): void {
-		this.fileHandler.watch();
+		this.fileHandler.watch(this.etag);
 	}
 
 	protected onModelWillDispose(model: ITextModel): void {
