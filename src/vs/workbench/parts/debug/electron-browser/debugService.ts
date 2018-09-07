@@ -48,9 +48,9 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -398,10 +398,6 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private isExtensionHostDebugging(config: IConfig) {
-		return equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
-	}
-
 	private attachExtensionHost(session: DebugSession, port: number): TPromise<void> {
 
 		session.configuration.request = 'attach';
@@ -435,7 +431,7 @@ export class DebugService implements IDebugService {
 			const raw = session.raw;
 
 			// pass the sessionID for EH debugging
-			if (this.isExtensionHostDebugging(resolved)) {
+			if (isExtensionHostDebugging(resolved)) {
 				resolved.__sessionId = session.getId();
 			}
 
@@ -521,7 +517,7 @@ export class DebugService implements IDebugService {
 			}
 
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
-			if (this.isExtensionHostDebugging(session.configuration) && session.state === State.Running && session.configuration.noDebug) {
+			if (isExtensionHostDebugging(session.configuration) && session.state === State.Running && session.configuration.noDebug) {
 				this.broadcastService.broadcast({
 					channel: EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL,
 					payload: [session.root.uri.toString()]
@@ -569,7 +565,7 @@ export class DebugService implements IDebugService {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			this.skipRunningTask = !!restartData;
 
-			if (this.isExtensionHostDebugging(session.configuration) && session.root) {
+			if (isExtensionHostDebugging(session.configuration) && session.root) {
 				return this.broadcastService.broadcast({
 					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
 					payload: [session.root.uri.toString()]

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/debugActionsWidget';
 import * as errors from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
@@ -30,6 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_ACTIONS_WIDGET_Y_KEY = 'debug.actionswidgety';
@@ -270,8 +270,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		const state = debugService.state;
 		const session = debugService.getViewModel().focusedSession;
-		const debugType = session.configuration.type === 'vslsShare' ? (<any>session.configuration).adapterProxy.configuration.type : session.configuration.type;
-		const attached = session && session.configuration.request === 'attach' && session.configuration.type && !strings.equalsIgnoreCase(debugType, 'extensionHost');
+		const attached = session && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
 
 		return allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
