@@ -184,14 +184,13 @@ export class WebviewEditor extends BaseWebviewEditor {
 	private updateWebview(input: WebviewEditorInput) {
 		const webview = this.getWebview(input);
 		input.claimWebview(this);
-		webview.options = {
+		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			allowSvgs: true,
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
-		};
-		input.html = input.html;
+		});
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';

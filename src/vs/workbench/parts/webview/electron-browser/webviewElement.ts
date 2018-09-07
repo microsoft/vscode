@@ -267,6 +267,16 @@ export class WebviewElement extends Disposable {
 		});
 	}
 
+	public update(value: string, options: WebviewOptions) {
+		this._contents = value;
+		this._options = options;
+		this._send('content', {
+			contents: this._contents,
+			options: this._options,
+			state: this._state
+		});
+	}
+
 	public set baseUrl(value: string) {
 		this._send('baseUrl', value);
 	}
