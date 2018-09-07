@@ -21,14 +21,16 @@ process.on('SIGPIPE', () => {
 //#endregion
 
 //#region Add support for using node_modules.asar
-exports.enableASARSupport = function () {
+/**
+ * @param {string=} nodeModulesPath
+ */
+exports.enableASARSupport = function (nodeModulesPath) {
 	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
-
-	let NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
-	if (process.platform === 'win32' && /[a-z]\:/.test(NODE_MODULES_PATH)) {
-		NODE_MODULES_PATH = NODE_MODULES_PATH.charAt(0).toUpperCase() + NODE_MODULES_PATH.substr(1); // Make drive letter uppercase
+	let NODE_MODULES_PATH = nodeModulesPath;
+	if (!NODE_MODULES_PATH) {
+		NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 	}
 
 	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
