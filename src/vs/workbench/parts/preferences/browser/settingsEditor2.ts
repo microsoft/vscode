@@ -42,7 +42,7 @@ import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIF
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -176,6 +176,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private _setOptions(options: SettingsEditorOptions): void {
 		if (!options) {
 			return;
+		}
+
+		if (options.query) {
+			this.searchWidget.setValue(options.query);
 		}
 
 		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
@@ -359,15 +363,16 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private openSettingsFile(): TPromise<IEditor> {
+	private openSettingsFile(query?: string): TPromise<IEditor> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
+		const options: ISettingsEditorOptions = { query };
 		if (currentSettingsTarget === ConfigurationTarget.USER) {
-			return this.preferencesService.openGlobalSettings(true);
+			return this.preferencesService.openGlobalSettings(true, options);
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings(true);
+			return this.preferencesService.openWorkspaceSettings(true, options);
 		} else {
-			return this.preferencesService.openFolderSettings(currentSettingsTarget, true);
+			return this.preferencesService.openFolderSettings(currentSettingsTarget, true, options);
 		}
 	}
 
@@ -478,11 +483,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(this.settingsTreeRenderer.onDidOpenSettings(settingKey => {
-			this.openSettingsFile().then(editor => {
-				if (editor instanceof PreferencesEditor && settingKey) {
-					editor.focusSearch(settingKey);
-				}
-			});
+			this.openSettingsFile(settingKey);
 		}));
 		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => {

@@ -154,6 +154,10 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	query?: string;
 
 	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
+		if (!settings) {
+			return null;
+		}
+
 		const options = new SettingsEditorOptions();
 
 		options.target = settings.target;
@@ -191,9 +195,9 @@ export interface IPreferencesService {
 
 	openRawDefaultSettings(): TPromise<IEditor>;
 	openSettings(jsonEditor?: boolean): TPromise<IEditor>;
-	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 	openDefaultKeybindingsFile(): TPromise<IEditor>;

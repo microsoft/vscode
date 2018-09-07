@@ -181,6 +181,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openSettings(jsonEditor?: boolean): TPromise<IEditor> {
+		jsonEditor = typeof jsonEditor === 'undefined' ?
+			this.configurationService.getValue('workbench.settings.editor') === 'json' :
+			jsonEditor;
+
 		if (!jsonEditor) {
 			return this.openSettings2();
 		}
@@ -197,13 +201,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			.then(() => this.editorGroupService.activeGroup.activeControl);
 	}
 
-	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		jsonEditor = typeof jsonEditor === 'undefined' ?
+			this.configurationService.getValue('workbench.settings.editor') === 'json' :
+			jsonEditor;
+
 		return jsonEditor ?
 			this.openOrSwitchSettings(ConfigurationTarget.USER, this.userSettingsResource, options, group) :
 			this.openOrSwitchSettings2(ConfigurationTarget.USER, undefined, options, group);
 	}
 
-	openWorkspaceSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		jsonEditor = typeof jsonEditor === 'undefined' ?
+			this.configurationService.getValue('workbench.settings.editor') === 'json' :
+			jsonEditor;
+
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
@@ -214,7 +226,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE, undefined, options, group);
 	}
 
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		jsonEditor = typeof jsonEditor === 'undefined' ?
+			this.configurationService.getValue('workbench.settings.editor') === 'json' :
+			jsonEditor;
+
 		return jsonEditor ?
 			this.openOrSwitchSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, group) :
 			this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE_FOLDER, folder, options, group);
@@ -284,19 +300,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				}));
 	}
 
-	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
+	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
 		const editorInput = this.getActiveSettingsEditorInput(group);
 		if (editorInput && editorInput.master.getResource().fsPath !== resource.fsPath) {
-			return this.doSwitchSettings(configurationTarget, resource, editorInput, group);
+			return this.doSwitchSettings(configurationTarget, resource, editorInput, group, options);
 		}
 		return this.doOpenSettings(configurationTarget, resource, options, group);
 	}
 
-	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: IEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
+	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
 		return this.doOpenSettings2(configurationTarget, folderUri, options, group);
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
@@ -310,14 +326,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.editorService.openEditor(preferencesEditorInput, options, group);
+					return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
 				}
-				return this.editorService.openEditor(editableSettingsEditorInput, options, group);
+				return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 			});
 	}
 
 	public createSettings2EditorModel(): Settings2EditorModel {
-		// TODO
 		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER));
 	}
 
@@ -332,7 +347,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor(input, SettingsEditorOptions.create(settingsOptions), group);
 	}
 
-	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup): TPromise<IEditor> {
+	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup, options?: ISettingsEditorOptions): TPromise<IEditor> {
 		return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
 			.then(toInput => {
 				return group.openEditor(input).then(() => {
@@ -340,7 +355,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 					return group.replaceEditors([{
 						editor: input,
-						replacement: replaceWith
+						replacement: replaceWith,
+						options: SettingsEditorOptions.create(options)
 					}]).then(() => {
 						this.lastOpenedSettingsInput = replaceWith;
 						return group.activeControl;
