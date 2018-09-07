@@ -71,7 +71,7 @@ function createStatsStream(group, log) {
     });
 }
 exports.createStatsStream = createStatsStream;
-function submitAllStats(productJson) {
+function submitAllStats(productJson, commit) {
     var sorted = [];
     // move entries for single files to the front
     _entries.forEach(function (value) {
@@ -110,11 +110,12 @@ function submitAllStats(productJson) {
         client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
         /* __GDPR__
             "monacoworkbench/packagemetrics" : {
+                "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
                 "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
                 "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
             }
         */
-        client.trackEvent("monacoworkbench/packagemetrics", { size: JSON.stringify(sizes), count: JSON.stringify(counts) });
+        client.trackEvent("monacoworkbench/packagemetrics", { commit: commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) });
         client.sendPendingData(function () { return resolve(); });
     });
 }

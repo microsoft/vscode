@@ -73,7 +73,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 	});
 }
 
-export function submitAllStats(productJson: any): Promise<void> {
+export function submitAllStats(productJson: any, commit: string): Promise<void> {
 
 	let sorted: Entry[] = [];
 	// move entries for single files to the front
@@ -117,11 +117,12 @@ export function submitAllStats(productJson: any): Promise<void> {
 
 		/* __GDPR__
 			"monacoworkbench/packagemetrics" : {
+				"commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 				"size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				"count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		client.trackEvent(`monacoworkbench/packagemetrics`, { size: JSON.stringify(sizes), count: JSON.stringify(counts) });
+		client.trackEvent(`monacoworkbench/packagemetrics`, { commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) });
 		client.sendPendingData(() => resolve());
 	});
 

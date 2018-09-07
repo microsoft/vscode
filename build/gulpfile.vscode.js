@@ -332,7 +332,7 @@ function packageTask(platform, arch, opts) {
 		if (opts.stats) {
 			result.on('end', () => {
 				const { submitAllStats } = require('./lib/stats');
-				submitAllStats(product).then(() => console.log('Submitted bundle stats!'));
+				submitAllStats(product, commit).then(() => console.log('Submitted bundle stats!'));
 			});
 		}
 
