@@ -847,8 +847,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			history: []
 		}, this._contextKeyService));
 
+
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
-		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
+		this._register(this._replaceInputBox.onDidChange((e) => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
 		}));
 
