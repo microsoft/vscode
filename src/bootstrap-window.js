@@ -5,7 +5,6 @@
 
 const bootstrap = require('./bootstrap');
 
-//#region Renderer helpers
 exports.load = function (modulePath, loaderCallback, resultCallback) {
 	const fs = require('fs');
 	const ipc = require('electron').ipcRenderer;
@@ -85,4 +84,3 @@ exports.load = function (modulePath, loaderCallback, resultCallback) {
 		amdRequire([modulePath], result => resultCallback(result, configuration));
 	});
 };
-//#endregion

@@ -5,9 +5,9 @@
 
 'use strict';
 
-const bootstrapElectronBrowser = require('../../../../bootstrap-electron-browser');
+const bootstrapWindow = require('../../../../bootstrap-window');
 
-bootstrapElectronBrowser.load('vs/code/electron-browser/sharedProcess/sharedProcessMain',
+bootstrapWindow.load('vs/code/electron-browser/sharedProcess/sharedProcessMain',
 
 	function (loaderFilename, loaderSource, clb) {
 		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
