@@ -321,7 +321,7 @@
 				};
 			} else {
 				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
-				setInitialScrollPosition = (body) => {
+				setInitialScrollPosition = (body, window) => {
 					if (body.scrollTop === 0) {
 						window.scroll(0, scrollY);
 					}
