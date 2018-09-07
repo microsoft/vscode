@@ -68,6 +68,7 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
+import { nativeSep } from 'vs/base/common/paths';
 
 export class CodeApplication {
 
@@ -265,8 +266,9 @@ export class CodeApplication {
 			return true;
 		}
 
-		const srcUri: any = source.toLowerCase();
-		return srcUri.startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString(true));
+		const srcUri: any = URI.parse(source.toLowerCase()).fsPath;
+		const rootUri = URI.file(this.environmentService.appRoot.toLowerCase()).fsPath;
+		return srcUri.startsWith(rootUri + nativeSep);
 	}
 
 	private onUnexpectedError(err: Error): void {
