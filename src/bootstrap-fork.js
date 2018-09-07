@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+'use strict';
+
 const bootstrap = require('./bootstrap');
 
 // Enable ASAR in our forked processes
@@ -143,19 +146,21 @@ function disableSTDIO() {
 		write: function () { /* No OP */ }
 	});
 
-	process.__defineGetter__('stdout', function () { return writable; });
-	process.__defineGetter__('stderr', function () { return writable; });
-	process.__defineGetter__('stdin', function () { return writable; });
+	process['__defineGetter__']('stdout', function () { return writable; });
+	process['__defineGetter__']('stderr', function () { return writable; });
+	process['__defineGetter__']('stdin', function () { return writable; });
 }
 
 function handleExceptions() {
 
 	// Handle uncaught exceptions
+	// @ts-ignore
 	process.on('uncaughtException', function (err) {
 		console.error('Uncaught Exception: ', err);
 	});
 
 	// Handle unhandled promise rejections
+	// @ts-ignore
 	process.on('unhandledRejection', function (reason) {
 		console.error('Unhandled Promise Rejection: ', reason);
 	});
@@ -181,7 +186,7 @@ function configureCrashReporter() {
 		try {
 			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
 			if (crashReporterOptions) {
-				process.crashReporter.start(crashReporterOptions);
+				process['crashReporter'].start(crashReporterOptions);
 			}
 		} catch (error) {
 			console.error(error);

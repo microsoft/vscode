@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+'use strict';
+
 //#region global bootstrapping
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -10,6 +13,7 @@ Error.stackTraceLimit = 100;
 
 // Workaround for Electron not installing a handler to ignore SIGPIPE
 // (https://github.com/electron/electron/issues/13254)
+// @ts-ignore
 process.on('SIGPIPE', () => {
 	console.error(new Error('Unexpected SIGPIPE'));
 });
@@ -18,8 +22,9 @@ process.on('SIGPIPE', () => {
 
 //#region Add support for using node_modules.asar
 exports.enableASARSupport = function () {
-	const path = require('path');
+	// @ts-ignore
 	const Module = require('module');
+	const path = require('path');
 
 	let NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 	if (process.platform === 'win32' && /[a-z]\:/.test(NODE_MODULES_PATH)) {
@@ -46,6 +51,10 @@ exports.enableASARSupport = function () {
 //#endregion
 
 //#region URI helpers
+/**
+ * @param {string} _path
+ * @returns {string}
+ */
 exports.uriFromPath = function (_path) {
 	const path = require('path');
 
@@ -59,6 +68,10 @@ exports.uriFromPath = function (_path) {
 //#endregion
 
 //#region FS helpers
+/**
+ * @param {string} file
+ * @returns {Promise}
+ */
 exports.readFile = function (file) {
 	const fs = require('fs');
 
@@ -73,6 +86,11 @@ exports.readFile = function (file) {
 	});
 };
 
+/**
+ * @param {string} file
+ * @param {string} content
+ * @returns {Promise}
+ */
 exports.writeFile = function (file, content) {
 	const fs = require('fs');
 
@@ -136,10 +154,14 @@ exports.setupNLS = function () {
 //#endregion
 
 //#region Portable helpers
+/**
+ * @returns {{ portableDataPath: string, isPortable: boolean }}
+ */
 exports.configurePortable = function () {
+	// @ts-ignore
+	const product = require('../product.json');
 	const path = require('path');
 	const fs = require('fs');
-	const product = require('../product.json');
 
 	const appRoot = path.dirname(__dirname);
 

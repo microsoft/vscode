@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+'use strict';
+
 const bootstrap = require('./bootstrap');
 
 exports.parseURLQueryArgs = function () {
@@ -15,17 +18,30 @@ exports.parseURLQueryArgs = function () {
 		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
 };
 
-exports.assign = function (destination, source) {
+/**
+ * @param {object} destination
+ * @param {object} source
+ * @returns {object}
+ */
+exports.assign = function assign(destination, source) {
 	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
 };
 
+/**
+ *
+ * @param {string[]} modulePaths
+ * @param {(result, configuration) => any} resultCallback
+ * @param {{ removeDeveloperKeybindingsAfterLoad: boolean, canModifyDOM: (config) => void, beforeLoaderConfig: (config, loaderConfig) => void, beforeRequire: () => void }=} options
+ */
 exports.load = function (modulePaths, resultCallback, options) {
+	// @ts-ignore
 	const webFrame = require('electron').webFrame;
 
 	const args = exports.parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
 	// Error handler
+	// @ts-ignore
 	process.on('uncaughtException', function (error) { onUnexpectedError(error, enableDeveloperTools); });
 
 	// Developer tools
@@ -70,13 +86,13 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const amdDefine = amdLoader.require.define;
 	const nodeRequire = amdLoader.require.nodeRequire;
 
-	window.nodeRequire = nodeRequire;
-	window.require = amdRequire;
+	window['nodeRequire'] = nodeRequire;
+	window['require'] = amdRequire;
 
 	// replace the patched electron fs with the original node fs for all AMD code
 	amdDefine('fs', ['original-fs'], function (originalFS) { return originalFS; });
 
-	window.MonacoEnvironment = {};
+	window['MonacoEnvironment'] = {};
 
 	const loaderConfig = {
 		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
@@ -119,7 +135,11 @@ exports.load = function (modulePaths, resultCallback, options) {
 	});
 };
 
+/**
+ * @returns () => void
+ */
 function registerDeveloperKeybindings() {
+	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	const extractKey = function (e) {
@@ -156,6 +176,7 @@ function registerDeveloperKeybindings() {
 }
 
 function onUnexpectedError(error, enableDeveloperTools) {
+	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	if (enableDeveloperTools) {

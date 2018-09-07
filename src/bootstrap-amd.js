@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
+'use strict';
+
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 
@@ -20,7 +23,7 @@ loader.config({
 });
 
 // Running in Electron
-if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions.electron) {
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 	loader.define('fs', ['original-fs'], function (originalFS) {
 		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 	});

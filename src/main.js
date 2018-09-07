@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+//@ts-check
 'use strict';
 
 const perf = require('./vs/base/common/performance');
@@ -9,10 +11,12 @@ perf.mark('main:started');
 
 const fs = require('fs');
 const path = require('path');
-const product = require('../product.json');
 const bootstrap = require('./bootstrap');
-const app = require('electron').app;
 const paths = require('./paths');
+// @ts-ignore
+const product = require('../product.json');
+// @ts-ignore
+const app = require('electron').app;
 
 // Enable portable support
 const portable = bootstrap.configurePortable();
@@ -116,6 +120,9 @@ function configureCommandlineSwitches(cliArgs, nodeCachedDataDir) {
 	}
 }
 
+/**
+ * @returns {string}
+ */
 function resolveJSFlags(cliArgs, ...jsFlags) {
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
@@ -128,6 +135,9 @@ function resolveJSFlags(cliArgs, ...jsFlags) {
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
+/**
+ * @returns {string}
+ */
 function getUserDataPath(cliArgs) {
 	if (portable.isPortable) {
 		return path.join(portable.portableDataPath, 'user-data');
@@ -138,7 +148,7 @@ function getUserDataPath(cliArgs) {
 
 function parseCLIArgs() {
 	const minimist = require('minimist');
-	
+
 	return minimist(process.argv, {
 		string: [
 			'user-data-dir',
@@ -166,9 +176,10 @@ function registerListeners() {
 
 	// Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 	// the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
-	global.macOpenFiles = [];
+	const macOpenFiles = [];
+	global['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
-		global.macOpenFiles.push(path);
+		macOpenFiles.push(path);
 	});
 
 	const openUrls = [];
@@ -182,13 +193,16 @@ function registerListeners() {
 		app.on('open-url', onOpenUrl);
 	});
 
-	global.getOpenUrls = function () {
+	global['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 
 		return openUrls;
 	};
 }
 
+/**
+ * @param {string} userDataPath
+ */
 function getNodeCachedDir(userDataPath) {
 	return new class {
 
@@ -223,6 +237,10 @@ function getNodeCachedDir(userDataPath) {
 }
 
 //#region NLS Support
+/**
+ * @param {string} content
+ * @returns {string}
+ */
 function stripComments(content) {
 	let regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 	let result = content.replace(regexp, function (match, m1, m2, m3, m4) {
@@ -247,14 +265,66 @@ function stripComments(content) {
 	return result;
 }
 
-function mkdir(dir) { return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir))); }
-function exists(file) { return new Promise(c => fs.exists(file, c)); }
-function touch(file) { return new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); }); }
-function lstat(file) { return new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats))); }
-function readdir(dir) { return new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files))); }
-function rmdir(dir) { return new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined))); }
-function unlink(file) { return new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined))); }
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
+function mkdir(dir) {
+	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
+}
 
+/**
+ * @param {string} file
+ * @returns {Promise<boolean>}
+ */
+function exists(file) {
+	return new Promise(c => fs.exists(file, c));
+}
+
+/**
+ * @param {string} file
+ * @returns {Promise<void>}
+ */
+function touch(file) {
+	return new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
+}
+
+/**
+ * @param {string} file
+ * @returns {Promise<object>}
+ */
+function lstat(file) {
+	return new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string[]>}
+ */
+function readdir(dir) {
+	return new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<void>}
+ */
+function rmdir(dir) {
+	return new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined)));
+}
+
+/**
+ * @param {string} file
+ * @returns {Promise<void>}
+ */
+function unlink(file) {
+	return new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined)));
+}
+
+/**
+ * @param {string} dir
+ * @returns {Promise<string>}
+ */
 function mkdirp(dir) {
 	return mkdir(dir).then(null, err => {
 		if (err && err.code === 'ENOENT') {
@@ -269,6 +339,10 @@ function mkdirp(dir) {
 	});
 }
 
+/**
+ * @param {string} location
+ * @returns {Promise<void>}
+ */
 function rimraf(location) {
 	return lstat(location).then(stat => {
 		if (stat.isDirectory() && !stat.isSymbolicLink()) {
@@ -290,7 +364,9 @@ function rimraf(location) {
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
 // the locale we receive from the user or OS.
-
+/**
+ * @returns {Promise<string>}
+ */
 function getUserDefinedLocale() {
 	let locale = args['locale'];
 	if (locale) {
@@ -315,6 +391,9 @@ function getUserDefinedLocale() {
 	});
 }
 
+/**
+ * @returns {object}
+ */
 function getLanguagePackConfigurations() {
 	let configFile = path.join(userDataPath, 'languagepacks.json');
 	try {
@@ -326,6 +405,10 @@ function getLanguagePackConfigurations() {
 	return undefined;
 }
 
+/**
+ * @param {object} config
+ * @param {string} locale
+ */
 function resolveLanguagePackLocale(config, locale) {
 	try {
 		while (locale) {
@@ -346,6 +429,9 @@ function resolveLanguagePackLocale(config, locale) {
 	return undefined;
 }
 
+/**
+ * @param {string} locale
+ */
 function getNLSConfiguration(locale) {
 	if (locale === 'pseudo') {
 		return Promise.resolve({ locale: locale, availableLanguages: {}, pseudo: true });

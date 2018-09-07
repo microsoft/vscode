@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 /*global window,document,define*/
@@ -13,7 +14,7 @@ perf.mark('renderer/started');
 const bootstrapWindow = require('../../../../bootstrap-window');
 
 // Setup shell environment
-process.lazyEnv = getLazyEnv();
+process['lazyEnv'] = getLazyEnv();
 
 // Load workbench main
 bootstrapWindow.load([
@@ -24,9 +25,10 @@ bootstrapWindow.load([
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
 
-		return process.lazyEnv.then(function () {
+		return process['lazyEnv'].then(function () {
 			perf.mark('main/startup');
 
+			// @ts-ignore
 			return require('vs/workbench/electron-browser/main').startup(configuration);
 		});
 	}, {
@@ -35,7 +37,7 @@ bootstrapWindow.load([
 			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
-			const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
+			const onNodeCachedData = window['MonacoEnvironment'].onNodeCachedData = [];
 			loaderConfig.onNodeCachedData = function () {
 				onNodeCachedData.push(arguments);
 			};
@@ -47,6 +49,9 @@ bootstrapWindow.load([
 		}
 	});
 
+/**
+ * @param {object} configuration
+ */
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
 
@@ -110,7 +115,11 @@ function showPartsSplash(configuration) {
 	perf.mark('didShowPartsSplash');
 }
 
+/**
+ * @returns {Promise<void>}
+ */
 function getLazyEnv() {
+	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	return new Promise(function (resolve) {
