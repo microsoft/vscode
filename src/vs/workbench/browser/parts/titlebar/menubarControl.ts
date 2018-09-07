@@ -1166,7 +1166,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench .menubar > .menubar-menu-button.open,
 			.monaco-workbench .menubar > .menubar-menu-button:focus,
-			.monaco-workbench .menubar > .menubar-menu-button:hover {
+			.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover {
 				color: ${menubarSelectedFgColor};
 			}
 		`);
@@ -1177,7 +1177,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench .menubar > .menubar-menu-button.open,
 			.monaco-workbench .menubar > .menubar-menu-button:focus,
-			.monaco-workbench .menubar > .menubar-menu-button:hover {
+			.monaco-workbench .menubar:not(:focus-within) > .menubar-menu-button:hover {
 				background-color: ${menubarSelectedBgColor};
 			}
 		`);
