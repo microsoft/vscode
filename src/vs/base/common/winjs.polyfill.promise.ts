@@ -5,7 +5,11 @@
 
 import { Promise as WinJSPromise } from './winjs.base';
 import * as platform from 'vs/base/common/platform';
-import { isWinJSPromise } from 'vs/base/common/async';
+import { isThenable } from 'vs/base/common/async';
+
+function isWinJSPromise(candidate: any): candidate is WinJSPromise {
+	return isThenable(candidate) && typeof (candidate as any).done === 'function';
+}
 
 /**
  * A polyfill for the native promises. The implementation is based on

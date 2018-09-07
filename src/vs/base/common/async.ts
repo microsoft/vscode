@@ -8,7 +8,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
@@ -346,14 +346,6 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 }
 
 /**
- *
- * @returns `true` if candidate is a `WinJS.Promise`
- */
-export function isWinJSPromise(candidate: any): candidate is TPromise {
-	return isThenable(candidate) && typeof (candidate as any).done === 'function';
-}
-
-/**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
  * method is comparable to a try-finally code block.
@@ -553,17 +545,18 @@ export class ResourceQueue {
 	}
 }
 
-export function setDisposableTimeout(handler: Function, timeout: number, ...args: any[]): IDisposable {
-	const handle = setTimeout(handler, timeout, ...args);
-	return { dispose() { clearTimeout(handle); } };
-}
-
 export class TimeoutTimer extends Disposable {
 	private _token: number;
 
-	constructor() {
+	constructor();
+	constructor(runner: () => void, timeout: number);
+	constructor(runner?: () => void, timeout?: number) {
 		super();
 		this._token = -1;
+
+		if (typeof runner === 'function' && typeof timeout === 'number') {
+			this.setIfNotSet(runner, timeout);
+		}
 	}
 
 	dispose(): void {
