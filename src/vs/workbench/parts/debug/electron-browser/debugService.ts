@@ -399,7 +399,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private isExtensionHostDebugging(config: IConfig) {
-		return equalsIgnoreCase(config.type, 'extensionhost');
+		return equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
 	}
 
 	private attachExtensionHost(session: DebugSession, port: number): TPromise<void> {
