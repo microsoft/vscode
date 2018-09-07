@@ -88,7 +88,10 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 		const multiLineListItems = tokens.filter(isFoldableToken);
 		return multiLineListItems.map(listItem => {
 			const start = listItem.map[0];
-			const end = listItem.map[1] - 1;
+			let end = listItem.map[1] - 1;
+			if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
+				end = end - 1;
+			}
 			return new vscode.FoldingRange(start, end);
 		});
 	}
