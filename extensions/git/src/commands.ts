@@ -1716,7 +1716,9 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
-						message = localize('missing user info', "Make sure that user.email and user.name are configured correctly.\n\n{0}\n{1}",
+						message = localize('missing user info', "Make sure that user.email and user.name are configured correctly.\n\n{0}\n{1}\n\n{2}\n{3}",
+							"current user.name: " + err.userName || "",
+							"current user.email: " + err.userEmail || "",
 							"git config --global user.email \"you@example.com\"",
 							"git config --global user.name \"Your Name\"");
 						break;
