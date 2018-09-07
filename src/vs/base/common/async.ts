@@ -58,35 +58,6 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	};
 }
 
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
-	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
-		let item = callback(source.token);
-		if (item instanceof TPromise) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else if (isThenable<T>(item)) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else {
-			source.dispose();
-			resolve(item);
-		}
-	}, () => {
-		source.cancel();
-	});
-}
-
 export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Thenable<T> {
 	return new TPromise<T>((resolve, reject) => {
 		let item = callback();
