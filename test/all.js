@@ -52,7 +52,7 @@ function main() {
 			'vs/css': '../test/css.mock',
 			'vs': `../${ out }/vs`,
 			'lib': `../${ out }/lib`,
-			'bootstrap': `../${ out }/bootstrap`
+			'bootstrap-fork': `../${ out }/bootstrap-fork`
 		},
 		catchError: true
 	};

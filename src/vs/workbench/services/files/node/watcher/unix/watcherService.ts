@@ -42,7 +42,7 @@ export class FileWatcher {
 		const args = ['--type=watcherService'];
 
 		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap'),
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
 				serverName: 'File Watcher (chokidar)',
 				args,
