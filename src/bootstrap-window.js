@@ -36,6 +36,7 @@ exports.assign = function assign(destination, source) {
 exports.load = function (modulePaths, resultCallback, options) {
 	// @ts-ignore
 	const webFrame = require('electron').webFrame;
+	const path = require('path');
 
 	const args = exports.parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
@@ -55,7 +56,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	exports.assign(process.env, configuration.userEnv);
 
 	// Enable ASAR support
-	bootstrap.enableASARSupport();
+	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
