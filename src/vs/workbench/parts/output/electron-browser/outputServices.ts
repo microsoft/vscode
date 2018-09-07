@@ -94,7 +94,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 	protected endOffset: number = 0;
 
 	constructor(
-		protected readonly outputChannelDescriptor: IOutputChannelDescriptor,
+		readonly outputChannelDescriptor: IOutputChannelDescriptor,
 		private readonly modelUri: URI,
 		protected fileService: IFileService,
 		protected modelService: IModelService,
@@ -570,7 +570,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
 		if (this._outputPanel) {
-			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel);
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel && channel.outputChannelDescriptor.log);
 			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }), CancellationToken.None)
 				.then(() => {
 					if (!preserveFocus) {

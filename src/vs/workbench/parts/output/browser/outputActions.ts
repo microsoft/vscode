@@ -150,7 +150,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		this.logChannels = groups[1] || [];
 		const showSeparator = this.outputChannels.length && this.logChannels.length;
 		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => c.label)];
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
 		let selected = 0;
 		if (selectedChannel) {
 			selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);

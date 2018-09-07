@@ -18,10 +18,10 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 	protected readonly _proxy: MainThreadOutputServiceShape;
 	private _disposed: boolean;
 
-	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
+	constructor(name: string, log: boolean, file: URI, proxy: MainThreadOutputServiceShape) {
 		this._name = name;
 		this._proxy = proxy;
-		this._id = proxy.$register(this.name, file);
+		this._id = proxy.$register(this.name, log, file);
 	}
 
 	get name(): string {
@@ -68,7 +68,7 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 
 	constructor(name: string, proxy: MainThreadOutputServiceShape) {
-		super(name, null, proxy);
+		super(name, false, null, proxy);
 	}
 
 	append(value: string): void {
@@ -77,22 +77,33 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
-export class ExtHostFileOutputChannel extends AbstractExtHostOutputChannel {
+export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
 	private static _namePool = 1;
 	private _appender: OutputAppender;
 
 	constructor(name: string, outputDir: string, proxy: MainThreadOutputServiceShape) {
-		const fileName = `${ExtHostFileOutputChannel._namePool++}-${name}`;
+		const fileName = `${ExtHostOutputChannelBackedByFile._namePool++}-${name}`;
 		const file = URI.file(posix.join(outputDir, `${fileName}.log`));
 
-		super(name, file, proxy);
+		super(name, false, file, proxy);
 		this._appender = new OutputAppender(fileName, file.fsPath);
 	}
 
 	append(value: string): void {
 		this.validate();
 		this._appender.append(value);
+	}
+}
+
+export class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
+
+	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
+		super(name, true, file, proxy);
+	}
+
+	append(value: string): void {
+		throw new Error('Not supported');
 	}
 }
 
@@ -116,12 +127,23 @@ export class ExtHostOutputService {
 			} else {
 				// Do not crash if logger cannot be created
 				try {
-					return new ExtHostFileOutputChannel(name, this._outputDir, this._proxy);
+					return new ExtHostOutputChannelBackedByFile(name, this._outputDir, this._proxy);
 				} catch (error) {
 					console.log(error);
 					return new ExtHostPushOutputChannel(name, this._proxy);
 				}
 			}
 		}
+	}
+
+	createOutputChannelFromLogFile(name: string, file: URI): vscode.OutputChannel {
+		name = name.trim();
+		if (!name) {
+			throw new Error('illegal argument `name`. must not be falsy');
+		}
+		if (!file) {
+			throw new Error('illegal argument `file`. must not be falsy');
+		}
+		return new ExtHostLogFileOutputChannel(name, file, this._proxy);
 	}
 }

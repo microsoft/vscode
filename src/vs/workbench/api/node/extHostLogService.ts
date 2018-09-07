@@ -10,11 +10,13 @@ import { ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 
 export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
 
 	private _logsPath: string;
+	readonly logFile: URI;
 
 	constructor(
 		logLevel: LogLevel,
@@ -22,6 +24,7 @@ export class ExtHostLogService extends DelegatedLogService implements ILogServic
 	) {
 		super(createSpdLogService(ExtensionHostLogFileName, logLevel, logsPath));
 		this._logsPath = logsPath;
+		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
 	}
 
 	$setLevel(level: LogLevel): void {

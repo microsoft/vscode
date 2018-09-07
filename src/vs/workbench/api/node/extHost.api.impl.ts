@@ -61,6 +61,7 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
+import { localize } from 'vs/nls';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -138,6 +139,9 @@ export function createApiFactory(
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
 	const extHostOutputService = new ExtHostOutputService(initData.logsLocation, rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
+
+	// Register an output channel for exthost log
+	extHostOutputService.createOutputChannelFromLogFile(localize('extensionsLog', "Extension Host"), extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
