@@ -609,10 +609,9 @@ export class StartFindReplaceAction extends EditorAction {
 		// we only seed search string from selection when the current selection is single line and not empty.
 		let seedSearchStringFromSelection = !currentSelection.isEmpty() &&
 			currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection;
-		let oldSearchString = controller.getState().searchString;
 		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
 		// is still empty, so we should focus the Find Input instead of Replace Input.
-		let shouldFocus = (!!oldSearchString || seedSearchStringFromSelection) ?
+		let shouldFocus = seedSearchStringFromSelection ?
 			FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
 
 		if (controller) {
