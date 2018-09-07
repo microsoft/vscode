@@ -1714,6 +1714,12 @@ export class CommandCenter {
 						type = 'warning';
 						options.modal = false;
 						break;
+					case GitErrorCodes.NoUserNameConfigured:
+					case GitErrorCodes.NoUserEmailConfigured:
+						message = localize('missing user info', "Make sure that user.email and user.name are configured correctly.\n\n{0}\n{1}",
+							"git config --global user.email \"you@example.com\"",
+							"git config --global user.name \"Your Name\"");
+						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
