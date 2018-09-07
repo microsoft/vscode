@@ -4884,6 +4884,17 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
+	export enum SignatureHelpTriggerReason {
+		Invoke = 1,
+		TriggerCharacter = 2,
+		Retrigger = 3
+	}
+
+	export interface SignatureHelpContext {
+		triggerReason: SignatureHelpTriggerReason;
+		triggerCharacter?: string;
+	}
+
 	/**
 	 * The signature help provider interface defines the contract between extensions and
 	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -4893,7 +4904,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
 	/**

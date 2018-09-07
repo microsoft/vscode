@@ -808,4 +808,52 @@ declare module 'vscode' {
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
 	//#endregion
+
+	//#region Signature Help
+	/**
+	 * How a [Signature provider](#SignatureHelpProvider) was triggered
+	 */
+	export enum SignatureHelpTriggerReason {
+		/**
+		 * Signature help was invoked manually by the user or by a command.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Signature help was triggered by a trigger character.
+		 */
+		TriggerCharacter = 2,
+
+		/**
+		 * Signature help was retriggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		Retrigger = 3,
+	}
+
+	/**
+	 * Contains additional information about the context in which a
+	 * [signature help provider](#SignatureHelpProvider.provideSignatureHelp) is triggered.
+	 */
+	export interface SignatureHelpContext {
+		/**
+		 * Action that caused signature help to be requested.
+		 */
+		readonly triggerReason: SignatureHelpTriggerReason;
+
+		/**
+		 * Character that caused signature help to be requested.
+		 *
+		 * This is `undefined` for manual triggers or retriggers for a cursor move.
+		 */
+		readonly triggerCharacter?: string;
+	}
+
+	export interface SignatureHelpProvider {
+		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	}
+
+	//#endregion
 }
