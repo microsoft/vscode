@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as network from 'vs/base/common/network';
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { EditorInput, IEditor } from 'vs/workbench/common/editor';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextModel } from 'vs/editor/common/model';
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents, DefaultSettings, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { parse } from 'vs/base/common/json';
-import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as network from 'vs/base/common/network';
 import { assign } from 'vs/base/common/objects';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from 'vs/nls';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { EditorInput, IEditor } from 'vs/workbench/common/editor';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -45,7 +45,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	_serviceBrand: any;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
-	private lastOpenedSettings2Input: SettingsEditor2Input = null;
 
 	private readonly _onDispose: Emitter<void> = new Emitter<void>();
 
@@ -97,6 +96,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
 	}
 
+	get settingsEditor2Input(): SettingsEditor2Input {
+		return this.instantiationService.createInstance(SettingsEditor2Input);
+	}
+
 	getFolderSettingsResource(resource: URI): URI {
 		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, resource);
 	}
@@ -117,7 +120,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						return;
 					}
 					defaultSettings = this.getDefaultSettings(target);
-					this.modelService.updateModel(model, defaultSettings.parse());
+					this.modelService.updateModel(model, defaultSettings.getContent(true));
 					defaultSettings._onDidChange.fire();
 				}
 			});
@@ -125,7 +128,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			// Check if Default settings is already created and updated in above promise
 			if (!defaultSettings) {
 				defaultSettings = this.getDefaultSettings(target);
-				this.modelService.updateModel(model, defaultSettings.parse());
+				this.modelService.updateModel(model, defaultSettings.getContent(true));
 			}
 
 			return TPromise.as(model);
@@ -189,10 +192,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private openSettings2(): TPromise<IEditor> {
-		const editorInput = this.getActiveSettingsEditor2Input() || this.lastOpenedSettings2Input;
-		const resource = editorInput ? editorInput.getResource() : this.userSettingsResource;
-		const target = this.getConfigurationTargetFromSettingsResource(resource);
-		return this.openOrSwitchSettings2(target);
+		const input = this.settingsEditor2Input;
+		return this.editorGroupService.activeGroup.openEditor(input)
+			.then(() => this.editorGroupService.activeGroup.activeControl);
 	}
 
 	openGlobalSettings(jsonEditor?: boolean, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
@@ -220,8 +222,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void> {
 		if (!jsonEditor) {
-			const folderUri = target === ConfigurationTarget.WORKSPACE_FOLDER && resource;
-			return this.switchSettings2(target, folderUri);
+			return this.doOpenSettings2(target, resource).then(() => null);
 		}
 
 		const activeControl = this.editorService.activeControl;
@@ -229,16 +230,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.doSwitchSettings(target, resource, activeControl.input, activeControl.group).then(() => null);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => null);
-		}
-	}
-
-	switchSettings2(target: ConfigurationTarget, folderUri?: URI): TPromise<void> {
-		const activeControl = this.editorService.activeControl;
-		const resource = this.getDefaultSettingsResource(target);
-		if (activeControl && activeControl.input instanceof SettingsEditor2Input) {
-			return this.doSwitchSettings2(resource, target, folderUri, activeControl.input, activeControl.group).then(() => null);
-		} else {
-			return this.doOpenSettings2(resource, target, folderUri).then(() => null);
 		}
 	}
 
@@ -302,13 +293,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: IEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
-		const editorInput = this.getActiveSettingsEditor2Input(group);
-		const resource = this.getDefaultSettingsResource(configurationTarget);
-		if (editorInput && editorInput.getResource().fsPath !== resource.fsPath) {
-			return this.doSwitchSettings2(resource, configurationTarget, folderUri, editorInput, group);
-		}
-
-		return this.doOpenSettings2(resource, configurationTarget, folderUri, options, group);
+		return this.doOpenSettings2(configurationTarget, folderUri, options, group);
 	}
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
@@ -331,10 +316,20 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private doOpenSettings2(resource: URI, target: ConfigurationTarget, folderUri: URI | undefined, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
-		const settingsEditorInput = this.instantiationService.createInstance(SettingsEditor2Input, resource, target, folderUri);
-		this.lastOpenedSettings2Input = settingsEditorInput;
-		return this.editorService.openEditor(settingsEditorInput, options, group);
+	public createSettings2EditorModel(): Settings2EditorModel {
+		// TODO
+		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER));
+	}
+
+	private doOpenSettings2(target: ConfigurationTarget, folderUri: URI | undefined, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor> {
+		const input = this.settingsEditor2Input;
+		const settingsOptions: ISettingsEditorOptions = {
+			...options,
+			target,
+			folderUri
+		};
+
+		return this.editorService.openEditor(input, SettingsEditorOptions.create(settingsOptions), group);
 	}
 
 	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup): TPromise<IEditor> {
@@ -354,26 +349,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private doSwitchSettings2(resource: URI, configurationTarget: ConfigurationTarget, folderUri: URI | undefined, input: SettingsEditor2Input, group: IEditorGroup): TPromise<IEditor> {
-		return group.openEditor(input).then(() => {
-			const replaceWith = this.instantiationService.createInstance(SettingsEditor2Input, resource, configurationTarget, folderUri);
-
-			return group.replaceEditors([{
-				editor: input,
-				replacement: replaceWith
-			}]).then(() => {
-				this.lastOpenedSettings2Input = replaceWith;
-				return group.activeControl;
-			});
-		});
-	}
-
 	private getActiveSettingsEditorInput(group: IEditorGroup = this.editorGroupService.activeGroup): PreferencesEditorInput {
 		return <PreferencesEditorInput>group.editors.filter(e => e instanceof PreferencesEditorInput)[0];
-	}
-
-	private getActiveSettingsEditor2Input(group: IEditorGroup = this.editorGroupService.activeGroup): SettingsEditor2Input {
-		return <SettingsEditor2Input>group.editors.filter(e => e instanceof SettingsEditor2Input)[0];
 	}
 
 	private getConfigurationTargetFromSettingsResource(resource: URI): ConfigurationTarget {

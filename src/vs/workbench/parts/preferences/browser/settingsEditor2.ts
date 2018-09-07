@@ -32,20 +32,19 @@ import { badgeBackground, badgeForeground, contrastBorder, editorForeground } fr
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { IEditor } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource, ISettingLinkClickEvent } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 const $ = DOM.$;
 
@@ -58,7 +57,7 @@ export class SettingsEditor2 extends BaseEditor {
 		'@modified', '@tag:usesOnlineServices'
 	];
 
-	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
+	private defaultSettingsEditorModel: Settings2EditorModel;
 
 	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
@@ -148,35 +147,40 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
-			.then(() => {
-				const target = this.getSettingsTarget(input);
-				this.settingsTargetsWidget.settingsTarget = target;
-				this.viewState.settingsTarget = target;
-
-				return this.render(token);
-			})
+			.then(() => this.render(token))
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
 
-				this.onSearchInputChanged();
+				if (!options) {
+					// Persist?
+					options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
+				} else if (!options.target) {
+					options.target = ConfigurationTarget.USER;
+				}
+
+				this._setOptions(options);
 			});
 	}
 
-	private getSettingsTarget(input: SettingsEditor2Input): SettingsTarget {
-		if (input.folderUri) {
-			return input.folderUri;
+	setOptions(options: SettingsEditorOptions): void {
+		super.setOptions(options);
+
+		this._setOptions(options);
+	}
+
+	private _setOptions(options: SettingsEditorOptions): void {
+		if (!options) {
+			return;
 		}
 
-		if (input.configurationTarget === ConfigurationTarget.USER || input.configurationTarget === ConfigurationTarget.WORKSPACE) {
-			return input.configurationTarget;
-		}
-
-		return ConfigurationTarget.USER;
+		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
+		this.settingsTargetsWidget.settingsTarget = target;
+		this.onDidSettingsTargetChange(target);
 	}
 
 	clearInput(): void {
@@ -280,18 +284,16 @@ export class SettingsEditor2 extends BaseEditor {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
-		this.settingsTargetsWidget.onDidTargetChange(target => {
-			this.viewState.settingsTarget = target;
-			if (target === ConfigurationTarget.USER) {
-				this.preferencesService.openGlobalSettings();
-			} else if (target === ConfigurationTarget.WORKSPACE) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource);
-			} else if (target instanceof URI) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
-			}
-		});
+		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
 		this.createHeaderControls(headerControlsContainer);
+	}
+
+	private onDidSettingsTargetChange(target: SettingsTarget): void {
+		this.viewState.settingsTarget = target;
+
+		// Instead of rebuilding the whole model, refresh and uncache the inspected setting value
+		this.onConfigUpdate();
 	}
 
 	private createHeaderControls(parent: HTMLElement): void {
@@ -684,15 +686,13 @@ export class SettingsEditor2 extends BaseEditor {
 	private render(token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then(model => {
+				.then((model: Settings2EditorModel) => {
 					if (token.isCancellationRequested) {
 						return void 0;
 					}
 
-					return this.preferencesService.createPreferencesEditorModel((<ResourceEditorModel>model).textEditorModel.uri);
-				}).then((defaultSettingsEditorModel: DefaultSettingsEditorModel) => {
-					this._register(defaultSettingsEditorModel.onDidChangeGroups(() => this.onConfigUpdate()));
-					this.defaultSettingsEditorModel = defaultSettingsEditorModel;
+					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
+					this.defaultSettingsEditorModel = model;
 					return this.onConfigUpdate();
 				});
 		}
@@ -849,6 +849,11 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return refreshP.then(() => {
 			this.tocTreeModel.update();
+
+			if (this.searchResultModel) {
+				expandAll(this.tocTree);
+			}
+
 			return this.tocTree.refresh();
 		}).then(() => { });
 	}
@@ -912,7 +917,6 @@ export class SettingsEditor2 extends BaseEditor {
 				// Added a filter model
 				this.tocTree.setSelection([]);
 				this.tocTree.setFocus(null);
-				expandAll(this.tocTree);
 				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
 			} else {
 				// Leaving search mode
@@ -1017,7 +1021,7 @@ export class SettingsEditor2 extends BaseEditor {
 								TPromise.wrap(null);
 						});
 					}
-				}).then(() => this.renderResultCountMessages());
+				});
 			} else {
 				return TPromise.wrap(null);
 			}
@@ -1036,7 +1040,9 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.join([
 			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
 			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
-		]).then(() => { });
+		]).then(() => {
+			this.renderResultCountMessages();
+		});
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {
@@ -1066,7 +1072,12 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderResultCountMessages() {
-		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, element => element.matchesAllTags(this.viewState.tagFilters));
+		if (!this.settingsTree.getInput()) {
+			return;
+		}
+
+		const countPredicate = (element: SettingsTreeSettingElement) => element.matchesAllTags(this.viewState.tagFilters) && element.matchesScope(this.viewState.settingsTarget);
+		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, countPredicate);
 		switch (count) {
 			case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
 			case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;

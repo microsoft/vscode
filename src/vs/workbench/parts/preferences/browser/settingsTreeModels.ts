@@ -12,6 +12,7 @@ import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferenc
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
 import { isArray } from 'vs/base/common/types';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -179,6 +180,20 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		} else {
 			return false;
 		}
+	}
+
+	matchesScope(scope: SettingsTarget): boolean {
+		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
+
+		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+			return this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		if (configTarget === ConfigurationTarget.WORKSPACE) {
+			return this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		return true;
 	}
 }
 

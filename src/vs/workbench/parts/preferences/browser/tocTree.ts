@@ -69,7 +69,7 @@ export class TOCTreeModel {
 
 	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
 		return this._currentSearchModel.root.children.filter(child => {
-			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting);
+			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting) && child.matchesScope(this.viewState.settingsTarget);
 		}).length;
 	}
 
@@ -87,6 +87,9 @@ export class TOCTreeModel {
 export type TOCTreeElement = SettingsTreeGroupElement | TOCTreeModel;
 
 export class TOCDataSource implements IDataSource {
+	constructor(private _treeFilter: SettingsTreeFilter) {
+	}
+
 	getId(tree: ITree, element: SettingsTreeGroupElement): string {
 		return element.id;
 	}
@@ -97,8 +100,8 @@ export class TOCDataSource implements IDataSource {
 		}
 
 		if (element instanceof SettingsTreeGroupElement) {
-			// Should have child which won't be filtered out (undefined or >0 count)
-			return element.children && element.children.some(child => child instanceof SettingsTreeGroupElement && child.count !== 0);
+			// Should have child which won't be filtered out
+			return element.children && element.children.some(child => child instanceof SettingsTreeGroupElement && this._treeFilter.isVisible(tree, child));
 		}
 
 		return false;
@@ -172,11 +175,12 @@ export class TOCTree extends WorkbenchTree {
 	) {
 		const treeClass = 'settings-toc-tree';
 
+		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const fullConfiguration = <ITreeConfiguration>{
 			controller: instantiationService.createInstance(WorkbenchTreeController, {}),
-			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
+			filter,
 			styler: new DefaultTreestyler(DOM.createStyleSheet(container), treeClass),
-			dataSource: instantiationService.createInstance(TOCDataSource),
+			dataSource: instantiationService.createInstance(TOCDataSource, filter),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 
 			...configuration

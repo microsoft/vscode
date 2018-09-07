@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail } from 'vs/base/common/arrays';
+import { flatten, tail, find } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
@@ -201,6 +201,32 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			matches,
 			metadata
 		};
+	}
+}
+
+export class Settings2EditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
+	constructor(private _defaultSettings: DefaultSettings) {
+		super();
+	}
+
+	protected get filterGroups(): ISettingsGroup[] {
+		// Don't filter "commonly used"
+		return this.settingsGroups.slice(1);
+	}
+
+	public get settingsGroups(): ISettingsGroup[] {
+		return this._defaultSettings.settingsGroups;
+	}
+
+	public findValueMatches(filter: string, setting: ISetting): IRange[] {
+		return [];
+	}
+
+	protected update(): IFilterResult {
+		throw new Error('no');
 	}
 }
 
@@ -410,34 +436,38 @@ export class DefaultSettings extends Disposable {
 		super();
 	}
 
-	get content(): string {
-		if (!this._content) {
-			this.parse();
+	getContent(forceUpdate = false): string {
+		if (forceUpdate) {
+			this._content = undefined;
 		}
+
+		if (!this._content) {
+			this._content = this.toContent(true, this.settingsGroups);
+		}
+
 		return this._content;
 	}
 
 	get settingsGroups(): ISettingsGroup[] {
 		if (!this._allSettingsGroups) {
-			this.parse();
+			this._allSettingsGroups = this.parse();
 		}
 
 		return this._allSettingsGroups;
 	}
 
-	parse(): string {
+	private parse(): ISettingsGroup[] {
 		const settingsGroups = this.getRegisteredGroups();
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
-		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(true, this._allSettingsGroups);
-		return this._content;
+		return [mostCommonlyUsed, ...settingsGroups];
 	}
 
 	get raw(): string {
 		if (!DefaultSettings._RAW) {
 			DefaultSettings._RAW = this.toContent(false, this.getRegisteredGroups());
 		}
+
 		return DefaultSettings._RAW;
 	}
 
@@ -473,6 +503,7 @@ export class DefaultSettings extends Disposable {
 					range: null,
 					valueRange: null,
 					overrides: [],
+					scope: ConfigurationScope.RESOURCE,
 					type: setting.type,
 					enum: setting.enum,
 					enumDescriptions: setting.enumDescriptions
@@ -498,14 +529,14 @@ export class DefaultSettings extends Disposable {
 		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
-			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
+			const configWithTitleAndSameId = find(configurations, c => (c.id === config.id) && c.title);
 			if (configWithTitleAndSameId) {
 				title = configWithTitleAndSameId.title;
 			}
 		}
 		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.filter(g => g.title === title)[0];
+				settingsGroup = find(result, g => g.title === title);
 				if (!settingsGroup) {
 					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 					result.push(settingsGroup);
@@ -566,6 +597,7 @@ export class DefaultSettings extends Disposable {
 					valueRange: null,
 					descriptionRanges: [],
 					overrides,
+					scope: prop.scope,
 					type: prop.type,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
@@ -769,6 +801,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private copySetting(setting: ISetting): ISetting {
 		return {
 			description: setting.description,
+			scope: setting.scope,
 			type: setting.type,
 			enum: setting.enum,
 			enumDescriptions: setting.enumDescriptions,

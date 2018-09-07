@@ -30,7 +30,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -1302,10 +1302,21 @@ export class SettingsTreeFilter implements IFilter {
 			}
 		}
 
-		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
-			return element.matchesAllTags(this.viewState.tagFilters);
+		// Non-user scope selected
+		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER) {
+			if (!element.matchesScope(this.viewState.settingsTarget)) {
+				return false;
+			}
 		}
 
+		// @modified or tag
+		if (element instanceof SettingsTreeSettingElement && this.viewState.tagFilters) {
+			if (!element.matchesAllTags(this.viewState.tagFilters)) {
+				return false;
+			}
+		}
+
+		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
 			if (typeof element.count === 'number') {
 				return element.count > 0;
@@ -1314,6 +1325,7 @@ export class SettingsTreeFilter implements IFilter {
 			return element.children.some(child => this.isVisible(tree, child));
 		}
 
+		// Filtered "new extensions" button
 		if (element instanceof SettingsTreeNewExtensionsElement) {
 			if ((this.viewState.tagFilters && this.viewState.tagFilters.size) || this.viewState.filterToCategory) {
 				return false;
