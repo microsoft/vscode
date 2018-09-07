@@ -270,7 +270,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		const state = debugService.state;
 		const session = debugService.getViewModel().focusedSession;
-		const attached = session && session.configuration.request === 'attach' && session.configuration.type && !strings.equalsIgnoreCase(session.configuration.type, 'extensionHost');
+		const debugType = session.configuration.type === 'vslsShare' ? (<any>session.configuration).adapterProxy.configuration.type : session.configuration.type;
+		const attached = session && session.configuration.request === 'attach' && session.configuration.type && !strings.equalsIgnoreCase(debugType, 'extensionHost');
 
 		return allActions.filter(a => {
 			if (a.id === ContinueAction.ID) {
