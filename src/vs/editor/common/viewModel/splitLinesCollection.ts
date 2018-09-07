@@ -527,7 +527,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber, modelMinPosition.lineNumber, modelMaxPosition.lineNumber);
 
 		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
-		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, 1);
+		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, this.model.getLineMaxColumn(result.endLineNumber));
 		return {
 			startLineNumber: viewStartPosition.lineNumber,
 			endLineNumber: viewEndPosition.lineNumber,
