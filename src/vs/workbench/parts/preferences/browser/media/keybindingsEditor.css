@@ -45,14 +45,21 @@
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
 	margin-top: 10px;
-	opacity: 0.7;
 	display: flex;
+}
+
+.keybindings-editor > .keybindings-header .open-keybindings-container > div {
+	opacity: 0.7;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container > .file-name {
 	text-decoration: underline;
 	cursor: pointer;
 	margin-left: 4px;
+}
+
+.keybindings-editor > .keybindings-header .open-keybindings-container > .file-name:focus {
+	opacity: 1;
 }
 
 /** List based styling **/
