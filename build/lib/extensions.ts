@@ -168,7 +168,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 		})
 		.catch(err => result.emit('error', err));
 
-	return result;
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
 function error(err: any): Stream {

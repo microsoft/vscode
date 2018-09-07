@@ -147,7 +147,7 @@ function fromLocalNormal(extensionPath) {
         es.readArray(files).pipe(result);
     })
         .catch(function (err) { return result.emit('error', err); });
-    return result;
+    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 function error(err) {
     var result = es.through();
