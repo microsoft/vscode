@@ -19,18 +19,39 @@ exports.assign = function (destination, source) {
 	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
 };
 
-exports.load = function (modulePath, loaderCallback, resultCallback) {
+exports.load = function (modulePaths, loaderCallback, resultCallback, options) {
 	const fs = require('fs');
-	const ipc = require('electron').ipcRenderer;
+	const webFrame = require('electron').webFrame;
 
 	const args = exports.parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
+
+	// Error handler
+	process.on('uncaughtException', function (error) { onUnexpectedError(error, enableDeveloperTools); });
+
+	// Window listeners
+	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
+	let unbind;
+	if (enableDeveloperTools) {
+		unbind = registerDeveloperKeybindings();
+	}
 
 	// Correctly inherit the parent's environment
 	exports.assign(process.env, configuration.userEnv);
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport();
+
+	// disable pinch zoom & apply zoom level early to avoid glitches
+	const zoomLevel = configuration.zoomLevel;
+	webFrame.setVisualZoomLevelLimits(1, 1);
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
+	}
+
+	if (options && typeof options.canModifyDOM === 'function') {
+		options.canModifyDOM(configuration);
+	}
 
 	// Get the nls configuration into the process.env as early as possible.
 	const nlsConfig = bootstrap.setupNLS();
@@ -43,29 +64,6 @@ exports.load = function (modulePath, loaderCallback, resultCallback) {
 	}
 
 	window.document.documentElement.setAttribute('lang', locale);
-
-	// Allow some basic keybindings
-	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
-	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
-
-	const extractKey = function (e) {
-		return [
-			e.ctrlKey ? 'ctrl-' : '',
-			e.metaKey ? 'meta-' : '',
-			e.altKey ? 'alt-' : '',
-			e.shiftKey ? 'shift-' : '',
-			e.keyCode
-		].join('');
-	};
-
-	window.addEventListener('keydown', function (e) {
-		const key = extractKey(e);
-		if (key === TOGGLE_DEV_TOOLS_KB) {
-			ipc.send('vscode:toggleDevTools');
-		} else if (key === RELOAD_KB) {
-			ipc.send('vscode:reloadWindow');
-		}
-	});
 
 	// Load the loader
 	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
@@ -82,12 +80,18 @@ exports.load = function (modulePath, loaderCallback, resultCallback) {
 
 		window.MonacoEnvironment = {};
 
-		loader.config({
+		const loaderConfig = {
 			baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 			'vs/nls': nlsConfig,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
-		});
+		};
+
+		if (options && typeof options.beforeConfig === 'function') {
+			options.beforeLoaderConfig(configuration, loaderConfig);
+		}
+
+		loader.config(loaderConfig);
 
 		if (nlsConfig.pseudo) {
 			loader(['vs/nls'], function (nlsPlugin) {
@@ -95,6 +99,75 @@ exports.load = function (modulePath, loaderCallback, resultCallback) {
 			});
 		}
 
-		loader([modulePath], result => resultCallback(result, configuration));
+		if (options && typeof options.beforeRequire === 'function') {
+			options.beforeRequire();
+		}
+
+		loader(modulePaths, result => {
+			try {
+				const callbackResult = resultCallback(result, configuration);
+				if (callbackResult && typeof callbackResult.then === 'function') {
+					callbackResult.then(() => {
+						if (options && options.removeDeveloperKeybindingsAfterLoad) {
+							unbind();
+						}
+					}, error => {
+						onUnexpectedError(error, enableDeveloperTools);
+					});
+				}
+			} catch (error) {
+				onUnexpectedError(error, enableDeveloperTools);
+			}
+		});
 	});
 };
+
+function registerDeveloperKeybindings() {
+	const ipc = require('electron').ipcRenderer;
+
+	const extractKey = function (e) {
+		return [
+			e.ctrlKey ? 'ctrl-' : '',
+			e.metaKey ? 'meta-' : '',
+			e.altKey ? 'alt-' : '',
+			e.shiftKey ? 'shift-' : '',
+			e.keyCode
+		].join('');
+	};
+
+	// Devtools & reload support
+	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
+
+	let listener = function (e) {
+		const key = extractKey(e);
+		if (key === TOGGLE_DEV_TOOLS_KB) {
+			ipc.send('vscode:toggleDevTools');
+		} else if (key === RELOAD_KB) {
+			ipc.send('vscode:reloadWindow');
+		}
+	};
+
+	window.addEventListener('keydown', listener);
+
+	return function () {
+		if (listener) {
+			window.removeEventListener('keydown', listener);
+			listener = void 0;
+		}
+	};
+}
+
+function onUnexpectedError(error, enableDeveloperTools) {
+	const ipc = require('electron').ipcRenderer;
+
+	if (enableDeveloperTools) {
+		ipc.send('vscode:openDevTools');
+	}
+
+	console.error('[uncaught exception]: ' + error);
+
+	if (error.stack) {
+		console.error(error.stack);
+	}
+}

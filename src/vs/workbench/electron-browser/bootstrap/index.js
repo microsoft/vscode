@@ -13,7 +13,6 @@ perf.mark('renderer/started');
 const electron = require('electron');
 const ipc = electron.ipcRenderer;
 
-const bootstrap = require('../../../../bootstrap');
 const bootstrapWindow = require('../../../../bootstrap-window');
 
 process.lazyEnv = new Promise(function (resolve) {
@@ -30,18 +29,6 @@ process.lazyEnv = new Promise(function (resolve) {
 
 	ipc.send('vscode:fetchShellEnv');
 });
-
-function onError(error, enableDeveloperTools) {
-	if (enableDeveloperTools) {
-		ipc.send('vscode:openDevTools');
-	}
-
-	console.error('[uncaught exception]: ' + error);
-
-	if (error.stack) {
-		console.error(error.stack);
-	}
-}
 
 function showPartsSplash(configuration) {
 	perf.mark('willShowPartsSplash');
@@ -106,128 +93,37 @@ function showPartsSplash(configuration) {
 	perf.mark('didShowPartsSplash');
 }
 
-function registerListeners(enableDeveloperTools) {
+bootstrapWindow.load([
+	'vs/workbench/workbench.main',
+	'vs/nls!vs/workbench/workbench.main',
+	'vs/css!vs/workbench/workbench.main'
+],
+	function (loaderFilename, loaderSource, clb) {
+		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
 
-	// Devtools & reload support
-	var listener;
-	if (enableDeveloperTools) {
-		const extractKey = function (e) {
-			return [
-				e.ctrlKey ? 'ctrl-' : '',
-				e.metaKey ? 'meta-' : '',
-				e.altKey ? 'alt-' : '',
-				e.shiftKey ? 'shift-' : '',
-				e.keyCode
-			].join('');
-		};
+		clb(require);
+	},
 
-		const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
-		const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
-
-		listener = function (e) {
-			const key = extractKey(e);
-			if (key === TOGGLE_DEV_TOOLS_KB) {
-				ipc.send('vscode:toggleDevTools');
-			} else if (key === RELOAD_KB) {
-				ipc.send('vscode:reloadWindow');
-			}
-		};
-		window.addEventListener('keydown', listener);
-	}
-
-	process.on('uncaughtException', function (error) { onError(error, enableDeveloperTools); });
-
-	return function () {
-		if (listener) {
-			window.removeEventListener('keydown', listener);
-			listener = void 0;
-		}
-	};
-}
-
-function main() {
-	const webFrame = require('electron').webFrame;
-	const args = bootstrapWindow.parseURLQueryArgs();
-	const configuration = JSON.parse(args['config'] || '{}') || {};
-
-	// Correctly inherit the parent's environment
-	bootstrapWindow.assign(process.env, configuration.userEnv);
-
-	// Enable ASAR support
-	bootstrap.enableASARSupport();
-
-	// disable pinch zoom & apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	webFrame.setVisualZoomLevelLimits(1, 1);
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
-	}
-
-	// Parts splash
-	showPartsSplash(configuration);
-
-	// Get the nls configuration into the process.env as early as possible.
-	const nlsConfig = bootstrap.setupNLS();
-
-	var locale = nlsConfig.availableLanguages['*'] || 'en';
-	if (locale === 'zh-tw') {
-		locale = 'zh-Hant';
-	} else if (locale === 'zh-cn') {
-		locale = 'zh-Hans';
-	}
-	window.document.documentElement.setAttribute('lang', locale);
-
-	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-	const unbind = registerListeners(enableDeveloperTools);
-
-	// Load the loader and start loading the workbench
-	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
-	const loaderSource = require('fs').readFileSync(loaderFilename);
-	require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
-	var define = global.define;
-	global.define = undefined;
-
-	window.nodeRequire = require.__$__nodeRequire;
-
-	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
-
-	window.MonacoEnvironment = {};
-
-	const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
-	require.config({
-		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
-		'vs/nls': nlsConfig,
-		recordStats: !!configuration.performance,
-		nodeCachedDataDir: configuration.nodeCachedDataDir,
-		onNodeCachedData: function () { onNodeCachedData.push(arguments); },
-		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
-	});
-
-	if (nlsConfig.pseudo) {
-		require(['vs/nls'], function (nlsPlugin) {
-			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-		});
-	}
-
-	perf.mark('willLoadWorkbenchMain');
-	require([
-		'vs/workbench/workbench.main',
-		'vs/nls!vs/workbench/workbench.main',
-		'vs/css!vs/workbench/workbench.main'
-	], function () {
+	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
 
-		process.lazyEnv.then(function () {
+		return process.lazyEnv.then(function () {
 			perf.mark('main/startup');
-			require('vs/workbench/electron-browser/main')
-				.startup(configuration)
-				.then(function () {
-					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
-				}, function (error) {
-					onError(error, enableDeveloperTools);
-				});
-		});
-	});
-}
 
-main();
+			return require('vs/workbench/electron-browser/main').startup(configuration);
+		});
+	}, {
+		removeDeveloperKeybindingsAfterLoad: true,
+		canModifyDOM: function (windowConfig) {
+			showPartsSplash(windowConfig);
+		},
+		beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
+
+			loaderConfig.recordStats = !!windowConfig.performance;
+			loaderConfig.onNodeCachedData = function () { onNodeCachedData.push(arguments); };
+		},
+		beforeRequire: function () {
+			perf.mark('willLoadWorkbenchMain');
+		}
+	});

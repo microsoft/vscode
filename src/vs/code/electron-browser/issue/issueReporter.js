@@ -7,7 +7,7 @@
 
 const bootstrapWindow = require('../../../../bootstrap-window');
 
-bootstrapWindow.load('vs/code/electron-browser/issue/issueReporterMain',
+bootstrapWindow.load(['vs/code/electron-browser/issue/issueReporterMain'],
 
 	function (loaderFilename, loaderSource, clb) {
 		require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
