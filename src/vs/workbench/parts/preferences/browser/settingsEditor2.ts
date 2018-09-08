@@ -153,11 +153,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
-			.then(() => this.render(token))
 			.then(() => {
-				// Init TOC selection
-				this.updateTreeScrollSync();
-
 				if (!options) {
 					// Persist?
 					options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
@@ -166,6 +162,12 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 
 				this._setOptions(options);
+
+				this.render(token);
+			})
+			.then(() => {
+				// Init TOC selection
+				this.updateTreeScrollSync();
 			});
 	}
 
@@ -186,7 +188,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
 		this.settingsTargetsWidget.settingsTarget = target;
-		this.onDidSettingsTargetChange(target);
+		this.viewState.settingsTarget = target;
 	}
 
 	clearInput(): void {
