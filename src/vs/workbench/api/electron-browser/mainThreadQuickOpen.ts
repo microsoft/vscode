@@ -5,7 +5,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
 import { InputBoxOptions } from 'vscode';
 import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
@@ -98,7 +97,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: InputBoxOptions, validateInput: boolean): TPromise<string> {
+	$input(options: InputBoxOptions, validateInput: boolean, token: CancellationToken): Thenable<string> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {
@@ -116,7 +115,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		}
 
-		return asWinJsPromise(token => this._quickInputService.input(inputOptions, token));
+		return this._quickInputService.input(inputOptions, token);
 	}
 
 	// ---- QuickInput

@@ -557,10 +557,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		if (!keyInfo) {
 			return false;
 		}
-		if (keyInfo.value) {
-			return true;
+		if (!keyInfo.value || /\s/.test(keyInfo.value)) {
+			return false;
 		}
-		return false;
+		return true;
 	}
 }
 

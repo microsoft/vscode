@@ -25,7 +25,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -193,11 +192,7 @@ export class TextFileEditor extends BaseTextEditor {
 								});
 							}),
 							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
-								return this.preferencesService.openGlobalSettings().then(editor => {
-									if (editor instanceof PreferencesEditor) {
-										editor.focusSearch('files.maxMemoryForLargeFilesMB');
-									}
-								});
+								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
 							})
 						]
 					}));

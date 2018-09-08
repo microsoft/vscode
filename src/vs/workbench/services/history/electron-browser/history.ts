@@ -30,7 +30,6 @@ import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
-import { Schemas } from 'vs/base/common/network';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -778,7 +777,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}).filter(input => !!input);
 	}
 
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	getLastActiveWorkspaceRoot(schemeFilter: string): URI {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
@@ -826,19 +825,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return void 0;
 	}
 
-	getLastActiveFile(): URI {
+	getLastActiveFile(schemeFilter: string): URI {
 		const history = this.getHistory();
 		for (let i = 0; i < history.length; i++) {
 			let resource: URI;
 
 			const input = history[i];
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filter: Schemas.file });
+				resource = toResource(input, { filter: schemeFilter });
 			} else {
 				resource = (input as IResourceInput).resource;
 			}
 
-			if (resource && resource.scheme === Schemas.file) {
+			if (resource && resource.scheme === schemeFilter) {
 				return resource;
 			}
 		}

@@ -32,20 +32,19 @@ import { badgeBackground, badgeForeground, contrastBorder, editorForeground } fr
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { IEditor } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource, ISettingLinkClickEvent } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 const $ = DOM.$;
 
@@ -58,7 +57,7 @@ export class SettingsEditor2 extends BaseEditor {
 		'@modified', '@tag:usesOnlineServices'
 	];
 
-	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
+	private defaultSettingsEditorModel: Settings2EditorModel;
 
 	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
@@ -90,7 +89,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private pendingSettingUpdate: { key: string, value: any };
 
 	private viewState: ISettingsEditorViewState;
-	private searchResultModel: SearchResultModel;
+	private _searchResultModel: SearchResultModel;
 
 	private tocRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
@@ -131,12 +130,24 @@ export class SettingsEditor2 extends BaseEditor {
 		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			this.onConfigUpdate(e.affectedKeys);
+			if (e.source !== ConfigurationTarget.DEFAULT) {
+				this.onConfigUpdate(e.affectedKeys);
+			}
 		}));
 	}
 
 	private get currentSettingsModel() {
 		return this.searchResultModel || this.settingsTreeModel;
+	}
+
+	private get searchResultModel(): SearchResultModel {
+		return this._searchResultModel;
+	}
+
+	private set searchResultModel(value: SearchResultModel) {
+		this._searchResultModel = value;
+
+		DOM.toggleClass(this.rootElement, 'search-mode', !!this._searchResultModel);
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -148,35 +159,46 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
 			.then(() => {
-				const target = this.getSettingsTarget(input);
-				this.settingsTargetsWidget.settingsTarget = target;
-				this.viewState.settingsTarget = target;
+				if (!options) {
+					// Persist?
+					options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
+				} else if (!options.target) {
+					options.target = ConfigurationTarget.USER;
+				}
 
-				return this.render(token);
+				this._setOptions(options);
+
+				this.render(token);
 			})
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
-
-				this.onSearchInputChanged();
 			});
 	}
 
-	private getSettingsTarget(input: SettingsEditor2Input): SettingsTarget {
-		if (input.folderUri) {
-			return input.folderUri;
+	setOptions(options: SettingsEditorOptions): void {
+		super.setOptions(options);
+
+		this._setOptions(options);
+	}
+
+	private _setOptions(options: SettingsEditorOptions): void {
+		if (!options) {
+			return;
 		}
 
-		if (input.configurationTarget === ConfigurationTarget.USER || input.configurationTarget === ConfigurationTarget.WORKSPACE) {
-			return input.configurationTarget;
+		if (options.query) {
+			this.searchWidget.setValue(options.query);
 		}
 
-		return ConfigurationTarget.USER;
+		const target: SettingsTarget = options.folderUri || <SettingsTarget>options.target;
+		this.settingsTargetsWidget.settingsTarget = target;
+		this.viewState.settingsTarget = target;
 	}
 
 	clearInput(): void {
@@ -280,18 +302,16 @@ export class SettingsEditor2 extends BaseEditor {
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
-		this.settingsTargetsWidget.onDidTargetChange(target => {
-			this.viewState.settingsTarget = target;
-			if (target === ConfigurationTarget.USER) {
-				this.preferencesService.openGlobalSettings();
-			} else if (target === ConfigurationTarget.WORKSPACE) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource);
-			} else if (target instanceof URI) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
-			}
-		});
+		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
 		this.createHeaderControls(headerControlsContainer);
+	}
+
+	private onDidSettingsTargetChange(target: SettingsTarget): void {
+		this.viewState.settingsTarget = target;
+
+		// TODO Instead of rebuilding the whole model, refresh and uncache the inspected setting value
+		this.onConfigUpdate(undefined, true);
 	}
 
 	private createHeaderControls(parent: HTMLElement): void {
@@ -357,15 +377,16 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private openSettingsFile(): TPromise<IEditor> {
+	private openSettingsFile(query?: string): TPromise<IEditor> {
 		const currentSettingsTarget = this.settingsTargetsWidget.settingsTarget;
 
+		const options: ISettingsEditorOptions = { query };
 		if (currentSettingsTarget === ConfigurationTarget.USER) {
-			return this.preferencesService.openGlobalSettings(true);
+			return this.preferencesService.openGlobalSettings(true, options);
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
-			return this.preferencesService.openWorkspaceSettings(true);
+			return this.preferencesService.openWorkspaceSettings(true, options);
 		} else {
-			return this.preferencesService.openFolderSettings(currentSettingsTarget, true);
+			return this.preferencesService.openFolderSettings(currentSettingsTarget, true, options);
 		}
 	}
 
@@ -476,11 +497,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(this.settingsTreeRenderer.onDidOpenSettings(settingKey => {
-			this.openSettingsFile().then(editor => {
-				if (editor instanceof PreferencesEditor && settingKey) {
-					editor.focusSearch(settingKey);
-				}
-			});
+			this.openSettingsFile(settingKey);
 		}));
 		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => {
@@ -684,15 +701,13 @@ export class SettingsEditor2 extends BaseEditor {
 	private render(token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then(model => {
+				.then((model: Settings2EditorModel) => {
 					if (token.isCancellationRequested) {
 						return void 0;
 					}
 
-					return this.preferencesService.createPreferencesEditorModel((<ResourceEditorModel>model).textEditorModel.uri);
-				}).then((defaultSettingsEditorModel: DefaultSettingsEditorModel) => {
-					this._register(defaultSettingsEditorModel.onDidChangeGroups(() => this.onConfigUpdate()));
-					this.defaultSettingsEditorModel = defaultSettingsEditorModel;
+					this._register(model.onDidChangeGroups(() => this.onConfigUpdate()));
+					this.defaultSettingsEditorModel = model;
 					return this.onConfigUpdate();
 				});
 		}
@@ -700,9 +715,9 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onSearchModeToggled(): void {
-		DOM.removeClass(this.rootElement, 'search-mode');
+		DOM.removeClass(this.rootElement, 'no-toc-search');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
+			DOM.toggleClass(this.rootElement, 'no-toc-search', !!this.searchResultModel);
 		}
 
 		if (this.searchResultModel) {
@@ -731,7 +746,7 @@ export class SettingsEditor2 extends BaseEditor {
 		});
 	}
 
-	private onConfigUpdate(keys?: string[]): TPromise<void> {
+	private onConfigUpdate(keys?: string[], forceRefresh = false): TPromise<void> {
 		if (keys) {
 			return this.updateElementsByKey(keys);
 		}
@@ -764,7 +779,7 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			return this.renderTree();
+			return this.renderTree(undefined, forceRefresh);
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -830,8 +845,6 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		this.renderResultCountMessages();
-
 		let refreshP: TPromise<any>;
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
@@ -849,6 +862,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return refreshP.then(() => {
 			this.tocTreeModel.update();
+			this.renderResultCountMessages();
+
+			if (this.searchResultModel) {
+				expandAll(this.tocTree);
+			}
+
 			return this.tocTree.refresh();
 		}).then(() => { });
 	}
@@ -912,7 +931,6 @@ export class SettingsEditor2 extends BaseEditor {
 				// Added a filter model
 				this.tocTree.setSelection([]);
 				this.tocTree.setFocus(null);
-				expandAll(this.tocTree);
 				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
 			} else {
 				// Leaving search mode
@@ -1017,7 +1035,7 @@ export class SettingsEditor2 extends BaseEditor {
 								TPromise.wrap(null);
 						});
 					}
-				}).then(() => this.renderResultCountMessages());
+				});
 			} else {
 				return TPromise.wrap(null);
 			}
@@ -1036,7 +1054,9 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.join([
 			this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider, token),
 			this.filterOrSearchPreferences(query, SearchResultIdx.NewExtensions, newExtSearchProvider, token)
-		]).then(() => { });
+		]).then(() => {
+			this.renderResultCountMessages();
+		});
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {
@@ -1066,15 +1086,21 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderResultCountMessages() {
-		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, element => element.matchesAllTags(this.viewState.tagFilters));
-		switch (count) {
-			case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
-			case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
-			default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
+		if (!this.settingsTree.getInput()) {
+			return;
 		}
 
-		this.countElement.style.display = 'block';
-		this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
+			const count = this.tocTreeModel.settingsTreeRoot.count;
+			switch (count) {
+				case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
+				case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
+				default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
+			}
+
+			this.countElement.style.display = 'block';
+			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+		}
 	}
 
 	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {

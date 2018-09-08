@@ -55,7 +55,9 @@ const vscodeResources = [
 	'out-build/cli.js',
 	'out-build/driver.js',
 	'out-build/bootstrap.js',
+	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
+	'out-build/bootstrap-window.js',
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',
@@ -327,15 +329,16 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
-		return result.pipe(es.through(undefined, function () {
-			// submit all stats that have been collected during the build phase
-			if (!opts.stats) {
-				return this.emit('end');
-			}
-			const { submitAllStats } = require('./lib/stats');
-			submitAllStats(product).then(() => this.emit('end')).catch(() => this.emit('end'));
+		// submit all stats that have been collected
+		// during the build phase
+		if (opts.stats) {
+			result.on('end', () => {
+				const { submitAllStats } = require('./lib/stats');
+				submitAllStats(product, commit).then(() => console.log('Submitted bundle stats!'));
+			});
+		}
 
-		})).pipe(vfs.dest(destination));
+		return result.pipe(vfs.dest(destination));
 	};
 }
 

@@ -71,7 +71,7 @@ function createStatsStream(group, log) {
     });
 }
 exports.createStatsStream = createStatsStream;
-function submitAllStats(productJson) {
+function submitAllStats(productJson, commit) {
     var sorted = [];
     // move entries for single files to the front
     _entries.forEach(function (value) {
@@ -93,11 +93,12 @@ function submitAllStats(productJson) {
         return Promise.resolve();
     }
     return new Promise(function (resolve) {
-        var measurements = Object.create(null);
+        var sizes = {};
+        var counts = {};
         for (var _i = 0, sorted_2 = sorted; _i < sorted_2.length; _i++) {
             var entry = sorted_2[_i];
-            measurements[entry.name + ".size"] = entry.totalSize;
-            measurements[entry.name + ".count"] = entry.totalCount;
+            sizes[entry.name] = entry.totalSize;
+            counts[entry.name] = entry.totalCount;
         }
         appInsights.setup(productJson.aiConfig.asimovKey)
             .setAutoCollectConsole(false)
@@ -105,14 +106,17 @@ function submitAllStats(productJson) {
             .setAutoCollectPerformance(false)
             .setAutoCollectRequests(false)
             .start();
-        appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+        var client = appInsights.getClient(productJson.aiConfig.asimovKey);
+        client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
         /* __GDPR__
-            "monacoworkbench/bundleStats" : {
-                "outcome" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+            "monacoworkbench/packagemetrics" : {
+                "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+                "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
             }
         */
-        appInsights.defaultClient.trackEvent("monacoworkbench/bundleStats", undefined, measurements);
-        appInsights.defaultClient.sendPendingData(function () { return resolve(); });
+        client.trackEvent("monacoworkbench/packagemetrics", { commit: commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) });
+        client.sendPendingData(function () { return resolve(); });
     });
 }
 exports.submitAllStats = submitAllStats;

@@ -496,6 +496,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}),
 				this.ui.list.onDidChangeSelection(selectedItems => {
 					if (this.canSelectMany) {
+						if (selectedItems.length) {
+							this.ui.list.setSelectedElements([]);
+						}
 						return;
 					}
 					if (this.selectedItemsToConfirm !== this._selectedItems && equals(selectedItems, this._selectedItems, (a, b) => a === b)) {

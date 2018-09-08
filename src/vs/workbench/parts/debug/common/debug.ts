@@ -771,7 +771,7 @@ export interface IDebugService {
 }
 
 // Editor interfaces
-export enum BreakpointWidgetContext {
+export const enum BreakpointWidgetContext {
 	CONDITION = 0,
 	HIT_COUNT = 1,
 	LOG_MESSAGE = 2

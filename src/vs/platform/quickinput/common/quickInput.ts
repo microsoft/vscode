@@ -116,7 +116,7 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => TPromise<string>;
+	validateInput?: (input: string) => Thenable<string>;
 }
 
 export interface IQuickInput {

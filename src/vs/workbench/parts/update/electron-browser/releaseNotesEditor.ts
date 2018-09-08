@@ -27,6 +27,7 @@ import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-brows
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 function renderBody(
 	body: string,
@@ -156,7 +157,7 @@ export class ReleaseNotesManager {
 		};
 
 		if (!this._releaseNotesCache[version]) {
-			this._releaseNotesCache[version] = this._requestService.request({ url })
+			this._releaseNotesCache[version] = this._requestService.request({ url }, CancellationToken.None)
 				.then(asText)
 				.then(text => {
 					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace

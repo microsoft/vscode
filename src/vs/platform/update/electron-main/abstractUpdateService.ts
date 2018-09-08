@@ -15,6 +15,7 @@ import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } fr
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
@@ -161,7 +162,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!this.url) {
 			return TPromise.as(undefined);
 		}
-		return this.requestService.request({ url: this.url }).then(context => {
+		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
 			if (context.res.statusCode === 204) {

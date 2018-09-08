@@ -24,7 +24,7 @@ class ExtensionUrlHandler implements IURLHandler {
 			return TPromise.as(false);
 		}
 
-		return this.proxy.$handleExternalUri(this.handle, uri).then(() => true);
+		return TPromise.wrap(this.proxy.$handleExternalUri(this.handle, uri)).then(() => true);
 	}
 }
 

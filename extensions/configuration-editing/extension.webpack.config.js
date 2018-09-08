@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+
 'use strict';
 
-const bootstrap = require('./bootstrap');
+const withDefaults = require('../shared.webpack.config');
 
-// Enable portable support
-bootstrap.configurePortable();
-
-// Enable ASAR support
-bootstrap.enableASARSupport();
-
-// Load CLI through AMD loader
-require('./bootstrap-amd').load('vs/code/node/cli');
+module.exports = withDefaults({
+	context: __dirname,
+	entry: {
+		extension: './src/extension.ts',
+	},
+	resolve: {
+		mainFields: ['module', 'main']
+	}
+});

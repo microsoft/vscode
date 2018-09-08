@@ -165,7 +165,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
 				if (this.commitCharactersSettings.enableDotCompletions) {
-					commitCharacters.push('.');
+					commitCharacters.push('.', ';');
 				}
 				break;
 
@@ -180,7 +180,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 				if (this.commitCharactersSettings.enableDotCompletions) {
-					commitCharacters.push('.', ',');
+					commitCharacters.push('.', ',', ';');
 				}
 				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');

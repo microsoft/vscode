@@ -17,6 +17,7 @@ import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -86,7 +87,7 @@ async function postLogs(
 			headers: {
 				'Content-Type': 'application/zip'
 			}
-		});
+		}, CancellationToken.None);
 	} catch (e) {
 		clearInterval(dotter);
 		console.log(localize('postError', 'Error posting logs: {0}', e));

@@ -582,7 +582,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	setDimensions(cols: number, rows: number): void;
 }
 
-export enum ProcessState {
+export const enum ProcessState {
 	// The process has not been initialized yet.
 	UNINITIALIZED,
 	// The process is currently launching, the process is marked as launching

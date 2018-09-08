@@ -8,7 +8,6 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -206,7 +205,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerTreeViewDataProvider(treeViewId: string): void;
-	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): TPromise<void>;
+	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Thenable<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): Thenable<void>;
 }
 
@@ -301,7 +300,7 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, file?: UriComponents): Thenable<string>;
+	$register(label: string, log: boolean, file?: UriComponents): Thenable<string>;
 	$append(channelId: string, value: string): Thenable<void>;
 	$clear(channelId: string): Thenable<void>;
 	$reveal(channelId: string, preserveFocus: boolean): Thenable<void>;
@@ -407,7 +406,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]>;
 	$setItems(items: TransferQuickPickItems[]): Thenable<void>;
 	$setError(error: Error): Thenable<void>;
-	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
+	$input(options: vscode.InputBoxOptions, validateInput: boolean, token: CancellationToken): Thenable<string>;
 	$createOrUpdate(params: TransferQuickInput): Thenable<void>;
 	$dispose(id: number): Thenable<void>;
 }
@@ -466,7 +465,7 @@ export interface MainThreadUrlsShape extends IDisposable {
 }
 
 export interface ExtHostUrlsShape {
-	$handleExternalUri(handle: number, uri: UriComponents): TPromise<void>;
+	$handleExternalUri(handle: number, uri: UriComponents): Thenable<void>;
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
@@ -667,7 +666,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 }
 
 export interface ExtHostTreeViewsShape {
-	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]>;
+	$getChildren(treeViewId: string, treeItemHandle?: string): Thenable<ITreeItem[]>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
@@ -713,7 +712,7 @@ export interface FileSystemEvents {
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
 	$onFileRename(oldUri: UriComponents, newUri: UriComponents): void;
-	$onWillRename(oldUri: UriComponents, newUri: UriComponents): TPromise<any>;
+	$onWillRename(oldUri: UriComponents, newUri: UriComponents): Thenable<any>;
 }
 
 export interface ObjectIdentifier {
@@ -854,7 +853,7 @@ export interface ExtHostLanguageFeaturesShape {
 
 export interface ExtHostQuickOpenShape {
 	$onItemSelected(handle: number): void;
-	$validateInput(input: string): TPromise<string>;
+	$validateInput(input: string): Thenable<string>;
 	$onDidChangeActive(sessionId: number, handles: number[]): void;
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
@@ -886,20 +885,20 @@ export interface ExtHostTerminalServiceShape {
 }
 
 export interface ExtHostSCMShape {
-	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents): TPromise<UriComponents>;
+	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Thenable<UriComponents>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
-	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void>;
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): TPromise<[string, number] | undefined>;
+	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): Thenable<void>;
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Thenable<[string, number] | undefined>;
 	$setSelectedSourceControls(selectedSourceControlHandles: number[]): Thenable<void>;
 }
 
 export interface ExtHostTaskShape {
-	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<TaskSet>;
+	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<TaskSet>;
 	$onDidStartTask(execution: TaskExecutionDTO): void;
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
-	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): TPromise<any>;
+	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): Thenable<any>;
 }
 
 export interface IBreakpointDto {
@@ -944,14 +943,14 @@ export interface ISourceMultiBreakpointDto {
 }
 
 export interface ExtHostDebugServiceShape {
-	$substituteVariables(folder: UriComponents | undefined, config: IConfig): TPromise<IConfig>;
-	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
-	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): TPromise<void>;
-	$stopDASession(handle: number): TPromise<void>;
+	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
+	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
+	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): Thenable<void>;
+	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
-	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
-	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): TPromise<IConfig[]>;
-	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): TPromise<IAdapterExecutable>;
+	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IConfig>;
+	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): Thenable<IConfig[]>;
+	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): Thenable<IAdapterExecutable>;
 	$acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;

@@ -110,6 +110,14 @@ export abstract class BreadcrumbsPicker {
 				this._onDidFocusElement.fire({ target, payload: e.payload });
 			}
 		}));
+		this._disposables.push(this._tree.onDidStartFiltering(() => {
+			let totalHeight = Number(this._domNode.style.height.slice(0, -2));
+			let treeHeight = Number(this._treeContainer.style.height.slice(0, -2));
+
+			this._domNode.style.height = `${totalHeight + 36}px`;
+			this._treeContainer.style.height = `${treeHeight + 36}px`;
+			this._tree.layout();
+		}));
 
 		// tree icon theme specials
 		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
@@ -131,12 +139,22 @@ export abstract class BreadcrumbsPicker {
 		this._focus.dispose();
 	}
 
-	setInput(input: any): void {
+	setInput(input: any, height: number, width: number, arrowSize: number, arrowOffset: number): void {
 		let actualInput = this._getInput(input);
 		this._tree.setInput(actualInput).then(() => {
+
+			// adjust height based on the number of elements, also ensure that there is an
+			// odd number of element for the case in which the tree scrolls - that ensures
+			// elements are revealed without a cuttoff
+			let count = 0;
+			let nav = this._tree.getNavigator(undefined, false);
+			while (nav.next() && count < 15) { count += 1; }
+			this._layout(2 * arrowSize + (count * 22), width, arrowSize, arrowOffset);
+
+			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
-				this._tree.reveal(selection, .5).then(() => {
+				return this._tree.reveal(selection, .5).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
 					this._tree.domFocus();
@@ -145,18 +163,14 @@ export abstract class BreadcrumbsPicker {
 				this._tree.focusFirst();
 				this._tree.setSelection([this._tree.getFocus()], this._tree);
 				this._tree.domFocus();
+				return Promise.resolve(null);
 			}
 		}, onUnexpectedError);
 	}
 
-	layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
+	private _layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
 
 		let treeHeight = height - 2 * arrowSize;
-		let elementHeight = 22;
-		let elementCount = treeHeight / elementHeight;
-		if (elementCount % 2 !== 1) {
-			treeHeight = elementHeight * (elementCount + 1);
-		}
 		let totalHeight = treeHeight + 2 + arrowSize;
 
 		this._domNode.style.height = `${totalHeight}px`;

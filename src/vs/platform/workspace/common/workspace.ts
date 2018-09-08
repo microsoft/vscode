@@ -16,7 +16,7 @@ import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export enum WorkbenchState {
+export const enum WorkbenchState {
 	EMPTY = 1,
 	FOLDER,
 	WORKSPACE

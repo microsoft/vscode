@@ -96,6 +96,8 @@ export interface IRPCProtocolLogger {
 	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
 }
 
+const noop = () => { };
+
 export class RPCProtocol implements IRPCProtocol {
 
 	private readonly _protocol: IMessagePassingProtocol;
@@ -249,7 +251,7 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 		const callId = String(req);
 
-		let promise: TPromise<any>;
+		let promise: Thenable<any>;
 		let cancel: () => void;
 		if (usesCancellationToken) {
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -257,8 +259,9 @@ export class RPCProtocol implements IRPCProtocol {
 			promise = this._invokeHandler(rpcId, method, args);
 			cancel = () => cancellationTokenSource.cancel();
 		} else {
+			// cannot be cancelled
 			promise = this._invokeHandler(rpcId, method, args);
-			cancel = () => promise.cancel();
+			cancel = noop;
 		}
 
 		this._cancelInvokedHandlers[callId] = cancel;
@@ -331,7 +334,7 @@ export class RPCProtocol implements IRPCProtocol {
 		pendingReply.resolveErr(err);
 	}
 
-	private _invokeHandler(rpcId: number, methodName: string, args: any[]): TPromise<any> {
+	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Thenable<any> {
 		try {
 			return TPromise.as(this._doInvokeHandler(rpcId, methodName, args));
 		} catch (err) {
@@ -351,7 +354,7 @@ export class RPCProtocol implements IRPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	private _remoteCall(rpcId: number, methodName: string, args: any[]): TPromise<any> {
+	private _remoteCall(rpcId: number, methodName: string, args: any[]): Thenable<any> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
@@ -367,17 +370,16 @@ export class RPCProtocol implements IRPCProtocol {
 
 		const req = ++this._lastMessageId;
 		const callId = String(req);
-		const sendCancel = () => {
-			const msg = MessageIO.serializeCancel(req);
-			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
-			}
-			this._protocol.send(MessageIO.serializeCancel(req));
-		};
-		const result = new LazyPromise(sendCancel);
+		const result = new LazyPromise();
 
 		if (cancellationToken) {
-			cancellationToken.onCancellationRequested(sendCancel);
+			cancellationToken.onCancellationRequested(() => {
+				const msg = MessageIO.serializeCancel(req);
+				if (this._logger) {
+					this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
+				}
+				this._protocol.send(MessageIO.serializeCancel(req));
+			});
 		}
 
 		this._pendingRPCReplies[callId] = result;

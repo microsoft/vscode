@@ -248,7 +248,7 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	detailResource: URI;
 }
 
-export enum Verbosity {
+export const enum Verbosity {
 	SHORT,
 	MEDIUM,
 	LONG
@@ -473,13 +473,13 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export enum ConfirmResult {
+export const enum ConfirmResult {
 	SAVE,
 	DONT_SAVE,
 	CANCEL
 }
 
-export enum EncodingMode {
+export const enum EncodingMode {
 
 	/**
 	 * Instructs the encoding support to encode the current input with the provided encoding
@@ -996,7 +996,7 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	return null;
 }
 
-export enum CloseDirection {
+export const enum CloseDirection {
 	LEFT,
 	RIGHT
 }

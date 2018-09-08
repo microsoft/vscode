@@ -15,6 +15,7 @@ import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeature
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -73,7 +74,7 @@ class MainThreadSCMResource implements ISCMResource {
 		public decorations: ISCMResourceDecorations
 	) { }
 
-	open(): TPromise<void> {
+	open(): Thenable<void> {
 		return this.proxy.$executeResourceCommand(this.sourceControlHandle, this.groupHandle, this.handle);
 	}
 
@@ -241,7 +242,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$provideOriginalResource(this.handle, uri)
+		return TPromise.wrap(this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None))
 			.then(result => result && URI.revive(result));
 	}
 
@@ -405,7 +406,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		if (enabled) {
 			repository.input.validateInput = (value, pos): TPromise<IInputValidation | undefined> => {
-				return this._proxy.$validateInput(sourceControlHandle, value, pos).then(result => {
+				return TPromise.wrap(this._proxy.$validateInput(sourceControlHandle, value, pos).then(result => {
 					if (!result) {
 						return undefined;
 					}
@@ -414,7 +415,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 						message: result[0],
 						type: result[1]
 					};
-				});
+				}));
 			};
 		} else {
 			repository.input.validateInput = () => TPromise.as(undefined);

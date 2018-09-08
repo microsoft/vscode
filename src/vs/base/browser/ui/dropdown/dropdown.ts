@@ -10,12 +10,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -27,8 +28,6 @@ export interface IBaseDropdownOptions {
 }
 
 export class BaseDropdown extends ActionRunner {
-	private _toDispose: IDisposable[] = [];
-
 	private _element: HTMLElement;
 	private boxContainer: HTMLElement;
 	private _label: HTMLElement;
@@ -52,11 +51,11 @@ export class BaseDropdown extends ActionRunner {
 		}
 
 		[EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap].forEach(event => {
-			this._toDispose.push(addDisposableListener(this._label, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
+			this._register(addDisposableListener(this._label, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
 		});
 
 		[EventType.MOUSE_DOWN, GestureEventType.Tap].forEach(event => {
-			this._toDispose.push(addDisposableListener(this._label, event, e => {
+			this._register(addDisposableListener(this._label, event, e => {
 				if (e instanceof MouseEvent && e.detail > 1) {
 					return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
 				}
@@ -69,16 +68,23 @@ export class BaseDropdown extends ActionRunner {
 			}));
 		});
 
+		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				if (this.visible) {
+					this.hide();
+				} else {
+					this.show();
+				}
+			}
+		}));
+
 		const cleanupFn = labelRenderer(this._label);
 		if (cleanupFn) {
-			this._toDispose.push(cleanupFn);
+			this._register(cleanupFn);
 		}
 
 		Gesture.addTarget(this._label);
-	}
-
-	get toDispose(): IDisposable[] {
-		return this._toDispose;
 	}
 
 	get element(): HTMLElement {
@@ -108,8 +114,6 @@ export class BaseDropdown extends ActionRunner {
 	dispose(): void {
 		super.dispose();
 		this.hide();
-
-		this._toDispose = dispose(this.toDispose);
 
 		if (this.boxContainer) {
 			this.boxContainer.remove();

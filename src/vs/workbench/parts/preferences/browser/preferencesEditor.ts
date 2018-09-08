@@ -51,7 +51,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -152,8 +152,12 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	public setInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.defaultSettingsEditorContextKey.set(true);
+		if (options && options.query) {
+			this.focusSearch(options.query);
+		}
+
 		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
 	}
 

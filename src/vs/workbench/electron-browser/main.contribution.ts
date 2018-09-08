@@ -280,16 +280,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 4
 });
 
-if (!isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: 'z_Exit',
-		command: {
-			id: QUIT_ID,
-			title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
-		},
-		order: 1
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: 'z_Exit',
+	command: {
+		id: QUIT_ID,
+		title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+	},
+	order: 1,
+	when: IsMacContext.toNegated()
+});
 
 // Appereance menu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {

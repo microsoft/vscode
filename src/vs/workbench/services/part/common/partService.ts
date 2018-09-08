@@ -9,7 +9,7 @@ import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/co
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 
-export enum Parts {
+export const enum Parts {
 	ACTIVITYBAR_PART,
 	SIDEBAR_PART,
 	PANEL_PART,
@@ -19,10 +19,17 @@ export enum Parts {
 	MENUBAR_PART
 }
 
-export enum Position {
+export const enum Position {
 	LEFT,
 	RIGHT,
 	BOTTOM
+}
+export function PositionToString(position: Position): string {
+	switch (position) {
+		case Position.LEFT: return 'LEFT';
+		case Position.RIGHT: return 'RIGHT';
+		case Position.BOTTOM: return 'BOTTOM';
+	}
 }
 
 export interface ILayoutOptions {

@@ -12,6 +12,7 @@ import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferenc
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
 import { isArray } from 'vs/base/common/types';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -32,12 +33,38 @@ export abstract class SettingsTreeElement {
 	index: number;
 }
 
+export type SettingsTreeGroupChild = (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement);
+
 export class SettingsTreeGroupElement extends SettingsTreeElement {
-	children: (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
 	count?: number;
 	label: string;
 	level: number;
 	isFirstGroup: boolean;
+
+	private _childSettingKeys: Set<string>;
+	private _children: SettingsTreeGroupChild[];
+
+	get children(): SettingsTreeGroupChild[] {
+		return this._children;
+	}
+
+	set children(newChildren: SettingsTreeGroupChild[]) {
+		this._children = newChildren;
+
+		this._childSettingKeys = new Set();
+		this._children.forEach(child => {
+			if (child instanceof SettingsTreeSettingElement) {
+				this._childSettingKeys.add(child.setting.key);
+			}
+		});
+	}
+
+	/**
+	 * Returns whether this group contains the given child key (to a depth of 1 only)
+	 */
+	containsSetting(key: string): boolean {
+		return this._childSettingKeys.has(key);
+	}
 }
 
 export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
@@ -180,22 +207,20 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 	}
-}
 
-export function countSettingGroupChildrenWithPredicate(tree: SettingsTreeGroupElement, predicate: (setting: SettingsTreeSettingElement) => boolean): number {
-	const recursiveCounter: (root: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement) => number =
-		root => {
-			if (root instanceof SettingsTreeGroupElement) {
-				return root.children.map(child => recursiveCounter(child)).reduce((a, b) => a + b, 0);
-			} else if (root instanceof SettingsTreeSettingElement) {
-				return +predicate(root);
-			} else if (root instanceof SettingsTreeNewExtensionsElement) {
-				return 0;
-			}
+	matchesScope(scope: SettingsTarget): boolean {
+		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
 
-			throw new Error('Argument to settingsTreeChildrenCount should only have group, setting, or extension elements');
-		};
-	return recursiveCounter(tree);
+		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+			return this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		if (configTarget === ConfigurationTarget.WORKSPACE) {
+			return this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		return true;
+	}
 }
 
 export class SettingsTreeModel {
@@ -257,17 +282,19 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		element.children = [];
+		const children = [];
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-			element.children.push(...settingChildren);
+			children.push(...settingChildren);
 		}
 
 		if (tocEntry.children) {
 			const groupChildren = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-			element.children.push(...groupChildren);
+			children.push(...groupChildren);
 		}
+
+		element.children = children;
 
 		this._treeElementsById.set(element.id, element);
 		return element;
@@ -386,7 +413,7 @@ function settingTypeEnumRenderable(_type: string | string[]) {
 	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
 }
 
-export enum SearchResultIdx {
+export const enum SearchResultIdx {
 	Local = 0,
 	Remote = 1,
 	NewExtensions = 2

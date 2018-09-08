@@ -13,7 +13,7 @@ export function createSpdLogService(processName: string, logLevel: LogLevel, log
 	// Do not crash if spdlog cannot be loaded
 	try {
 		const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-		_spdlog.setAsyncMode(8192, 2000);
+		_spdlog.setAsyncMode(8192, 500);
 		const logfilePath = path.join(logsFolder, `${processName}.log`);
 		const logger = new _spdlog.RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 		logger.setLevel(0);
@@ -23,6 +23,11 @@ export function createSpdLogService(processName: string, logLevel: LogLevel, log
 		console.error(e);
 	}
 	return new NullLogService();
+}
+
+export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): spdlog.RotatingLogger {
+	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
+	return new _spdlog.RotatingLogger(name, filename, filesize, filecount);
 }
 
 class SpdLogService extends AbstractLogService implements ILogService {

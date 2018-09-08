@@ -13,7 +13,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
-import { createCancelablePromise, setDisposableTimeout } from 'vs/base/common/async';
+import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
@@ -469,7 +469,7 @@ export class OutlinePanel extends ViewletPanel {
 		let loadingMessage: IDisposable;
 		let oldModel = <OutlineModel>this._tree.getInput();
 		if (!oldModel) {
-			loadingMessage = setDisposableTimeout(
+			loadingMessage = new TimeoutTimer(
 				() => this._showMessage(localize('loading', "Loading document symbols for '{0}'...", posix.basename(textModel.uri.path))),
 				100
 			);

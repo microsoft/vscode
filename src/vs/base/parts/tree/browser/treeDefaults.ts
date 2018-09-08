@@ -25,7 +25,7 @@ export interface ICancelableEvent {
 	stopPropagation(): void;
 }
 
-export enum ClickBehavior {
+export const enum ClickBehavior {
 
 	/**
 	 * Handle the click when the mouse button is pressed but not released yet.
@@ -38,7 +38,7 @@ export enum ClickBehavior {
 	ON_MOUSE_UP
 }
 
-export enum OpenMode {
+export const enum OpenMode {
 	SINGLE_CLICK,
 	DOUBLE_CLICK
 }

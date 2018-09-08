@@ -71,7 +71,7 @@ export class QuickOpenController extends DefaultController {
 	}
 }
 
-export enum HideReason {
+export const enum HideReason {
 	ELEMENT_SELECTED,
 	FOCUS_LOST,
 	CANCELED

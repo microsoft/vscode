@@ -35,7 +35,7 @@ suite('RPCProtocol', () => {
 	let delegate: (a1: any, a2: any) => any;
 	let bProxy: BClass;
 	class BClass {
-		$m(a1: any, a2: any): TPromise<any> {
+		$m(a1: any, a2: any): Thenable<any> {
 			return TPromise.as(delegate.call(null, a1, a2));
 		}
 	}
@@ -106,15 +106,6 @@ suite('RPCProtocol', () => {
 			assert.equal(res[3], 4);
 			done(null);
 		}, done);
-	});
-
-	test('cancelling a call', function () {
-		delegate = (a1: number, a2: number) => a1 + a2;
-		let p = bProxy.$m(4, 1);
-		p.then((res: number) => {
-			assert.fail('should not receive result');
-		});
-		p.cancel();
 	});
 
 	test('cancelling a call via CancellationToken before', function (done) {

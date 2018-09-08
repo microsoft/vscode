@@ -15,7 +15,7 @@ import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToK
 import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { generateUuid } from 'vs/base/common/uuid';
 
-export enum ProblemCollectorEventKind {
+export const enum ProblemCollectorEventKind {
 	BackgroundProcessingBegins = 'backgroundProcessingBegins',
 	BackgroundProcessingEnds = 'backgroundProcessingEnds'
 }
@@ -325,7 +325,7 @@ export class AbstractProblemCollector implements IDisposable {
 	}
 }
 
-export enum ProblemHandlingStrategy {
+export const enum ProblemHandlingStrategy {
 	Clean
 }
 

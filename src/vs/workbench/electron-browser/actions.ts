@@ -707,7 +707,7 @@ export class ToggleSharedProcessAction extends Action {
 	}
 }
 
-export enum Direction {
+export const enum Direction {
 	Next,
 	Previous,
 }

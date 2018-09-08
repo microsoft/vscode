@@ -37,7 +37,7 @@ import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickO
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IPartService, ILayoutOptions, IDimension } from 'vs/workbench/services/part/common/partService';
+import { Position, Parts, IPartService, ILayoutOptions, IDimension, PositionToString } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -1489,7 +1489,7 @@ export class Workbench extends Disposable implements IPartService {
 			const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
 			const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
 			this.panelPosition = position;
-			this.storageService.store(Workbench.panelPositionStorageKey, Position[this.panelPosition].toLowerCase(), StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.panelPositionStorageKey, PositionToString(this.panelPosition).toLowerCase(), StorageScope.WORKSPACE);
 
 			// Adjust CSS
 			DOM.removeClass(this.panelPart.getContainer(), oldPositionValue);

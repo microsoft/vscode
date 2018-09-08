@@ -6,15 +6,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import Cache from 'vs/base/common/cache';
+import { Cache } from 'vs/base/common/cache';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { createCancelablePromise, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 
 suite('Cache', () => {
 
 	test('simple value', () => {
 		let counter = 0;
-		const cache = new Cache(() => createCancelablePromise(_ => TPromise.as(counter++)));
+		const cache = new Cache(_ => TPromise.as(counter++));
 
 		return cache.get().promise
 			.then(c => assert.equal(c, 0), () => assert.fail('Unexpected assertion error'))
@@ -24,7 +24,7 @@ suite('Cache', () => {
 
 	test('simple error', () => {
 		let counter = 0;
-		const cache = new Cache(() => createCancelablePromise(_ => TPromise.wrapError(new Error(String(counter++)))));
+		const cache = new Cache(_ => TPromise.wrapError(new Error(String(counter++))));
 
 		return cache.get().promise
 			.then(() => assert.fail('Unexpected assertion error'), err => assert.equal(err.message, 0))
@@ -35,9 +35,9 @@ suite('Cache', () => {
 	test('should retry cancellations', () => {
 		let counter1 = 0, counter2 = 0;
 
-		const cache = new Cache(() => {
+		const cache = new Cache(token => {
 			counter1++;
-			return timeout(2).cancelableThen(() => counter2++);
+			return timeout(2, token).then(() => counter2++);
 		});
 
 		assert.equal(counter1, 0);

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IConfig } from 'vs/workbench/parts/debug/common/debug';
+
 const _formatPIIRegexp = /{([^}]+)}/g;
 
 export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
@@ -15,6 +18,10 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 			args[group] :
 			match;
 	});
+}
+
+export function isExtensionHostDebugging(config: IConfig) {
+	return config.type && equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
 }
 
 export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {

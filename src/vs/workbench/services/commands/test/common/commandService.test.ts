@@ -14,7 +14,6 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
@@ -38,7 +37,6 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
 	}
-	getLogsLocations(): TPromise<URI[]> { return TPromise.as([]); }
 	canProfileExtensionHost() {
 		return false;
 	}

@@ -276,8 +276,8 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 	return attachStyler(themeService, colors, callback);
 }
 
-export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
-	breadcrumbsBackground?: ColorIdentifier;
+export interface IBreadcrumbsWidgetStyleOverrides extends IColorMapping {
+	breadcrumbsBackground?: ColorIdentifier | ColorFunction;
 	breadcrumbsForeground?: ColorIdentifier;
 	breadcrumbsHoverForeground?: ColorIdentifier;
 	breadcrumbsFocusForeground?: ColorIdentifier;

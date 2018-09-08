@@ -434,7 +434,7 @@ export class DiskSearch implements ISearchResultProvider {
 		}
 
 		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap'),
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			opts);
 
 		const channel = getNextTickChannel(client.getChannel<ISearchChannel>('search'));

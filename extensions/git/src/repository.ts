@@ -26,12 +26,12 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
-export enum RepositoryState {
+export const enum RepositoryState {
 	Idle,
 	Disposed
 }
 
-export enum Status {
+export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
 	INDEX_DELETED,
@@ -52,7 +52,7 @@ export enum Status {
 	BOTH_MODIFIED
 }
 
-export enum ResourceGroupType {
+export const enum ResourceGroupType {
 	Merge,
 	Index,
 	WorkingTree
@@ -275,7 +275,7 @@ export class Resource implements SourceControlResourceState {
 	) { }
 }
 
-export enum Operation {
+export const enum Operation {
 	Status = 'Status',
 	Config = 'Config',
 	Diff = 'Diff',
@@ -537,9 +537,20 @@ export class Repository implements Disposable {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(fsWatcher);
 
-		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => isDescendant(repository.root, uri.fsPath));
-		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path));
+		const workspaceFilter = (uri: Uri) => isDescendant(repository.root, uri.fsPath);
+		const onWorkspaceDelete = filterEvent(fsWatcher.onDidDelete, workspaceFilter);
+		const onWorkspaceChange = filterEvent(anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate), workspaceFilter);
+		const onRepositoryDotGitDelete = filterEvent(onWorkspaceDelete, uri => /\/\.git$/.test(uri.path));
+		const onRepositoryChange = anyEvent(onWorkspaceDelete, onWorkspaceChange);
+
+		// relevant repository changes are:
+		//  - DELETE .git folder
+		//  - ANY CHANGE within .git folder except .git itself and .git/index.lock
+		const onRelevantRepositoryChange = anyEvent(
+			onRepositoryDotGitDelete,
+			filterEvent(onRepositoryChange, uri => !/\/\.git(\/index\.lock)?$/.test(uri.path))
+		);
+
 		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
 
 		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));

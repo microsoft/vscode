@@ -33,7 +33,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -121,7 +121,7 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
-	breadcrumbsBackground: ColorIdentifier;
+	breadcrumbsBackground: ColorIdentifier | ColorFunction;
 }
 
 export class BreadcrumbsControl {
@@ -362,8 +362,7 @@ export class BreadcrumbsControl {
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
-				picker.layout(pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
-				picker.setInput(element);
+				picker.setInput(element, pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };
 			},
 			onHide: (data) => {

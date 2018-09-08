@@ -8,7 +8,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
@@ -26,8 +26,6 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 
 export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
-	cancelableThen<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => U | Thenable<U>): CancelablePromise<U>;
-	cancelableThen<U>(onFulfilled?: (value: T) => U | Thenable<U>, onRejected?: (error: any) => void): CancelablePromise<U>;
 }
 
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Thenable<T>): CancelablePromise<T> {
@@ -57,43 +55,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 		catch<TResult = never>(reject?: ((reason: any) => TResult | Thenable<TResult>) | undefined | null): Promise<T | TResult> {
 			return this.then(undefined, reject);
 		}
-		cancelableThen<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Thenable<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Thenable<TResult2>) | undefined | null): CancelablePromise<TResult1 | TResult2> {
-			return createCancelablePromise<TResult1 | TResult2>(token => {
-				const listener = token.onCancellationRequested(_ => this.cancel());
-				always(promise, () => listener.dispose());
-				return this.then(resolve, reject);
-			});
-		}
 	};
-}
-
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
-	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
-		let item = callback(source.token);
-		if (item instanceof TPromise) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else if (isThenable<T>(item)) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else {
-			source.dispose();
-			resolve(item);
-		}
-	}, () => {
-		source.cancel();
-	});
 }
 
 export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Thenable<T> {
@@ -107,22 +69,6 @@ export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Th
 			resolve(item);
 		}
 	}, () => { /* not supported */ });
-}
-
-/**
- * Hook a cancellation token to a WinJS Promise
- */
-export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
-	const subscription = token.onCancellationRequested(() => promise.cancel());
-	if (resolveAsUndefinedWhenCancelled) {
-		promise = promise.then<T>(undefined, err => {
-			if (!errors.isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
-			}
-			return undefined;
-		});
-	}
-	return always(promise, () => subscription.dispose());
 }
 
 export interface ITask<T> {
@@ -383,24 +329,20 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 /**
  * Replacement for `WinJS.TPromise.timeout`.
  */
-export function timeout(n: number): CancelablePromise<void> {
-	return createCancelablePromise(token => {
-		return new Promise((resolve, reject) => {
-			const handle = setTimeout(resolve, n);
-			token.onCancellationRequested(_ => {
-				clearTimeout(handle);
-				reject(errors.canceled());
-			});
+export function timeout(millis: number): CancelablePromise<void>;
+export function timeout(millis: number, token: CancellationToken): Thenable<void>;
+export function timeout(millis: number, token?: CancellationToken): CancelablePromise<void> | Thenable<void> {
+	if (!token) {
+		return createCancelablePromise(token => timeout(millis, token));
+	}
+
+	return new Promise((resolve, reject) => {
+		const handle = setTimeout(resolve, millis);
+		token.onCancellationRequested(() => {
+			clearTimeout(handle);
+			reject(errors.canceled());
 		});
 	});
-}
-
-/**
- *
- * @returns `true` if candidate is a `WinJS.Promise`
- */
-export function isWinJSPromise(candidate: any): candidate is TPromise {
-	return isThenable(candidate) && typeof (candidate as any).done === 'function';
 }
 
 /**
@@ -603,17 +545,18 @@ export class ResourceQueue {
 	}
 }
 
-export function setDisposableTimeout(handler: Function, timeout: number, ...args: any[]): IDisposable {
-	const handle = setTimeout(handler, timeout, ...args);
-	return { dispose() { clearTimeout(handle); } };
-}
-
 export class TimeoutTimer extends Disposable {
 	private _token: number;
 
-	constructor() {
+	constructor();
+	constructor(runner: () => void, timeout: number);
+	constructor(runner?: () => void, timeout?: number) {
 		super();
 		this._token = -1;
+
+		if (typeof runner === 'function' && typeof timeout === 'number') {
+			this.setIfNotSet(runner, timeout);
+		}
 	}
 
 	dispose(): void {

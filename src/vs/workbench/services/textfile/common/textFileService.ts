@@ -626,12 +626,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 	private suggestFileName(untitledResource: URI): string {
 		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
 
-		const lastActiveFile = this.historyService.getLastActiveFile();
+		const lastActiveFile = this.historyService.getLastActiveFile(Schemas.file);
 		if (lastActiveFile) {
 			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
 		}
 
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot('file');
+		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		if (lastActiveFolder) {
 			return URI.file(paths.join(lastActiveFolder.fsPath, untitledFileName)).fsPath;
 		}
@@ -721,7 +721,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		this._onWillMove.fire({
 			oldResource: source,
 			newResource: target,
-			waitUntil(p: TPromise<any>) {
+			waitUntil(p: Thenable<any>) {
 				waitForPromises.push(TPromise.wrap(p).then(undefined, errors.onUnexpectedError));
 			}
 		});

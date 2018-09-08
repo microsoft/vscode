@@ -13,7 +13,6 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { dirname } from 'vs/base/common/paths';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -27,6 +26,7 @@ import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/qu
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { Schemas } from 'vs/base/common/network';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
@@ -34,26 +34,27 @@ export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add F
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
 function pickFolders(buttonLabel: string, title: string, windowService: IWindowService, contextService: IWorkspaceContextService, historyService: IHistoryService): TPromise<string[]> {
+	const defaultPathURI = defaultFolderPath(contextService, historyService, Schemas.file);
 	return windowService.showOpenDialog({
 		buttonLabel,
 		title,
 		properties: ['multiSelections', 'openDirectory', 'createDirectory'],
-		defaultPath: defaultFolderPath(contextService, historyService)
+		defaultPath: defaultPathURI && defaultPathURI.fsPath
 	});
 }
 
-export function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
+export function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService, schemeFilter: string): URI {
 	let candidate: URI;
 
 	// Check for last active file root first...
-	candidate = historyService.getLastActiveWorkspaceRoot('file');
+	candidate = historyService.getLastActiveWorkspaceRoot(schemeFilter);
 
 	// ...then for last active file
 	if (!candidate) {
-		candidate = historyService.getLastActiveFile();
+		candidate = historyService.getLastActiveFile(schemeFilter);
 	}
 
-	return candidate ? dirname(candidate.fsPath) : void 0;
+	return candidate ? resources.dirname(candidate) : void 0;
 }
 
 
@@ -66,29 +67,29 @@ function services(accessor: ServicesAccessor): { windowService: IWindowService, 
 	};
 }
 
-export function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
+export function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService, schemeFilter: string): URI {
 	let candidate: URI;
 
 	// Check for last active file first...
-	candidate = historyService.getLastActiveFile();
+	candidate = historyService.getLastActiveFile(schemeFilter);
 
 	// ...then for last active file root
 	if (!candidate) {
-		candidate = historyService.getLastActiveWorkspaceRoot('file');
+		candidate = historyService.getLastActiveWorkspaceRoot(schemeFilter);
 	}
 
-	return candidate ? dirname(candidate.fsPath) : void 0;
+	return candidate ? resources.dirname(candidate) : void 0;
 }
 
-export function defaultWorkspacePath(contextService: IWorkspaceContextService, historyService: IHistoryService, environmentService: IEnvironmentService): string {
+export function defaultWorkspacePath(contextService: IWorkspaceContextService, historyService: IHistoryService, environmentService: IEnvironmentService, schemeFilter: string): URI {
 
 	// Check for current workspace config file first...
-	if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(contextService.getWorkspace().configuration.fsPath, environmentService)) {
-		return dirname(contextService.getWorkspace().configuration.fsPath);
+	if (schemeFilter === Schemas.file && contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(contextService.getWorkspace().configuration.fsPath, environmentService)) {
+		return resources.dirname(contextService.getWorkspace().configuration);
 	}
 
 	// ...then fallback to default folder path
-	return defaultFolderPath(contextService, historyService);
+	return defaultFolderPath(contextService, historyService, schemeFilter);
 }
 
 function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
@@ -101,8 +102,8 @@ CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFileFolderInNewWindow',
 	handler: (accessor: ServicesAccessor) => {
 		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFileFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
+		const defaultPathURI = defaultFilePath(contextService, historyService, Schemas.file);
+		windowService.pickFileFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 });
 
@@ -110,8 +111,8 @@ CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
 	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => {
 		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFolderAndOpen({ forceNewWindow, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
+		const defaultPathURI = defaultFolderPath(contextService, historyService, Schemas.file);
+		windowService.pickFolderAndOpen({ forceNewWindow, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 });
 
@@ -119,8 +120,8 @@ CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFolderInNewWindow',
 	handler: (accessor: ServicesAccessor) => {
 		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
+		const defaultPathURI = defaultFolderPath(contextService, historyService, Schemas.file);
+		windowService.pickFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 });
 
@@ -128,8 +129,8 @@ CommandsRegistry.registerCommand({
 	id: 'workbench.action.files.openFileInNewWindow',
 	handler: (accessor: ServicesAccessor) => {
 		const { windowService, historyService, contextService } = services(accessor);
-
-		windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
+		const defaultPathURI = defaultFilePath(contextService, historyService, Schemas.file);
+		windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 });
 
@@ -137,8 +138,8 @@ CommandsRegistry.registerCommand({
 	id: 'workbench.action.openWorkspaceInNewWindow',
 	handler: (accessor: ServicesAccessor) => {
 		const { windowService, historyService, contextService, environmentService } = services(accessor);
-
-		windowService.pickWorkspaceAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultWorkspacePath(contextService, historyService, environmentService) } });
+		const defaultPathURI = defaultWorkspacePath(contextService, historyService, environmentService, Schemas.file);
+		windowService.pickWorkspaceAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 });
 

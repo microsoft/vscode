@@ -38,10 +38,6 @@ declare namespace monaco {
 
 
 
-
-	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
-
-
 	export class Promise<T = any> {
 		constructor(
 			executor: (
@@ -60,8 +56,6 @@ declare namespace monaco {
 		public static as<T>(value: PromiseLike<T>): PromiseLike<T>;
 		public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 		public static as<T>(value: T): Promise<T>;
-
-		public static timeout(delay: number): Promise<void>;
 
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;

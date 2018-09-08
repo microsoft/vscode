@@ -73,7 +73,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 	});
 }
 
-export function submitAllStats(productJson: any): Promise<void> {
+export function submitAllStats(productJson: any, commit: string): Promise<void> {
 
 	let sorted: Entry[] = [];
 	// move entries for single files to the front
@@ -98,10 +98,11 @@ export function submitAllStats(productJson: any): Promise<void> {
 
 	return new Promise(resolve => {
 
-		const measurements = Object.create(null);
+		const sizes = {};
+		const counts = {};
 		for (const entry of sorted) {
-			measurements[`${entry.name}.size`] = entry.totalSize;
-			measurements[`${entry.name}.count`] = entry.totalCount;
+			sizes[entry.name] = entry.totalSize;
+			counts[entry.name] = entry.totalCount;
 		}
 
 		appInsights.setup(productJson.aiConfig.asimovKey)
@@ -111,14 +112,18 @@ export function submitAllStats(productJson: any): Promise<void> {
 			.setAutoCollectRequests(false)
 			.start();
 
-		appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		const client = appInsights.getClient(productJson.aiConfig.asimovKey);
+		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+
 		/* __GDPR__
-			"monacoworkbench/bundleStats" : {
-				"outcome" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			"monacoworkbench/packagemetrics" : {
+				"commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
-		appInsights.defaultClient.trackEvent(`monacoworkbench/bundleStats`, undefined, measurements);
-		appInsights.defaultClient.sendPendingData(() => resolve());
+		client.trackEvent(`monacoworkbench/packagemetrics`, { commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) });
+		client.sendPendingData(() => resolve());
 	});
 
 }

@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -111,7 +111,7 @@ export class LifecycleService implements ILifecycleService {
 		this._logService.trace(`lifecycle: phase changed (value: ${value})`);
 
 		this._phase = value;
-		mark(`LifecyclePhase/${LifecyclePhase[value]}`);
+		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
 		if (this._phaseWhen.has(this._phase)) {
 			this._phaseWhen.get(this._phase).open();

@@ -17,7 +17,7 @@ enum Boundary {
 	Bottom
 }
 
-export enum ScrollPosition {
+export const enum ScrollPosition {
 	Top,
 	Middle
 }

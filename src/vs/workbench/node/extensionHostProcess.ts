@@ -116,12 +116,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				onUnexpectedError(err);
 			});
 
-			// Workaround for Electron not installing a handler to ignore SIGPIPE
-			// (https://github.com/electron/electron/issues/13254)
-			process.on('SIGPIPE', () => {
-				onUnexpectedError(new Error('Unexpected SIGPIPE'));
-			});
-
 			// Kill oneself if one's parent dies. Much drama.
 			setInterval(function () {
 				try {

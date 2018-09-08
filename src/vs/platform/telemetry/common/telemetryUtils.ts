@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -200,7 +200,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfiguration', {
-				configurationSource: ConfigurationTarget[event.source],
+				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
 			/* __GDPR__
@@ -210,7 +210,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				}
 			*/
 			telemetryService.publicLog('updateConfigurationValues', {
-				configurationSource: ConfigurationTarget[event.source],
+				configurationSource: ConfigurationTargetToString(event.source),
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}

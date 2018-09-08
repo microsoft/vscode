@@ -13,6 +13,7 @@ const minimatch = require('minimatch');
 const istanbul = require('istanbul');
 const i_remap = require('remap-istanbul/lib/remap');
 const util = require('util');
+const bootstrap = require('../../src/bootstrap');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -22,15 +23,6 @@ if (util.inspect && util.inspect['defaultOptions']) {
 let _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
-
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName).replace(/#/g, '%23');
-}
 
 function initLoader(opts) {
 	let outdir = opts.build ? 'out-build' : 'out';
@@ -42,11 +34,11 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: uriFromPath(path.join(__dirname, '../../src')),
+		baseUrl: bootstrap.uriFromPath(path.join(__dirname, '../../src')),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
-			'bootstrap': `../${outdir}/bootstrap`
+			'bootstrap-fork': `../${outdir}/bootstrap-fork`
 		}
 	};
 

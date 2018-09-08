@@ -396,7 +396,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $registerTaskProvider(handle: number): Thenable<void> {
 		this._taskService.registerTaskProvider(handle, {
 			provideTasks: (validTypes: IStringDictionary<boolean>) => {
-				return this._proxy.$provideTasks(handle, validTypes).then((value) => {
+				return TPromise.wrap(this._proxy.$provideTasks(handle, validTypes)).then((value) => {
 					let tasks: Task[] = [];
 					for (let task of value.tasks) {
 						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
@@ -510,7 +510,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
 				let vars: string[] = [];
 				variables.forEach(item => vars.push(item));
-				return this._proxy.$resolveVariables(workspaceFolder.uri, vars).then(values => {
+				return TPromise.wrap(this._proxy.$resolveVariables(workspaceFolder.uri, vars)).then(values => {
 					let result = new Map<string, string>();
 					Object.keys(values).forEach(key => result.set(key, values[key]));
 					return result;

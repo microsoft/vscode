@@ -12,7 +12,8 @@ import { IExtensionHostProfile, ProfileSession, IExtensionService } from 'vs/wor
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { append, $, addDisposableListener } from 'vs/base/browser/dom';
-import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionHostProfileService, ProfileSessionState, RuntimeExtensionsInput } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

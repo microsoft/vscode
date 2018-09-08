@@ -272,7 +272,7 @@ const version: IJSONSchema = {
 const identifier: IJSONSchema = {
 	type: 'string',
 	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.'),
-	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. Use task identifier literals instead when referencing a task in a dependsOn property or in a launch.json file.')
+	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. For custom task used the name as a reference and for tasks provided by extensions use their defined task identifier.')
 };
 
 const options: IJSONSchema = Objects.deepClone(commonSchema.definitions.options);

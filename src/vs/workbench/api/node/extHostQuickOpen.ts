@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { asWinJsPromise, wireCancellationToken } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -130,13 +130,21 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		// global validate fn used in callback below
 		this._validateInput = options && options.validateInput;
 
-		const promise = this._proxy.$input(options, typeof this._validateInput === 'function');
-		return wireCancellationToken(token, promise, true);
+		return this._proxy.$input(options, typeof this._validateInput === 'function', token)
+			.then(null, err => {
+				if (isPromiseCanceledError(err)) {
+					return undefined;
+				}
+
+				this._proxy.$setError(err);
+
+				return TPromise.wrapError(err);
+			});
 	}
 
-	$validateInput(input: string): TPromise<string> {
+	$validateInput(input: string): Thenable<string> {
 		if (this._validateInput) {
-			return asWinJsPromise(_ => this._validateInput(input));
+			return asThenable(() => this._validateInput(input));
 		}
 		return undefined;
 	}

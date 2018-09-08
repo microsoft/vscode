@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export enum ScanError {
+export const enum ScanError {
 	None,
 	UnexpectedEndOfComment,
 	UnexpectedEndOfString,
@@ -14,7 +14,7 @@ export enum ScanError {
 	InvalidCharacter
 }
 
-export enum SyntaxKind {
+export const enum SyntaxKind {
 	Unknown = 0,
 	OpenBraceToken,
 	CloseBraceToken,
@@ -591,7 +591,7 @@ export interface ParseError {
 	error: ParseErrorCode;
 }
 
-export enum ParseErrorCode {
+export const enum ParseErrorCode {
 	InvalidSymbol,
 	InvalidNumberFormat,
 	PropertyNameExpected,
