@@ -12,6 +12,7 @@ import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/wor
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -37,6 +38,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IDebugService private debugService: IDebugService,
+		@IEditorService private editorService: IEditorService,
 	) {
 		this.modelDataMap = new Map<string, IDebugEditorModelData>();
 		this.toDispose = [];
@@ -218,6 +220,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onBreakpointsChange(): void {
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.group.pinEditor(activeControl.input);
+		}
+
 		const breakpointsMap = new Map<string, IBreakpoint[]>();
 		this.debugService.getModel().getBreakpoints().forEach(bp => {
 			const uriStr = bp.uri.toString();
