@@ -278,8 +278,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 
 class OutputFileListener extends Disposable {
 
-	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
-	readonly onDidContentChange: Event<void> = this._onDidChange.event;
+	private readonly _onDidContentChange: Emitter<number> = new Emitter<number>();
+	readonly onDidContentChange: Event<number> = this._onDidContentChange.event;
 
 	private watching: boolean = false;
 	private syncDelayer: ThrottledDelayer<void>;
@@ -311,7 +311,7 @@ class OutputFileListener extends Disposable {
 			.then(stat => {
 				if (stat.etag !== this.etag) {
 					this.etag = stat.etag;
-					this._onDidChange.fire();
+					this._onDidContentChange.fire(stat.size);
 				}
 			});
 	}
@@ -349,7 +349,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
 		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
-		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
+		this._register(this.fileHandler.onDidContentChange(size => this.onDidContentChange(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
@@ -394,9 +394,13 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this.updateInProgress = false;
 	}
 
-	private onDidContentChange(): void {
+	private onDidContentChange(size: number): void {
 		if (!this.updateInProgress) {
 			this.updateInProgress = true;
+			if (this.endOffset > size) { // Reset - Content is removed
+				this.startOffset = this.endOffset = 0;
+				this.model.setValue('');
+			}
 			this.modelUpdater.schedule();
 		}
 	}
