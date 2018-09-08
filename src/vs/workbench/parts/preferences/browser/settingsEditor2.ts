@@ -130,7 +130,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			this.onConfigUpdate(e.affectedKeys);
+			if (e.source !== ConfigurationTarget.DEFAULT) {
+				this.onConfigUpdate(e.affectedKeys);
+			}
 		}));
 	}
 

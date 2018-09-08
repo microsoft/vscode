@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -208,8 +208,20 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
-	constructor(private _defaultSettings: DefaultSettings) {
+	private dirty = false;
+
+	constructor(
+		private _defaultSettings: DefaultSettings,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
 		super();
+
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.source === ConfigurationTarget.DEFAULT) {
+				this.dirty = true;
+				this._onDidChangeGroups.fire();
+			}
+		});
 	}
 
 	protected get filterGroups(): ISettingsGroup[] {
@@ -218,15 +230,18 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
-		return this._defaultSettings.settingsGroups;
+		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
+		this.dirty = false;
+		return groups;
 	}
 
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
+		// TODO @roblou
 		return [];
 	}
 
 	protected update(): IFilterResult {
-		throw new Error('no');
+		throw new Error('Not supported');
 	}
 }
 
@@ -437,19 +452,15 @@ export class DefaultSettings extends Disposable {
 	}
 
 	getContent(forceUpdate = false): string {
-		if (forceUpdate) {
-			this._content = undefined;
-		}
-
-		if (!this._content) {
-			this._content = this.toContent(true, this.settingsGroups);
+		if (!this._content || forceUpdate) {
+			this._content = this.toContent(true, this.getSettingsGroups(forceUpdate));
 		}
 
 		return this._content;
 	}
 
-	get settingsGroups(): ISettingsGroup[] {
-		if (!this._allSettingsGroups) {
+	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
+		if (!this._allSettingsGroups || forceUpdate) {
 			this._allSettingsGroups = this.parse();
 		}
 
@@ -695,7 +706,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
-		return this.defaultSettings.settingsGroups;
+		return this.defaultSettings.getSettingsGroups();
 	}
 
 	protected get filterGroups(): ISettingsGroup[] {
