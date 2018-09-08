@@ -83,7 +83,7 @@ suite('WindowsFinder', () => {
 			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
 			newWindow: true,
 			newWindowUnlessFolder: true,
-		})), null);
+		})), noVscodeFolderWindow);
 	});
 
 	test('New window irregardless if window exists which has corresponding folder for the file open ', () => {
