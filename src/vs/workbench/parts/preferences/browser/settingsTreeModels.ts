@@ -33,12 +33,38 @@ export abstract class SettingsTreeElement {
 	index: number;
 }
 
+export type SettingsTreeGroupChild = (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement);
+
 export class SettingsTreeGroupElement extends SettingsTreeElement {
-	children: (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
 	count?: number;
 	label: string;
 	level: number;
 	isFirstGroup: boolean;
+
+	private _childSettingKeys: Set<string>;
+	private _children: SettingsTreeGroupChild[];
+
+	get children(): SettingsTreeGroupChild[] {
+		return this._children;
+	}
+
+	set children(newChildren: SettingsTreeGroupChild[]) {
+		this._children = newChildren;
+
+		this._childSettingKeys = new Set();
+		this._children.forEach(child => {
+			if (child instanceof SettingsTreeSettingElement) {
+				this._childSettingKeys.add(child.setting.key);
+			}
+		});
+	}
+
+	/**
+	 * Returns whether this group contains the given child key (to a depth of 1 only)
+	 */
+	containsSetting(key: string): boolean {
+		return this._childSettingKeys.has(key);
+	}
 }
 
 export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
@@ -197,22 +223,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 }
 
-export function countSettingGroupChildrenWithPredicate(tree: SettingsTreeGroupElement, predicate: (setting: SettingsTreeSettingElement) => boolean): number {
-	const recursiveCounter: (root: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement) => number =
-		root => {
-			if (root instanceof SettingsTreeGroupElement) {
-				return root.children.map(child => recursiveCounter(child)).reduce((a, b) => a + b, 0);
-			} else if (root instanceof SettingsTreeSettingElement) {
-				return +predicate(root);
-			} else if (root instanceof SettingsTreeNewExtensionsElement) {
-				return 0;
-			}
-
-			throw new Error('Argument to settingsTreeChildrenCount should only have group, setting, or extension elements');
-		};
-	return recursiveCounter(tree);
-}
-
 export class SettingsTreeModel {
 	protected _root: SettingsTreeGroupElement;
 	protected _treeElementsById = new Map<string, SettingsTreeElement>();
@@ -272,17 +282,19 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		element.children = [];
+		const children = [];
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-			element.children.push(...settingChildren);
+			children.push(...settingChildren);
 		}
 
 		if (tocEntry.children) {
 			const groupChildren = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-			element.children.push(...groupChildren);
+			children.push(...groupChildren);
 		}
+
+		element.children = children;
 
 		this._treeElementsById.set(element.id, element);
 		return element;

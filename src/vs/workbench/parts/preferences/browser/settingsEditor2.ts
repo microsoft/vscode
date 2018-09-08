@@ -38,7 +38,7 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { countSettingGroupChildrenWithPredicate, ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
@@ -89,7 +89,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private pendingSettingUpdate: { key: string, value: any };
 
 	private viewState: ISettingsEditorViewState;
-	private searchResultModel: SearchResultModel;
+	private _searchResultModel: SearchResultModel;
 
 	private tocRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
@@ -138,6 +138,16 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private get currentSettingsModel() {
 		return this.searchResultModel || this.settingsTreeModel;
+	}
+
+	private get searchResultModel(): SearchResultModel {
+		return this._searchResultModel;
+	}
+
+	private set searchResultModel(value: SearchResultModel) {
+		this._searchResultModel = value;
+
+		DOM.toggleClass(this.rootElement, 'search-mode', !!this._searchResultModel);
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -705,9 +715,9 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onSearchModeToggled(): void {
-		DOM.removeClass(this.rootElement, 'search-mode');
+		DOM.removeClass(this.rootElement, 'no-toc-search');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
+			DOM.toggleClass(this.rootElement, 'no-toc-search', !!this.searchResultModel);
 		}
 
 		if (this.searchResultModel) {
@@ -835,8 +845,6 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		this.renderResultCountMessages();
-
 		let refreshP: TPromise<any>;
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
@@ -854,6 +862,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return refreshP.then(() => {
 			this.tocTreeModel.update();
+			this.renderResultCountMessages();
 
 			if (this.searchResultModel) {
 				expandAll(this.tocTree);
@@ -1081,16 +1090,17 @@ export class SettingsEditor2 extends BaseEditor {
 			return;
 		}
 
-		const countPredicate = (element: SettingsTreeSettingElement) => element.matchesAllTags(this.viewState.tagFilters) && element.matchesScope(this.viewState.settingsTarget);
-		let count = countSettingGroupChildrenWithPredicate(this.settingsTree.getInput() as SettingsTreeGroupElement, countPredicate);
-		switch (count) {
-			case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
-			case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
-			default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
-		}
+		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
+			const count = this.tocTreeModel.settingsTreeRoot.count;
+			switch (count) {
+				case 0: this.countElement.innerText = localize('noResults', "No Settings Found"); break;
+				case 1: this.countElement.innerText = localize('oneResult', "1 Setting Found"); break;
+				default: this.countElement.innerText = localize('moreThanOneResult', "{0} Settings Found", count);
+			}
 
-		this.countElement.style.display = 'block';
-		this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+			this.countElement.style.display = 'block';
+			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+		}
 	}
 
 	private _filterOrSearchPreferencesModel(filter: string, model: ISettingsEditorModel, provider: ISearchProvider, token?: CancellationToken): TPromise<ISearchResult> {

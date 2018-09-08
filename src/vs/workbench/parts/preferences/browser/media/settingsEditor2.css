@@ -115,21 +115,13 @@
 	display: none;
 }
 
-.settings-editor.search-mode > .settings-body .settings-tree-container .monaco-tree-wrapper {
-	width: calc(100% - 11px);
-	margin-left: 0px;
-}
-
-.settings-editor.search-mode > .settings-body > .settings-tree-container .setting-measure-container {
-	width: calc(100% - 33px);
-	margin-left: 0px;
-}
-
+.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	width: calc(100% - 11px);
 	margin-left: 0px;
 }
 
+.settings-editor.no-toc-search > .settings-body > .settings-tree-container .setting-measure-container,
 .settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
 	width: calc(100% - 33px);
 	margin-left: 0px;
@@ -203,10 +195,7 @@
 	padding-left: 5px;
 }
 
-.settings-editor.search-mode .settings-toc-container {
-	display: none;
-}
-
+.settings-editor.no-toc-search > .settings-body .settings-toc-container,
 .settings-editor.narrow > .settings-body .settings-toc-container {
 	display: none;
 }
@@ -228,9 +217,14 @@
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	display: none;
 	line-height: 22px;
 	opacity: 0.7;
 	margin-left: 3px;
+}
+
+.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	display: block;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content::before {

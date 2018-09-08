@@ -219,7 +219,7 @@ export class SimplePagedDataSource implements IDataSource {
 	}
 
 	reset(): void {
-		this.loadedToIndex = SimplePagedDataSource.SETTINGS_PER_PAGE * 2;
+		this.loadedToIndex = SimplePagedDataSource.SETTINGS_PER_PAGE;
 	}
 
 	pageTo(index: number, top = false): boolean {

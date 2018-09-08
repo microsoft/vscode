@@ -482,10 +482,6 @@ export class DefaultSettings extends Disposable {
 		return DefaultSettings._RAW;
 	}
 
-	getSettingByName(name: string): ISetting {
-		return this._settingsByName && this._settingsByName.get(name);
-	}
-
 	private getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		return this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)

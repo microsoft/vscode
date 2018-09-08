@@ -18,7 +18,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsAccessibilityProvider, SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
-import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -27,8 +26,11 @@ export class TOCTreeModel {
 	private _currentSearchModel: SearchResultModel;
 	private _settingsTreeRoot: SettingsTreeGroupElement;
 
-	constructor(private viewState: ISettingsEditorViewState) {
+	constructor(private _viewState: ISettingsEditorViewState) {
+	}
 
+	public get settingsTreeRoot(): SettingsTreeGroupElement {
+		return this._settingsTreeRoot;
 	}
 
 	public set settingsTreeRoot(value: SettingsTreeGroupElement) {
@@ -56,31 +58,26 @@ export class TOCTreeModel {
 			}
 		});
 
-		if (this._currentSearchModel) {
-			const childCount = group.children
-				.filter(child => child instanceof SettingsTreeGroupElement)
-				.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
+		const childCount = group.children
+			.filter(child => child instanceof SettingsTreeGroupElement)
+			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
 
-			group.count = childCount + this.getSearchResultChildrenCount(group);
-		} else {
-			group.count = undefined;
-		}
+		group.count = childCount + this.getGroupCount(group);
 	}
 
-	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
-		return this._currentSearchModel.root.children.filter(child => {
-			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting) && child.matchesScope(this.viewState.settingsTarget);
-		}).length;
-	}
-
-	private groupContainsSetting(group: SettingsTreeGroupElement, setting: ISetting): boolean {
-		return group.children.some(child => {
-			if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key && child.matchesAllTags(this.viewState.tagFilters);
-			} else {
+	private getGroupCount(group: SettingsTreeGroupElement): number {
+		return group.children.filter(child => {
+			if (!(child instanceof SettingsTreeSettingElement)) {
 				return false;
 			}
-		});
+
+			if (this._currentSearchModel && !this._currentSearchModel.root.containsSetting(child.setting.key)) {
+				return false;
+			}
+
+			// Check everything that the SettingsFilter checks except whether it's filtered by a category
+			return child.matchesScope(this._viewState.settingsTarget) && child.matchesAllTags(this._viewState.tagFilters);
+		}).length;
 	}
 }
 
