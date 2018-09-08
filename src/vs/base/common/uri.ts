@@ -82,7 +82,7 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  *       / \ /                        \
  *       urn:example:animal:ferret:nose
  */
-export default class URI implements UriComponents {
+export class URI implements UriComponents {
 
 	static isUri(thing: any): thing is URI {
 		if (thing instanceof URI) {
@@ -275,7 +275,6 @@ export default class URI implements UriComponents {
 	good.scheme === 'file';
 	good.path === '/coding/c#/project1';
 	good.fragment === '';
-
 	const bad = URI.parse('file://' + '/coding/c#/project1');
 	bad.scheme === 'file';
 	bad.path === '/coding/c'; // path is now broken

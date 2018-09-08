@@ -12,6 +12,7 @@ import { getProxyAgent } from 'vs/base/node/proxy';
 import { IRequestService, IHTTPConfiguration } from 'vs/platform/request/node/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
  * This service exposes the `request` API, while using the global
@@ -40,7 +41,7 @@ export class RequestService implements IRequestService {
 		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
-	request(options: IRequestOptions, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
+	request(options: IRequestOptions, token: CancellationToken, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
@@ -54,7 +55,7 @@ export class RequestService implements IRequestService {
 				options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });
 			}
 
-			return requestFn(options);
+			return requestFn(options, token);
 		});
 	}
 }

@@ -277,7 +277,7 @@ export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): E
 	return emitter.event;
 }
 
-export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
+export function fromPromise<T =any>(promise: Thenable<T>): Event<T> {
 	const emitter = new Emitter<T>();
 	let shouldEmit = false;
 
@@ -295,21 +295,34 @@ export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
 	return emitter.event;
 }
 
-export function toPromise<T>(event: Event<T>): TPromise<T> {
-	return new TPromise(complete => {
-		const sub = event(e => {
-			sub.dispose();
-			complete(e);
-		});
-	});
+export function toPromise<T>(event: Event<T>): Thenable<T> {
+	return new TPromise(c => once(event)(c));
+}
+
+export function toNativePromise<T>(event: Event<T>): Thenable<T> {
+	return new Promise(c => once(event)(c));
 }
 
 export function once<T>(event: Event<T>): Event<T> {
 	return (listener, thisArgs = null, disposables?) => {
+		// we need this, in case the event fires during the listener call
+		let didFire = false;
+
 		const result = event(e => {
-			result.dispose();
+			if (didFire) {
+				return;
+			} else if (result) {
+				result.dispose();
+			} else {
+				didFire = true;
+			}
+
 			return listener.call(thisArgs, e);
 		}, null, disposables);
+
+		if (didFire) {
+			result.dispose();
+		}
 
 		return result;
 	};
@@ -563,18 +576,34 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 
 export class Relay<T> implements IDisposable {
 
-	private emitter = new Emitter<T>();
+	private listening = false;
+	private inputEvent: Event<T> = Event.None;
+	private inputEventListener: IDisposable = Disposable.None;
+
+	private emitter = new Emitter<T>({
+		onFirstListenerDidAdd: () => {
+			this.listening = true;
+			this.inputEventListener = this.inputEvent(this.emitter.fire, this.emitter);
+		},
+		onLastListenerRemove: () => {
+			this.listening = false;
+			this.inputEventListener.dispose();
+		}
+	});
+
 	readonly event: Event<T> = this.emitter.event;
 
-	private disposable: IDisposable = Disposable.None;
-
 	set input(event: Event<T>) {
-		this.disposable.dispose();
-		this.disposable = event(this.emitter.fire, this.emitter);
+		this.inputEvent = event;
+
+		if (this.listening) {
+			this.inputEventListener.dispose();
+			this.inputEventListener = event(this.emitter.fire, this.emitter);
+		}
 	}
 
 	dispose() {
-		this.disposable.dispose();
+		this.inputEventListener.dispose();
 		this.emitter.dispose();
 	}
 }

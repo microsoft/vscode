@@ -20,7 +20,7 @@
     "jsonc-parser": "^1.0.0",
     "minimatch": "^3.0.4",
     "request-light": "^0.2.2",
-    "vscode-nls": "^3.2.4"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",

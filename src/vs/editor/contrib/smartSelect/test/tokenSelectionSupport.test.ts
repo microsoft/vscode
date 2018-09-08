@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
@@ -113,6 +113,40 @@ suite('TokenSelectionSupport', () => {
 				new Range(3, 17, 3, 26),
 				new Range(3, 18, 3, 25),
 				// new Range(3, 19, 3, 20)
+			]);
+	});
+
+	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo){',
+			'\tif (bar) {',
+			'',
+			'\t}',
+			'}'
+		], 3, 1, [
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3)
+			]);
+	});
+
+	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo){',
+			'\tif (bar) {',
+			' ',
+			'\t}',
+			'}'
+		], 3, 1, [
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3),
+				new Range(3, 1, 4, 2),
+				new Range(3, 1, 3, 2)
 			]);
 	});
 });

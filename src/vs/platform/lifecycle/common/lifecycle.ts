@@ -32,7 +32,7 @@ export interface ShutdownEvent {
 	reason: ShutdownReason;
 }
 
-export enum ShutdownReason {
+export const enum ShutdownReason {
 
 	/** Window is closed */
 	CLOSE = 1,
@@ -47,17 +47,32 @@ export enum ShutdownReason {
 	LOAD = 4
 }
 
-export enum StartupKind {
+export const enum StartupKind {
 	NewWindow = 1,
 	ReloadedWindow = 3,
 	ReopenedWindow = 4,
 }
+export function StartupKindToString(startupKind: StartupKind): string {
+	switch (startupKind) {
+		case StartupKind.NewWindow: return 'NewWindow';
+		case StartupKind.ReloadedWindow: return 'ReloadedWindow';
+		case StartupKind.ReopenedWindow: return 'ReopenedWindow';
+	}
+}
 
-export enum LifecyclePhase {
+export const enum LifecyclePhase {
 	Starting = 1,
 	Restoring = 2,
 	Running = 3,
 	Eventually = 4
+}
+export function LifecyclePhaseToString(phase: LifecyclePhase) {
+	switch (phase) {
+		case LifecyclePhase.Starting: return 'Starting';
+		case LifecyclePhase.Restoring: return 'Restoring';
+		case LifecyclePhase.Running: return 'Running';
+		case LifecyclePhase.Eventually: return 'Eventually';
+	}
 }
 
 /**

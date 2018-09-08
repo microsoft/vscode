@@ -13,7 +13,7 @@ import { QuickOpenHandler } from 'vs/workbench/parts/tasks/browser/taskQuickOpen
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import * as Objects from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
@@ -54,7 +54,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -1334,7 +1335,7 @@ class TaskService implements ITaskService {
 				if (this.schemaVersion === JsonSchemaVersion.V2_0_0 && this._providers.size > 0) {
 					this._providers.forEach((provider) => {
 						counter++;
-						provider.provideTasks(validTypes).done(done, error);
+						provider.provideTasks(validTypes).then(done, error);
 					});
 				} else {
 					resolve(result);
@@ -2419,8 +2420,8 @@ class TaskService implements ITaskService {
 	}
 }
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '1_run',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '2_run',
 	command: {
 		id: 'workbench.action.tasks.runTask',
 		title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
@@ -2428,8 +2429,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '1_run',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '2_run',
 	command: {
 		id: 'workbench.action.tasks.build',
 		title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
@@ -2438,8 +2439,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 });
 
 // Manage Tasks
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '2_manage',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '3_manage',
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.showTasks',
@@ -2448,8 +2449,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '2_manage',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '3_manage',
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.restartTask',
@@ -2458,8 +2459,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '2_manage',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '3_manage',
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.terminate',
@@ -2469,8 +2470,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 });
 
 // Configure Tasks
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '3_configure',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '4_configure',
 	command: {
 		id: 'workbench.action.tasks.configureTaskRunner',
 		title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
@@ -2478,8 +2479,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
-	group: '3_configure',
+MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
+	group: '4_configure',
 	command: {
 		id: 'workbench.action.tasks.configureDefaultBuildTask',
 		title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")
@@ -2503,7 +2504,7 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask',
 
 // Tasks Output channel. Register it before using it in Task Service.
 let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
+outputChannelRegistry.registerChannel({ id: TaskService.OutputChannelId, label: TaskService.OutputChannelLabel, log: false });
 
 // Task Service
 registerSingleton(ITaskService, TaskService);

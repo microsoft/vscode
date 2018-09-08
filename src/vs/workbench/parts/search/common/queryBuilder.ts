@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { untildify } from 'vs/base/common/labels';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
@@ -95,7 +95,9 @@ export class QueryBuilder {
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
-			ignoreSymlinks
+			ignoreSymlinks,
+			previewOptions: options.previewOptions,
+			exists: options.exists
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace

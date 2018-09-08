@@ -13,7 +13,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, dirname } from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
@@ -81,16 +81,16 @@ export class EditorBreadcrumbsModel {
 		let result: BreadcrumbElement[] = [];
 
 		// file path elements
-		if (this._cfgFilePath.value === 'on') {
+		if (this._cfgFilePath.getValue() === 'on') {
 			result = result.concat(this._fileInfo.path);
-		} else if (this._cfgFilePath.value === 'last' && this._fileInfo.path.length > 0) {
+		} else if (this._cfgFilePath.getValue() === 'last' && this._fileInfo.path.length > 0) {
 			result = result.concat(this._fileInfo.path.slice(-1));
 		}
 
 		// symbol path elements
-		if (this._cfgSymbolPath.value === 'on') {
+		if (this._cfgSymbolPath.getValue() === 'on') {
 			result = result.concat(this._outlineElements);
-		} else if (this._cfgSymbolPath.value === 'last' && this._outlineElements.length > 0) {
+		} else if (this._cfgSymbolPath.getValue() === 'last' && this._outlineElements.length > 0) {
 			result = result.concat(this._outlineElements.slice(-1));
 		}
 
@@ -176,7 +176,7 @@ export class EditorBreadcrumbsModel {
 				this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 				this._outlineDisposables.push(this._editor.onDidChangeCursorPosition(_ => {
 					timeout.cancelAndSet(() => {
-						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId()) {
+						if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.getModel()) {
 							this._updateOutlineElements(this._getOutlineElements(model, this._editor.getPosition()));
 						}
 					}, 150);

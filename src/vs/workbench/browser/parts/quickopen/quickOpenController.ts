@@ -10,7 +10,7 @@ import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as types from 'vs/base/common/types';
@@ -49,7 +49,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
@@ -159,12 +159,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const handlerDescriptor = registry.getQuickOpenHandler(prefix) || registry.getDefaultQuickOpenHandler();
 
 		// Trigger onOpen
-		this.resolveHandler(handlerDescriptor).done(null, errors.onUnexpectedError);
+		this.resolveHandler(handlerDescriptor);
 
 		// Create upon first open
 		if (!this.quickOpenWidget) {
 			this.quickOpenWidget = this._register(new QuickOpenWidget(
-				document.getElementById(this.partService.getWorkbenchElementId()),
+				this.partService.getWorkbenchElement(),
 				{
 					onOk: () => { /* ignore */ },
 					onCancel: () => { /* ignore */ },
@@ -339,8 +339,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		if (!trimmedValue) {
 
 			// Trigger onOpen
-			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor)
-				.done(null, errors.onUnexpectedError);
+			this.resolveHandler(handlerDescriptor || defaultHandlerDescriptor);
 
 			this.quickOpenWidget.setInput(this.getEditorHistoryWithGroupLabel(), { autoFocusFirstEntry: true });
 
@@ -370,7 +369,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}, instantProgress ? 0 : 800);
 
 		// Promise done handling
-		resultPromise.done(() => {
+		resultPromise.then(() => {
 			resultPromiseDone = true;
 
 			if (currentResultToken === this.currentResultToken) {
@@ -684,7 +683,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IUriDisplayService uriDisplayService: IUriDisplayService,
+		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
 		super(editorService);
@@ -700,7 +699,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = resources.basenameOrAuthority(resourceInput.resource);
-			this.description = uriDisplayService.getLabel(resources.dirname(this.resource), true);
+			this.description = labelService.getUriLabel(resources.dirname(this.resource), true);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

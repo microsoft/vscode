@@ -11,7 +11,7 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-export enum MarkdownPreviewSecurityLevel {
+export const enum MarkdownPreviewSecurityLevel {
 	Strict = 0,
 	AllowInsecureContent = 1,
 	AllowScriptsAndAllContent = 2,

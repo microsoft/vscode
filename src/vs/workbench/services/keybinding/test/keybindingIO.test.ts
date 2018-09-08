@@ -10,7 +10,8 @@ import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybinding
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding, ScanCode } from 'vs/base/common/scanCode';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 suite('keybindingIO', () => {
 
@@ -28,7 +29,7 @@ suite('keybindingIO', () => {
 		}
 
 		function testOneDeserialization(keybinding: string, _expected: number, msg: string, OS: OperatingSystem): void {
-			let actualDeserialized = KeybindingIO.readKeybinding(keybinding, OS);
+			let actualDeserialized = KeybindingParser.parseKeybinding(keybinding, OS);
 			let expected = createKeybinding(_expected, OS);
 			assert.deepEqual(actualDeserialized, expected, keybinding + ' - ' + msg);
 		}
@@ -119,7 +120,7 @@ suite('keybindingIO', () => {
 
 	test('deserialize scan codes', () => {
 		assert.deepEqual(
-			KeybindingIO._readUserBinding('ctrl+shift+[comma] ctrl+/'),
+			KeybindingParser.parseUserBinding('ctrl+shift+[comma] ctrl+/'),
 			[new ScanCodeBinding(true, true, false, false, ScanCode.Comma), new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH)]
 		);
 	});

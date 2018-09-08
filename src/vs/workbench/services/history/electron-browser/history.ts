@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
@@ -30,7 +30,6 @@ import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
-import { Schemas } from 'vs/base/common/network';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -380,7 +379,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			openEditorPromise = this.editorService.openEditor({ resource: (entry.input as IResourceInput).resource, options });
 		}
 
-		openEditorPromise.done(() => {
+		openEditorPromise.then(() => {
 			this.navigatingInStack = false;
 		}, error => {
 			this.navigatingInStack = false;
@@ -778,7 +777,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}).filter(input => !!input);
 	}
 
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	getLastActiveWorkspaceRoot(schemeFilter: string): URI {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
@@ -826,19 +825,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return void 0;
 	}
 
-	getLastActiveFile(): URI {
+	getLastActiveFile(schemeFilter: string): URI {
 		const history = this.getHistory();
 		for (let i = 0; i < history.length; i++) {
 			let resource: URI;
 
 			const input = history[i];
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filter: Schemas.file });
+				resource = toResource(input, { filter: schemeFilter });
 			} else {
 				resource = (input as IResourceInput).resource;
 			}
 
-			if (resource && resource.scheme === Schemas.file) {
+			if (resource && resource.scheme === schemeFilter) {
 				return resource;
 			}
 		}

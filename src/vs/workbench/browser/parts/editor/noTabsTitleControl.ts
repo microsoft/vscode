@@ -15,6 +15,7 @@ import { addDisposableListener, EventType, addClass, EventHelper, removeClass, t
 import { IEditorPartOptions, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { Color } from 'vs/base/common/color';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -40,7 +41,9 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(this.editorLabel.onClick(e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, extraClasses: ['no-tabs-breadcrumbs'] });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
+		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
+		this.toDispose.push({ dispose: () => removeClass(this.titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -87,6 +90,8 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
+			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+
 			this.group.closeEditor(this.group.activeEditor);
 		}
 	}
@@ -148,6 +153,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
+		toggleClass(this.titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
 		this.redraw();
 	}
 

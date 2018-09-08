@@ -9,7 +9,7 @@ import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -318,6 +318,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							]
 						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
+				} else if (/^workspaceContainsTimeout:/.test(activationTimes.activationEvent)) {
+					const glob = activationTimes.activationEvent.substr('workspaceContainsTimeout:'.length);
+					title = nls.localize({
+						key: 'workspaceContainsTimeout',
+						comment: [
+							'{0} will be a glob pattern'
+						]
+					}, "Activated because searching for {0} took too long", glob);
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);

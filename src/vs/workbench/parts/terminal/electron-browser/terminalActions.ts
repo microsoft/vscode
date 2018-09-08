@@ -28,6 +28,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { Command } from 'vs/editor/browser/editorExtensions';
+import { timeout } from 'vs/base/common/async';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -102,7 +103,7 @@ export class QuickKillTerminalAction extends Action {
 		if (instance) {
 			instance.dispose();
 		}
-		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+		return TPromise.wrap(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
 
@@ -1024,7 +1025,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 	public run(): TPromise<any> {
 		super.run(this.terminal)
 			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
-			.then(() => TPromise.timeout(50))
+			.then(() => timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 		return TPromise.as(null);
 	}

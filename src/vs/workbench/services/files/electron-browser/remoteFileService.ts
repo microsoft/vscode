@@ -6,10 +6,10 @@
 
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree, keys } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDecodeStreamOptions, toDecodeStream, encodeStream } from 'vs/base/node/encoding';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -38,7 +38,7 @@ class TypeOnlyStat implements IStat {
 	size: number = 0;
 }
 
-function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): TPromise<IFileStat> {
+function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse?: (tuple: [URI, IStat]) => boolean): Thenable<IFileStat> {
 	const [resource, stat] = tuple;
 	const fileStat: IFileStat = {
 		resource,
@@ -72,7 +72,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 	return TPromise.as(fileStat);
 }
 
-export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): TPromise<IFileStat> {
+export function toDeepIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], to: URI[]): Thenable<IFileStat> {
 
 	const trie = TernarySearchTree.forPaths<true>();
 	trie.set(tuple[0].toString(), true);
@@ -161,12 +161,11 @@ class WorkspaceWatchLogic extends Disposable {
 export class RemoteFileService extends FileService {
 
 	private readonly _provider: Map<string, IFileSystemProvider>;
-	private readonly _lastKnownSchemes: string[];
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -175,16 +174,15 @@ export class RemoteFileService extends FileService {
 	) {
 		super(
 			contextService,
-			_environmentService,
+			environmentService,
 			textResourceConfigurationService,
 			configurationService,
 			lifecycleService,
-			_storageService,
+			storageService,
 			notificationService
 		);
 
 		this._provider = new Map<string, IFileSystemProvider>();
-		this._lastKnownSchemes = JSON.parse(this._storageService.get('remote_schemes', undefined, '[]'));
 		this._register(new WorkspaceWatchLogic(this, configurationService, contextService));
 	}
 
@@ -195,7 +193,6 @@ export class RemoteFileService extends FileService {
 
 		this._provider.set(scheme, provider);
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
-		this._storageService.store('remote_schemes', JSON.stringify(keys(this._provider)));
 
 		const reg = provider.onDidChangeFile(changes => {
 			// forward change events
@@ -211,19 +208,7 @@ export class RemoteFileService extends FileService {
 	}
 
 	canHandleResource(resource: URI): boolean {
-		if (resource.scheme === Schemas.file || this._provider.has(resource.scheme)) {
-			return true;
-		}
-		// TODO@remote
-		// this needs to go, but this already went viral
-		// https://github.com/Microsoft/vscode/issues/48275
-		if (this._lastKnownSchemes.indexOf(resource.scheme) < 0) {
-			return false;
-		}
-		if (!this._environmentService.isBuilt) {
-			console.warn('[remote] cache information required for ' + resource.toString());
-		}
-		return true;
+		return resource.scheme === Schemas.file || this._provider.has(resource.scheme);
 	}
 
 	private _tryParseFileOperationResult(err: any): FileOperationResult {

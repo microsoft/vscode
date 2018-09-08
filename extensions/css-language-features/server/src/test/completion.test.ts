@@ -95,7 +95,6 @@ suite('Completions', () => {
 
 		assertCompletions(`html { background-image: url('|')`, {
 			items: [
-				{ label: 'about.css', resultText: `html { background-image: url('about.css')` },
 				{ label: 'about.html', resultText: `html { background-image: url('about.html')` },
 			]
 		}, testUri, folders);
@@ -156,7 +155,6 @@ suite('Completions', () => {
 
 		assertCompletions(`@import './|'`, {
 			items: [
-				{ label: 'about.css', resultText: `@import './about.css'` },
 				{ label: 'about.html', resultText: `@import './about.html'` },
 			]
 		}, testUri, folders);

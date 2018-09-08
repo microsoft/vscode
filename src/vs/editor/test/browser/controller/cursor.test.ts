@@ -3947,6 +3947,21 @@ suite('autoClosingPairs', () => {
 				],
 			}));
 		}
+
+		public setAutocloseEnabledSet(chars: string) {
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				autoCloseBefore: chars,
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '\"', close: '\"', notIn: ['string'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] },
+					{ open: '/**', close: ' */', notIn: ['string'] }
+				],
+			}));
+		}
 	}
 
 	const enum ColumnType {
@@ -3982,7 +3997,7 @@ suite('autoClosingPairs', () => {
 		cursorCommand(cursor, H.Undo);
 	}
 
-	test('open parens', () => {
+	test('open parens: default', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
 			text: [
@@ -3996,6 +4011,52 @@ suite('autoClosingPairs', () => {
 				'var h = { a: \'value\' };',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| |=| [|]|;|',
+				'var| b| |=| `asd`|;|',
+				'var| c| |=| \'asd\'|;|',
+				'var| d| |=| "asd"|;|',
+				'var| e| |=| /*3*/|	3|;|',
+				'var| f| |=| /**| 3| */3|;|',
+				'var| g| |=| (3+5|)|;|',
+				'var| h| |=| {| a|:| \'value\'| |}|;|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('open parens: whitespace', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'beforeWhitespace'
+			}
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
@@ -4025,6 +4086,259 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('open parens disabled/enabled open quotes enabled/disabled', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'beforeWhitespace',
+				autoClosingQuotes: 'never'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+					assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+				}
+			}
+		});
+
+		usingCursor({
+			text: [
+				'var b = [];',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'never',
+				autoClosingQuotes: 'beforeWhitespace'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var b =| [|];|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+					assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('configurable open parens', () => {
+		let mode = new AutoClosingMode();
+		mode.setAutocloseEnabledSet('abc');
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'languageDefined'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'v|ar |a = [|];|',
+				'v|ar |b = `|asd`;|',
+				'v|ar |c = \'|asd\';|',
+				'v|ar d = "|asd";|',
+				'v|ar e = /*3*/	3;|',
+				'v|ar f = /** 3 */3;|',
+				'v|ar g = (3+5|);|',
+				'v|ar h = { |a: \'v|alue\' |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto-pairing can be disabled', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: 'never',
+				autoClosingQuotes: 'never'
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, cursor, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, cursor, lineNumber, column, '"', '"', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto wrapping is configurable', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+				new Selection(1, 9, 1, 12),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '`var` a = `asd`');
+
+			// type a (
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+
+			assert.equal(model.getValue(), '`(var)` a = `(asd)`');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoSurround: 'never'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '` a = asd');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoSurround: 'quotes'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			assert.equal(model.getValue(), '`var` a = asd');
+
+			// type a (
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '`(` a = asd');
+		});
+
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoSurround: 'brackets'
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a (
+			cursorCommand(cursor, H.Type, { text: '(' }, 'keyboard');
+			assert.equal(model.getValue(), '(var) a = asd');
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			assert.equal(model.getValue(), '(`) a = asd');
+		});
+		mode.dispose();
+	});
+
 	test('quote', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4042,14 +4356,14 @@ suite('autoClosingPairs', () => {
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
-				'var a =| [|];|',
-				'var b =| |`asd`;|',
-				'var c =| |\'asd!\';|',
-				'var d =| |"asd";|',
-				'var e =| /*3*/|	3;|',
-				'var f =| /**| 3 */3;|',
-				'var g =| (3+5);|',
-				'var h =| {| a:| |\'value!\'| |};|',
+				'var a |=| [|]|;|',
+				'var b |=| |`asd`|;|',
+				'var c |=| |\'asd!\'|;|',
+				'var d |=| |"asd"|;|',
+				'var e |=| /*3*/|	3;|',
+				'var f |=| /**| 3 */3;|',
+				'var g |=| (3+5)|;|',
+				'var h |=| {| a:| |\'value!\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4066,6 +4380,51 @@ suite('autoClosingPairs', () => {
 					}
 				}
 			}
+		});
+		mode.dispose();
+	});
+
+	test('issue #55314: Do not auto-close when ending with open', () => {
+		const languageId = new LanguageIdentifier('myElectricMode', 5);
+		class ElectricMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] },
+						{ open: '/**', close: ' */', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+
+		const mode = new ElectricMode();
+
+		usingCursor({
+			text: [
+				'little goat',
+				'little LAMB',
+				'little sheep',
+				'Big LAMB'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 1, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 2, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 3, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 2, '"', '""', `double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
 		mode.dispose();
 	});

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail } from 'vs/base/common/arrays';
+import { flatten, tail, find } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -201,6 +201,47 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			matches,
 			metadata
 		};
+	}
+}
+
+export class Settings2EditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
+	private dirty = false;
+
+	constructor(
+		private _defaultSettings: DefaultSettings,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super();
+
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.source === ConfigurationTarget.DEFAULT) {
+				this.dirty = true;
+				this._onDidChangeGroups.fire();
+			}
+		});
+	}
+
+	protected get filterGroups(): ISettingsGroup[] {
+		// Don't filter "commonly used"
+		return this.settingsGroups.slice(1);
+	}
+
+	public get settingsGroups(): ISettingsGroup[] {
+		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
+		this.dirty = false;
+		return groups;
+	}
+
+	public findValueMatches(filter: string, setting: ISetting): IRange[] {
+		// TODO @roblou
+		return [];
+	}
+
+	protected update(): IFilterResult {
+		throw new Error('Not supported');
 	}
 }
 
@@ -410,39 +451,35 @@ export class DefaultSettings extends Disposable {
 		super();
 	}
 
-	get content(): string {
-		if (!this._content) {
-			this.parse();
+	getContent(forceUpdate = false): string {
+		if (!this._content || forceUpdate) {
+			this._content = this.toContent(true, this.getSettingsGroups(forceUpdate));
 		}
+
 		return this._content;
 	}
 
-	get settingsGroups(): ISettingsGroup[] {
-		if (!this._allSettingsGroups) {
-			this.parse();
+	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
+		if (!this._allSettingsGroups || forceUpdate) {
+			this._allSettingsGroups = this.parse();
 		}
 
 		return this._allSettingsGroups;
 	}
 
-	parse(): string {
+	private parse(): ISettingsGroup[] {
 		const settingsGroups = this.getRegisteredGroups();
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
-		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(true, this._allSettingsGroups);
-		return this._content;
+		return [mostCommonlyUsed, ...settingsGroups];
 	}
 
 	get raw(): string {
 		if (!DefaultSettings._RAW) {
 			DefaultSettings._RAW = this.toContent(false, this.getRegisteredGroups());
 		}
-		return DefaultSettings._RAW;
-	}
 
-	getSettingByName(name: string): ISetting {
-		return this._settingsByName && this._settingsByName.get(name);
+		return DefaultSettings._RAW;
 	}
 
 	private getRegisteredGroups(): ISettingsGroup[] {
@@ -473,6 +510,7 @@ export class DefaultSettings extends Disposable {
 					range: null,
 					valueRange: null,
 					overrides: [],
+					scope: ConfigurationScope.RESOURCE,
 					type: setting.type,
 					enum: setting.enum,
 					enumDescriptions: setting.enumDescriptions
@@ -498,14 +536,14 @@ export class DefaultSettings extends Disposable {
 		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
-			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
+			const configWithTitleAndSameId = find(configurations, c => (c.id === config.id) && c.title);
 			if (configWithTitleAndSameId) {
 				title = configWithTitleAndSameId.title;
 			}
 		}
 		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.filter(g => g.title === title)[0];
+				settingsGroup = find(result, g => g.title === title);
 				if (!settingsGroup) {
 					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null, contributedByExtension: !!config.contributedByExtension };
 					result.push(settingsGroup);
@@ -566,6 +604,7 @@ export class DefaultSettings extends Disposable {
 					valueRange: null,
 					descriptionRanges: [],
 					overrides,
+					scope: prop.scope,
 					type: prop.type,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
@@ -663,7 +702,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
-		return this.defaultSettings.settingsGroups;
+		return this.defaultSettings.getSettingsGroups();
 	}
 
 	protected get filterGroups(): ISettingsGroup[] {
@@ -769,6 +808,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private copySetting(setting: ISetting): ISetting {
 		return {
 			description: setting.description,
+			scope: setting.scope,
 			type: setting.type,
 			enum: setting.enum,
 			enumDescriptions: setting.enumDescriptions,

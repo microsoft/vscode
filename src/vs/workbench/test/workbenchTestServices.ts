@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
@@ -75,7 +75,8 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IUriDisplayService, UriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { timeout } from 'vs/base/common/async';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -150,7 +151,7 @@ export class TestContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		if (resource && this.workspace) {
-			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri, resources.hasToIgnoreCase(resource));
+			return resources.isEqualOrParent(resource, this.workspace.folders[0].uri);
 		}
 
 		return false;
@@ -161,7 +162,7 @@ export class TestContextService implements IWorkspaceContextService {
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
-		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdentifier, resources.hasToIgnoreCase(workspaceIdentifier));
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && resources.isEqual(this.workspace.folders[0].uri, workspaceIdentifier);
 	}
 }
 
@@ -271,7 +272,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
-	instantiationService.stub(IUriDisplayService, new UriDisplayService(TestEnvironmentService, workspaceContextService));
+	instantiationService.stub(ILabelService, new LabelService(TestEnvironmentService, workspaceContextService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
@@ -357,11 +358,11 @@ export class TestHistoryService implements IHistoryService {
 		return [];
 	}
 
-	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter: string): URI {
 		return this.root;
 	}
 
-	public getLastActiveFile(): URI {
+	public getLastActiveFile(schemeFilter: string): URI {
 		return void 0;
 	}
 }
@@ -398,8 +399,6 @@ export class TestPartService implements IPartService {
 	public get onEditorLayout(): Event<IDimension> {
 		return this._onEditorLayout.event;
 	}
-
-	public layout(): void { }
 
 	public isCreated(): boolean {
 		return true;
@@ -471,7 +470,7 @@ export class TestPartService implements IPartService {
 
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
-	public getWorkbenchElementId(): string { return ''; }
+	public getWorkbenchElement(): HTMLElement { return void 0; }
 
 	public toggleZenMode(): void { }
 
@@ -826,16 +825,14 @@ export class TestFileService implements IFileService {
 	}
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		return TPromise.timeout(1).then(() => {
-			return {
-				resource,
-				etag: 'index.txt',
-				encoding: 'utf8',
-				mtime: Date.now(),
-				isDirectory: false,
-				name: paths.basename(resource.fsPath)
-			};
-		});
+		return TPromise.wrap(timeout(0).then(() => ({
+			resource,
+			etag: 'index.txt',
+			encoding: 'utf8',
+			mtime: Date.now(),
+			isDirectory: false,
+			name: paths.basename(resource.fsPath)
+		})));
 	}
 
 	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,6 +20,7 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -43,7 +43,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IPartService private readonly _partService: IPartService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
@@ -82,8 +83,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		// Make sure we restore focus when switching back to a VS Code window
-		this._onFocusWindowHandler = domEvent(window, 'focus')(() => {
-			if (this._editorService.activeControl === this) {
+		this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
+			if (focused && this._editorService.activeControl === this) {
 				this.focus();
 			}
 		});
@@ -183,14 +184,13 @@ export class WebviewEditor extends BaseWebviewEditor {
 	private updateWebview(input: WebviewEditorInput) {
 		const webview = this.getWebview(input);
 		input.claimWebview(this);
-		webview.options = {
+		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			allowSvgs: true,
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
-		};
-		input.html = input.html;
+		});
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';
@@ -244,7 +244,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webview.initialScrollProgress = input.scrollYPercentage;
 		}
 
-		this._webview.state = input.state.state;
+		this._webview.state = input.webviewState;
 
 		this._content.setAttribute('aria-flowto', this._webviewContent.id);
 

@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput } from 'vs/platform/editor/common/editor';
@@ -248,7 +248,7 @@ export interface IResourceSideBySideInput extends IBaseResourceInput {
 	detailResource: URI;
 }
 
-export enum Verbosity {
+export const enum Verbosity {
 	SHORT,
 	MEDIUM,
 	LONG
@@ -473,13 +473,13 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export enum ConfirmResult {
+export const enum ConfirmResult {
 	SAVE,
 	DONT_SAVE,
 	CANCEL
 }
 
-export enum EncodingMode {
+export const enum EncodingMode {
 
 	/**
 	 * Instructs the encoding support to encode the current input with the provided encoding
@@ -996,7 +996,7 @@ export function toResource(editor: IEditorInput, options?: IResourceOptions): UR
 	return null;
 }
 
-export enum CloseDirection {
+export const enum CloseDirection {
 	LEFT,
 	RIGHT
 }

@@ -23,7 +23,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -122,28 +122,29 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
-		this.$container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);
 			this.showContextMenu({ x: event.posx, y: event.posy });
-		});
+		}));
 
-		this.$container.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
 
-				this.showContextMenu(this.$container.getHTMLElement());
+				this.showContextMenu(this.container);
 			}
-		});
+		}));
 
-		this.$container.on(TouchEventType.Tap, (e: GestureEvent) => {
+		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);
 			this.showContextMenu({ x: event.posx, y: event.posy });
-		});
+		}));
 	}
 
 	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {

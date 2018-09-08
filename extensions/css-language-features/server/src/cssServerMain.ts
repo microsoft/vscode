@@ -7,14 +7,14 @@
 import {
 	createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder
 } from 'vscode-languageserver';
-
+import URI from 'vscode-uri';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { formatError, runSafe } from './utils/runner';
-import URI from 'vscode-uri';
 import { getPathCompletionParticipant } from './pathCompletion';
+import { formatError, runSafe } from './utils/runner';
+import { getDocumentContext } from './utils/documentContext';
 
 export interface Settings {
 	css: LanguageSettings;
@@ -86,6 +86,9 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		referencesProvider: true,
 		definitionProvider: true,
 		documentHighlightProvider: true,
+		documentLinkProvider: {
+			resolveProvider: false
+		},
 		codeActionProvider: true,
 		renameProvider: true,
 		colorProvider: {},
@@ -227,28 +230,42 @@ connection.onDocumentSymbol((documentSymbolParams, token) => {
 	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 });
 
-connection.onDefinition((documentSymbolParams, token) => {
+connection.onDefinition((documentDefinitionParams, token) => {
 	return runSafe(() => {
-		const document = documents.get(documentSymbolParams.textDocument.uri);
+		const document = documents.get(documentDefinitionParams.textDocument.uri);
 		if (document) {
 
 			const stylesheet = stylesheets.get(document);
-			return getLanguageService(document).findDefinition(document, documentSymbolParams.position, stylesheet);
+			return getLanguageService(document).findDefinition(document, documentDefinitionParams.position, stylesheet);
 		}
 		return null;
-	}, null, `Error while computing definitions for ${documentSymbolParams.textDocument.uri}`, token);
+	}, null, `Error while computing definitions for ${documentDefinitionParams.textDocument.uri}`, token);
 });
 
-connection.onDocumentHighlight((documentSymbolParams, token) => {
+connection.onDocumentHighlight((documentHighlightParams, token) => {
 	return runSafe(() => {
-		const document = documents.get(documentSymbolParams.textDocument.uri);
+		const document = documents.get(documentHighlightParams.textDocument.uri);
 		if (document) {
 			const stylesheet = stylesheets.get(document);
-			return getLanguageService(document).findDocumentHighlights(document, documentSymbolParams.position, stylesheet);
+			return getLanguageService(document).findDocumentHighlights(document, documentHighlightParams.position, stylesheet);
 		}
 		return [];
-	}, [], `Error while computing document highlights for ${documentSymbolParams.textDocument.uri}`, token);
+	}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`, token);
 });
+
+
+connection.onDocumentLinks((documentLinkParams, token) => {
+	return runSafe(() => {
+		const document = documents.get(documentLinkParams.textDocument.uri);
+		if (document) {
+			const documentContext = getDocumentContext(document.uri, workspaceFolders);
+			const stylesheet = stylesheets.get(document);
+			return getLanguageService(document).findDocumentLinks(document, stylesheet, documentContext);
+		}
+		return [];
+	}, [], `Error while computing document links for ${documentLinkParams.textDocument.uri}`, token);
+});
+
 
 connection.onReferences((referenceParams, token) => {
 	return runSafe(() => {

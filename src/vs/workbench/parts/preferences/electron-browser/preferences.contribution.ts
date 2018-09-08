@@ -6,7 +6,7 @@
 
 import 'vs/css!../browser/media/preferences';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -22,7 +22,7 @@ import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybin
 import { OpenDefaultKeybindingsFileAction, OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction, OpenSettings2Action, OpenSettingsJsonAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IKeybindingsEditor, IPreferencesSearchService, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SEARCH, CONTEXT_SETTINGS_EDITOR, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, CONTEXT_TOC_ROW_FOCUS, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST
+	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SEARCH, CONTEXT_SETTINGS_EDITOR, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, CONTEXT_TOC_ROW_FOCUS, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -149,17 +149,23 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-class SettingsEditor2InputFactory implements IEditorInputFactory {
-
-	public serialize(editorInput: SettingsEditor2Input): string {
-		return JSON.stringify({});
-	}
-
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return instantiationService.createInstance(SettingsEditor2Input);
-	}
+interface ISerializedSettingsEditor2EditorInput {
 }
 
+class SettingsEditor2InputFactory implements IEditorInputFactory {
+
+	public serialize(input: SettingsEditor2Input): string {
+		const serialized: ISerializedSettingsEditor2EditorInput = {
+		};
+
+		return JSON.stringify(serialized);
+	}
+
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+		return instantiationService.createInstance(
+			SettingsEditor2Input);
+	}
+}
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
@@ -193,9 +199,10 @@ const category = nls.localize('preferences', "Preferences");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawDefaultSettingsAction, OpenRawDefaultSettingsAction.ID, OpenRawDefaultSettingsAction.LABEL), 'Preferences: Open Raw Default Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsAction, OpenSettingsAction.ID, OpenSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsJsonAction, OpenSettingsJsonAction.ID, OpenSettingsJsonAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings (JSON)', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings (UI)', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsJsonAction, OpenSettingsJsonAction.ID, OpenSettingsJsonAction.LABEL), 'Preferences: Open Settings (JSON)', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL), 'Preferences: Open Settings (UI)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL), 'Preferences: Open User Settings', category);
+
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDefaultKeybindingsFileAction, OpenDefaultKeybindingsFileAction.ID, OpenDefaultKeybindingsFileAction.LABEL), 'Preferences: Open Default Keyboard Shortcuts File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: null }), 'Preferences: Open Keyboard Shortcuts File', category);
@@ -462,6 +469,22 @@ const focusSettingsListCommand = new FocusSettingsListCommand({
 	kbOpts: { primary: KeyCode.Enter, weight: KeybindingWeight.WorkbenchContrib }
 });
 focusSettingsListCommand.register();
+
+class ShowContextMenuCommand extends SettingsCommand {
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const preferencesEditor = this.getPreferencesEditor(accessor);
+		if (preferencesEditor instanceof SettingsEditor2) {
+			preferencesEditor.showContextMenu();
+		}
+	}
+}
+
+const showContextMenuCommand = new ShowContextMenuCommand({
+	id: SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU,
+	precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
+	kbOpts: { primary: KeyMod.Shift | KeyCode.F9, weight: KeybindingWeight.WorkbenchContrib }
+});
+showContextMenuCommand.register();
 
 // Preferences menu
 

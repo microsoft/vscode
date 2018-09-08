@@ -160,7 +160,7 @@
 .monaco-editor .review-widget .body .comment-form.expand .monaco-editor,
 .monaco-editor .review-widget .body .comment-form.expand .form-actions {
 	display: block;
-	box-sizing: border-box;
+	box-sizing: content-box;
 }
 
 .monaco-editor .review-widget .body .comment-form .review-thread-reply-button {
@@ -168,7 +168,7 @@
 	display: block;
 	width: 100%;
 	resize: vertical;
-	border-radius: 3px;
+	border-radius: 0;
 	box-sizing: border-box;
 	padding: 6px 12px;
 	font-weight: 600;
@@ -191,6 +191,7 @@
 	max-height: 500px;
 	border-radius: 3px;
 	border: 0px;
+	padding: 6px 0 6px 12px;
 }
 
 .monaco-editor .review-widget .body .comment-form .form-actions {
@@ -219,7 +220,7 @@
 	display: inline-block;
 	font-size: 13px;
 	margin-left: 20px;
-	cursor: pointer;
+	cursor: default;
 }
 
 .monaco-editor .review-widget .head .review-title .dirname:not(:empty) {
@@ -300,12 +301,20 @@
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
-	content: '·';
+	content: '◆';
+	font-size: 10px;
 	height: 100%;
+	line-height: 100%;
 	width: 9px;
 	left: -6px;
 	z-index: 20;
 	color: black;
+	text-align: center;
+	display:flex;
+	flex-direction:row;
+	align-items: center;
+	justify-content: center;
+
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .folding {

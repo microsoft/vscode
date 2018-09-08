@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -34,7 +34,7 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
 
@@ -53,14 +53,19 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 	}
 }
 
-class FileUriDisplayContribution implements IWorkbenchContribution {
+class FileUriLabelContribution implements IWorkbenchContribution {
 
-	constructor(@IUriDisplayService uriDisplayService: IUriDisplayService) {
-		uriDisplayService.registerFormater(Schemas.file, {
-			label: '${path}',
-			separator: nativeSep,
-			tildify: !platform.isWindows,
-			normalizeDriveLetter: platform.isWindows
+	constructor(@ILabelService labelService: ILabelService) {
+		labelService.registerFormatter(Schemas.file, {
+			uri: {
+				label: '${path}',
+				separator: nativeSep,
+				tildify: !platform.isWindows,
+				normalizeDriveLetter: platform.isWindows
+			},
+			workspace: {
+				suffix: ''
+			}
 		});
 	}
 }
@@ -152,7 +157,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding }, { forceFileInput: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
 		});
 	}
 }
@@ -172,7 +177,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
 
 // Register uri display for file uris
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriDisplayContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
 
 // Configuration

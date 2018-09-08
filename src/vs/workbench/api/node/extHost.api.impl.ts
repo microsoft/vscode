@@ -37,7 +37,7 @@ import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
@@ -61,6 +61,7 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
+import { localize } from 'vs/nls';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -136,8 +137,11 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
-	const extHostOutputService = new ExtHostOutputService(rpcProtocol);
+	const extHostOutputService = new ExtHostOutputService(initData.logsLocation, rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
+
+	// Register an output channel for exthost log
+	extHostOutputService.createOutputChannelFromLogFile(localize('extensionsLog', "Extension Host"), extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -226,8 +230,15 @@ export function createApiFactory(
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return platform.language; },
 			get appName() { return product.nameLong; },
-			get appRoot() { return initData.environment.appRoot; },
-			get logLevel() { return extHostLogService.getLevel(); }
+			get appRoot() { return initData.environment.appRoot.fsPath; },
+			get logLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostLogService.getLevel();
+			},
+			get onDidChangeLogLevel() {
+				checkProposedApiEnabled(extension);
+				return extHostLogService.onDidChangeLogLevel;
+			}
 		});
 
 		// namespace: extensions
@@ -255,8 +266,12 @@ export function createApiFactory(
 			getDiagnostics: (resource?: vscode.Uri) => {
 				return <any>extHostDiagnostics.getDiagnostics(resource);
 			},
-			getLanguages(): TPromise<string[]> {
+			getLanguages(): Thenable<string[]> {
 				return extHostLanguages.getLanguages();
+			},
+			changeLanguage(document: vscode.TextDocument, languageId: string): Thenable<void> {
+				checkProposedApiEnabled(extension);
+				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
 				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true);
@@ -337,7 +352,7 @@ export function createApiFactory(
 			get terminals() {
 				return extHostTerminalService.terminals;
 			},
-			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+			showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Thenable<vscode.TextEditor> {
 				let documentPromise: TPromise<vscode.TextDocument>;
 				if (URI.isUri(documentOrUri)) {
 					documentPromise = TPromise.wrap(workspace.openTextDocument(documentOrUri));
@@ -421,8 +436,8 @@ export function createApiFactory(
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
 				return extHostProgress.withProgress(extension, options, task);
 			},
-			createOutputChannel(name: string): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name);
+			createOutputChannel(name: string, push?: boolean): vscode.OutputChannel {
+				return extHostOutputService.createOutputChannel(name, push);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebview(extension.extensionLocation, viewType, title, showOptions, options);
@@ -433,9 +448,9 @@ export function createApiFactory(
 				}
 				return extHostTerminalService.createTerminal(<string>nameOrOptions, shellPath, shellArgs);
 			},
-			createTerminalRenderer(name: string): vscode.TerminalRenderer {
+			createTerminalRenderer: proposedApiFunction(extension, (name: string) => {
 				return extHostTerminalService.createTerminalRenderer(name);
-			},
+			}),
 			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
 				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider);
 			},
@@ -478,7 +493,7 @@ export function createApiFactory(
 				return extHostWorkspace.getWorkspaceFolders();
 			},
 			get name() {
-				return extHostWorkspace.workspace ? extHostWorkspace.workspace.name : undefined;
+				return extHostWorkspace.name;
 			},
 			set name(value) {
 				throw errors.readonly();
@@ -513,7 +528,7 @@ export function createApiFactory(
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
 			},
-			applyEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
+			applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
 				return extHostEditors.applyWorkspaceEdit(edit);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
@@ -526,7 +541,7 @@ export function createApiFactory(
 				throw errors.readonly();
 			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
-				let uriPromise: TPromise<URI>;
+				let uriPromise: Thenable<URI>;
 
 				let options = uriOrFileNameOrOptions as { language?: string; content?: string; };
 				if (typeof uriOrFileNameOrOptions === 'string') {
@@ -685,39 +700,48 @@ export function createApiFactory(
 			version: pkg.version,
 			// namespaces
 			commands,
+			debug,
 			env,
 			extensions,
 			languages,
+			scm,
+			tasks,
 			window,
 			workspace,
-			scm,
-			debug,
-			tasks,
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
 			CancellationTokenSource: CancellationTokenSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
+			CodeActionTrigger: extHostTypes.CodeActionTrigger,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
-			ColorPresentation: extHostTypes.ColorPresentation,
 			ColorInformation: extHostTypes.ColorInformation,
-			CodeActionTrigger: extHostTypes.CodeActionTrigger,
-			EndOfLine: extHostTypes.EndOfLine,
+			ColorPresentation: extHostTypes.ColorPresentation,
+			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
+			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
+			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
-			DiagnosticTag: extHostTypes.DiagnosticTag,
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
+			DiagnosticTag: extHostTypes.DiagnosticTag,
 			Disposable: extHostTypes.Disposable,
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
 			DocumentLink: extHostTypes.DocumentLink,
+			DocumentSymbol: extHostTypes.DocumentSymbol,
+			EndOfLine: extHostTypes.EndOfLine,
 			EventEmitter: Emitter,
+			FileChangeType: extHostTypes.FileChangeType,
+			FileSystemError: extHostTypes.FileSystemError,
+			FileType: files.FileType,
+			FoldingRange: extHostTypes.FoldingRange,
+			FoldingRangeKind: extHostTypes.FoldingRangeKind,
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
@@ -727,52 +751,41 @@ export function createApiFactory(
 			OverviewRulerLane: OverviewRulerLane,
 			ParameterInformation: extHostTypes.ParameterInformation,
 			Position: extHostTypes.Position,
+			ProcessExecution: extHostTypes.ProcessExecution,
+			ProgressLocation: extHostTypes.ProgressLocation,
 			QuickInputButtons: extHostTypes.QuickInputButtons,
 			Range: extHostTypes.Range,
+			RelativePattern: extHostTypes.RelativePattern,
 			Selection: extHostTypes.Selection,
+			ShellExecution: extHostTypes.ShellExecution,
+			ShellQuoting: extHostTypes.ShellQuoting,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
+			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
-			DocumentSymbol: extHostTypes.DocumentSymbol,
 			SymbolKind: extHostTypes.SymbolKind,
-			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
+			Task: extHostTypes.Task,
+			TaskGroup: extHostTypes.TaskGroup,
+			TaskPanelKind: extHostTypes.TaskPanelKind,
+			TaskRevealKind: extHostTypes.TaskRevealKind,
+			TaskScope: extHostTypes.TaskScope,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			TextEditorCursorStyle: TextEditorCursorStyle,
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
-			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
+			ThemeColor: extHostTypes.ThemeColor,
+			ThemeIcon: extHostTypes.ThemeIcon,
+			TreeItem: extHostTypes.TreeItem,
+			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			ProgressLocation: extHostTypes.ProgressLocation,
-			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
-			ThemeIcon: extHostTypes.ThemeIcon,
-			TreeItem: extHostTypes.TreeItem,
-			ThemeColor: extHostTypes.ThemeColor,
 			// functions
-			TaskRevealKind: extHostTypes.TaskRevealKind,
-			TaskPanelKind: extHostTypes.TaskPanelKind,
-			TaskGroup: extHostTypes.TaskGroup,
-			ProcessExecution: extHostTypes.ProcessExecution,
-			ShellExecution: extHostTypes.ShellExecution,
-			ShellQuoting: extHostTypes.ShellQuoting,
-			TaskScope: extHostTypes.TaskScope,
-			Task: extHostTypes.Task,
-			ConfigurationTarget: extHostTypes.ConfigurationTarget,
-			RelativePattern: extHostTypes.RelativePattern,
-
-			FileChangeType: extHostTypes.FileChangeType,
-			FileType: files.FileType,
-			FileSystemError: extHostTypes.FileSystemError,
-			FoldingRange: extHostTypes.FoldingRange,
-			FoldingRangeKind: extHostTypes.FoldingRangeKind,
-
-			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState
 		};
 	};
 }

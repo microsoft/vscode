@@ -17,10 +17,6 @@ export class Promise<T = any> {
 		onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 		onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
-	public done(
-		onfulfilled?: (value: T) => void,
-		onrejected?: (reason: any) => void): void;
-
 	public cancel(): void;
 
 	public static as(value: null): Promise<null>;
@@ -28,8 +24,6 @@ export class Promise<T = any> {
 	public static as<T>(value: PromiseLike<T>): PromiseLike<T>;
 	public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 	public static as<T>(value: T): Promise<T>;
-
-	public static timeout(delay: number): Promise<void>;
 
 	public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 	public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
@@ -15,10 +15,10 @@ import { groupBy, isFalsyOrEmpty, flatten } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import * as glob from 'vs/base/common/glob';
 import * as strings from 'vs/base/common/strings';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 function compareUris(a: URI, b: URI) {
 	if (a.toString() < b.toString()) {
@@ -48,7 +48,7 @@ export class ResourceMarkers extends NodeWithId {
 
 	constructor(
 		readonly uri: URI,
-		private textModelService: ITextModelService
+		private modelService: IModelService
 	) {
 		super(uri.toString());
 	}
@@ -72,6 +72,10 @@ export class ResourceMarkers extends NodeWithId {
 	}
 
 	public async hasFixes(marker: Marker): Promise<boolean> {
+		if (!this.modelService.getModel(this.uri)) {
+			// Return early, If the model is not yet created
+			return false;
+		}
 		if (!this._allFixesPromise) {
 			this._allFixesPromise = this._getFixes();
 		}
@@ -88,11 +92,9 @@ export class ResourceMarkers extends NodeWithId {
 	}
 
 	private async _getFixes(range?: Range): Promise<CodeAction[]> {
-		const modelReference = await this.textModelService.createModelReference(this.uri);
-		if (modelReference) {
-			const model = modelReference.object.textEditorModel;
+		const model = this.modelService.getModel(this.uri);
+		if (model) {
 			const codeActions = await getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } });
-			modelReference.dispose();
 			return codeActions;
 		}
 		return [];
@@ -121,7 +123,8 @@ export class Marker extends NodeWithId {
 
 	constructor(
 		id: string,
-		readonly raw: IMarker
+		readonly raw: IMarker,
+		readonly resourceMarkers: ResourceMarkers
 	) {
 		super(id);
 	}
@@ -224,7 +227,7 @@ export class MarkersModel {
 
 	constructor(
 		markers: IMarker[] = [],
-		@ITextModelService private textModelService: ITextModelService
+		@IModelService private modelService: IModelService
 	) {
 		this._markersByResource = new Map<string, ResourceMarkers>();
 		this._filterOptions = new FilterOptions();
@@ -310,11 +313,11 @@ export class MarkersModel {
 	private createResource(uri: URI, rawMarkers: IMarker[]): ResourceMarkers {
 
 		const markers: Marker[] = [];
-		const resource = new ResourceMarkers(uri, this.textModelService);
+		const resource = new ResourceMarkers(uri, this.modelService);
 		this.updateResource(resource);
 
 		rawMarkers.forEach((rawMarker, index) => {
-			const marker = new Marker(uri.toString() + index, rawMarker);
+			const marker = new Marker(uri.toString() + index, rawMarker, resource);
 			if (rawMarker.relatedInformation) {
 				const groupedByResource = groupBy(rawMarker.relatedInformation, MarkersModel._compareMarkersByUri);
 				groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));

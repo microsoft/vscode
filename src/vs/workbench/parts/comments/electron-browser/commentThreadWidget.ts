@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { $ } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -14,6 +13,8 @@ import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -24,8 +25,8 @@ import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { SimpleCommentEditor } from './simpleCommentEditor';
-import URI from 'vs/base/common/uri';
-import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder, inputValidationErrorBorder, inputValidationErrorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { URI } from 'vs/base/common/uri';
+import { transparent, editorForeground, textLinkActiveForeground, textLinkForeground, focusBorder, textBlockQuoteBackground, textBlockQuoteBorder, contrastBorder, inputValidationErrorBorder, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -38,8 +39,7 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
+const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
 const COMMENT_SCHEME = 'comment';
 
 export class CommentNode {
@@ -56,17 +56,17 @@ export class CommentNode {
 		public comment: modes.Comment,
 		private markdownRenderer: MarkdownRenderer,
 	) {
-		this._domNode = $('div.review-comment').getHTMLElement();
+		this._domNode = dom.$('div.review-comment');
 		this._domNode.tabIndex = 0;
-		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
-		let img = <HTMLImageElement>$('img.avatar').appendTo(avatar).getHTMLElement();
+		let avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
+		let img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
 		img.src = comment.gravatar;
-		let commentDetailsContainer = $('.review-comment-contents').appendTo(this._domNode).getHTMLElement();
+		let commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
-		let header = $('div').appendTo(commentDetailsContainer).getHTMLElement();
-		let author = $('strong.author').appendTo(header).getHTMLElement();
+		let header = dom.append(commentDetailsContainer, dom.$('div'));
+		let author = dom.append(header, dom.$('strong.author'));
 		author.innerText = comment.userName;
-		this._body = $('div.comment-body').appendTo(commentDetailsContainer).getHTMLElement();
+		this._body = dom.append(commentDetailsContainer, dom.$('div.comment-body'));
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
@@ -97,11 +97,10 @@ export class CommentNode {
 }
 
 let INMEM_MODEL_ID = 0;
+
 export class ReviewZoneWidget extends ZoneWidget {
 	private _headElement: HTMLElement;
-	protected _primaryHeading: HTMLElement;
-	protected _secondaryHeading: HTMLElement;
-	protected _metaHeading: HTMLElement;
+	protected _headingLabel: HTMLElement;
 	protected _actionbarWidget: ActionBar;
 	private _bodyElement: HTMLElement;
 	private _commentEditor: ICodeEditor;
@@ -111,12 +110,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _reviewThreadReplyButton: HTMLElement;
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
+	private _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
-	private _toggleAction: Action;
+	private _collapseAction: Action;
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
 	private _owner: number;
 	private _localToDispose: IDisposable[];
+	private _globalToDispose: IDisposable[];
 	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
 	private _error: HTMLElement;
@@ -145,11 +146,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._owner = owner;
 		this._commentThread = commentThread;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
+		this._globalToDispose = [];
 		this._localToDispose = [];
 		this.create();
 
 		this._styleElement = dom.createStyleSheet(this.domNode);
-		this.themeService.onThemeChange(this._applyTheme, this);
+		this._globalToDispose.push(this.themeService.onThemeChange(this._applyTheme, this));
+		this._globalToDispose.push(this.editor.onDidChangeConfiguration(e => {
+			if (e.fontInfo) {
+				this._applyTheme(this.themeService.getTheme());
+			}
+		}));
 		this._applyTheme(this.themeService.getTheme());
 
 		this._markdownRenderer = new MarkdownRenderer(editor, this.modeService, this.openerService);
@@ -157,6 +164,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	public get onDidClose(): Event<ReviewZoneWidget> {
 		return this._onDidClose.event;
+	}
+
+	public get onDidCreateThread(): Event<ReviewZoneWidget> {
+		return this._onDidCreateThread.event;
 	}
 
 	protected revealLine(lineNumber: number) {
@@ -168,8 +179,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
 
-		this._bodyElement.focus();
-
 		if (commentId) {
 			let height = this.editor.getLayoutInfo().height;
 			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.commentId === commentId);
@@ -178,7 +187,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
 
 				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
-				matchedNode[0].focus();
 				return;
 			}
 		}
@@ -188,53 +196,40 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
-		this._headElement = <HTMLDivElement>$('.head').getHTMLElement();
+		this._headElement = <HTMLDivElement>dom.$('.head');
 		container.appendChild(this._headElement);
 		this._fillHead(this._headElement);
 
-		this._bodyElement = <HTMLDivElement>$('.body').getHTMLElement();
+		this._bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(this._bodyElement);
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		var titleElement = $('.review-title').
-			appendTo(this._headElement).
-			getHTMLElement();
+		var titleElement = dom.append(this._headElement, dom.$('.review-title'));
 
-		this._primaryHeading = $('span.filename').appendTo(titleElement).getHTMLElement();
-		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
-		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
+		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
+		this.createThreadLabel();
 
-		if (this._commentThread.comments.length) {
-			this.createParticipantsLabel();
-		}
-
-		const actionsContainer = $('.review-actions').appendTo(this._headElement);
-		this._actionbarWidget = new ActionBar(actionsContainer.getHTMLElement(), {});
+		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
+		this._actionbarWidget = new ActionBar(actionsContainer, {});
 		this._disposables.push(this._actionbarWidget);
 
-		this._toggleAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
-			if (this._isCollapsed) {
-				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
-				this._toggleAction.label = nls.localize('label.collapse', "Collapse");
+		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => {
+			if (this._commentThread.comments.length === 0) {
+				this.dispose();
+				return null;
 			}
-			else {
-				if (this._commentThread.comments.length === 0) {
-					this.dispose();
-					return null;
-				}
-				this._isCollapsed = true;
-				this.hide();
-				this._toggleAction.label = nls.localize('label.expand', "Expand");
-			}
+			this._isCollapsed = true;
+			this.hide();
+
 			return null;
 		});
 
-		this._actionbarWidget.push(this._toggleAction, { label: false, icon: true });
+		this._actionbarWidget.push(this._collapseAction, { label: false, icon: true });
 	}
 
 	toggleExpand() {
-		this._toggleAction.run();
+		this._collapseAction.run();
 	}
 
 	update(commentThread: modes.CommentThread) {
@@ -284,12 +279,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
-		let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+		this.createThreadLabel();
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 42 /* margin */ });
+		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
 	display(lineNumber: number, commentsOptions: ModelDecorationOptions) {
@@ -299,29 +293,11 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this._localToDispose.push(this.editor.onDidChangeModelContent((e) => {
-			// If the widget has been opened, the position is set and can be relied on for updating the glyph position
-			if (this.position) {
-				if (this.position.lineNumber !== this._commentGlyph.getPosition().position.lineNumber) {
-					this._commentGlyph.setLineNumber(this.position.lineNumber);
-				}
-			} else {
-				// Otherwise manually calculate position change :(
-				const positionChange = e.changes.map(change => {
-					if (change.range.startLineNumber < change.range.endLineNumber) {
-						return change.range.startLineNumber - change.range.endLineNumber;
-					} else {
-						return change.text.split(e.eol).length - 1;
-					}
-				}).reduce((prev, curr) => prev + curr, 0);
-				this._commentGlyph.setLineNumber(this._commentGlyph.getPosition().position.lineNumber + positionChange);
-			}
-		}));
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
 
-		this._commentsElement = $('div.comments-container').appendTo(this._bodyElement).getHTMLElement();
+		this._commentsElement = dom.append(this._bodyElement, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
 
 		this._commentElements = [];
@@ -332,7 +308,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		const hasExistingComments = this._commentThread.comments.length > 0;
-		this._commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+		this._commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
@@ -367,15 +343,15 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			}
 
-			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && ev.ctrlKey) {
+			if (this._commentEditor.getModel().getValueLength() !== 0 && ev.keyCode === KeyCode.Enter && (ev.ctrlKey || ev.metaKey)) {
 				let lineNumber = this._commentGlyph.getPosition().position.lineNumber;
 				this.createComment(lineNumber);
 			}
 		}));
 
-		this._error = $('.validation-error.hidden').appendTo(this._commentForm).getHTMLElement();
+		this._error = dom.append(this._commentForm, dom.$('.validation-error.hidden'));
 
-		const formActions = $('.form-actions').appendTo(this._commentForm).getHTMLElement();
+		const formActions = dom.append(this._commentForm, dom.$('.form-actions'));
 
 		const button = new Button(formActions);
 		attachButtonStyler(button, this.themeService);
@@ -417,9 +393,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private async createComment(lineNumber: number): Promise<void> {
 		try {
 			let newCommentThread;
+			const isReply = this._commentThread.threadId !== null;
 
-			if (this._commentThread.threadId) {
-				// reply
+			if (isReply) {
 				newCommentThread = await this.commentService.replyToCommentThread(
 					this._owner,
 					this.editor.getModel().uri,
@@ -437,7 +413,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 				if (newCommentThread) {
 					this.createReplyButton();
-					this.createParticipantsLabel();
 				}
 			}
 
@@ -450,6 +425,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this._error.textContent = '';
 				dom.addClass(this._error, 'hidden');
 				this.update(newCommentThread);
+
+				if (!isReply) {
+					this._onDidCreateThread.fire(this);
+				}
 			}
 		} catch (e) {
 			this._error.textContent = e.message
@@ -460,20 +439,23 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 	}
 
-	createParticipantsLabel() {
-		const primaryHeading = 'Participants:';
-		$(this._primaryHeading).safeInnerHtml(primaryHeading);
-		this._primaryHeading.setAttribute('aria-label', primaryHeading);
+	private createThreadLabel() {
+		let label: string;
+		if (this._commentThread.comments.length) {
+			const participantsList = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+			label = nls.localize('commentThreadParticipants', "Participants: {0}", participantsList);
+		} else {
+			label = nls.localize('startThread', "Start discussion");
+		}
 
-		const secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
-		this._secondaryHeading.setAttribute('aria-label', secondaryHeading);
+		this._headingLabel.innerHTML = strings.escape(label);
+		this._headingLabel.setAttribute('aria-label', label);
 	}
 
-	createReplyButton() {
-		this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
-		this._reviewThreadReplyButton.title = 'Reply...';
-		this._reviewThreadReplyButton.textContent = 'Reply...';
+	private createReplyButton() {
+		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$('button.review-thread-reply-button'));
+		this._reviewThreadReplyButton.title = nls.localize('reply', "Reply...");
+		this._reviewThreadReplyButton.textContent = nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea
 		this._reviewThreadReplyButton.onclick = () => {
 			if (!dom.hasClass(this._commentForm, 'expand')) {
@@ -507,7 +489,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (model) {
 			let valueLength = model.getValueLength();
 			const hasExistingComments = this._commentThread.comments.length > 0;
-			let placeholder = valueLength > 0 ? '' : (hasExistingComments ? 'Reply... (press Ctrl+Enter to submit)' : 'Type a new comment (press Ctrl+Enter to submit)');
+			let keybinding = platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter';
+			let placeholder = valueLength > 0
+				? ''
+				: (hasExistingComments
+					? `Reply... (press ${keybinding} to submit)`
+					: `Type a new comment (press ${keybinding} to submit)`);
 			const decorations = [{
 				range: {
 					startLineNumber: 0,
@@ -588,7 +575,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.show({ lineNumber: lineNumber, column: 1 }, 2);
 			} else {
 				this.hide();
-				if (this._commentThread === null) {
+				if (this._commentThread === null || this._commentThread.threadId === null) {
 					this.dispose();
 				}
 			}
@@ -645,6 +632,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { background: ${errorBackground}; }`);
 		}
 
+		const errorForeground = theme.getColor(inputValidationErrorForeground);
+		if (errorForeground) {
+			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
+		}
+
+		const fontInfo = this.editor.getConfiguration().fontInfo;
+		content.push(`.monaco-editor .review-widget .body code {
+			font-family: ${fontInfo.fontFamily};
+			font-size: ${fontInfo.fontSize}px;
+			font-weight: ${fontInfo.fontWeight};
+		}`);
+
 		this._styleElement.innerHTML = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
@@ -674,6 +673,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentGlyph = null;
 		}
 
+		this._globalToDispose.forEach(global => global.dispose());
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}

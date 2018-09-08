@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
+import { KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, OpenIssueReporterAction, ReportPerformanceIssueUsingReporterAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ShowAboutDialogAction, InspectContextKeysAction, OpenProcessExplorer, OpenTwitterUrlAction, OpenRequestFeatureUrlAction, OpenPrivacyStatementUrlAction, OpenLicenseUrlAction, OpenRecentAction } from 'vs/workbench/electron-browser/actions';
 import { registerCommands, QUIT_ID } from 'vs/workbench/electron-browser/commands';
 import { AddRootFolderAction, GlobalRemoveRootFolderAction, OpenWorkspaceAction, SaveWorkspaceAsAction, OpenWorkspaceConfigFileAction, DuplicateWorkspaceInNewWindowAction, OpenFileFolderAction, OpenFileAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -22,6 +22,8 @@ import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ADD_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { FileDialogContext, IsMacContext } from 'vs/platform/workbench/common/contextkeys';
 
 // Contribute Commands
 registerCommands();
@@ -37,11 +39,12 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Switch
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 
+const isLocal = FileDialogContext.isEqualTo('local');
 if (isMacintosh) {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, isLocal), 'File: Open...', fileCategory, isLocal);
 } else {
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }, isLocal), 'File: Open File...', fileCategory, isLocal);
+	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }, isLocal), 'File: Open Folder...', fileCategory, isLocal);
 }
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseWorkspaceAction, CloseWorkspaceAction.ID, CloseWorkspaceAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'File: Close Workspace', fileCategory);
@@ -105,10 +108,10 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Increa
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DecreaseViewSizeAction, DecreaseViewSizeAction.ID, DecreaseViewSizeAction.LABEL, null), 'View: Decrease Current View Size', viewCategory);
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL), 'Workspaces: Add Folder to Workspace...', workspacesCategory, isLocal);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalRemoveRootFolderAction, GlobalRemoveRootFolderAction.ID, GlobalRemoveRootFolderAction.LABEL), 'Workspaces: Remove Folder from Workspace...', workspacesCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkspaceAction, OpenWorkspaceAction.ID, OpenWorkspaceAction.LABEL), 'Workspaces: Open Workspace...', workspacesCategory, isLocal);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory, isLocal);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory);
 
 CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccessor => {
@@ -124,7 +127,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 // Developer related actions
 const developerCategory = nls.localize('developer', "Developer");
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowStartupPerformance, ShowStartupPerformance.ID, ShowStartupPerformance.LABEL), 'Developer: Startup Performance', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSharedProcessAction, ToggleSharedProcessAction.ID, ToggleSharedProcessAction.LABEL), 'Developer: Toggle Shared Process', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenProcessExplorer, OpenProcessExplorer.ID, OpenProcessExplorer.LABEL), 'Developer: Open Process Explorer', developerCategory);
@@ -162,34 +164,35 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 2
 });
 
-if (!isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: OpenFileAction.ID,
-			title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-		},
-		order: 1
-	});
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenFileAction.ID,
+		title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
+	},
+	order: 1,
+	when: ContextKeyExpr.and(IsMacContext.toNegated(), isLocal)
+});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: OpenFolderAction.ID,
-			title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-		},
-		order: 2
-	});
-} else {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: OpenFileFolderAction.ID,
-			title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
-		},
-		order: 1
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenFolderAction.ID,
+		title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
+	},
+	order: 2,
+	when: ContextKeyExpr.and(IsMacContext.toNegated(), isLocal)
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '2_open',
+	command: {
+		id: OpenFileFolderAction.ID,
+		title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
+	},
+	order: 1,
+	when: ContextKeyExpr.and(IsMacContext, isLocal)
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '2_open',
@@ -197,7 +200,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: OpenWorkspaceAction.ID,
 		title: nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")
 	},
-	order: 3
+	order: 3,
+	when: isLocal
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -221,10 +225,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '3_workspace',
 	command: {
-		id: AddRootFolderAction.ID,
+		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace...")
 	},
-	order: 1
+	order: 1,
+	when: isLocal
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -233,17 +238,17 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SaveWorkspaceAsAction.ID,
 		title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
 	},
-	order: 2
+	order: 2,
+	when: isLocal
 });
 
-if (!isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
-		submenu: MenuId.MenubarPreferencesMenu,
-		group: '5_autosave',
-		order: 2
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	title: nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+	submenu: MenuId.MenubarPreferencesMenu,
+	group: '5_autosave',
+	order: 2,
+	when: IsMacContext.toNegated()
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
@@ -275,16 +280,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 4
 });
 
-if (!isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: 'z_Exit',
-		command: {
-			id: QUIT_ID,
-			title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
-		},
-		order: 1
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: 'z_Exit',
+	command: {
+		id: QUIT_ID,
+		title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+	},
+	order: 1,
+	when: IsMacContext.toNegated()
+});
 
 // Appereance menu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
@@ -456,16 +460,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 });
 
 // About
-if (!isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: 'z_about',
-		command: {
-			id: 'workbench.action.showAboutDialog',
-			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
-		},
-		order: 1
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+	group: 'z_about',
+	command: {
+		id: 'workbench.action.showAboutDialog',
+		title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+	},
+	order: 1,
+	when: IsMacContext.toNegated()
+});
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -648,13 +651,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['ui', 'json'],
 			'enumDescriptions': [
-				nls.localize('settings.editor.json', "Use the JSON file editor."),
 				nls.localize('settings.editor.ui', "Use the settings UI editor."),
+				nls.localize('settings.editor.json', "Use the JSON file editor."),
 			],
 			'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 			'default': 'ui',
-			'scope': ConfigurationScope.WINDOW,
-			'tags': ['new']
+			'scope': ConfigurationScope.WINDOW
 		},
 		'workbench.enableExperiments': {
 			'type': 'boolean',
@@ -711,7 +713,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': isMacintosh ? 'off' : 'on',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+			'markdownDescription': nls.localize('openWithoutArgumentsInNewWindow', "Controls whether a new empty window should open when starting a second instance without arguments or if the last running instance should get focus.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 		},
 		'window.restoreWindows': {
 			'type': 'string',
@@ -791,7 +793,7 @@ configurationRegistry.registerConfiguration({
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
-			'default': isMacintosh ? 'custom' : 'native',
+			'default': isLinux ? 'native' : 'custom',
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		},

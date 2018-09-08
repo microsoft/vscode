@@ -202,7 +202,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				this.emit('data', new File({
 					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
 					base: data.base,
-					contents: new Buffer(toExternalDTS(data.contents.toString()))
+					contents: Buffer.from(toExternalDTS(data.contents.toString()))
 				}));
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),

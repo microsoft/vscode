@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 
-export interface IEvent {
+export interface IContextMenuEvent {
 	shiftKey?: boolean;
 	ctrlKey?: boolean;
 	altKey?: boolean;
@@ -27,7 +27,7 @@ export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; };
 	getActions(): TPromise<(IAction | ContextSubMenu)[]>;
 	getActionItem?(action: IAction): IActionItem;
-	getActionsContext?(event?: IEvent): any;
+	getActionsContext?(event?: IContextMenuEvent): any;
 	getKeyBinding?(action: IAction): ResolvedKeybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;

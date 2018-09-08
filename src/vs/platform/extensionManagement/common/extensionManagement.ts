@@ -11,8 +11,9 @@ import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -122,6 +123,7 @@ export interface IExtensionManifest {
 	main?: string;
 	icon?: string;
 	categories?: string[];
+	keywords?: string[];
 	activationEvents?: string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
@@ -199,7 +201,7 @@ export interface IGalleryMetadata {
 	publisherDisplayName: string;
 }
 
-export enum LocalExtensionType {
+export const enum LocalExtensionType {
 	System,
 	User
 }
@@ -218,7 +220,7 @@ export interface ILocalExtension {
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
-export enum SortBy {
+export const enum SortBy {
 	NoneOrRelevance = 0,
 	LastUpdatedDate = 1,
 	Title = 2,
@@ -229,7 +231,7 @@ export enum SortBy {
 	WeightedRating = 12
 }
 
-export enum SortOrder {
+export const enum SortOrder {
 	Default = 0,
 	Ascending = 1,
 	Descending = 2
@@ -245,7 +247,7 @@ export interface IQueryOptions {
 	source?: string;
 }
 
-export enum StatisticType {
+export const enum StatisticType {
 	Uninstall = 'uninstall'
 }
 
@@ -254,8 +256,9 @@ export interface IReportedExtension {
 	malicious: boolean;
 }
 
-export enum InstallOperation {
-	Install = 1,
+export const enum InstallOperation {
+	None = 0,
+	Install,
 	Update
 }
 
@@ -269,13 +272,14 @@ export interface IExtensionGalleryService {
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
 	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
-	getReadme(extension: IGalleryExtension): TPromise<string>;
-	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
-	getChangelog(extension: IGalleryExtension): TPromise<string>;
+	getReadme(extension: IGalleryExtension, token: CancellationToken): TPromise<string>;
+	getManifest(extension: IGalleryExtension, token: CancellationToken): TPromise<IExtensionManifest>;
+	getChangelog(extension: IGalleryExtension, token: CancellationToken): TPromise<string>;
 	getCoreTranslation(extension: IGalleryExtension, languageId: string): TPromise<ITranslation>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
-	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
+	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
+	getExtension(id: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension>;
 }
 
 export interface InstallExtensionEvent {
@@ -306,7 +310,9 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	install(zipPath: string): TPromise<void>;
+	zip(extension: ILocalExtension): TPromise<URI>;
+	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier>;
+	install(vsix: URI): TPromise<IExtensionIdentifier>;
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
@@ -331,7 +337,7 @@ export interface IExtensionManagementServerService {
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 
-export enum EnablementState {
+export const enum EnablementState {
 	Disabled,
 	WorkspaceDisabled,
 	Enabled,
@@ -421,7 +427,7 @@ export interface IExtensionTipsService {
 	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
-export enum ExtensionRecommendationReason {
+export const enum ExtensionRecommendationReason {
 	Workspace,
 	File,
 	Executable,

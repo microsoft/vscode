@@ -5,7 +5,7 @@
 'use strict';
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -82,7 +82,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnFileDelete = true; // default
+			this.closeOnFileDelete = false; // default
 		}
 	}
 
@@ -148,7 +148,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && resources.isEqualOrParent(resource, movedTo, resources.hasToIgnoreCase(resource)) && resource.path.indexOf(movedTo.path) === 0) {
+				if (movedTo && resources.isEqualOrParent(resource, movedTo)) {
 					return;
 				}
 
@@ -156,7 +156,7 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = resources.isEqualOrParent(resource, arg1, resources.hasToIgnoreCase(resource));
+					matches = resources.isEqualOrParent(resource, arg1);
 				}
 
 				if (!matches) {
@@ -218,12 +218,12 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(input => {
-				if (input instanceof FileEditorInput) {
-					const resource = input.getResource();
+			group.editors.forEach(editor => {
+				if (editor instanceof FileEditorInput) {
+					const resource = editor.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (resources.isEqualOrParent(resource, oldResource, resources.hasToIgnoreCase(resource))) {
+					if (resources.isEqualOrParent(resource, oldResource)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
@@ -232,17 +232,19 @@ export class FileEditorTracker extends Disposable implements IWorkbenchContribut
 							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
-						// Reopen
-						this.editorService.openEditor({
-							resource: reopenFileResource,
-							options: {
-								preserveFocus: true,
-								pinned: group.isPinned(input),
-								index: group.getIndexOfEditor(input),
-								inactive: !group.isActive(input),
-								viewState: this.getViewStateFor(oldResource, group)
-							}
-						}, group);
+						this.editorService.replaceEditors([{
+							editor: { resource },
+							replacement: {
+								resource: reopenFileResource,
+								options: {
+									preserveFocus: true,
+									pinned: group.isPinned(editor),
+									index: group.getIndexOfEditor(editor),
+									inactive: !group.isActive(editor),
+									viewState: this.getViewStateFor(oldResource, group)
+								}
+							},
+						}], group);
 					}
 				}
 			});

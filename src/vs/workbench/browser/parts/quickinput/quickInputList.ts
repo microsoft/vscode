@@ -35,6 +35,9 @@ const $ = dom.$;
 interface IListElement {
 	index: number;
 	item: IQuickPickItem;
+	saneLabel: string;
+	saneDescription?: string;
+	saneDetail?: string;
 	checked: boolean;
 	separator: IQuickPickSeparator;
 	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -43,6 +46,9 @@ interface IListElement {
 class ListElement implements IListElement {
 	index: number;
 	item: IQuickPickItem;
+	saneLabel: string;
+	saneDescription?: string;
+	saneDetail?: string;
 	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
@@ -137,13 +143,18 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 		// Label
 		const options: IIconLabelValueOptions = Object.create(null);
 		options.matches = labelHighlights || [];
-		options.descriptionTitle = element.item.description;
+		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
-		data.label.setValue(element.item.label, element.item.description, options);
+		data.label.setValue(element.saneLabel, element.saneDescription, options);
 
 		// Meta
-		data.detail.set(element.item.detail, detailHighlights);
+		data.detail.set(element.saneDetail, detailHighlights);
+
+		// ARIA label
+		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
+			.filter(s => !!s)
+			.join(', '));
 
 		// Separator
 		if (element.separator && element.separator.label) {
@@ -192,7 +203,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 	getHeight(element: ListElement): number {
-		return element.item.detail ? 44 : 22;
+		return element.saneDetail ? 44 : 22;
 	}
 
 	getTemplateId(element: ListElement): string {
@@ -202,6 +213,7 @@ class ListElementDelegate implements IVirtualDelegate<ListElement> {
 
 export class QuickInputList {
 
+	readonly id: string;
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
 	private inputElements: (IQuickPickItem | IQuickPickSeparator)[];
@@ -227,14 +239,18 @@ export class QuickInputList {
 
 	constructor(
 		private parent: HTMLElement,
+		id: string,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
+			openController: { shouldOpen: () => false }, // Workaround #58124
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
+		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
@@ -266,11 +282,6 @@ export class QuickInputList {
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
-			}
-		}));
-		this.disposables.push(this.list.onSelectionChange(e => {
-			if (e.elements.length) {
-				this.list.setSelection([]);
 			}
 		}));
 	}
@@ -349,6 +360,9 @@ export class QuickInputList {
 				result.push(new ListElement({
 					index,
 					item,
+					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
+					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
+					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
@@ -376,6 +390,10 @@ export class QuickInputList {
 		this.list.setFocus(items
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)));
+	}
+
+	getActiveDescendant() {
+		return this.list.getHTMLElement().getAttribute('aria-activedescendant');
 	}
 
 	getSelectedElements() {
@@ -460,9 +478,9 @@ export class QuickInputList {
 		// Filter by value (since we support octicons, use octicon aware fuzzy matching)
 		else {
 			this.elements.forEach(element => {
-				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.item.label));
-				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.description || '')) : undefined;
-				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.item.detail || '')) : undefined;
+				const labelHighlights = matchesFuzzyOcticonAware(query, parseOcticons(element.saneLabel));
+				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
+				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
 
 				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
@@ -553,7 +571,7 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 1;
 	}
 
-	return compareAnything(elementA.item.label, elementB.item.label, lookFor);
+	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
 }
 
 registerThemingParticipant((theme, collector) => {

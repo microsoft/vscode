@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -41,7 +41,7 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
+		mockWorkspace = new Workspace('workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
 
 		instantiationService.stub(IWorkspaceContextService, mockContextService);

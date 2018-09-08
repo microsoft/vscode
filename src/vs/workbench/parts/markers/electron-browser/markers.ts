@@ -10,7 +10,7 @@ import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/com
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
 import Constants from './constants';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

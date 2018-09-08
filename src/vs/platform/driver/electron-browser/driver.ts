@@ -7,13 +7,14 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driver';
-import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IWindowDriver, IElement, WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
+import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Terminal } from 'vscode-xterm';
+import { timeout } from 'vs/base/common/async';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -62,7 +63,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Element not found'));
+			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
 		}
 
 		const { left, top } = getTopLeftOffset(element as HTMLElement);
@@ -86,12 +87,12 @@ class WindowDriver implements IWindowDriver {
 	private _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
 		return this._getElementXY(selector, xoffset, yoffset).then(({ x, y }) => {
 
-			const webContents = electron.remote.getCurrentWebContents();
+			const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
 			webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 
-			return TPromise.timeout(10).then(() => {
+			return TPromise.wrap(timeout(10)).then(() => {
 				webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
-				return TPromise.timeout(100);
+				return TPromise.wrap(timeout(100));
 			});
 		});
 	}
@@ -100,7 +101,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Element not found'));
+			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
 		}
 
 		const inputElement = element as HTMLInputElement;
@@ -132,7 +133,7 @@ class WindowDriver implements IWindowDriver {
 				el = el.parentElement;
 			}
 
-			return TPromise.wrapError(new Error(`Active element not found. Current active element is '${chain.join(' > ')}'`));
+			return TPromise.wrapError(new Error(`Active element not found. Current active element is '${chain.join(' > ')}'. Looking for ${selector}`));
 		}
 
 		return TPromise.as(true);
@@ -154,7 +155,7 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Editor not found: ' + selector));
+			return TPromise.wrapError(new Error(`Editor not found: ${selector}`));
 		}
 
 		const textarea = element as HTMLTextAreaElement;
@@ -176,13 +177,13 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Terminal not found: ' + selector));
+			return TPromise.wrapError(new Error(`Terminal not found: ${selector}`));
 		}
 
 		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
-			return TPromise.wrapError(new Error('Xterm not found: ' + selector));
+			return TPromise.wrapError(new Error(`Xterm not found: ${selector}`));
 		}
 
 		const lines: string[] = [];
@@ -198,13 +199,13 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (!element) {
-			return TPromise.wrapError(new Error('Element not found'));
+			return TPromise.wrapError(new Error(`Element not found: ${selector}`));
 		}
 
 		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
-			return TPromise.wrapError(new Error('Xterm not found'));
+			return TPromise.wrapError(new Error(`Xterm not found: ${selector}`));
 		}
 
 		xterm._core.handler(text);

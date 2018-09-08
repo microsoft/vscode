@@ -5,7 +5,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { EditorInput, EditorModel, GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
@@ -17,7 +17,6 @@ import { WebviewElement } from './webviewElement';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
-
 
 	private static _styleElement?: HTMLStyleElement;
 
@@ -66,7 +65,6 @@ export class WebviewEditorInput extends EditorInput {
 	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
 	private _state: any;
-	private _webviewState: string | undefined;
 
 	private _revived: boolean = false;
 
@@ -75,6 +73,7 @@ export class WebviewEditorInput extends EditorInput {
 
 	constructor(
 		public readonly viewType: string,
+		id: number | undefined,
 		name: string,
 		options: WebviewInputOptions,
 		state: any,
@@ -84,7 +83,14 @@ export class WebviewEditorInput extends EditorInput {
 		@IPartService private readonly _partService: IPartService,
 	) {
 		super();
-		this._id = WebviewEditorInput.handlePool++;
+
+		if (typeof id === 'number') {
+			this._id = id;
+			WebviewEditorInput.handlePool = Math.max(id, WebviewEditorInput.handlePool) + 1;
+		} else {
+			this._id = WebviewEditorInput.handlePool++;
+		}
+
 		this._name = name;
 		this._options = options;
 		this._events = events;
@@ -154,7 +160,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public matches(other: IEditorInput): boolean {
-		return other && other === this;
+		return other === this || (other instanceof WebviewEditorInput && other._id === this._id);
 	}
 
 	public get group(): GroupIdentifier | undefined {
@@ -187,7 +193,7 @@ export class WebviewEditorInput extends EditorInput {
 	}
 
 	public get webviewState() {
-		return this._webviewState;
+		return this._state.state;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -259,7 +265,7 @@ export class WebviewEditorInput extends EditorInput {
 		}, null, this._webviewDisposables);
 
 		this._webview.onDidUpdateState(newState => {
-			this._webviewState = newState;
+			this._state.state = newState;
 		}, null, this._webviewDisposables);
 	}
 

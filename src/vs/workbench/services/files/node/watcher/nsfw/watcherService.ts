@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/nsfw/watcherIpc';
@@ -39,9 +39,9 @@ export class FileWatcher {
 
 	public startWatching(): () => void {
 		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap'),
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
-				serverName: 'Watcher',
+				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',

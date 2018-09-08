@@ -370,7 +370,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 
 		// TODO: Base the cwd on the last active workspace root
-		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 		const initialCwd = os.homedir();
 
@@ -415,8 +415,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $acceptProcessShutdown(id: number): void {
-		this._terminalProcesses[id].shutdown();
+	public $acceptProcessShutdown(id: number, immediate: boolean): void {
+		this._terminalProcesses[id].shutdown(immediate);
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {

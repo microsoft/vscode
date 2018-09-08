@@ -97,7 +97,8 @@ export abstract class TitleControl extends Themable {
 
 	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
 		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-		config.onDidChange(value => {
+		this._register(config.onDidChange(() => {
+			const value = config.getValue();
 			if (!value && this.breadcrumbsControl) {
 				this.breadcrumbsControl.dispose();
 				this.breadcrumbsControl = undefined;
@@ -107,8 +108,8 @@ export abstract class TitleControl extends Themable {
 				this.breadcrumbsControl.update();
 				this.handleBreadcrumbsEnablementChange();
 			}
-		});
-		if (config.value) {
+		}));
+		if (config.getValue()) {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
 	}

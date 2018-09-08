@@ -67,7 +67,7 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
-export enum ConfigurationScope {
+export const enum ConfigurationScope {
 	APPLICATION = 1,
 	WINDOW,
 	RESOURCE,
@@ -76,7 +76,6 @@ export enum ConfigurationScope {
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
 	scope?: ConfigurationScope;
-	notMultiRootAdopted?: boolean;
 	included?: boolean;
 	tags?: string[];
 }

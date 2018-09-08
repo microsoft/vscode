@@ -174,7 +174,7 @@ class ModelRawTokenScanner {
 			this._model.forceTokenization(this._lineNumber);
 			this._lineTokens = this._model.getLineTokens(this._lineNumber);
 			this._tokenIndex = 0;
-			if (this._lineTokens.getCount() === 0) {
+			if (this._lineTokens.getLineContent().length === 0) {
 				// Skip empty lines
 				this._lineTokens = null;
 			}

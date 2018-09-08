@@ -26,6 +26,8 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRe
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { asThenable } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -482,8 +484,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				if (this.outlineToModelCache[modelId]) {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
-
-				return getDocumentSymbols(<ITextModel>model).then(entries => {
+				// TODO@Ben - QuickOpenHandler#getResult should support cancellation
+				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, CancellationToken.None)).then(entries => {
 
 					const model = new OutlineModel(this.toQuickOpenEntries(entries));
 
@@ -491,7 +493,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					this.outlineToModelCache[modelId] = model;
 
 					return model;
-				});
+				}));
 			}
 		}
 

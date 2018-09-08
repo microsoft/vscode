@@ -7,7 +7,7 @@
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
@@ -60,12 +60,14 @@ export interface IHistoryService {
 	 * Looking at the editor history, returns the workspace root of the last file that was
 	 * inside the workspace and part of the editor history.
 	 *
-	 * @param schemeFilter optional filter to restrict roots by scheme.
+	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI;
+	getLastActiveWorkspaceRoot(schemeFilter: string): URI;
 
 	/**
-	 * Looking at the editor history, returns the resource of the last file tht was opened.
+	 * Looking at the editor history, returns the resource of the last file that was opened.
+	 *
+	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveFile(): URI;
+	getLastActiveFile(schemeFilter: string): URI;
 }

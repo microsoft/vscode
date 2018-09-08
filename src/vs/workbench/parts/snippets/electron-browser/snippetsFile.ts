@@ -13,7 +13,7 @@ import { basename, extname } from 'path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 export class Snippet {

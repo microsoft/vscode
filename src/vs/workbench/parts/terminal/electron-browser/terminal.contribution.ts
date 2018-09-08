@@ -110,10 +110,19 @@ configurationRegistry.registerConfiguration({
 		},
 		'terminal.integrated.shellArgs.windows': {
 			markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
-			type: 'array',
-			items: {
-				type: 'string'
-			},
+			'anyOf': [
+				{
+					type: 'array',
+					items: {
+						type: 'string',
+						markdownDescription: nls.localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+					},
+				},
+				{
+					type: 'string',
+					markdownDescription: nls.localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+				}
+			],
 			default: []
 		},
 		'terminal.integrated.macOptionIsMeta': {

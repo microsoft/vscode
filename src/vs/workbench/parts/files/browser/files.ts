@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { toResource } from 'vs/workbench/common/editor';

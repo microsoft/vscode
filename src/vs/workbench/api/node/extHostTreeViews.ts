@@ -7,14 +7,14 @@
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import { basename } from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
@@ -68,7 +68,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		};
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]> {
+	$getChildren(treeViewId: string, treeItemHandle?: string): Thenable<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
@@ -167,7 +167,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	getChildren(parentHandle?: TreeItemHandle): TPromise<ITreeItem[]> {
+	getChildren(parentHandle?: TreeItemHandle): Thenable<ITreeItem[]> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : void 0;
 		if (parentHandle && !parentElement) {
 			console.error(`No tree item with id \'${parentHandle}\' found.`);
@@ -222,7 +222,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private resolveUnknownParentChain(element: T): TPromise<TreeNode[]> {
+	private resolveUnknownParentChain(element: T): Thenable<TreeNode[]> {
 		return this.resolveParent(element)
 			.then((parent) => {
 				if (!parent) {
@@ -237,16 +237,16 @@ class ExtHostTreeView<T> extends Disposable {
 			});
 	}
 
-	private resolveParent(element: T): TPromise<T> {
+	private resolveParent(element: T): Thenable<T> {
 		const node = this.nodes.get(element);
 		if (node) {
 			return TPromise.as(node.parent ? this.elements.get(node.parent.item.handle) : null);
 		}
-		return asWinJsPromise(() => this.dataProvider.getParent(element));
+		return asThenable(() => this.dataProvider.getParent(element));
 	}
 
-	private resolveTreeNode(element: T, parent?: TreeNode): TPromise<TreeNode> {
-		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
+	private resolveTreeNode(element: T, parent?: TreeNode): Thenable<TreeNode> {
+		return asThenable(() => this.dataProvider.getTreeItem(element))
 			.then(extTreeItem => this.createHandle(element, extTreeItem, parent, true))
 			.then(handle => this.getChildren(parent ? parent.item.handle : null)
 				.then(() => {
@@ -275,21 +275,21 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.roots;
 	}
 
-	private fetchChildrenNodes(parentElement?: T): TPromise<TreeNode[]> {
+	private fetchChildrenNodes(parentElement?: T): Thenable<TreeNode[]> {
 		// clear children cache
 		this.clearChildren(parentElement);
 
 		const parentNode = parentElement ? this.nodes.get(parentElement) : void 0;
-		return asWinJsPromise(() => this.dataProvider.getChildren(parentElement))
+		return asThenable(() => this.dataProvider.getChildren(parentElement))
 			.then(elements => TPromise.join(
 				(elements || [])
 					.filter(element => !!element)
-					.map(element => asWinJsPromise(() => this.dataProvider.getTreeItem(element))
+					.map(element => asThenable(() => this.dataProvider.getTreeItem(element))
 						.then(extTreeItem => extTreeItem ? this.createAndRegisterTreeNode(element, extTreeItem, parentNode) : null))))
 			.then(nodes => nodes.filter(n => !!n));
 	}
 
-	private refresh(elements: T[]): TPromise<void> {
+	private refresh(elements: T[]): Thenable<void> {
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
 			this.clearAll(); // clear cache
@@ -345,11 +345,11 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(() => Object.keys(itemsToRefresh).length ? this.proxy.$refresh(this.viewId, itemsToRefresh) : null);
 	}
 
-	private refreshNode(treeItemHandle: TreeItemHandle): TPromise<TreeNode> {
+	private refreshNode(treeItemHandle: TreeItemHandle): Thenable<TreeNode> {
 		const extElement = this.getExtensionElement(treeItemHandle);
 		const existing = this.nodes.get(extElement);
 		this.clearChildren(extElement); // clear children cache
-		return asWinJsPromise(() => this.dataProvider.getTreeItem(extElement))
+		return asThenable(() => this.dataProvider.getTreeItem(extElement))
 			.then(extTreeItem => {
 				if (extTreeItem) {
 					const newNode = this.createTreeNode(extElement, extTreeItem, existing.parent);
@@ -426,7 +426,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return handle;
 	}
 
-	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
+	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| extensionTreeItem.iconPath instanceof URI) {
@@ -437,18 +437,18 @@ class ExtHostTreeView<T> extends Disposable {
 		return void 0;
 	}
 
-	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): string {
+	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI {
 		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath['dark']) {
 			return this.getIconPath(extensionTreeItem.iconPath['dark']);
 		}
 		return void 0;
 	}
 
-	private getIconPath(iconPath: string | URI): string {
+	private getIconPath(iconPath: string | URI): URI {
 		if (iconPath instanceof URI) {
-			return iconPath.toString();
+			return iconPath;
 		}
-		return URI.file(iconPath).toString();
+		return URI.file(iconPath);
 	}
 
 	private addNodeToCache(element: T, node: TreeNode): void {

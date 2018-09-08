@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';

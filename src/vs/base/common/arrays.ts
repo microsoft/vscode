@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ISplice } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
+import { ISplice } from 'vs/base/common/sequence';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * Returns the last element of an array.
@@ -267,7 +268,7 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
 				}
 				if (token && token.isCancellationRequested) {
-					throw new Error('canceled');
+					throw canceled();
 				}
 				topStep(array, compare, result, i, m);
 			}
@@ -513,4 +514,15 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 		arr.splice(index, 1);
 		arr.push(value);
 	}
+}
+
+export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+	for (let i = 0; i < arr.length; i++) {
+		const element = arr[i];
+		if (predicate(element, i, arr)) {
+			return element;
+		}
+	}
+
+	return undefined;
 }

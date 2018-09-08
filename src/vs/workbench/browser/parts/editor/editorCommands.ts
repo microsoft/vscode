@@ -13,7 +13,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -227,7 +227,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.nextChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, true)
 	});
 
@@ -235,7 +235,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.previousChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 

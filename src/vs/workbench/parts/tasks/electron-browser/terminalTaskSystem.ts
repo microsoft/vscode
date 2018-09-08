@@ -354,7 +354,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return;
 				}
 				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
+				terminal.processReady.then(() => {
 					processStartedSignaled = true;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
 				}, (_error) => {
@@ -415,7 +415,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return;
 				}
 				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
+				terminal.processReady.then(() => {
 					processStartedSignaled = true;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
 				}, (_error) => {

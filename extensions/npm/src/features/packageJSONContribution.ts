@@ -34,16 +34,8 @@ export class PackageJSONContribution implements IJSONContribution {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(httprequestxhr: XHRRequest) {
-		const getxhr = () => {
-			return workspace.getConfiguration('npm').get('fetchOnlinePackageInfo') === false ? xhrDisabled : httprequestxhr;
-		};
-		this.xhr = getxhr();
-		workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('npm.fetchOnlinePackageInfo')) {
-				this.xhr = getxhr();
-			}
-		});
+	public constructor(xhr: XHRRequest) {
+		this.xhr = xhr;
 	}
 
 	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {
@@ -62,6 +54,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
+	private onlineEnabled() {
+		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
+	}
+
 	public collectPropertySuggestions(
 		_resource: string,
 		location: Location,
@@ -70,6 +66,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		isLast: boolean,
 		collector: ISuggestionsCollector
 	): Thenable<any> | null {
+		if (!this.onlineEnabled()) {
+			return null;
+		}
+
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
@@ -219,6 +219,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		location: Location,
 		result: ISuggestionsCollector
 	): Thenable<any> | null {
+		if (!this.onlineEnabled()) {
+			return null;
+		}
+
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {

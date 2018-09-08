@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -89,10 +89,13 @@ export interface IInputBoxStyleOverrides extends IStyleOverrides {
 	inputActiveOptionBorder?: ColorIdentifier;
 	inputValidationInfoBorder?: ColorIdentifier;
 	inputValidationInfoBackground?: ColorIdentifier;
+	inputValidationInfoForeground?: ColorIdentifier;
 	inputValidationWarningBorder?: ColorIdentifier;
 	inputValidationWarningBackground?: ColorIdentifier;
+	inputValidationWarningForeground?: ColorIdentifier;
 	inputValidationErrorBorder?: ColorIdentifier;
 	inputValidationErrorBackground?: ColorIdentifier;
+	inputValidationErrorForeground?: ColorIdentifier;
 }
 
 export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: IInputBoxStyleOverrides): IDisposable {
@@ -102,10 +105,13 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 		inputBorder: (style && style.inputBorder) || inputBorder,
 		inputValidationInfoBorder: (style && style.inputValidationInfoBorder) || inputValidationInfoBorder,
 		inputValidationInfoBackground: (style && style.inputValidationInfoBackground) || inputValidationInfoBackground,
+		inputValidationInfoForeground: (style && style.inputValidationInfoForeground) || inputValidationInfoForeground,
 		inputValidationWarningBorder: (style && style.inputValidationWarningBorder) || inputValidationWarningBorder,
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
+		inputValidationWarningForeground: (style && style.inputValidationWarningForeground) || inputValidationWarningForeground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
-		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground
+		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground,
+		inputValidationErrorForeground: (style && style.inputValidationErrorForeground) || inputValidationErrorForeground
 	} as IInputBoxStyleOverrides, widget);
 }
 
@@ -129,7 +135,8 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listHoverForeground: (style && style.listHoverForeground) || listHoverForeground,
-		listHoverOutline: (style && style.listFocusOutline) || activeContrastBorder
+		listHoverOutline: (style && style.listFocusOutline) || activeContrastBorder,
+		selectListBorder: (style && style.selectListBorder) || editorWidgetBorder
 	} as ISelectBoxStyleOverrides, widget);
 }
 
@@ -141,10 +148,13 @@ export function attachFindInputBoxStyler(widget: IThemable, themeService: ITheme
 		inputActiveOptionBorder: (style && style.inputActiveOptionBorder) || inputActiveOptionBorder,
 		inputValidationInfoBorder: (style && style.inputValidationInfoBorder) || inputValidationInfoBorder,
 		inputValidationInfoBackground: (style && style.inputValidationInfoBackground) || inputValidationInfoBackground,
+		inputValidationInfoForeground: (style && style.inputValidationInfoForeground) || inputValidationInfoForeground,
 		inputValidationWarningBorder: (style && style.inputValidationWarningBorder) || inputValidationWarningBorder,
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
+		inputValidationWarningForeground: (style && style.inputValidationWarningForeground) || inputValidationWarningForeground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
-		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground
+		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground,
+		inputValidationErrorForeground: (style && style.inputValidationErrorForeground) || inputValidationErrorForeground
 	} as IInputBoxStyleOverrides, widget);
 }
 
@@ -171,10 +181,13 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		inputBorder: (style && style.inputBorder) || inputBorder,
 		inputValidationInfoBorder: (style && style.inputValidationInfoBorder) || inputValidationInfoBorder,
 		inputValidationInfoBackground: (style && style.inputValidationInfoBackground) || inputValidationInfoBackground,
+		inputValidationInfoForeground: (style && style.inputValidationInfoForeground) || inputValidationInfoForeground,
 		inputValidationWarningBorder: (style && style.inputValidationWarningBorder) || inputValidationWarningBorder,
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
+		inputValidationWarningForeground: (style && style.inputValidationWarningForeground) || inputValidationWarningForeground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
 		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground,
+		inputValidationErrorForeground: (style && style.inputValidationErrorForeground) || inputValidationErrorForeground,
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
 		listFocusForeground: (style && style.listFocusForeground) || listFocusForeground,
 		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || listActiveSelectionBackground,
@@ -263,8 +276,8 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 	return attachStyler(themeService, colors, callback);
 }
 
-export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
-	breadcrumbsBackground?: ColorIdentifier;
+export interface IBreadcrumbsWidgetStyleOverrides extends IColorMapping {
+	breadcrumbsBackground?: ColorIdentifier | ColorFunction;
 	breadcrumbsForeground?: ColorIdentifier;
 	breadcrumbsHoverForeground?: ColorIdentifier;
 	breadcrumbsFocusForeground?: ColorIdentifier;
@@ -272,7 +285,7 @@ export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
 }
 
 export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
-	breadcrumbsBackground: editorBackground,
+	breadcrumbsBackground: breadcrumbsBackground,
 	breadcrumbsForeground: breadcrumbsForeground,
 	breadcrumbsHoverForeground: breadcrumbsFocusForeground,
 	breadcrumbsFocusForeground: breadcrumbsFocusForeground,

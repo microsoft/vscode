@@ -5,8 +5,7 @@
 
 import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
-import uri from 'vs/base/common/uri';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { URI as uri } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
@@ -188,9 +187,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
 				const focusedSession = this.debugService.getViewModel().focusedSession;
 				const completions = focusedSession ? focusedSession.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
-				return wireCancellationToken(token, completions.then(suggestions => ({
+				return completions.then(suggestions => ({
 					suggestions
-				})));
+				}));
 			}
 		});
 

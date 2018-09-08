@@ -14,41 +14,39 @@ import { domContentLoaded } from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import * as comparer from 'vs/base/common/comparers';
 import * as platform from 'vs/base/common/platform';
-import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
+import { URI as uri } from 'vs/base/common/uri';
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { realpath } from 'vs/base/node/pfs';
+import { stat } from 'vs/base/node/pfs';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import * as gracefulFs from 'graceful-fs';
-import { TimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWindowConfiguration, IWindowsService } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { StorageService, inMemoryLocalStorageInstance, IStorage } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { webFrame } from 'electron';
-import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
+import { UpdateChannelClient } from 'vs/platform/update/node/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/common/urlIpc';
+import { URLHandlerChannel, URLServiceChannelClient } from 'vs/platform/url/node/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
-import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
+import { WorkspacesChannelClient } from 'vs/platform/workspaces/node/workspacesIpc';
 import { IWorkspacesService, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import * as fs from 'fs';
 import { ConsoleLogService, MultiplexLogService, ILogService } from 'vs/platform/log/common/log';
-import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
+import { IssueChannelClient } from 'vs/platform/issue/node/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { RelayURLService } from 'vs/platform/url/common/urlService';
-import { MenubarChannelClient } from 'vs/platform/menubar/common/menubarIpc';
+import { MenubarChannelClient } from 'vs/platform/menubar/node/menubarIpc';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { Schemas } from 'vs/base/common/network';
+import { sanitizeFilePath } from 'vs/base/node/extfs';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -105,7 +103,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
-		const timerService = new TimerService(configuration, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
 		return domContentLoaded().then(() => {
@@ -117,7 +114,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 				configurationService: workspaceService,
 				environmentService,
 				logService,
-				timerService,
 				storageService
 			}, mainServices, mainProcessClient, configuration);
 			shell.open();
@@ -150,30 +146,15 @@ function validateFolderUri(folderUri: ISingleFolderWorkspaceIdentifier, verbose:
 		return TPromise.as(folderUri);
 	}
 
-	// Otherwise: use realpath to resolve symbolic links to the truth
-	return realpath(folderUri.fsPath).then(realFolderPath => {
-
-		// For some weird reason, node adds a trailing slash to UNC paths
-		// we never ever want trailing slashes as our workspace path unless
-		// someone opens root ("/").
-		// See also https://github.com/nodejs/io.js/issues/1765
-		if (paths.isUNC(realFolderPath) && strings.endsWith(realFolderPath, paths.nativeSep)) {
-			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
-		}
-
-		return uri.file(realFolderPath);
-	}, error => {
+	// Ensure absolute existing folder path
+	const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
+	return stat(sanitizedFolderPath).then(stat => uri.file(sanitizedFolderPath), error => {
 		if (verbose) {
 			errors.onUnexpectedError(error);
 		}
 
 		// Treat any error case as empty workbench case (no folder path)
 		return null;
-
-	}).then(realFolderUriOrNull => {
-
-		// Update config with real path if we have one
-		return realFolderUriOrNull;
 	});
 }
 

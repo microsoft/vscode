@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -505,9 +505,15 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#openAboutDialog');
 		const lastActiveWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 
+		let version = app.getVersion();
+
+		if (product.target) {
+			version = `${version} (${product.target} setup)`;
+		}
+
 		const detail = nls.localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nArchitecture: {7}",
-			app.getVersion(),
+			version,
 			product.commit || 'Unknown',
 			product.date || 'Unknown',
 			process.versions['electron'],

@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, chain, mapEvent, anyEvent, filterEvent, latch } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
@@ -107,9 +106,9 @@ class StatusBarActionItem extends ActionItem {
 		super(null, action, {});
 	}
 
-	_updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
-			this.$e.innerHtml(renderOcticons(this.getAction().label));
+			this.label.innerHTML = renderOcticons(this.getAction().label);
 		}
 	}
 }
@@ -956,7 +955,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private open(e: ISCMResource): void {
-		e.open().done(undefined, onUnexpectedError);
+		e.open();
 	}
 
 	private pin(): void {
@@ -1005,8 +1004,7 @@ export class RepositoryPanel extends ViewletPanel {
 		const id = this.repository.provider.acceptInputCommand.id;
 		const args = this.repository.provider.acceptInputCommand.arguments;
 
-		this.commandService.executeCommand(id, ...args)
-			.done(undefined, onUnexpectedError);
+		this.commandService.executeCommand(id, ...args);
 	}
 
 	dispose(): void {

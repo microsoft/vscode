@@ -29,7 +29,7 @@ import { scheduleAtNextAnimationFrame, Dimension, addClass } from 'vs/base/brows
 import { Color } from 'vs/base/common/color';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
@@ -87,24 +87,18 @@ export class ActivitybarPart extends Part {
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
 
-		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, void 0);
-		if (previousState) {
-			let parsedPreviousState = <IPlaceholderComposite[]>JSON.parse(previousState);
-			parsedPreviousState.forEach((s) => {
-				if (typeof s.iconUrl === 'object') {
-					s.iconUrl = URI.revive(s.iconUrl);
-				} else {
-					s.iconUrl = void 0;
-				}
-			});
-			this.placeholderComposites = parsedPreviousState;
-		} else {
-			this.placeholderComposites = this.compositeBar.getCompositesFromStorage().map(id => (<IPlaceholderComposite>{ id, iconUrl: void 0 }));
-		}
+		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, '[]');
+		this.placeholderComposites = <IPlaceholderComposite[]>JSON.parse(previousState);
+		this.placeholderComposites.forEach((s) => {
+			if (typeof s.iconUrl === 'object') {
+				s.iconUrl = URI.revive(s.iconUrl);
+			} else {
+				s.iconUrl = void 0;
+			}
+		});
 
 		this.registerListeners();
 		this.updateCompositebar();
-		this.updatePlaceholderComposites();
 	}
 
 	private registerListeners(): void {
@@ -119,7 +113,7 @@ export class ActivitybarPart extends Part {
 			if (enabled) {
 				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
 			} else {
-				this.removeComposite(id);
+				this.removeComposite(id, true);
 			}
 		}));
 
@@ -127,7 +121,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	private onDidRegisterExtensions(): void {
-		this.removeNotExistingPlaceholderComposites();
+		this.removeNotExistingComposites();
 		this.updateCompositebar();
 	}
 
@@ -244,7 +238,7 @@ export class ActivitybarPart extends Part {
 			} else {
 				const placeHolderComposite = this.placeholderComposites.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, placeHolderComposite.iconUrl),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, placeHolderComposite && placeHolderComposite.iconUrl),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -274,26 +268,21 @@ export class ActivitybarPart extends Part {
 		}
 	}
 
-	private updatePlaceholderComposites(): void {
-		const viewlets = this.viewletService.getViewlets();
-		for (const { id } of this.placeholderComposites) {
+	private removeNotExistingComposites(): void {
+		const viewlets = this.viewletService.getAllViewlets();
+		for (const { id } of this.compositeBar.getComposites()) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
-				this.compositeBar.addComposite({ id, name: id, order: void 0 });
+				this.removeComposite(id, false);
 			}
 		}
 	}
 
-	private removeNotExistingPlaceholderComposites(): void {
-		const viewlets = this.viewletService.getViewlets();
-		for (const { id } of this.placeholderComposites) {
-			if (viewlets.every(viewlet => viewlet.id !== id)) {
-				this.removeComposite(id);
-			}
+	private removeComposite(compositeId: string, hide: boolean): void {
+		if (hide) {
+			this.compositeBar.hideComposite(compositeId);
+		} else {
+			this.compositeBar.removeComposite(compositeId);
 		}
-	}
-
-	private removeComposite(compositeId: string): void {
-		this.compositeBar.removeComposite(compositeId);
 		const compositeActions = this.compositeActions[compositeId];
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
@@ -337,7 +326,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	shutdown(): void {
-		const state = this.viewletService.getViewlets().map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
+		const state = this.viewletService.getAllViewlets().map(({ id, iconUrl }) => ({ id, iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 
 		super.shutdown();

@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/workbench/browser/labels';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { getIconClasses } from 'vs/workbench/browser/labels';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export class OpenRawDefaultSettingsAction extends Action {
 
@@ -45,16 +44,15 @@ export class OpenSettings2Action extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService2: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService2.openSettings2();
+		return this.preferencesService.openSettings(false);
 	}
 }
-
 
 export class OpenSettingsAction extends Action {
 
@@ -64,16 +62,13 @@ export class OpenSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IPreferencesService private preferencesService: IPreferencesService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json' ?
-			this.preferencesService.openSettings() :
-			this.preferencesService.openSettings2();
+		return this.preferencesService.openSettings();
 	}
 }
 
@@ -91,7 +86,7 @@ export class OpenSettingsJsonAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService.openSettings();
+		return this.preferencesService.openSettings(true);
 	}
 }
 
@@ -104,15 +99,12 @@ export class OpenGlobalSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json' ?
-			this.preferencesService.openGlobalSettings() :
-			this.preferencesService.openSettings2();
+		return this.preferencesService.openGlobalSettings();
 	}
 }
 
@@ -181,8 +173,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super(id, label);
 		this.update();
@@ -194,9 +185,7 @@ export class OpenWorkspaceSettingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.configurationService.getValue('workbench.settings.editor') === 'json' ?
-			this.preferencesService.openWorkspaceSettings() :
-			this.preferencesService.openSettings2();
+		return this.preferencesService.openWorkspaceSettings();
 	}
 
 	public dispose(): void {
@@ -219,9 +208,8 @@ export class OpenFolderSettingsAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(id, label);
 		this.update();
@@ -234,17 +222,14 @@ export class OpenFolderSettingsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		if (this.configurationService.getValue('workbench.settings.editor') === 'json') {
-			return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
-				.then(workspaceFolder => {
-					if (workspaceFolder) {
-						return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder.uri);
-					}
-					return null;
-				});
-		} else {
-			return this.preferencesService.openSettings2();
-		}
+		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
+			.then(workspaceFolder => {
+				if (workspaceFolder) {
+					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
+				}
+
+				return null;
+			});
 	}
 
 	public dispose(): void {

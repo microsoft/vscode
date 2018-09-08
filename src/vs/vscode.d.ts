@@ -1232,22 +1232,39 @@ declare module 'vscode' {
 	export class Uri {
 
 		/**
+		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
+		 * `file:///usr/home`, or `scheme:with/path`.
+		 *
+		 * @see [Uri.toString](#Uri.toString)
+		 * @param value The string value of an Uri.
+		 * @return A new Uri instance.
+		 */
+		static parse(value: string): Uri;
+
+		/**
 		 * Create an URI from a file system path. The [scheme](#Uri.scheme)
 		 * will be `file`.
+		 *
+		 * The *difference* between `Uri#parse` and `Uri#file` is that the latter treats the argument
+		 * as path, not as stringified-uri. E.g. `Uri.file(path)` is *not* the same as
+		 * `Uri.parse('file://' + path)` because the path might contain characters that are
+		 * interpreted (# and ?). See the following sample:
+		 * ```ts
+		const good = URI.file('/coding/c#/project1');
+		good.scheme === 'file';
+		good.path === '/coding/c#/project1';
+		good.fragment === '';
+
+		const bad = URI.parse('file://' + '/coding/c#/project1');
+		bad.scheme === 'file';
+		bad.path === '/coding/c'; // path is now broken
+		bad.fragment === '/project1';
+		```
 		 *
 		 * @param path A file system or UNC path.
 		 * @return A new Uri instance.
 		 */
 		static file(path: string): Uri;
-
-		/**
-		 * Create an URI from a string. Will throw if the given value is not
-		 * valid.
-		 *
-		 * @param value The string value of an Uri.
-		 * @return A new Uri instance.
-		 */
-		static parse(value: string): Uri;
 
 		/**
 		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
@@ -1285,8 +1302,21 @@ declare module 'vscode' {
 		 * The string representing the corresponding file system path of this Uri.
 		 *
 		 * Will handle UNC paths and normalize windows drive letters to lower-case. Also
-		 * uses the platform specific path separator. Will *not* validate the path for
-		 * invalid characters and semantics. Will *not* look at the scheme of this Uri.
+		 * uses the platform specific path separator.
+		 *
+		 * * Will *not* validate the path for invalid characters and semantics.
+		 * * Will *not* look at the scheme of this Uri.
+		 * * The resulting string shall *not* be used for display purposes but
+		 * for disk operations, like `readFile` et al.
+		 *
+		 * The *difference* to the [`path`](#Uri.path)-property is the use of the platform specific
+		 * path separator and the handling of UNC paths. The sample below outlines the difference:
+		 * ```ts
+		const u = URI.parse('file://server/c$/folder/file.txt')
+		u.authority === 'server'
+		u.path === '/shares/c$/file.txt'
+		u.fsPath === '\\server\c$\folder\file.txt'
+		```
 		 */
 		readonly fsPath: string;
 
@@ -1308,8 +1338,10 @@ declare module 'vscode' {
 
 		/**
 		 * Returns a string representation of this Uri. The representation and normalization
-		 * of a URI depends on the scheme. The resulting string can be safely used with
-		 * [Uri.parse](#Uri.parse).
+		 * of a URI depends on the scheme.
+		 *
+		 * * The resulting string can be safely used with [Uri.parse](#Uri.parse).
+		 * * The resulting string shall *not* be used for display purposes.
 		 *
 		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
 		 *	the `#` and `?` characters occurring in the path will always be encoded.
@@ -2483,7 +2515,7 @@ declare module 'vscode' {
 		 * @param name The name of the symbol.
 		 * @param kind The kind of the symbol.
 		 * @param containerName The name of the symbol containing the symbol.
-		 * @param location The the location of the symbol.
+		 * @param location The location of the symbol.
 		 */
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
@@ -4505,6 +4537,13 @@ declare module 'vscode' {
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
 		storagePath: string | undefined;
+
+		/**
+		 * An absolute file path of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 */
+		logPath: string;
 	}
 
 	/**

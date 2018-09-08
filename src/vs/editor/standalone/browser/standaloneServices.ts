@@ -33,7 +33,7 @@ import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/st
 import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
-	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService, SimpleUriDisplayService
+	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService, SimpleUriLabelService
 } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -44,7 +44,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -122,7 +122,7 @@ export module StaticServices {
 
 	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
-	export const uriDisplayService = define(IUriDisplayService, () => new SimpleUriDisplayService());
+	export const labelService = define(ILabelService, () => new SimpleUriLabelService());
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 

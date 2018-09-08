@@ -419,12 +419,15 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Mark preferred size as changed
 		this.resetPreferredSize();
 
-		// Events for groupd that got added
+		// Events for groups that got added
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
 			if (currentGroupViews.indexOf(groupView) === -1) {
 				this._onDidAddGroup.fire(groupView);
 			}
 		});
+
+		// Update labels
+		this.updateGroupLabels();
 
 		// Restore focus as needed
 		if (gridHasFocus) {
@@ -474,6 +477,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Event
 		this._onDidAddGroup.fire(newGroupView);
+
+		// Update labels
+		this.updateGroupLabels();
 
 		return newGroupView;
 	}
@@ -631,12 +637,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this._activeGroup.focus();
 		}
 
-		// Update labels: since our labels are created using the index of the
-		// group, removing a group might produce gaps. So we iterate over all
-		// groups and reassign the label based on the index.
-		this.getGroups(GroupsOrder.CREATION_TIME).forEach((group, index) => {
-			group.setLabel(this.getGroupLabel(index + 1));
-		});
+		// Update labels
+		this.updateGroupLabels();
 
 		// Update container
 		this.updateContainer();
@@ -646,10 +648,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
-	}
-
-	private getGroupLabel(index: number): string {
-		return localize('groupLabel', "Group {0}", index);
 	}
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
@@ -885,6 +883,21 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private updateContainer(): void {
 		toggleClass(this.container, 'empty', this.isEmpty());
+	}
+
+	private updateGroupLabels(): void {
+
+		// Since our labels are created using the index of the
+		// group, adding/removing a group might produce gaps.
+		// So we iterate over all groups and reassign the label
+		// based on the index.
+		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => {
+			group.setLabel(this.getGroupLabel(index + 1));
+		});
+	}
+
+	private getGroupLabel(index: number): string {
+		return localize('groupLabel', "Group {0}", index);
 	}
 
 	private isEmpty(): boolean {

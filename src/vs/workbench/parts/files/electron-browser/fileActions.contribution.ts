@@ -23,8 +23,9 @@ import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/wor
 import { AutoSaveContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { FileDialogContext } from 'vs/platform/workbench/common/contextkeys';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -114,8 +115,8 @@ const copyRelativePathCommand = {
 
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
-appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.HasResource, copyRelativePathCommand);
-appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.HasResource);
+appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, copyRelativePathCommand);
+appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
 function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, alt?: { id: string, title: string }): void {
 
@@ -154,13 +155,14 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconLoca
 
 // Menu registration - command palette
 
-function appendToCommandPalette(id: string, title: string, category: string): void {
+function appendToCommandPalette(id: string, title: string, category: string, when?: ContextKeyExpr): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,
 			title,
 			category
-		}
+		},
+		when
 	});
 }
 appendToCommandPalette(COPY_PATH_COMMAND_ID, nls.localize('copyPathOfActive', "Copy Path of Active File"), category);
@@ -171,7 +173,7 @@ appendToCommandPalette(SAVE_FILES_COMMAND_ID, nls.localize('saveFiles', "Save Al
 appendToCommandPalette(REVERT_FILE_COMMAND_ID, nls.localize('revert', "Revert File"), category);
 appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), category);
 appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, category);
-appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category);
+appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category, FileDialogContext.isEqualTo('local'));
 appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, nls.localize('closeEditor', "Close Editor"), nls.localize('view', "View"));
 appendToCommandPalette(NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, category);
 appendToCommandPalette(NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, category);
@@ -186,7 +188,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFileSystemResource
 });
 
 const revealInOsCommand = {
@@ -197,7 +199,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
 	order: 20,
 	command: revealInOsCommand,
-	when: ResourceContextKey.Scheme.isEqualTo(Schemas.file)
+	when: ResourceContextKey.IsFileSystemResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -205,7 +207,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	order: 40,
 	command: copyPathCommand,
 	alt: copyRelativePathCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFileSystemResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -216,7 +218,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: SAVE_FILE_LABEL,
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -227,7 +229,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('revert', "Revert File"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''))
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -256,7 +258,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: nls.localize('compareWithSaved', "Compare with Saved"),
 		precondition: DirtyEditorContext
 	},
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''), WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, AutoSaveContext.notEqualsTo('afterDelay') && AutoSaveContext.notEqualsTo(''), WorkbenchListDoubleSelection.toNegated())
 });
 
 const compareResourceCommand = {
@@ -267,7 +269,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
 	command: compareResourceCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ResourceSelectedForCompareContext, WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResourceOrUntitled, ResourceSelectedForCompareContext, WorkbenchListDoubleSelection.toNegated())
 });
 
 const selectForCompareCommand = {
@@ -278,7 +280,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: selectForCompareCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, WorkbenchListDoubleSelection.toNegated())
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResourceOrUntitled, WorkbenchListDoubleSelection.toNegated())
 });
 
 const compareSelectedCommand = {
@@ -289,7 +291,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
 	command: compareSelectedCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, WorkbenchListDoubleSelection)
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResourceOrUntitled, WorkbenchListDoubleSelection)
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -415,7 +417,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 30,
 	command: copyPathCommand,
 	alt: copyRelativePathCommand,
-	when: ResourceContextKey.HasResource
+	when: ResourceContextKey.IsFileSystemResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -425,7 +427,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: ADD_ROOT_FOLDER_LABEL
 	},
-	when: ExplorerRootContext
+	when: ContextKeyExpr.and(ExplorerRootContext, FileDialogContext.isEqualTo('local'))
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -505,7 +507,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
 	},
-	order: 2
+	order: 2,
+	when: FileDialogContext.isEqualTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

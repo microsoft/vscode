@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
@@ -350,7 +350,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			const picks = candidates.map(c => ({ label: c.label, debugger: c }));
 			return this.quickInputService.pick<(typeof picks)[0]>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
-					if (picked.debugger) {
+					if (picked && picked.debugger) {
 						return picked.debugger;
 					}
 					if (picked) {
@@ -442,7 +442,7 @@ class Launch implements ILaunch {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+	public openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
 		const resource = this.uri;
 		let created = false;
 
@@ -487,6 +487,7 @@ class Launch implements ILaunch {
 				resource,
 				options: {
 					selection,
+					preserveFocus,
 					pinned: created,
 					revealIfVisible: true
 				},
@@ -521,8 +522,11 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
-		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration }).then(editor => ({ editor, created: false }));
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.editorService.openEditor({
+			resource: this.contextService.getWorkspace().configuration,
+			options: { preserveFocus }
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created: false }));
 	}
 }
 
@@ -555,7 +559,7 @@ class UserLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').user;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
-		return this.preferencesService.openGlobalSettings().then(editor => ({ editor, created: false }));
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.preferencesService.openGlobalSettings(false, { preserveFocus }).then(editor => ({ editor, created: false }));
 	}
 }

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditor, EditorOptions } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -18,6 +18,8 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localize } from 'vs/nls';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export interface ISettingsGroup {
 	id: string;
@@ -47,7 +49,7 @@ export interface ISetting {
 	overrideOf?: ISetting;
 	deprecationMessage?: string;
 
-	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
+	scope?: ConfigurationScope;
 	type?: string | string[];
 	enum?: string[];
 	enumDescriptions?: string[];
@@ -120,7 +122,7 @@ export interface IFilterMetadata {
 }
 
 export interface IPreferencesEditorModel<T> {
-	uri: URI;
+	uri?: URI;
 	getPreference(key: string): T;
 	dispose(): void;
 }
@@ -134,6 +136,45 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
 	updateResultGroup(id: string, resultGroup: ISearchResultGroup): IFilterResult;
+}
+
+export interface ISettingsEditorOptions extends IEditorOptions {
+	target?: ConfigurationTarget;
+	folderUri?: URI;
+	query?: string;
+}
+
+/**
+ * TODO Why do we need this class?
+ */
+export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
+
+	target?: ConfigurationTarget;
+	folderUri?: URI;
+	query?: string;
+
+	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
+		if (!settings) {
+			return null;
+		}
+
+		const options = new SettingsEditorOptions();
+
+		options.target = settings.target;
+		options.folderUri = settings.folderUri;
+		options.query = settings.query;
+
+		// IEditorOptions
+		options.preserveFocus = settings.preserveFocus;
+		options.forceReload = settings.forceReload;
+		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
+		options.pinned = settings.pinned;
+		options.index = settings.index;
+		options.inactive = settings.inactive;
+
+		return options;
+	}
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -150,14 +191,14 @@ export interface IPreferencesService {
 
 	resolveModel(uri: URI): TPromise<ITextModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
+	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): TPromise<IEditor>;
-	openSettings(): TPromise<IEditor>;
-	openSettings2(): TPromise<IEditor>;
-	openGlobalSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openWorkspaceSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
-	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
+	openSettings(jsonEditor?: boolean): TPromise<IEditor>;
+	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 	openDefaultKeybindingsFile(): TPromise<IEditor>;
 

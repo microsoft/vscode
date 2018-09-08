@@ -12,7 +12,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 namespace schema {
 

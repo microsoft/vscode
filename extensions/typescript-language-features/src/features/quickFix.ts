@@ -179,6 +179,10 @@ class SupportedCodeActionProvider {
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
+	public static readonly metadata: vscode.CodeActionProviderMetadata = {
+		providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+	};
+
 	private readonly supportedCodeActionProvider: SupportedCodeActionProvider;
 
 	constructor(
@@ -312,5 +316,6 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, API.v213, () =>
 		vscode.languages.registerCodeActionsProvider(selector,
-			new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter)));
+			new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter),
+			TypeScriptQuickFixProvider.metadata));
 }

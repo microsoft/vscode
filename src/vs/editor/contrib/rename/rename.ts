@@ -18,7 +18,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -28,8 +27,9 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorS
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class RenameSkeleton {
 
@@ -46,13 +46,13 @@ class RenameSkeleton {
 		return this._provider.length > 0;
 	}
 
-	async resolveRenameLocation(): Promise<RenameLocation> {
+	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation> {
 
 		let [provider] = this._provider;
 		let res: RenameLocation;
 
 		if (provider.resolveRenameLocation) {
-			res = await asWinJsPromise(token => provider.resolveRenameLocation(this.model, this.position, token));
+			res = await provider.resolveRenameLocation(this.model, this.position, token);
 		}
 
 		if (!res) {
@@ -68,7 +68,7 @@ class RenameSkeleton {
 		return res;
 	}
 
-	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], position: Position = this.position): Promise<WorkspaceEdit> {
+	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit> {
 
 		if (i >= this._provider.length) {
 			return {
@@ -78,18 +78,18 @@ class RenameSkeleton {
 		}
 
 		let provider = this._provider[i];
-		let result = await asWinJsPromise((token) => provider.provideRenameEdits(this.model, this.position, newName, token));
+		let result = await provider.provideRenameEdits(this.model, this.position, newName, token);
 		if (!result) {
-			return this.provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")));
+			return this.provideRenameEdits(newName, i + 1, rejects.concat(nls.localize('no result', "No result.")), token);
 		} else if (result.rejectReason) {
-			return this.provideRenameEdits(newName, i + 1, rejects.concat(result.rejectReason));
+			return this.provideRenameEdits(newName, i + 1, rejects.concat(result.rejectReason), token);
 		}
 		return result;
 	}
 }
 
 export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit> {
-	return new RenameSkeleton(model, position).provideRenameEdits(newName);
+	return new RenameSkeleton(model, position).provideRenameEdits(newName, undefined, undefined, CancellationToken.None);
 }
 
 // ---  register actions and commands
@@ -127,7 +127,7 @@ class RenameController implements IEditorContribution {
 		return RenameController.ID;
 	}
 
-	public async run(): Promise<void> {
+	public async run(token: CancellationToken): Promise<void> {
 
 		const position = this.editor.getPosition();
 		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
@@ -138,7 +138,7 @@ class RenameController implements IEditorContribution {
 
 		let loc: RenameLocation;
 		try {
-			loc = await skeleton.resolveRenameLocation();
+			loc = await skeleton.resolveRenameLocation(token);
 		} catch (e) {
 			MessageController.get(this.editor).showMessage(e, position);
 			return undefined;
@@ -172,7 +172,7 @@ class RenameController implements IEditorContribution {
 
 			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-			const renameOperation = TPromise.wrap(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], Range.lift(loc.range).getStartPosition()).then(result => {
+			const renameOperation = Promise.resolve(skeleton.provideRenameEdits(newNameOrFocusFlag, 0, [], token).then(result => {
 				if (result.rejectReason) {
 					if (state.validate(this.editor)) {
 						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
@@ -191,7 +191,7 @@ class RenameController implements IEditorContribution {
 
 			}, err => {
 				this._notificationService.error(nls.localize('rename.failed', "Rename failed to execute."));
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}));
 
 			this._progressService.showWhile(renameOperation, 250);
@@ -199,7 +199,7 @@ class RenameController implements IEditorContribution {
 
 		}, err => {
 			this._renameInputVisible.reset();
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		});
 	}
 
@@ -254,7 +254,7 @@ export class RenameAction extends EditorAction {
 	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = RenameController.get(editor);
 		if (controller) {
-			return TPromise.wrap(controller.run());
+			return TPromise.wrap(controller.run(CancellationToken.None));
 		}
 		return undefined;
 	}

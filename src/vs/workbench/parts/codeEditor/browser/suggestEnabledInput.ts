@@ -5,30 +5,33 @@
 
 'use strict';
 
-import 'vs/css!./media/suggestEnabledInput';
-import { $, addClass, append, removeClass, Dimension } from 'vs/base/browser/dom';
+import { $, addClass, append, Dimension, removeClass } from 'vs/base/browser/dom';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Color } from 'vs/base/common/color';
 import { chain, Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
+import 'vs/css!./media/suggestEnabledInput';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { attachStyler, IStyleOverrides, IThemable } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Component } from 'vs/workbench/common/component';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 interface SuggestResultsProvider {
 	/**
@@ -68,7 +71,29 @@ interface SuggestEnabledInputOptions {
 	focusContextKey?: IContextKey<boolean>;
 }
 
-export class SuggestEnabledInput extends Component {
+export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
+	inputBackground?: ColorIdentifier;
+	inputForeground?: ColorIdentifier;
+	inputBorder?: ColorIdentifier;
+	inputPlaceholderForeground?: ColorIdentifier;
+}
+
+type ISuggestEnabledInputStyles = {
+	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
+};
+
+
+export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
+	return attachStyler(themeService, {
+		inputBackground: (style && style.inputBackground) || inputBackground,
+		inputForeground: (style && style.inputForeground) || inputForeground,
+		inputBorder: (style && style.inputBorder) || inputBorder,
+		inputPlaceholderForeground: (style && style.inputPlaceholderForeground) || inputPlaceholderForeground,
+	} as ISuggestEnabledInputStyleOverrides, widget);
+}
+
+
+export class SuggestEnabledInput extends Widget implements IThemable {
 
 	private _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
@@ -91,11 +116,10 @@ export class SuggestEnabledInput extends Component {
 		ariaLabel: string,
 		resourceHandle: string,
 		options: SuggestEnabledInputOptions,
-		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 	) {
-		super(id, themeService);
+		super();
 
 		this.stylingContainer = append(parent, $('.suggest-input-container'));
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', null, options.placeholderText || ''));
@@ -168,7 +192,8 @@ export class SuggestEnabledInput extends Component {
 
 	public setValue(val: string) {
 		val = val.replace(/\s/g, ' ');
-		this.inputWidget.setValue(val);
+		const fullRange = new Range(1, 1, 1, this.getValue().length + 1);
+		this.inputWidget.executeEdits('suggestEnabledInput.setValue', [EditOperation.replace(fullRange, val)]);
 		this.inputWidget.setScrollTop(0);
 		this.inputWidget.setPosition(new Position(1, val.length + 1));
 	}
@@ -178,26 +203,29 @@ export class SuggestEnabledInput extends Component {
 	}
 
 
-	public updateStyles(): void {
-		super.updateStyles();
+	public style(colors: ISuggestEnabledInputStyles): void {
+		this.stylingContainer.style.backgroundColor = colors.inputBackground && colors.inputBackground.toString();
+		this.stylingContainer.style.color = colors.inputForeground && colors.inputForeground.toString();
+		this.placeholderText.style.color = colors.inputPlaceholderForeground && colors.inputPlaceholderForeground.toString();
 
-		this.stylingContainer.style.backgroundColor = this.getColor(inputBackground);
-		this.stylingContainer.style.color = this.getColor(inputForeground);
-		this.placeholderText.style.color = this.getColor(inputPlaceholderForeground);
+		this.stylingContainer.style.borderWidth = '1px';
+		this.stylingContainer.style.borderStyle = 'solid';
+		this.stylingContainer.style.borderColor = colors.inputBorder ?
+			colors.inputBorder.toString() :
+			'transparent';
 
-		const inputBorderColor = this.getColor(inputBorder);
-		this.stylingContainer.style.borderWidth = inputBorderColor ? '1px' : null;
-		this.stylingContainer.style.borderStyle = inputBorderColor ? 'solid' : null;
-		this.stylingContainer.style.borderColor = inputBorderColor;
-
-		let cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
+		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = this.getColor(inputForeground);
+			cursor.style.backgroundColor = colors.inputForeground && colors.inputForeground.toString();
 		}
 	}
 
 	public focus(): void {
 		this.inputWidget.focus();
+
+		if (this.inputWidget.getValue()) {
+			this.selectAll();
+		}
 	}
 
 	public layout(dimension: Dimension): void {
@@ -205,7 +233,7 @@ export class SuggestEnabledInput extends Component {
 		this.placeholderText.style.width = `${dimension.width}px`;
 	}
 
-	public selectAll(): void {
+	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
 	}
 

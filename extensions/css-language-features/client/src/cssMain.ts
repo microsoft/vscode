@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import * as path from 'path';
+import * as fs from 'fs';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -14,8 +15,9 @@ import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Di
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
 
-	// The server is implemented in node
-	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'cssServerMain.js'));
+	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
+	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=6044'] };
 
@@ -117,6 +119,15 @@ export function activate(context: ExtensionContext) {
 				}
 			});
 		}
+	}
+}
+
+function readJSONFile(location: string) {
+	try {
+		return JSON.parse(fs.readFileSync(location).toString());
+	} catch (e) {
+		console.log(`Problems reading ${location}: ${e}`);
+		return {};
 	}
 }
 

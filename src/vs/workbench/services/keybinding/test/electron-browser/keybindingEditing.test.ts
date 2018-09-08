@@ -86,7 +86,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ILogService, new TestLogService());
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			instantiationService.stub(IFileService, new FileService(
-				new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))),
+				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
 				TestEnvironmentService,
 				new TestTextResourceConfigurationService(),
 				new TestConfigurationService(),

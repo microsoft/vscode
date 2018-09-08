@@ -6,7 +6,7 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -48,9 +48,6 @@ export class WebviewElement extends Disposable {
 		super();
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
-
-		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.setAttribute('disableguestresize', '');
 		this._webview.setAttribute('webpreferences', 'contextIsolation=yes');
@@ -265,6 +262,16 @@ export class WebviewElement extends Disposable {
 		this._contents = value;
 		this._send('content', {
 			contents: value,
+			options: this._options,
+			state: this._state
+		});
+	}
+
+	public update(value: string, options: WebviewOptions) {
+		this._contents = value;
+		this._options = options;
+		this._send('content', {
+			contents: this._contents,
 			options: this._options,
 			state: this._state
 		});

@@ -5,7 +5,7 @@
 'use strict';
 
 import { illegalArgument } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';

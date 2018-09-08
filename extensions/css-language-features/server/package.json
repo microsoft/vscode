@@ -7,9 +7,10 @@
   "engines": {
     "node": "*"
   },
+  "main": "./out/cssServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^3.0.10-next.2",
-    "vscode-languageserver": "^4.4.0"
+    "vscode-css-languageservice": "^3.0.11-next.2",
+    "vscode-languageserver": "^5.1.0-next.5"
   },
   "devDependencies": {
     "@types/mocha": "2.2.33",

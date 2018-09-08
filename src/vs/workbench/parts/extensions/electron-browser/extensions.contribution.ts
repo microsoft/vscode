@@ -5,13 +5,12 @@
 
 import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -44,7 +43,6 @@ import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensio
 import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/extensionProfileService';
 
 // Singletons
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService);
@@ -57,7 +55,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
-	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
+	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
 
 // Quickopen
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
@@ -243,7 +241,7 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
+		extensionService.open(extension[0]);
 	}
 });
 
@@ -253,7 +251,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '2_keybindings',
 	command: {
 		id: ShowRecommendedKeymapExtensionsAction.ID,
-		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions")
+		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymaps")
 	},
 	order: 2
 });

@@ -6,7 +6,7 @@
 'use strict';
 
 import { IMenubarService, IMenubarData, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
-import { Menubar } from 'vs/code/electron-main/menubar';
+import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

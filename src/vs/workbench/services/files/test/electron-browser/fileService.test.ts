@@ -13,7 +13,7 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
@@ -37,7 +37,7 @@ suite('FileService', () => {
 		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -853,7 +853,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -898,7 +898,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -932,7 +932,7 @@ suite('FileService', () => {
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		const _service = new FileService(
-			new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),
 			new TestConfigurationService(),

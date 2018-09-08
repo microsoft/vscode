@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -338,7 +338,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
-			if (resources.isEqualOrParent(resource, this.folderConfigurationPath, resources.hasToIgnoreCase(resource))) {
+			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
 				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}

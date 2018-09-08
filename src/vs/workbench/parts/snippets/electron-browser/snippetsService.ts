@@ -11,7 +11,7 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { watch } from 'vs/base/node/extfs';
 import { exists, mkdirp, readdir } from 'vs/base/node/pfs';
 import { Position } from 'vs/editor/common/core/position';
@@ -202,7 +202,7 @@ class SnippetsService implements ISnippetsService {
 								extension.collector.warn(localize(
 									'badFile',
 									"The snippet file \"{0}\" could not be read.",
-									file.location
+									file.location.toString()
 								));
 							});
 						}

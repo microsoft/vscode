@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import * as paths from 'vs/base/common/paths';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -122,7 +122,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			terminalService.openTerminal(root.fsPath);
 		} else {
 			// Opens current file's folder, if no folder is open in editor
-			const activeFile = historyService.getLastActiveFile();
+			const activeFile = historyService.getLastActiveFile(Schemas.file);
 			if (activeFile) {
 				terminalService.openTerminal(paths.dirname(activeFile.fsPath));
 			}

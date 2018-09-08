@@ -34,7 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 

@@ -37,7 +37,7 @@ export interface IUpdate {
  * Donwloaded: There is an update ready to be installed in the background (win32).
  */
 
-export enum StateType {
+export const enum StateType {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
 	CheckingForUpdates = 'checking for updates',
@@ -48,7 +48,7 @@ export enum StateType {
 	Ready = 'ready',
 }
 
-export enum UpdateType {
+export const enum UpdateType {
 	Setup,
 	Archive
 }

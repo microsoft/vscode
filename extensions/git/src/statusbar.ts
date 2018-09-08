@@ -6,10 +6,10 @@
 'use strict';
 
 import { Disposable, Command, EventEmitter, Event } from 'vscode';
-import { Branch } from './git';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
+import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
 

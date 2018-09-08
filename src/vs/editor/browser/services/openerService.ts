@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import * as resources from 'vs/base/common/resources';
 import { parse } from 'vs/base/common/marshalling';
