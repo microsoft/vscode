@@ -484,8 +484,20 @@ export class DefaultSettings extends Disposable {
 
 	private getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		return this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
+		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
 			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+
+		return this.sortGroups(groups);
+	}
+
+	private sortGroups(groups: ISettingsGroup[]): ISettingsGroup[] {
+		groups.forEach(group => {
+			group.sections.forEach(section => {
+				section.settings.sort((a, b) => a.key.localeCompare(b.key));
+			});
+		});
+
+		return groups;
 	}
 
 	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
@@ -565,7 +577,6 @@ export class DefaultSettings extends Disposable {
 				}
 			}
 			if (configurationSettings.length) {
-				configurationSettings.sort((a, b) => a.key.localeCompare(b.key));
 				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
@@ -1003,90 +1014,89 @@ class SettingsContentBuilder {
 }
 
 export function createValidator(prop: IConfigurationPropertySchema): ((value: any) => string) | null {
-	let exclusiveMax: number | undefined;
-	let exclusiveMin: number | undefined;
-
-	if (typeof prop.exclusiveMaximum === 'boolean') {
-		exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
-	} else {
-		exclusiveMax = prop.exclusiveMaximum;
-	}
-
-	if (typeof prop.exclusiveMinimum === 'boolean') {
-		exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
-	} else {
-		exclusiveMin = prop.exclusiveMinimum;
-	}
-
-	let patternRegex: RegExp | undefined;
-	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern);
-	}
-
-	const type = Array.isArray(prop.type) ? prop.type : [prop.type];
-	const canBeType = (t: string) => type.indexOf(t) > -1;
-
-	const isNullable = canBeType('null');
-	const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
-	const isIntegral = (canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
-
-	type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
-
-	let numericValidations: Validator<number>[] = isNumeric ? [
-		{
-			enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-			isValid: (value => value < exclusiveMax),
-			message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
-		},
-		{
-			enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-			isValid: (value => value > exclusiveMin),
-			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
-		},
-
-		{
-			enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-			isValid: (value => value <= prop.maximum),
-			message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
-		},
-		{
-			enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-			isValid: (value => value >= prop.minimum),
-			message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
-		},
-		{
-			enabled: prop.multipleOf !== undefined,
-			isValid: (value => value % prop.multipleOf === 0),
-			message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
-		},
-		{
-			enabled: isIntegral,
-			isValid: (value => value % 1 === 0),
-			message: nls.localize('validations.expectedInteger', "Value must be an integer.")
-		},
-	].filter(validation => validation.enabled) : [];
-
-	let stringValidations: Validator<string>[] = [
-		{
-			enabled: prop.maxLength !== undefined,
-			isValid: (value => value.length <= prop.maxLength),
-			message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
-		},
-		{
-			enabled: prop.minLength !== undefined,
-			isValid: (value => value.length >= prop.minLength),
-			message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
-		},
-		{
-			enabled: patternRegex !== undefined,
-			isValid: (value => patternRegex.test(value)),
-			message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
-		},
-	].filter(validation => validation.enabled);
-
-	if (prop.type === 'string' && stringValidations.length === 0) { return null; }
-
 	return value => {
+		let exclusiveMax: number | undefined;
+		let exclusiveMin: number | undefined;
+
+		if (typeof prop.exclusiveMaximum === 'boolean') {
+			exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
+		} else {
+			exclusiveMax = prop.exclusiveMaximum;
+		}
+
+		if (typeof prop.exclusiveMinimum === 'boolean') {
+			exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
+		} else {
+			exclusiveMin = prop.exclusiveMinimum;
+		}
+
+		let patternRegex: RegExp | undefined;
+		if (typeof prop.pattern === 'string') {
+			patternRegex = new RegExp(prop.pattern);
+		}
+
+		const type = Array.isArray(prop.type) ? prop.type : [prop.type];
+		const canBeType = (t: string) => type.indexOf(t) > -1;
+
+		const isNullable = canBeType('null');
+		const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+		const isIntegral = (canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
+
+		type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+
+		let numericValidations: Validator<number>[] = isNumeric ? [
+			{
+				enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
+				isValid: (value => value < exclusiveMax),
+				message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
+			},
+			{
+				enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
+				isValid: (value => value > exclusiveMin),
+				message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
+			},
+
+			{
+				enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
+				isValid: (value => value <= prop.maximum),
+				message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
+			},
+			{
+				enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
+				isValid: (value => value >= prop.minimum),
+				message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
+			},
+			{
+				enabled: prop.multipleOf !== undefined,
+				isValid: (value => value % prop.multipleOf === 0),
+				message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
+			},
+			{
+				enabled: isIntegral,
+				isValid: (value => value % 1 === 0),
+				message: nls.localize('validations.expectedInteger', "Value must be an integer.")
+			},
+		].filter(validation => validation.enabled) : [];
+
+		let stringValidations: Validator<string>[] = [
+			{
+				enabled: prop.maxLength !== undefined,
+				isValid: (value => value.length <= prop.maxLength),
+				message: nls.localize('validations.maxLength', "Value must be fewer than {0} characters long.", prop.maxLength)
+			},
+			{
+				enabled: prop.minLength !== undefined,
+				isValid: (value => value.length >= prop.minLength),
+				message: nls.localize('validations.minLength', "Value must be more than {0} characters long.", prop.minLength)
+			},
+			{
+				enabled: patternRegex !== undefined,
+				isValid: (value => patternRegex.test(value)),
+				message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
+			},
+		].filter(validation => validation.enabled);
+
+		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
 		if (isNullable && value === '') { return ''; }
 
 		let errors = [];
