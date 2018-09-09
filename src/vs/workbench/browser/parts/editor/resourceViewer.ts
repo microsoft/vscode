@@ -581,7 +581,7 @@ class InlineImageView {
 function getMime(descriptor: IResourceDescriptor) {
 	let mime = descriptor.mime;
 	if (!mime && descriptor.resource.scheme !== Schemas.data) {
-		mime = mimes.getMediaMime(descriptor.resource.toString());
+		mime = mimes.getMediaMime(descriptor.resource.path);
 	}
 	return mime || mimes.MIME_BINARY;
 }
