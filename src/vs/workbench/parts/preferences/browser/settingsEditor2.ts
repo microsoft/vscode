@@ -207,6 +207,9 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
+		const firstEl = this.settingsTree.getFirstVisibleElement();
+		const firstElTop = this.settingsTree.getRelativeTop(firstEl);
+
 		this.layoutTrees(dimension);
 
 		let innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
@@ -218,7 +221,11 @@ export class SettingsEditor2 extends BaseEditor {
 		// #56185
 		if (dimension.width !== this.lastLayedoutWidth) {
 			this.lastLayedoutWidth = dimension.width;
-			this.delayRefreshOnLayout.trigger(() => this.renderTree(undefined, true));
+			this.delayRefreshOnLayout.trigger(() => {
+				this.renderTree(undefined, true).then(() => {
+					this.settingsTree.reveal(firstEl, firstElTop);
+				});
+			});
 		}
 	}
 
