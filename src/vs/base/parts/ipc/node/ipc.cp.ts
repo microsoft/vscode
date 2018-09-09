@@ -159,7 +159,7 @@ export class Client implements IChannelClient, IDisposable {
 				this.activeRequests.delete(listener);
 				listener.dispose();
 
-				if (this.activeRequests.size === 0) {
+				if (this.activeRequests.size === 0 && this.disposeDelayer) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
 				}
 			}
@@ -223,7 +223,7 @@ export class Client implements IChannelClient, IDisposable {
 			this.child.on('exit', (code: any, signal: any) => {
 				process.removeListener('exit', onExit);
 
-				this.activeRequests.forEach(dispose);
+				this.activeRequests.forEach(r => dispose(r));
 				this.activeRequests.clear();
 
 				if (code !== 0 && signal !== 'SIGTERM') {
