@@ -33,6 +33,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -105,6 +106,7 @@ class CommandsHistory {
 			}
 			entries.forEach(entry => commandHistory.set(entry.key, entry.value));
 		}
+
 		commandCounter = this.storageService.getInteger(CommandsHistory.PREF_KEY_COUNTER, void 0, commandCounter);
 	}
 
@@ -114,7 +116,7 @@ class CommandsHistory {
 	}
 
 	private save(): void {
-		let serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
+		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
 		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache));
 		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
@@ -397,7 +399,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.commandHistoryEnabled = resolveCommandHistory(this.configurationService) > 0;
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		this.lastSearchValue = searchValue;
 

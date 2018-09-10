@@ -32,6 +32,28 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
 
+const NLS_SYMBOL_CACHE: { [type: string]: string } = {
+	'method': nls.localize('method', "methods ({0})"),
+	'function': nls.localize('function', "functions ({0})"),
+	'constructor': nls.localize('_constructor', "constructors ({0})"),
+	'variable': nls.localize('variable', "variables ({0})"),
+	'class': nls.localize('class', "classes ({0})"),
+	'interface': nls.localize('interface', "interfaces ({0})"),
+	'namespace': nls.localize('namespace', "namespaces ({0})"),
+	'package': nls.localize('package', "packages ({0})"),
+	'module': nls.localize('modules', "modules ({0})"),
+	'property': nls.localize('property', "properties ({0})"),
+	'enum': nls.localize('enum', "enumerations ({0})"),
+	'string': nls.localize('string', "strings ({0})"),
+	'rule': nls.localize('rule', "rules ({0})"),
+	'file': nls.localize('file', "files ({0})"),
+	'array': nls.localize('array', "arrays ({0})"),
+	'number': nls.localize('number', "numbers ({0})"),
+	'boolean': nls.localize('boolean', "booleans ({0})"),
+	'object': nls.localize('object', "objects ({0})"),
+	'key': nls.localize('key', "keys ({0})")
+};
+
 export class GotoSymbolAction extends QuickOpenAction {
 
 	static readonly ID = 'workbench.action.gotoSymbol';
@@ -199,37 +221,12 @@ class OutlineModel extends QuickOpenModel {
 	}
 
 	private renderGroupLabel(type: string, count: number): string {
-
-		const pattern = OutlineModel.getDefaultGroupLabelPatterns()[type];
+		const pattern = NLS_SYMBOL_CACHE[type];
 		if (pattern) {
 			return strings.format(pattern, count);
 		}
 
 		return type;
-	}
-
-	private static getDefaultGroupLabelPatterns(): { [type: string]: string } {
-		const result: { [type: string]: string } = Object.create(null);
-		result['method'] = nls.localize('method', "methods ({0})");
-		result['function'] = nls.localize('function', "functions ({0})");
-		result['constructor'] = <any>nls.localize('_constructor', "constructors ({0})");
-		result['variable'] = nls.localize('variable', "variables ({0})");
-		result['class'] = nls.localize('class', "classes ({0})");
-		result['interface'] = nls.localize('interface', "interfaces ({0})");
-		result['namespace'] = nls.localize('namespace', "namespaces ({0})");
-		result['package'] = nls.localize('package', "packages ({0})");
-		result['module'] = nls.localize('modules', "modules ({0})");
-		result['property'] = nls.localize('property', "properties ({0})");
-		result['enum'] = nls.localize('enum', "enumerations ({0})");
-		result['string'] = nls.localize('string', "strings ({0})");
-		result['rule'] = nls.localize('rule', "rules ({0})");
-		result['file'] = nls.localize('file', "files ({0})");
-		result['array'] = nls.localize('array', "arrays ({0})");
-		result['number'] = nls.localize('number', "numbers ({0})");
-		result['boolean'] = nls.localize('boolean', "booleans ({0})");
-		result['object'] = nls.localize('object', "objects ({0})");
-		result['key'] = nls.localize('key', "keys ({0})");
-		return result;
 	}
 }
 
@@ -367,7 +364,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private outlineToModelCache: { [modelId: string]: OutlineModel; };
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
-	private activeOutlineRequest: TPromise<OutlineModel>;
 
 	constructor(
 		@IEditorService private editorService: IEditorService
@@ -377,7 +373,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.outlineToModelCache = {};
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel
@@ -387,7 +383,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getActiveOutline().then(outline => {
+		return this.doGetActiveOutline(token).then(outline => {
+			if (token.isCancellationRequested) {
+				return outline;
+			}
 
 			// Filter by search
 			outline.applyFilter(searchValue);
@@ -461,15 +460,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return results;
 	}
 
-	private getActiveOutline(): TPromise<OutlineModel> {
-		if (!this.activeOutlineRequest) {
-			this.activeOutlineRequest = this.doGetActiveOutline();
-		}
-
-		return this.activeOutlineRequest;
-	}
-
-	private doGetActiveOutline(): TPromise<OutlineModel> {
+	private doGetActiveOutline(token: CancellationToken): TPromise<OutlineModel> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -484,9 +475,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 				if (this.outlineToModelCache[modelId]) {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
-				// TODO@Ben - QuickOpenHandler#getResult should support cancellation
-				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, CancellationToken.None)).then(entries => {
 
+				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, token)).then(entries => {
 					const model = new OutlineModel(this.toQuickOpenEntries(entries));
 
 					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
@@ -582,6 +572,5 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		this.lastKnownEditorViewState = null;
-		this.activeOutlineRequest = null;
 	}
 }

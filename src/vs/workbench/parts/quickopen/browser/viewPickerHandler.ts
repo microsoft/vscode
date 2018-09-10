@@ -22,6 +22,7 @@ import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, E
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -79,7 +80,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 

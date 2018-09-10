@@ -39,7 +39,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
-	constructor(entries: QuickOpenEntry[], public stats?: IFileSearchStats) {
+	constructor(entries: QuickOpenEntry[], stats?: IFileSearchStats) {
 		super(entries);
 	}
 }
@@ -139,7 +139,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 		this.options = options;
 	}
 
-	getResults(searchValue: string, maxSortedResults?: number, token: CancellationToken = CancellationToken.None): TPromise<FileQuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query = prepareQuery(searchValue);
 
 		// Respond directly to empty search
@@ -151,10 +151,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 		query.value = untildify(query.value, this.environmentService.userHome);
 
 		// Do find results
-		return this.doFindResults(query, this.cacheState.cacheKey, maxSortedResults, token);
+		return this.doFindResults(query, token, this.cacheState.cacheKey, maxSortedResults);
 	}
 
-	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number, token?: CancellationToken): TPromise<FileQuickOpenModel> {
+	private doFindResults(query: IPreparedQuery, token: CancellationToken, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
 
 		let iconClass: string;
@@ -175,13 +175,16 @@ export class OpenFileHandler extends QuickOpenHandler {
 			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions), token);
 		}).then(complete => {
 			const results: QuickOpenEntry[] = [];
-			for (let i = 0; i < complete.results.length; i++) {
-				const fileMatch = complete.results[i];
 
-				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), true);
+			if (!token.isCancellationRequested) {
+				for (let i = 0; i < complete.results.length; i++) {
+					const fileMatch = complete.results[i];
 
-				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
+					const label = paths.basename(fileMatch.resource.fsPath);
+					const description = this.labelService.getUriLabel(resources.dirname(fileMatch.resource), true);
+
+					results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
+				}
 			}
 
 			return new FileQuickOpenModel(results, <IFileSearchStats>complete.stats);
