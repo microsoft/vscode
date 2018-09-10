@@ -624,16 +624,24 @@ export class CodeWindow implements ICodeWindow {
 		if (this._win.isFullScreen()) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
-			return {
+			const defaultState = defaultWindowState();
+
+			const res = {
 				mode: WindowMode.Fullscreen,
 				display: display ? display.id : void 0,
 
-				// still carry over window dimensions from previous sessions!
-				width: this.windowState.width,
-				height: this.windowState.height,
-				x: this.windowState.x,
-				y: this.windowState.y
+				// Still carry over window dimensions from previous sessions
+				// if we can compute it in fullscreen state.
+				// does not seem possible in all cases on Linux for example
+				// (https://github.com/Microsoft/vscode/issues/58218) so we
+				// fallback to the defaults in that case.
+				width: this.windowState.width || defaultState.width,
+				height: this.windowState.height || defaultState.height,
+				x: this.windowState.x || 0,
+				y: this.windowState.y || 0
 			};
+
+			return res;
 		}
 
 		const state: IWindowState = Object.create(null);
