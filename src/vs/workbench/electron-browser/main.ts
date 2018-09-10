@@ -122,7 +122,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 			(<any>self).require.config({
 				onError: (err: any) => {
 					if (err.errorCode === 'load') {
-						shell.onUnexpectedError(loaderError(err));
+						shell.onUnexpectedError(new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
 					}
 				}
 			});
@@ -235,12 +235,4 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
 
 	return serviceCollection;
-}
-
-function loaderError(err: Error): Error {
-	if (platform.isWeb) {
-		return new Error(nls.localize('loaderError', "Failed to load a required file. Either you are no longer connected to the internet or the server you are connected to is offline. Please refresh the browser to try again."));
-	}
-
-	return new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err)));
 }

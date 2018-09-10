@@ -6,8 +6,6 @@
 //@ts-check
 'use strict';
 
-/*global window,document,define*/
-
 const perf = require('../../../base/common/performance');
 perf.mark('renderer/started');
 

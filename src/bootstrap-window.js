@@ -8,16 +8,6 @@
 
 const bootstrap = require('./bootstrap');
 
-exports.parseURLQueryArgs = function () {
-	const search = window.location.search || '';
-
-	return search.split(/[?&]/)
-		.filter(function (param) { return !!param; })
-		.map(function (param) { return param.split('='); })
-		.filter(function (param) { return param.length === 2; })
-		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-};
-
 /**
  * @param {object} destination
  * @param {object} source
@@ -30,20 +20,23 @@ exports.assign = function assign(destination, source) {
 /**
  *
  * @param {string[]} modulePaths
- * @param {(result, configuration) => any} resultCallback
- * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config) => void, beforeLoaderConfig?: (config, loaderConfig) => void, beforeRequire?: () => void }=} options
+ * @param {(result, configuration: object) => any} resultCallback
+ * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
  */
 exports.load = function (modulePaths, resultCallback, options) {
+
 	// @ts-ignore
 	const webFrame = require('electron').webFrame;
 	const path = require('path');
 
-	const args = exports.parseURLQueryArgs();
+	const args = parseURLQueryArgs();
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
 	// Error handler
 	// @ts-ignore
-	process.on('uncaughtException', function (error) { onUnexpectedError(error, enableDeveloperTools); });
+	process.on('uncaughtException', function (error) {
+		onUnexpectedError(error, enableDeveloperTools);
+	});
 
 	// Developer tools
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
@@ -137,9 +130,23 @@ exports.load = function (modulePaths, resultCallback, options) {
 };
 
 /**
- * @returns () => void
+ * @returns {{[param: string]: string }}
+ */
+function parseURLQueryArgs() {
+	const search = window.location.search || '';
+
+	return search.split(/[?&]/)
+		.filter(function (param) { return !!param; })
+		.map(function (param) { return param.split('='); })
+		.filter(function (param) { return param.length === 2; })
+		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
+}
+
+/**
+ * @returns {() => void}
  */
 function registerDeveloperKeybindings() {
+
 	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
@@ -177,6 +184,7 @@ function registerDeveloperKeybindings() {
 }
 
 function onUnexpectedError(error, enableDeveloperTools) {
+
 	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 

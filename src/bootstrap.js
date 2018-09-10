@@ -25,9 +25,11 @@ process.on('SIGPIPE', () => {
  * @param {string=} nodeModulesPath
  */
 exports.enableASARSupport = function (nodeModulesPath) {
+
 	// @ts-ignore
 	const Module = require('module');
 	const path = require('path');
+
 	let NODE_MODULES_PATH = nodeModulesPath;
 	if (!NODE_MODULES_PATH) {
 		NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
@@ -72,7 +74,7 @@ exports.uriFromPath = function (_path) {
 //#region FS helpers
 /**
  * @param {string} file
- * @returns {Promise}
+ * @returns {Promise<string>}
  */
 exports.readFile = function (file) {
 	const fs = require('fs');
@@ -91,7 +93,7 @@ exports.readFile = function (file) {
 /**
  * @param {string} file
  * @param {string} content
- * @returns {Promise}
+ * @returns {Promise<void>}
  */
 exports.writeFile = function (file, content) {
 	const fs = require('fs');
@@ -109,6 +111,9 @@ exports.writeFile = function (file, content) {
 //#endregion
 
 //#region NLS helpers
+/**
+ * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
+ */
 exports.setupNLS = function () {
 	const path = require('path');
 
