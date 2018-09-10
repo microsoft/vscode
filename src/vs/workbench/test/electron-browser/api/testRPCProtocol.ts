@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
+import { isThenable } from 'vs/base/common/async';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	return {
@@ -69,10 +70,10 @@ export class TestRPCProtocol implements IExtHostContext {
 	}
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id);
+		if (!this._proxies[identifier.sid]) {
+			this._proxies[identifier.sid] = this._createProxy(identifier.sid);
 		}
-		return this._proxies[identifier.id];
+		return this._proxies[identifier.sid];
 	}
 
 	private _createProxy<T>(proxyId: string): T {
@@ -90,7 +91,7 @@ export class TestRPCProtocol implements IExtHostContext {
 	}
 
 	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		this._locals[identifier.id] = value;
+		this._locals[identifier.sid] = value;
 		return value;
 	}
 
@@ -106,7 +107,7 @@ export class TestRPCProtocol implements IExtHostContext {
 			let p: Thenable<any>;
 			try {
 				let result = (<Function>instance[path]).apply(instance, wireArgs);
-				p = TPromise.is(result) ? result : TPromise.as(result);
+				p = isThenable(result) ? result : TPromise.as(result);
 			} catch (err) {
 				p = TPromise.wrapError(err);
 			}

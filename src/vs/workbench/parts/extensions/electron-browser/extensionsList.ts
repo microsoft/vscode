@@ -5,23 +5,25 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDelegate } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { createCancelablePromise } from 'vs/base/common/async';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -37,7 +39,7 @@ export interface ITemplateData {
 	extensionDisposables: IDisposable[];
 }
 
-export class Delegate implements IDelegate<IExtension> {
+export class Delegate implements IVirtualDelegate<IExtension> {
 	getHeight() { return 62; }
 	getTemplateId() { return 'extension'; }
 }
@@ -88,12 +90,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).actionItem;
 				}
-				if (action.id === MultiServerInstallAction.ID) {
-					return (<MultiServerInstallAction>action).actionItem;
-				}
-				if (action.id === MultiServerUpdateAction.ID) {
-					return (<MultiServerUpdateAction>action).actionItem;
-				}
 				return null;
 			}
 		});
@@ -105,15 +101,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(InstallAction, this.extensionManagementServerService.extensionManagementServers[0])
-			: this.instantiationService.createInstance(MultiServerInstallAction);
-		const updateAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(UpdateAction, this.extensionManagementServerService.extensionManagementServers[0])
-			: this.instantiationService.createInstance(MultiServerUpdateAction);
+		const installAction = this.instantiationService.createInstance(InstallAction);
+		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
 			root, element, icon, name, installCount, ratings, author, description, disposables,
@@ -153,7 +147,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === extension.id)[0];
 
 		this.extensionService.getExtensions().then(runningExtensions => {
-			toggleClass(data.root, 'disabled', installed ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
+			if (installed && installed.local) {
+				const installedExtensionServer = this.extensionManagementServerService.getExtensionManagementServer(installed.local.location);
+				const isSameExtensionRunning = runningExtensions.some(e => areSameExtensions(e, extension) && installedExtensionServer.authority === this.extensionManagementServerService.getExtensionManagementServer(e.extensionLocation).authority);
+				toggleClass(data.root, 'disabled', !isSameExtensionRunning);
+			} else {
+				removeClass(data.root, 'disabled');
+			}
 		});
 
 		const onError = once(domEvent(data.icon, 'error'));
@@ -167,15 +167,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
-		data.root.setAttribute('aria-label', extension.displayName);
-		removeClass(data.root, 'recommended');
-
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()]) {
-			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id.toLowerCase()].reasonText);
-			addClass(data.root, 'recommended');
-			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
-		}
+		this.updateRecommendationStatus(extension, data);
+		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
+				this.updateRecommendationStatus(extension, data);
+			}
+		}));
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
@@ -184,10 +181,35 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.ratings.style.display = '';
 		data.extension = extension;
 
-		extension.getManifest().then(manifest => {
-			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
-			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-		});
+		const manifestPromise = createCancelablePromise(token => extension.getManifest(token).then(manifest => {
+			if (manifest) {
+				const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
+				if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
+			}
+		}));
+		data.disposables.push(toDisposable(() => manifestPromise.cancel()));
+	}
+
+	disposeElement(): void {
+		// noop
+	}
+
+	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		let ariaLabel = extension.displayName + '. ';
+
+		if (!extRecommendations[extension.id.toLowerCase()]) {
+			removeClass(data.root, 'recommended');
+			data.root.title = '';
+		} else {
+			addClass(data.root, 'recommended');
+			ariaLabel += extRecommendations[extension.id.toLowerCase()].reasonText + ' ';
+			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
+		}
+
+		ariaLabel += localize('viewExtensionDetailsAria', "Press enter for extension details.");
+		data.root.setAttribute('aria-label', ariaLabel);
+
 	}
 
 	disposeTemplate(data: ITemplateData): void {

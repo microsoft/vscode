@@ -117,6 +117,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	isEmpty(): boolean;
 	setActive(isActive: boolean): void;
 	setLabel(label: string): void;
+	relayout(): void;
 
 	shutdown(): void;
 }

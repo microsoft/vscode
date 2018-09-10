@@ -14,6 +14,7 @@ import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { TimeoutTimer } from 'vs/base/common/async';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -42,26 +43,7 @@ export class Colorizer {
 		let render = (str: string) => {
 			domNode.innerHTML = str;
 		};
-		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
-	}
-
-	private static _tokenizationSupportChangedPromise(language: string): TPromise<void> {
-		let listener: IDisposable = null;
-		let stopListening = () => {
-			if (listener) {
-				listener.dispose();
-				listener = null;
-			}
-		};
-
-		return new TPromise<void>((c, e, p) => {
-			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.changedLanguages.indexOf(language) >= 0) {
-					stopListening();
-					c(void 0);
-				}
-			});
-		}, stopListening);
+		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err));
 	}
 
 	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions): TPromise<string> {
@@ -84,13 +66,34 @@ export class Colorizer {
 			return TPromise.as(_colorize(lines, options.tabSize, tokenizationSupport));
 		}
 
-		// wait 500ms for mode to load, then give up
-		return TPromise.any([this._tokenizationSupportChangedPromise(language), TPromise.timeout(500)]).then(_ => {
-			let tokenizationSupport = TokenizationRegistry.get(language);
-			if (tokenizationSupport) {
-				return _colorize(lines, options.tabSize, tokenizationSupport);
-			}
-			return _fakeColorize(lines, options.tabSize);
+		return new TPromise<string>((resolve, reject) => {
+			let listener: IDisposable = null;
+			let timeout: TimeoutTimer = null;
+
+			const execute = () => {
+				if (listener) {
+					listener.dispose();
+					listener = null;
+				}
+				if (timeout) {
+					timeout.dispose();
+					timeout = null;
+				}
+				const tokenizationSupport = TokenizationRegistry.get(language);
+				if (tokenizationSupport) {
+					return resolve(_colorize(lines, options.tabSize, tokenizationSupport));
+				}
+				return resolve(_fakeColorize(lines, options.tabSize));
+			};
+
+			// wait 500ms for mode to load, then give up
+			timeout = new TimeoutTimer();
+			timeout.cancelAndSet(execute, 500);
+			listener = TokenizationRegistry.onDidChange((e) => {
+				if (e.changedLanguages.indexOf(language) >= 0) {
+					execute();
+				}
+			});
 		});
 	}
 
@@ -99,6 +102,7 @@ export class Colorizer {
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,
@@ -152,6 +156,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,
@@ -187,6 +192,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
+			true,
 			line,
 			false,
 			isBasicASCII,

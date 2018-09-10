@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/paths';
-import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { filterEvent, anyEvent as anyEvent } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
@@ -18,7 +18,7 @@ import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment }
 
 export class StatusUpdater implements IWorkbenchContribution {
 
-	private badgeDisposable: IDisposable = EmptyDisposable;
+	private badgeDisposable: IDisposable = Disposable.None;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -60,7 +60,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
 			this.badgeDisposable = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
 		} else {
-			this.badgeDisposable = EmptyDisposable;
+			this.badgeDisposable = Disposable.None;
 		}
 	}
 
@@ -72,8 +72,8 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 export class StatusBarController implements IWorkbenchContribution {
 
-	private statusBarDisposable: IDisposable = EmptyDisposable;
-	private focusDisposable: IDisposable = EmptyDisposable;
+	private statusBarDisposable: IDisposable = Disposable.None;
+	private focusDisposable: IDisposable = Disposable.None;
 	private focusedRepository: ISCMRepository | undefined = undefined;
 	private focusedProviderContextKey: IContextKey<string | undefined>;
 	private disposables: IDisposable[] = [];

@@ -10,7 +10,6 @@ import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
 import { nfcall } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -20,6 +19,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
@@ -28,7 +28,7 @@ function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 let _source: string = null;
 function getSource(): string {
 	if (!_source) {
-		const root = URI.parse(require.toUrl('')).fsPath;
+		const root = getPathFromAmdModule(require, '');
 		_source = path.resolve(root, '..', 'bin', 'code');
 	}
 	return _source;
@@ -70,20 +70,16 @@ class InstallAction extends Action {
 					if (!isAvailable || isInstalled) {
 						return TPromise.as(null);
 					} else {
-						const createSymlink = () => {
-							return pfs.unlink(this.target)
-								.then(null, ignore('ENOENT'))
-								.then(() => pfs.symlink(getSource(), this.target));
-						};
+						return pfs.unlink(this.target)
+							.then(null, ignore('ENOENT'))
+							.then(() => pfs.symlink(getSource(), this.target))
+							.then(null, err => {
+								if (err.code === 'EACCES' || err.code === 'ENOENT') {
+									return this.createBinFolderAndSymlinkAsAdmin();
+								}
 
-						return createSymlink().then(null, err => {
-							if (err.code === 'EACCES' || err.code === 'ENOENT') {
-								return this.createBinFolder()
-									.then(() => createSymlink());
-							}
-
-							return TPromise.wrapError(err);
-						});
+								return TPromise.wrapError(err);
+							});
 					}
 				})
 				.then(() => {
@@ -101,18 +97,18 @@ class InstallAction extends Action {
 			.then(null, ignore('ENOENT', false));
 	}
 
-	private createBinFolder(): TPromise<void> {
+	private createBinFolderAndSymlinkAsAdmin(): TPromise<void> {
 		return new TPromise<void>((c, e) => {
 			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
 
 			this.dialogService.show(Severity.Info, nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command."), buttons, { cancelId: 1 }).then(choice => {
 				switch (choice) {
 					case 0 /* OK */:
-						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
+						const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'' + getSource() + '\' \'' + this.target + '\'\\" with administrator privileges"';
 
 						nfcall(cp.exec, command, {})
 							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-							.done(c, e);
+							.then(c, e);
 						break;
 					case 1 /* Cancel */:
 						e(new Error(nls.localize('aborted', "Aborted")));
@@ -132,7 +128,8 @@ class UninstallAction extends Action {
 		id: string,
 		label: string,
 		@INotificationService private notificationService: INotificationService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IDialogService private dialogService: IDialogService
 	) {
 		super(id, label);
 	}
@@ -149,12 +146,42 @@ class UninstallAction extends Action {
 				return undefined;
 			}
 
-			return pfs.unlink(this.target)
-				.then(null, ignore('ENOENT'))
-				.then(() => {
-					this.logService.trace('cli#uninstall', this.target);
-					this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
-				});
+			const uninstall = () => {
+				return pfs.unlink(this.target)
+					.then(null, ignore('ENOENT'));
+			};
+
+			return uninstall().then(null, err => {
+				if (err.code === 'EACCES') {
+					return this.deleteSymlinkAsAdmin();
+				}
+
+				return TPromise.wrapError(err);
+			}).then(() => {
+				this.logService.trace('cli#uninstall', this.target);
+				this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
+			});
+		});
+	}
+
+	private deleteSymlinkAsAdmin(): TPromise<void> {
+		return new TPromise<void>((c, e) => {
+			const buttons = [nls.localize('ok', "OK"), nls.localize('cancel2', "Cancel")];
+
+			this.dialogService.show(Severity.Info, nls.localize('warnEscalationUninstall', "Code will now prompt with 'osascript' for Administrator privileges to uninstall the shell command."), buttons, { cancelId: 1 }).then(choice => {
+				switch (choice) {
+					case 0 /* OK */:
+						const command = 'osascript -e "do shell script \\"rm \'' + this.target + '\'\\" with administrator privileges"';
+
+						nfcall(cp.exec, command, {})
+							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
+							.then(c, e);
+						break;
+					case 1 /* Cancel */:
+						e(new Error(nls.localize('aborted', "Aborted")));
+						break;
+				}
+			});
 		});
 	}
 }

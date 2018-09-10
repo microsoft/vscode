@@ -12,7 +12,6 @@ import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import * as stdfork from 'vs/base/node/stdFork';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -36,7 +35,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 	constructor() {
 		this.sequence = 1;
-		this.pendingRequests = new Map<number, (e: DebugProtocol.Response) => void>();
+		this.pendingRequests = new Map();
 
 		this._onError = new Emitter<Error>();
 		this._onExit = new Emitter<number>();
@@ -80,7 +79,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 	}
 
-	public sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void {
+	public sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): void {
 
 		const request: any = {
 			command: command
@@ -90,6 +89,25 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		}
 
 		this.internalSend('request', request);
+
+		if (typeof timeout === 'number') {
+			const timer = setTimeout(() => {
+				clearTimeout(timer);
+				const clb = this.pendingRequests.get(request.seq);
+				if (clb) {
+					this.pendingRequests.delete(request.seq);
+					const err: DebugProtocol.Response = {
+						type: 'response',
+						seq: 0,
+						request_seq: request.seq,
+						success: false,
+						command,
+						message: `timeout after ${timeout} ms`
+					};
+					clb(err);
+				}
+			}, timeout);
+		}
 
 		if (clb) {
 			// store callback for this request
@@ -127,6 +145,24 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 		this.sendMessage(message);
 	}
+
+	protected cancelPending() {
+		const pending = this.pendingRequests;
+		this.pendingRequests = new Map();
+		setTimeout(_ => {
+			pending.forEach((callback, request_seq) => {
+				const err: DebugProtocol.Response = {
+					type: 'response',
+					seq: 0,
+					request_seq,
+					success: false,
+					command: 'canceled',
+					message: 'canceled'
+				};
+				callback(err);
+			});
+		}, 1000);
+	}
 }
 
 /**
@@ -146,7 +182,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		super();
 	}
 
-	public connect(readable: stream.Readable, writable: stream.Writable): void {
+	protected connect(readable: stream.Readable, writable: stream.Writable): void {
 
 		this.outputStream = writable;
 		this.rawData = Buffer.allocUnsafe(0);
@@ -154,16 +190,16 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 
 		readable.on('data', (data: Buffer) => this.handleData(data));
 
-		// readable.on('close', () => {
-		// 	this._emitEvent(new Event('close'));
-		// });
-		// readable.on('error', (error) => {
-		// 	this._emitEvent(new Event('error', 'readable error: ' + (error && error.message)));
-		// });
+		readable.on('close', () => {
+			this._onError.fire(new Error('readable.close event'));
+		});
+		readable.on('error', (error) => {
+			this._onError.fire(error);
+		});
 
-		// writable.on('error', (error) => {
-		// 	this._emitEvent(new Event('error', 'writable error: ' + (error && error.message)));
-		// });
+		writable.on('error', (error) => {
+			this._onError.fire(error);
+		});
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -238,11 +274,15 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 	}
 
 	stopSession(): TPromise<void> {
-		if (this.socket !== null) {
+
+		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+		this.cancelPending();
+
+		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
 		}
-		return void 0;
+		return TPromise.as(undefined);
 	}
 }
 
@@ -283,15 +323,17 @@ export class DebugAdapter extends StreamDebugAdapter {
 					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
 			}
 
-			if (this.adapterExecutable.command === 'node' && this.outputService) {
+			if (this.adapterExecutable.command === 'node') {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
-					stdfork.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {}, (err, child) => {
-						if (err) {
-							e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
-						}
-						this.serverProcess = child;
-						c(null);
+					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {
+						execArgv: ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'],
+						silent: true
 					});
+					if (!child.pid) {
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
+					}
+					this.serverProcess = child;
+					c(null);
 				} else {
 					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
@@ -320,6 +362,13 @@ export class DebugAdapter extends StreamDebugAdapter {
 	}
 
 	stopSession(): TPromise<void> {
+
+		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+		this.cancelPending();
+
+		if (!this.serverProcess) {
+			return TPromise.as(null);
+		}
 
 		// when killing a process in windows its child
 		// processes are *not* killed but become root

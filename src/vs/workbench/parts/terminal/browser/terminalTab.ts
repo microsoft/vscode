@@ -278,7 +278,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 		// Adjust focus if the instance was active
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
-			let newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
+			const newIndex = index < this._terminalInstances.length ? index : this._terminalInstances.length - 1;
 			this.setActiveInstanceByIndex(newIndex);
 			// TODO: Only focus the new instance if the tab had focus?
 			this.activeInstance.focus(true);

@@ -69,19 +69,23 @@ export interface IDebouceReducer<T> {
 export function debounce<T>(delay: number, reducer?: IDebouceReducer<T>, initialValueProvider?: () => T): Function {
 	return createDecorator((fn, key) => {
 		const timerKey = `$debounce$${key}`;
-		let result = initialValueProvider ? initialValueProvider() : void 0;
+		const resultKey = `$debounce$result$${key}`;
 
 		return function (this: any, ...args: any[]) {
+			if (!this[resultKey]) {
+				this[resultKey] = initialValueProvider ? initialValueProvider() : void 0;
+			}
+
 			clearTimeout(this[timerKey]);
 
 			if (reducer) {
-				result = reducer(result, ...args);
-				args = [result];
+				this[resultKey] = reducer(this[resultKey], ...args);
+				args = [this[resultKey]];
 			}
 
 			this[timerKey] = setTimeout(() => {
 				fn.apply(this, args);
-				result = initialValueProvider ? initialValueProvider() : void 0;
+				this[resultKey] = initialValueProvider ? initialValueProvider() : void 0;
 			}, delay);
 		};
 	});

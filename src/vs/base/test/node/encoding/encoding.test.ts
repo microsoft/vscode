@@ -10,10 +10,11 @@ import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
 import { readExactlyByFile } from 'vs/base/node/stream';
 import { Readable } from 'stream';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('Encoding', () => {
 	test('detectBOM UTF-8', () => {
-		const file = require.toUrl('./fixtures/some_utf8.css');
+		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
 
 		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf8');
@@ -21,7 +22,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectBOM UTF-16 LE', () => {
-		const file = require.toUrl('./fixtures/some_utf16le.css');
+		const file = getPathFromAmdModule(require, './fixtures/some_utf16le.css');
 
 		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf16le');
@@ -29,7 +30,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectBOM UTF-16 BE', () => {
-		const file = require.toUrl('./fixtures/some_utf16be.css');
+		const file = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 
 		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, 'utf16be');
@@ -37,7 +38,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectBOM ANSI', function () {
-		const file = require.toUrl('./fixtures/some_ansi.css');
+		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
 
 		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, null);
@@ -45,7 +46,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectBOM ANSI', function () {
-		const file = require.toUrl('./fixtures/empty.txt');
+		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
 
 		return encoding.detectEncodingByBOM(file).then((encoding: string) => {
 			assert.equal(encoding, null);
@@ -68,7 +69,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (JSON saved as PNG)', function () {
-		const file = require.toUrl('./fixtures/some.json.png');
+		const file = getPathFromAmdModule(require, './fixtures/some.json.png');
 
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
@@ -77,7 +78,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (PNG saved as TXT)', function () {
-		const file = require.toUrl('./fixtures/some.png.txt');
+		const file = getPathFromAmdModule(require, './fixtures/some.png.txt');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.seemsBinary, true);
@@ -85,7 +86,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (XML saved as PNG)', function () {
-		const file = require.toUrl('./fixtures/some.xml.png');
+		const file = getPathFromAmdModule(require, './fixtures/some.xml.png');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.seemsBinary, false);
@@ -93,7 +94,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (QWOFF saved as TXT)', function () {
-		const file = require.toUrl('./fixtures/some.qwoff.txt');
+		const file = getPathFromAmdModule(require, './fixtures/some.qwoff.txt');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.seemsBinary, true);
@@ -101,7 +102,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (CSS saved as QWOFF)', function () {
-		const file = require.toUrl('./fixtures/some.css.qwoff');
+		const file = getPathFromAmdModule(require, './fixtures/some.css.qwoff');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.seemsBinary, false);
@@ -109,7 +110,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (PDF)', function () {
-		const file = require.toUrl('./fixtures/some.pdf');
+		const file = getPathFromAmdModule(require, './fixtures/some.pdf');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.seemsBinary, true);
@@ -117,7 +118,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (guess UTF-16 LE from content without BOM)', function () {
-		const file = require.toUrl('./fixtures/utf16_le_nobom.txt');
+		const file = getPathFromAmdModule(require, './fixtures/utf16_le_nobom.txt');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.encoding, encoding.UTF16le);
@@ -126,7 +127,7 @@ suite('Encoding', () => {
 	});
 
 	test('detectEncodingFromBuffer (guess UTF-16 BE from content without BOM)', function () {
-		const file = require.toUrl('./fixtures/utf16_be_nobom.txt');
+		const file = getPathFromAmdModule(require, './fixtures/utf16_be_nobom.txt');
 		return readExactlyByFile(file, 512).then(buffer => {
 			const mimes = encoding.detectEncodingFromBuffer(buffer);
 			assert.equal(mimes.encoding, encoding.UTF16be);
@@ -135,7 +136,7 @@ suite('Encoding', () => {
 	});
 
 	test('autoGuessEncoding (ShiftJIS)', function () {
-		const file = require.toUrl('./fixtures/some.shiftjis.txt');
+		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
 		return readExactlyByFile(file, 512 * 8).then(buffer => {
 			return encoding.detectEncodingFromBuffer(buffer, true).then(mimes => {
 				assert.equal(mimes.encoding, 'shiftjis');
@@ -144,7 +145,7 @@ suite('Encoding', () => {
 	});
 
 	test('autoGuessEncoding (CP1252)', function () {
-		const file = require.toUrl('./fixtures/some.cp1252.txt');
+		const file = getPathFromAmdModule(require, './fixtures/some.cp1252.txt');
 		return readExactlyByFile(file, 512 * 8).then(buffer => {
 			return encoding.detectEncodingFromBuffer(buffer, true).then(mimes => {
 				assert.equal(mimes.encoding, 'windows1252');
@@ -238,7 +239,7 @@ suite('Encoding', () => {
 
 	test('toDecodeStream - encoding, utf16be', async function () {
 
-		let path = require.toUrl('./fixtures/some_utf16be.css');
+		let path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
 		let source = fs.createReadStream(path);
 
 		let { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64 });
@@ -254,7 +255,7 @@ suite('Encoding', () => {
 
 	test('toDecodeStream - empty file', async function () {
 
-		let path = require.toUrl('./fixtures/empty.txt');
+		let path = getPathFromAmdModule(require, './fixtures/empty.txt');
 		let source = fs.createReadStream(path);
 		let { detected, stream } = await encoding.toDecodeStream(source, {});
 

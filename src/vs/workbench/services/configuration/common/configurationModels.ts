@@ -8,11 +8,11 @@ import { equals } from 'vs/base/common/objects';
 import { compare, toValuesTree, IConfigurationChangeEvent, ConfigurationTarget, IConfigurationModel, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationChangeEvent, ConfigurationModel, AbstractConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -101,16 +101,25 @@ export class FolderSettingsModelParser extends ConfigurationModelParser {
 	}
 
 	private parseWorkspaceSettings(rawSettings: any): void {
-		const rawWorkspaceSettings = {};
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (let key in rawSettings) {
-			const scope = this.getScope(key, configurationProperties);
-			if (this.scopes.indexOf(scope) !== -1) {
-				rawWorkspaceSettings[key] = rawSettings[key];
-			}
-		}
+		const rawWorkspaceSettings = this.filterByScope(rawSettings, configurationProperties, true);
 		const configurationModel = this.parseRaw(rawWorkspaceSettings);
 		this._settingsModel = new ConfigurationModel(configurationModel.contents, configurationModel.keys, configurationModel.overrides);
+	}
+
+	private filterByScope(properties: {}, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }, filterOverriddenProperties: boolean): {} {
+		const result = {};
+		for (let key in properties) {
+			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
+				result[key] = this.filterByScope(properties[key], configurationProperties, false);
+			} else {
+				const scope = this.getScope(key, configurationProperties);
+				if (this.scopes.indexOf(scope) !== -1) {
+					result[key] = properties[key];
+				}
+			}
+		}
+		return result;
 	}
 
 	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {

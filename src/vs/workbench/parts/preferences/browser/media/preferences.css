@@ -10,20 +10,6 @@
 	padding-top: 11px;
 }
 
-.preferences-editor > .preferences-header > .new-settings-ad {
-	color: #6f6f6f;
-	margin-bottom: 4px;
-	font-size: 12px;
-}
-
-.vs-dark .preferences-editor > .preferences-header > .new-settings-ad {
-	color: #bbbbbb;
-}
-
-.hc-black .preferences-editor > .preferences-header > .new-settings-ad {
-	color: white;
-}
-
 .preferences-editor > .preferences-header > .new-settings-ad > .open-settings2-button {
 	padding: 0;
 	text-decoration: underline;

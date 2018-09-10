@@ -72,3 +72,7 @@
 .vs-dark .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
 	background: url('manage-inverse.svg') center center no-repeat;
 }
+
+.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}

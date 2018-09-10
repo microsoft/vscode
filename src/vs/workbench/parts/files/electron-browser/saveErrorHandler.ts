@@ -6,15 +6,14 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -43,9 +42,8 @@ const LEARN_MORE_DIRTY_WRITE_IGNORE_KEY = 'learnMoreDirtyWriteError';
 const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the editor tool bar to either undo your changes or overwrite the content on disk with your changes.");
 
 // A handler for save error happening with conflict resolution actions
-export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContribution {
+export class SaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
 	private messages: ResourceMap<INotificationHandle>;
-	private toUnbind: IDisposable[];
 	private conflictResolutionContext: IContextKey<boolean>;
 	private activeConflictResolutionResource: URI;
 
@@ -58,15 +56,13 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService
 	) {
-		this.toUnbind = [];
+		super();
+
 		this.messages = new ResourceMap<INotificationHandle>();
 		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(contextKeyService);
 
-		const provider = instantiationService.createInstance(FileOnDiskContentProvider);
-		this.toUnbind.push(provider);
-
-		const registrationDisposal = textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider);
-		this.toUnbind.push(registrationDisposal);
+		const provider = this._register(instantiationService.createInstance(FileOnDiskContentProvider));
+		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
 
 		// Hook into model
 		TextFileEditorModel.setSaveErrorHandler(this);
@@ -75,9 +71,9 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
-		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+		this._register(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
+		this._register(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
 	private onActiveEditorChanged(): void {
@@ -105,7 +101,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		}
 	}
 
-	public onSaveError(error: any, model: ITextFileEditorModel): void {
+	onSaveError(error: any, model: ITextFileEditorModel): void {
 		const fileOperationError = error as FileOperationError;
 		const resource = model.getResource();
 
@@ -181,8 +177,8 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		this.messages.set(model.getResource(), handle);
 	}
 
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
+	dispose(): void {
+		super.dispose();
 
 		this.messages.clear();
 	}
@@ -203,7 +199,7 @@ class ResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMore', nls.localize('learnMore', "Learn More"));
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
 	}
 }
@@ -216,7 +212,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', nls.localize('dontShowAgain', "Don't Show Again"));
 	}
 
-	public run(notification: IDisposable): TPromise<any> {
+	run(notification: IDisposable): TPromise<any> {
 		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true);
 
 		// Hide notification
@@ -239,7 +235,7 @@ class ResolveSaveConflictAction extends Action {
 		super('workbench.files.action.resolveConflict', nls.localize('compareChanges', "Compare"));
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		if (!this.model.isDisposed()) {
 			const resource = this.model.getResource();
 			const name = paths.basename(resource.fsPath);
@@ -281,12 +277,12 @@ class SaveElevatedAction extends Action {
 		super('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."));
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		if (!this.model.isDisposed()) {
 			this.model.save({
 				writeElevated: true,
 				overwriteReadonly: this.triedToMakeWriteable
-			}).done(null, errors.onUnexpectedError);
+			});
 		}
 
 		return TPromise.as(true);
@@ -301,9 +297,9 @@ class OverwriteReadonlyAction extends Action {
 		super('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"));
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		if (!this.model.isDisposed()) {
-			this.model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
+			this.model.save({ overwriteReadonly: true });
 		}
 
 		return TPromise.as(true);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
@@ -14,6 +14,7 @@ import { ConfigurationResolverService } from 'vs/workbench/services/configuratio
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestEnvironmentService, TestEditorService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 suite('Configuration Resolver Service', () => {
 	let configurationResolverService: IConfigurationResolverService;
@@ -391,7 +392,7 @@ class MockCommandService implements ICommandService {
 	public _serviceBrand: any;
 	public callCount = 0;
 
-	onWillExecuteCommand = () => ({ dispose: () => { } });
+	onWillExecuteCommand = () => Disposable.None;
 	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
 		this.callCount++;
 

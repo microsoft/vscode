@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -30,6 +30,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
+	private static INSTANCE_COUNT: number = 0;
+
+	private _instanceId: string;
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _toDispose: IDisposable[];
@@ -45,6 +48,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
+		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._toDispose = [];
@@ -111,7 +115,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string> {
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Thenable<string> {
 		const uri = URI.revive(resource);
 
 		const editorOptions: ITextEditorOptions = {
@@ -133,7 +137,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 	}
 
-	$tryShowEditor(id: string, position?: EditorViewColumn): TPromise<void> {
+	$tryShowEditor(id: string, position?: EditorViewColumn): Thenable<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -145,7 +149,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$tryHideEditor(id: string): TPromise<void> {
+	$tryHideEditor(id: string): Thenable<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._editorService.visibleControls;
@@ -158,7 +162,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<void> {
+	$trySetSelections(id: string, selections: ISelection[]): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -166,7 +170,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<void> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Thenable<void> {
+		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -174,7 +179,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Thenable<void> {
+		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -182,7 +188,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void> {
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -190,7 +196,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -198,19 +204,19 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): TPromise<boolean> {
+	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Thenable<boolean> {
 		const { edits } = reviveWorkspaceEditDto(dto);
 		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
 	}
 
-	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
+	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
 		}
@@ -218,16 +224,18 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
+		key = `${this._instanceId}-${key}`;
 		this._registeredDecorationTypes[key] = true;
 		this._codeEditorService.registerDecorationType(key, options);
 	}
 
 	$removeTextEditorDecorationType(key: string): void {
+		key = `${this._instanceId}-${key}`;
 		delete this._registeredDecorationTypes[key];
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): TPromise<ILineChange[]> {
+	$getDiffInformation(id: string): Thenable<ILineChange[]> {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {

@@ -15,7 +15,6 @@ const remote = require('gulp-remote-src');
 const zip = require('gulp-vinyl-zip');
 const assign = require('object-assign');
 
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const pkg = require('../package.json');
 
 gulp.task('mixin', function () {
@@ -56,7 +55,6 @@ gulp.task('mixin', function () {
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
-			// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 			.pipe(json(o => assign({}, require('../product.json'), o)))
 			.pipe(productJsonFilter.restore);
 

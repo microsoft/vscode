@@ -44,9 +44,9 @@ export class SideBySideEditor extends BaseEditor {
 	get maximumHeight() { return this.maximumMasterHeight + this.maximumDetailsHeight; }
 
 	protected masterEditor: BaseEditor;
-	private masterEditorContainer: HTMLElement;
-
 	protected detailsEditor: BaseEditor;
+
+	private masterEditorContainer: HTMLElement;
 	private detailsEditorContainer: HTMLElement;
 
 	private splitview: SplitView;
@@ -67,8 +67,7 @@ export class SideBySideEditor extends BaseEditor {
 	protected createEditor(parent: HTMLElement): void {
 		DOM.addClass(parent, 'side-by-side-editor');
 
-		this.splitview = new SplitView(parent, { orientation: Orientation.HORIZONTAL });
-		this._register(this.splitview);
+		this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
 		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
 
 		this.detailsEditorContainer = DOM.$('.details-editor-container');
@@ -151,10 +150,6 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	supportsCenteredLayout(): boolean {
-		return false;
-	}
-
 	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
@@ -162,9 +157,9 @@ export class SideBySideEditor extends BaseEditor {
 			}
 
 			return this.setNewInput(newInput, options, token);
-		} else {
-			return TPromise.join([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
 		}
+
+		return TPromise.join([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {

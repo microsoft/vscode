@@ -7,30 +7,27 @@ import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
 import { readFile, fileExists } from 'vs/base/node/pfs';
-
-export interface IMessageFromTerminalProcess {
-	type: 'pid' | 'data' | 'title';
-	content: number | string;
-}
-
-export interface IMessageToTerminalProcess {
-	event: 'resize' | 'input' | 'shutdown';
-	data?: string;
-	cols?: number;
-	rows?: number;
-}
+import { Event } from 'vs/base/common/event';
 
 /**
  * An interface representing a raw terminal child process, this is a subset of the
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
-	readonly connected: boolean;
+	onProcessData: Event<string>;
+	onProcessExit: Event<number>;
+	onProcessIdReady: Event<number>;
+	onProcessTitleChanged: Event<string>;
 
-	send(message: IMessageToTerminalProcess): boolean;
-
-	on(event: 'exit', listener: (code: number) => void): this;
-	on(event: 'message', listener: (message: IMessageFromTerminalProcess) => void): this;
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
+	input(data: string): void;
+	resize(cols: number, rows: number): void;
 }
 
 let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string = null;

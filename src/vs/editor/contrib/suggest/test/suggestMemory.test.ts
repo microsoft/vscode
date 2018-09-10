@@ -45,9 +45,9 @@ suite('SuggestMemories', function () {
 		let item2 = createSuggestItem('bazz', 0);
 		let item3 = createSuggestItem('bazz', 0);
 		let item4 = createSuggestItem('bazz', 0);
-		item1.suggestion.autoSelect = false;
-		item2.suggestion.autoSelect = true;
-		item3.suggestion.autoSelect = true;
+		item1.suggestion.preselect = false;
+		item2.suggestion.preselect = true;
+		item3.suggestion.preselect = true;
 
 		assert.equal(mem.select(buffer, pos, [item1, item2, item3, item4]), 1);
 	});
@@ -57,9 +57,9 @@ suite('SuggestMemories', function () {
 		let item2 = createSuggestItem('bazz', 0);
 		let item3 = createSuggestItem('bazz', 0);
 		let item4 = createSuggestItem('bazz', 0);
-		item1.suggestion.autoSelect = false;
-		item2.suggestion.autoSelect = true;
-		item3.suggestion.autoSelect = true;
+		item1.suggestion.preselect = false;
+		item2.suggestion.preselect = true;
+		item3.suggestion.preselect = true;
 		let items = [item1, item2, item3, item4];
 
 

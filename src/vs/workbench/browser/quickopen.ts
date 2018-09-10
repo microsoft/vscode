@@ -19,6 +19,7 @@ import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
 
@@ -42,21 +43,21 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	public getResults(searchValue: string): TPromise<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
 		return TPromise.as(null);
 	}
 
 	/**
 	 * The ARIA label to apply when this quick open handler is active in quick open.
 	 */
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return null;
 	}
 
 	/**
 	 * Extra CSS class name to add to the quick open widget to do custom styling of entries.
 	 */
-	public getClass(): string {
+	getClass(): string {
 		return null;
 	}
 
@@ -64,14 +65,14 @@ export class QuickOpenHandler {
 	 * Indicates if the handler can run in the current environment. Return a string if the handler cannot run but has
 	 * a good message to show in this case.
 	 */
-	public canRun(): boolean | string {
+	canRun(): boolean | string {
 		return true;
 	}
 
 	/**
 	 * Hints to the outside that this quick open handler typically returns results fast.
 	 */
-	public hasShortResponseTime(): boolean {
+	hasShortResponseTime(): boolean {
 		return false;
 	}
 
@@ -79,14 +80,14 @@ export class QuickOpenHandler {
 	 * Indicates if the handler wishes the quick open widget to automatically select the first result entry or an entry
 	 * based on a specific prefix match.
 	 */
-	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
+	getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {};
 	}
 
 	/**
 	 * Indicates to the handler that the quick open widget has been opened.
 	 */
-	public onOpen(): void {
+	onOpen(): void {
 		return;
 	}
 
@@ -94,21 +95,21 @@ export class QuickOpenHandler {
 	 * Indicates to the handler that the quick open widget has been closed. Allows to free up any resources as needed.
 	 * The parameter canceled indicates if the quick open widget was closed with an entry being run or not.
 	 */
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 		return;
 	}
 
 	/**
 	 * Allows to return a label that will be placed to the side of the results from this handler or null if none.
 	 */
-	public getGroupLabel(): string {
+	getGroupLabel(): string {
 		return null;
 	}
 
 	/**
 	 * Allows to return a label that will be used when there are no results found
 	 */
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
 			return nls.localize('noResultsMatching', "No results matching");
 		}
@@ -126,11 +127,11 @@ export interface QuickOpenHandlerHelpEntry {
  * A lightweight descriptor of a quick open handler.
  */
 export class QuickOpenHandlerDescriptor {
-	public prefix: string;
-	public description: string;
-	public contextKey: string;
-	public helpEntries: QuickOpenHandlerHelpEntry[];
-	public instantProgress: boolean;
+	prefix: string;
+	description: string;
+	contextKey: string;
+	helpEntries: QuickOpenHandlerHelpEntry[];
+	instantProgress: boolean;
 
 	private id: string;
 	private ctor: IConstructorSignature0<QuickOpenHandler>;
@@ -151,11 +152,11 @@ export class QuickOpenHandlerDescriptor {
 		}
 	}
 
-	public getId(): string {
+	getId(): string {
 		return this.id;
 	}
 
-	public instantiate(instantiationService: IInstantiationService): QuickOpenHandler {
+	instantiate(instantiationService: IInstantiationService): QuickOpenHandler {
 		return instantiationService.createInstance(this.ctor);
 	}
 }
@@ -193,14 +194,10 @@ export interface IQuickOpenRegistry {
 }
 
 class QuickOpenRegistry implements IQuickOpenRegistry {
-	private handlers: QuickOpenHandlerDescriptor[];
+	private handlers: QuickOpenHandlerDescriptor[] = [];
 	private defaultHandler: QuickOpenHandlerDescriptor;
 
-	constructor() {
-		this.handlers = [];
-	}
-
-	public registerQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
+	registerQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
 		this.handlers.push(descriptor);
 
 		// sort the handlers by decreasing prefix length, such that longer
@@ -208,19 +205,19 @@ class QuickOpenRegistry implements IQuickOpenRegistry {
 		this.handlers.sort((h1, h2) => h2.prefix.length - h1.prefix.length);
 	}
 
-	public registerDefaultQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
+	registerDefaultQuickOpenHandler(descriptor: QuickOpenHandlerDescriptor): void {
 		this.defaultHandler = descriptor;
 	}
 
-	public getQuickOpenHandlers(): QuickOpenHandlerDescriptor[] {
+	getQuickOpenHandlers(): QuickOpenHandlerDescriptor[] {
 		return this.handlers.slice(0);
 	}
 
-	public getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor {
+	getQuickOpenHandler(text: string): QuickOpenHandlerDescriptor {
 		return text ? arrays.first(this.handlers, h => strings.startsWith(text, h.prefix), null) : null;
 	}
 
-	public getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
+	getDefaultQuickOpenHandler(): QuickOpenHandlerDescriptor {
 		return this.defaultHandler;
 	}
 }
@@ -249,19 +246,19 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		super();
 	}
 
-	public get editorService() {
+	get editorService() {
 		return this._editorService;
 	}
 
-	public getInput(): IResourceInput | IEditorInput {
+	getInput(): IResourceInput | IEditorInput {
 		return null;
 	}
 
-	public getOptions(): IEditorOptions {
+	getOptions(): IEditorOptions {
 		return null;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		const hideWidget = (mode === Mode.OPEN);
 
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
@@ -304,11 +301,11 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	public getInput(): IEditorInput | IResourceInput {
+	getInput(): IEditorInput | IResourceInput {
 		return null;
 	}
 
-	public getOptions(): IEditorOptions {
+	getOptions(): IEditorOptions {
 		return null;
 	}
 }
@@ -328,7 +325,7 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): TPromise<void> {
+	run(context?: any): TPromise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);

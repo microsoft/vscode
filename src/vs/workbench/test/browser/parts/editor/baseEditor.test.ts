@@ -17,7 +17,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { workbenchInstantiationService, TestEditorGroup, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -71,7 +71,7 @@ class MyInput extends EditorInput {
 		return '';
 	}
 
-	resolve(refresh?: boolean): any {
+	resolve(): any {
 		return null;
 	}
 }
@@ -81,7 +81,7 @@ class MyOtherInput extends EditorInput {
 		return '';
 	}
 
-	resolve(refresh?: boolean): any {
+	resolve(): any {
 		return null;
 	}
 }

@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { localize } from 'vs/nls';
 

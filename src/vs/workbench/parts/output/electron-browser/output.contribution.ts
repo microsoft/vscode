@@ -12,8 +12,8 @@ import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/parts/output/electron-browser/outputServices';
-import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { ToggleOutputAction, ClearOutputAction, OpenLogOutputFile, ShowLogsOutputChannelAction, OpenOutputLogFileAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -23,10 +23,8 @@ import { LogViewer, LogViewerInput } from 'vs/workbench/parts/output/browser/log
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import URI from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -91,6 +89,9 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleOutputActi
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
 	'View: Clear Output', nls.localize('viewCategory', "View"));
 
+const devCategory = nls.localize('developer', "Developer");
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsOutputChannelAction, ShowLogsOutputChannelAction.ID, ShowLogsOutputChannelAction.LABEL), 'Developer: Show Logs...', devCategory);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenOutputLogFileAction, OpenOutputLogFileAction.ID, OpenOutputLogFileAction.LABEL), 'Developer: Open Log File...', devCategory);
 
 interface IActionDescriptor {
 	id: string;
@@ -180,10 +181,11 @@ registerAction({
 	}
 });
 
-CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: ServicesAccessor, file: URI) {
-	if (file) {
-		const editorService = accessor.get(IEditorService);
-		return editorService.openEditor(accessor.get(IInstantiationService).createInstance(LogViewerInput, file));
-	}
-	return null;
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_panels',
+	command: {
+		id: ToggleOutputAction.ID,
+		title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+	},
+	order: 1
 });

@@ -7,7 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IReference, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -102,7 +102,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.onReady;
 	}
 
-	resolve(refresh?: boolean): TPromise<WalkThroughModel> {
+	resolve(): TPromise<WalkThroughModel> {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {

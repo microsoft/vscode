@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-breadcrumbs {
+	user-select: none;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	justify-content: flex-start;
+	outline-style: none;
+}
+
+.monaco-breadcrumbs .monaco-breadcrumb-item {
+	display: flex;
+	align-items: center;
+	flex: 0 1 auto;
+	white-space: nowrap;
+	cursor: pointer;
+	align-self: center;
+	height: 100%;
+	outline: none;
+}
+
+.monaco-breadcrumbs .monaco-breadcrumb-item::before {
+	width: 14px;
+	height: 16px;
+	display: inline-block;
+	content: ' ';
+}
+
+.monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
+	background-image: url(./collapsed.svg);
+	opacity: .7;
+	background-size: 16px;
+	background-position: 50% 50%;
+}
+
+.vs-dark .monaco-breadcrumbs .monaco-breadcrumb-item:not(:nth-child(2))::before {
+	background-image: url(./collpased-dark.svg);
+}

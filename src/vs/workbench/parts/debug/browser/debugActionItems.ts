@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
@@ -47,7 +46,7 @@ export class StartDebugActionItem implements IActionItem {
 		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService);
+		this.selectBox = new SelectBox([], -1, contextViewService, null, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
 			selectBackground: SIDE_BAR_BACKGROUND
@@ -72,11 +71,12 @@ export class StartDebugActionItem implements IActionItem {
 		dom.addClass(container, 'start-debug-action-item');
 		this.start = dom.append(container, $('.icon'));
 		this.start.title = this.action.label;
+		this.start.setAttribute('role', 'button');
 		this.start.tabIndex = 0;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();
-			this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
+			this.actionRunner.run(this.action, this.context);
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
@@ -94,7 +94,7 @@ export class StartDebugActionItem implements IActionItem {
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter)) {
-				this.actionRunner.run(this.action, this.context).done(null, errors.onUnexpectedError);
+				this.actionRunner.run(this.action, this.context);
 			}
 			if (event.equals(KeyCode.RightArrow)) {
 				this.selectBox.focus();
@@ -177,7 +177,7 @@ export class StartDebugActionItem implements IActionItem {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString()).done(undefined, errors.onUnexpectedError);
+					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString());
 					return false;
 				}
 			});
@@ -194,7 +194,7 @@ export class FocusSessionActionItem extends SelectActionItem {
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], -1, contextViewService);
+		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 

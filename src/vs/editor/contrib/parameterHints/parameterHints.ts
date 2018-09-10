@@ -15,7 +15,7 @@ import { registerEditorAction, registerEditorContribution, ServicesAccessor, Edi
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -68,7 +68,8 @@ export class TriggerParameterHintsAction extends EditorAction {
 			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -84,7 +85,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 registerEditorContribution(ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
-const weight = KeybindingsRegistry.WEIGHT.editorContrib(75);
+const weight = KeybindingWeight.EditorContrib + 75;
 
 const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
 

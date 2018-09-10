@@ -10,13 +10,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { join } from 'path';
 
-function rndName() {
+export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
 }
 
-export function createRandomFile(contents = ''): Thenable<vscode.Uri> {
+export function createRandomFile(contents = '', dir: string = os.tmpdir()): Thenable<vscode.Uri> {
 	return new Promise((resolve, reject) => {
-		const tmpFile = join(os.tmpdir(), rndName());
+		const tmpFile = join(dir, rndName());
 		fs.writeFile(tmpFile, contents, (error) => {
 			if (error) {
 				return reject(error);

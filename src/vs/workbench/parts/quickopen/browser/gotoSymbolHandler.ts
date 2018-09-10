@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/gotoSymbolHandler';
+import 'vs/css!vs/editor/contrib/documentSymbols/media/symbol-icons';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -26,14 +26,38 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRe
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { asThenable } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
 
+const NLS_SYMBOL_CACHE: { [type: string]: string } = {
+	'method': nls.localize('method', "methods ({0})"),
+	'function': nls.localize('function', "functions ({0})"),
+	'constructor': nls.localize('_constructor', "constructors ({0})"),
+	'variable': nls.localize('variable', "variables ({0})"),
+	'class': nls.localize('class', "classes ({0})"),
+	'interface': nls.localize('interface', "interfaces ({0})"),
+	'namespace': nls.localize('namespace', "namespaces ({0})"),
+	'package': nls.localize('package', "packages ({0})"),
+	'module': nls.localize('modules', "modules ({0})"),
+	'property': nls.localize('property', "properties ({0})"),
+	'enum': nls.localize('enum', "enumerations ({0})"),
+	'string': nls.localize('string', "strings ({0})"),
+	'rule': nls.localize('rule', "rules ({0})"),
+	'file': nls.localize('file', "files ({0})"),
+	'array': nls.localize('array', "arrays ({0})"),
+	'number': nls.localize('number', "numbers ({0})"),
+	'boolean': nls.localize('boolean', "booleans ({0})"),
+	'object': nls.localize('object', "objects ({0})"),
+	'key': nls.localize('key', "keys ({0})")
+};
+
 export class GotoSymbolAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.gotoSymbol';
-	public static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
+	static readonly ID = 'workbench.action.gotoSymbol';
+	static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
@@ -42,7 +66,7 @@ export class GotoSymbolAction extends QuickOpenAction {
 
 class OutlineModel extends QuickOpenModel {
 
-	public applyFilter(searchValue: string): void {
+	applyFilter(searchValue: string): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -197,37 +221,12 @@ class OutlineModel extends QuickOpenModel {
 	}
 
 	private renderGroupLabel(type: string, count: number): string {
-
-		const pattern = OutlineModel.getDefaultGroupLabelPatterns()[type];
+		const pattern = NLS_SYMBOL_CACHE[type];
 		if (pattern) {
 			return strings.format(pattern, count);
 		}
 
 		return type;
-	}
-
-	private static getDefaultGroupLabelPatterns(): { [type: string]: string } {
-		const result: { [type: string]: string } = Object.create(null);
-		result['method'] = nls.localize('method', "methods ({0})");
-		result['function'] = nls.localize('function', "functions ({0})");
-		result['constructor'] = <any>nls.localize('_constructor', "constructors ({0})");
-		result['variable'] = nls.localize('variable', "variables ({0})");
-		result['class'] = nls.localize('class', "classes ({0})");
-		result['interface'] = nls.localize('interface', "interfaces ({0})");
-		result['namespace'] = nls.localize('namespace', "namespaces ({0})");
-		result['package'] = nls.localize('package', "packages ({0})");
-		result['module'] = nls.localize('modules', "modules ({0})");
-		result['property'] = nls.localize('property', "properties ({0})");
-		result['enum'] = nls.localize('enum', "enumerations ({0})");
-		result['string'] = nls.localize('string', "strings ({0})");
-		result['rule'] = nls.localize('rule', "rules ({0})");
-		result['file'] = nls.localize('file', "files ({0})");
-		result['array'] = nls.localize('array', "arrays ({0})");
-		result['number'] = nls.localize('number', "numbers ({0})");
-		result['boolean'] = nls.localize('boolean', "booleans ({0})");
-		result['object'] = nls.localize('object', "objects ({0})");
-		result['key'] = nls.localize('key', "keys ({0})");
-		return result;
 	}
 }
 
@@ -239,9 +238,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private icon: string;
 	private description: string;
 	private range: IRange;
+	private revealRange: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
@@ -250,51 +250,52 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		this.icon = icon;
 		this.description = description;
 		this.range = range;
+		this.revealRange = revealRange || range;
 		this.setHighlights(highlights);
 		this.editorService = editorService;
 		this.handler = handler;
 	}
 
-	public getIndex(): number {
+	getIndex(): number {
 		return this.index;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.name;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, symbols", this.getLabel());
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.icon;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public getType(): string {
+	getType(): string {
 		return this.type;
 	}
 
-	public getRange(): IRange {
+	getRange(): IRange {
 		return this.range;
 	}
 
-	public getInput(): IEditorInput {
+	getInput(): IEditorInput {
 		return this.editorService.activeEditor;
 	}
 
-	public getOptions(pinned?: boolean): ITextEditorOptions {
+	getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
 			selection: this.toSelection(),
 			pinned
 		};
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -342,10 +343,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	private toSelection(): IRange {
 		return {
-			startLineNumber: this.range.startLineNumber,
-			startColumn: this.range.startColumn || 1,
-			endLineNumber: this.range.startLineNumber,
-			endColumn: this.range.startColumn || 1
+			startLineNumber: this.revealRange.startLineNumber,
+			startColumn: this.revealRange.startColumn || 1,
+			endLineNumber: this.revealRange.startLineNumber,
+			endColumn: this.revealRange.startColumn || 1
 		};
 	}
 }
@@ -358,12 +359,11 @@ interface IEditorLineDecoration {
 
 export class GotoSymbolHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.filesymbols';
+	static readonly ID = 'workbench.picker.filesymbols';
 
 	private outlineToModelCache: { [modelId: string]: OutlineModel; };
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
-	private activeOutlineRequest: TPromise<OutlineModel>;
 
 	constructor(
 		@IEditorService private editorService: IEditorService
@@ -373,7 +373,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		this.outlineToModelCache = {};
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel
@@ -383,7 +383,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getActiveOutline().then(outline => {
+		return this.doGetActiveOutline(token).then(outline => {
+			if (token.isCancellationRequested) {
+				return outline;
+			}
 
 			// Filter by search
 			outline.applyFilter(searchValue);
@@ -392,7 +395,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
 			return nls.localize('noSymbolsMatching', "No symbols matching");
 		}
@@ -400,11 +403,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return nls.localize('noSymbolsFound', "No symbols found");
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('gotoSymbolHandlerAriaLabel', "Type to narrow down symbols of the currently active editor.");
 	}
 
-	public canRun(): boolean | string {
+	canRun(): boolean | string {
 		let canRun = false;
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
@@ -422,7 +425,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return canRun ? true : activeTextEditorWidget !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		searchValue = searchValue.trim();
 
 		// Remove any type pattern (:) from search value as needed
@@ -449,23 +452,15 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			results.push(new SymbolEntry(i,
-				label, icon, description, icon,
-				element.fullRange, null, this.editorService, this
+				label, icon, description, `symbol-icon ${icon}`,
+				element.range, element.selectionRange, null, this.editorService, this
 			));
 		}
 
 		return results;
 	}
 
-	private getActiveOutline(): TPromise<OutlineModel> {
-		if (!this.activeOutlineRequest) {
-			this.activeOutlineRequest = this.doGetActiveOutline();
-		}
-
-		return this.activeOutlineRequest;
-	}
-
-	private doGetActiveOutline(): TPromise<OutlineModel> {
+	private doGetActiveOutline(token: CancellationToken): TPromise<OutlineModel> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -481,22 +476,21 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getDocumentSymbols(<ITextModel>model).then(entries => {
-
+				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, token)).then(entries => {
 					const model = new OutlineModel(this.toQuickOpenEntries(entries));
 
 					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
 					this.outlineToModelCache[modelId] = model;
 
 					return model;
-				});
+				}));
 			}
 		}
 
 		return TPromise.wrap<OutlineModel>(null);
 	}
 
-	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {
+	decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const deleteDecorations: string[] = [];
 
@@ -543,7 +537,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	public clearDecorations(): void {
+	clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
 				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
@@ -561,7 +555,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 
 		// Clear Cache
 		this.outlineToModelCache = {};
@@ -578,6 +572,5 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		this.lastKnownEditorViewState = null;
-		this.activeOutlineRequest = null;
 	}
 }

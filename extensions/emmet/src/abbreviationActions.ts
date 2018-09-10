@@ -96,6 +96,7 @@ function doWrapping(individualLines: boolean, args: any) {
 			const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
 			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
 		}
+		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
 		return {
 			previewRange: rangeToReplace,
@@ -494,6 +495,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			continue;
 		}
 		if (char === question && textToBackTrack[i] === startAngle) {
+			i--;
+			continue;
+		}
+		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// A space is not a valid character right after < in a tag name.
+		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
 			i--;
 			continue;
 		}

@@ -11,12 +11,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { localize } from 'vs/nls';
-import { ILaunchChannel } from 'vs/code/electron-main/launch';
+import { ILaunchChannel } from 'vs/platform/launch/electron-main/launchService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import product from 'vs/platform/node/product';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { IRequestContext } from 'vs/base/node/request';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface PostResult {
 	readonly blob_id: string;
@@ -37,7 +38,7 @@ export async function uploadLogs(
 	channel: ILaunchChannel,
 	requestService: IRequestService,
 	environmentService: IEnvironmentService
-): TPromise<any> {
+): Promise<any> {
 	const endpoint = Endpoint.getFromProduct();
 	if (!endpoint) {
 		console.error(localize('invalidEndpoint', 'Invalid log uploader endpoint'));
@@ -75,7 +76,7 @@ async function postLogs(
 	endpoint: Endpoint,
 	outZip: string,
 	requestService: IRequestService
-): TPromise<PostResult> {
+): Promise<PostResult> {
 	const dotter = setInterval(() => console.log('.'), 5000);
 	let result: IRequestContext;
 	try {
@@ -86,7 +87,7 @@ async function postLogs(
 			headers: {
 				'Content-Type': 'application/zip'
 			}
-		});
+		}, CancellationToken.None);
 	} catch (e) {
 		clearInterval(dotter);
 		console.log(localize('postError', 'Error posting logs: {0}', e));
@@ -126,7 +127,7 @@ function zipLogs(
 	return new TPromise<string>((resolve, reject) => {
 		doZip(logsPath, outZip, tempDir, (err, stdout, stderr) => {
 			if (err) {
-				console.error(localize('zipError', 'Error zipping logs: {0}', err));
+				console.error(localize('zipError', 'Error zipping logs: {0}', err.message));
 				reject(err);
 			} else {
 				resolve(outZip);

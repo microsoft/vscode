@@ -18,5 +18,10 @@
 		"typeRoots": [
 			"typings"
 		]
-	}
+	},
+	"exclude": [
+		"../out",
+		"../out-build",
+		"../out-vscode"
+	]
 }

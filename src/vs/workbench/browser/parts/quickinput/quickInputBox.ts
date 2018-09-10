@@ -9,7 +9,7 @@ import 'vs/css!./quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -33,12 +33,6 @@ export class QuickInputBox {
 			ariaLabel: DEFAULT_INPUT_ARIA_LABEL
 		});
 		this.disposables.push(this.inputBox);
-
-		// ARIA
-		const inputElement = this.inputBox.inputElement;
-		inputElement.setAttribute('role', 'combobox');
-		inputElement.setAttribute('aria-haspopup', 'false');
-		inputElement.setAttribute('aria-autocomplete', 'list');
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -87,6 +81,14 @@ export class QuickInputBox {
 		this.inputBox.setEnabled(enabled);
 	}
 
+	setAttribute(name: string, value: string) {
+		this.inputBox.inputElement.setAttribute(name, value);
+	}
+
+	removeAttribute(name: string) {
+		this.inputBox.inputElement.removeAttribute(name);
+	}
+
 	showDecoration(decoration: Severity): void {
 		if (decoration === Severity.Ignore) {
 			this.inputBox.hideMessage();
@@ -109,10 +111,13 @@ export class QuickInputBox {
 			inputBackground: theme.getColor(inputBackground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		});
 	}

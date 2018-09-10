@@ -7,14 +7,15 @@
 
 import 'vs/css!./goToDefinitionMouse';
 import * as nls from 'vs/nls';
-import { Throttler } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
@@ -25,7 +26,8 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { Position } from 'vs/editor/common/core/position';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
@@ -36,7 +38,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private toUnhook: IDisposable[];
 	private decorations: string[];
 	private currentWordUnderMouse: IWordAtPosition;
-	private throttler: Throttler;
+	private previousPromise: CancelablePromise<DefinitionLink[]>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -46,7 +48,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = [];
 		this.decorations = [];
 		this.editor = editor;
-		this.throttler = new Throttler();
+		this.previousPromise = null;
 
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.push(linkGesture);
@@ -57,7 +59,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
-				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).done(() => {
+				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
 					this.removeDecorations();
 				}, (error: Error) => {
 					this.removeDecorations();
@@ -99,12 +101,14 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		// Find definition and decorate word if found
 		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
 
-		this.throttler.queue(() => {
-			return state.validate(this.editor)
-				? this.findDefinition(mouseEvent.target)
-				: TPromise.wrap<Location[]>(null);
+		if (this.previousPromise) {
+			this.previousPromise.cancel();
+			this.previousPromise = null;
+		}
 
-		}).then(results => {
+		this.previousPromise = createCancelablePromise(token => this.findDefinition(mouseEvent.target, token));
+
+		this.previousPromise.then(results => {
 			if (!results || !results.length || !state.validate(this.editor)) {
 				this.removeDecorations();
 				return;
@@ -136,35 +140,115 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const { object: { textEditorModel } } = ref;
 					const { startLineNumber } = result.range;
 
-					if (textEditorModel.getLineMaxColumn(startLineNumber) === 0) {
+					if (startLineNumber < 1 || startLineNumber > textEditorModel.getLineCount()) {
+						// invalid range
 						ref.dispose();
 						return;
 					}
 
-					const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-					const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
-					let endLineNumber = startLineNumber + 1;
-					let minIndent = startIndent;
+					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
 
-					for (; endLineNumber < maxLineNumber; endLineNumber++) {
-						let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
-						minIndent = Math.min(minIndent, endIndent);
-						if (startIndent === endIndent) {
-							break;
-						}
+					let wordRange: Range;
+					if (result.origin) {
+						wordRange = Range.lift(result.origin);
+					} else {
+						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
-					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
-
 					this.addDecoration(
-						new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
-						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), value)
+						wordRange,
+						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), previewValue)
 					);
 					ref.dispose();
 				});
 			}
-		}).done(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
+	}
+
+	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
+		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
+		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
+			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
+		}
+
+		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
+		return previewValue;
+	}
+
+	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: Range) {
+		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
+		let minIndent = startIndent;
+
+		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
+			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+			minIndent = Math.min(minIndent, endIndent);
+		}
+
+		const previewValue = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
+		return previewValue;
+	}
+
+	private getPreviewRangeBasedOnIndentation(textEditorModel: ITextModel, startLineNumber: number) {
+		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+		let endLineNumber = startLineNumber + 1;
+
+		for (; endLineNumber < maxLineNumber; endLineNumber++) {
+			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+
+			if (startIndent === endIndent) {
+				break;
+			}
+		}
+
+		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+	}
+
+	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+
+		const brackets = [];
+
+		let ignoreFirstEmpty = true;
+		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
+		while (currentBracket !== null) {
+
+			if (brackets.length === 0) {
+				brackets.push(currentBracket);
+			} else {
+				const lastBracket = brackets[brackets.length - 1];
+				if (lastBracket.open === currentBracket.open && lastBracket.isOpen && !currentBracket.isOpen) {
+					brackets.pop();
+				} else {
+					brackets.push(currentBracket);
+				}
+
+				if (brackets.length === 0) {
+					if (ignoreFirstEmpty) {
+						ignoreFirstEmpty = false;
+					} else {
+						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
+					}
+				}
+			}
+
+			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
+			let nextLineNumber = currentBracket.range.endLineNumber;
+			let nextColumn = currentBracket.range.endColumn;
+			if (maxColumn === currentBracket.range.endColumn) {
+				nextLineNumber++;
+				nextColumn = 1;
+			}
+
+			if (nextLineNumber > maxLineNumber) {
+				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
+			}
+
+			currentBracket = textEditorModel.findNextBracket(new Position(nextLineNumber, nextColumn));
+		}
+
+		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
 	}
 
 	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
@@ -194,13 +278,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<Location[]> {
-		let model = this.editor.getModel();
+	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
+		const model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
 		}
 
-		return getDefinitionsAtPosition(this.editor.getModel(), target.position);
+		return getDefinitionsAtPosition(model, target.position, token);
 	}
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {

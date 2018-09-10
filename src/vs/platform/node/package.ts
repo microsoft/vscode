@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import uri from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IPackageConfiguration {
 	name: string;
 	version: string;
 }
 
-const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
+const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 const packageJsonPath = path.join(rootPath, 'package.json');
 export default require.__$__nodeRequire(packageJsonPath) as IPackageConfiguration;

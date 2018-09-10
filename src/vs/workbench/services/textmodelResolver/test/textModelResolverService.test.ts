@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { ITextModel } from 'vs/editor/common/model';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -133,12 +133,12 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new TPromise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async (resource: URI): TPromise<ITextModel> => {
-				await waitForIt;
-
-				let modelContent = 'Hello Test';
-				let mode = accessor.modeService.getOrCreateMode('json');
-				return accessor.modelService.createModel(modelContent, mode, resource);
+			provideTextContent: (resource: URI): TPromise<ITextModel> => {
+				return waitForIt.then(_ => {
+					let modelContent = 'Hello Test';
+					let mode = accessor.modeService.getOrCreateMode('json');
+					return accessor.modelService.createModel(modelContent, mode, resource);
+				});
 			}
 		});
 

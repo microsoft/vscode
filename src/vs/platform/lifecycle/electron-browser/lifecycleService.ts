@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, handleVetos, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -20,7 +20,7 @@ export class LifecycleService implements ILifecycleService {
 
 	private static readonly _lastShutdownReasonKey = 'lifecyle.lastShutdownReason';
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
 	private readonly _onShutdown = new Emitter<ShutdownReason>();
@@ -61,7 +61,7 @@ export class LifecycleService implements ILifecycleService {
 			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
-			this.onBeforeUnload(reply.reason).done(veto => {
+			this.onBeforeUnload(reply.reason).then(veto => {
 				if (veto) {
 					this._logService.trace('lifecycle: onBeforeUnload prevented via veto');
 					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
@@ -83,7 +83,7 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	private onBeforeUnload(reason: ShutdownReason): TPromise<boolean> {
-		const vetos: (boolean | TPromise<boolean>)[] = [];
+		const vetos: (boolean | Thenable<boolean>)[] = [];
 
 		this._onWillShutdown.fire({
 			veto(value) {
@@ -95,11 +95,11 @@ export class LifecycleService implements ILifecycleService {
 		return handleVetos(vetos, err => this._notificationService.error(toErrorMessage(err)));
 	}
 
-	public get phase(): LifecyclePhase {
+	get phase(): LifecyclePhase {
 		return this._phase;
 	}
 
-	public set phase(value: LifecyclePhase) {
+	set phase(value: LifecyclePhase) {
 		if (value < this.phase) {
 			throw new Error('Lifecycle cannot go backwards');
 		}
@@ -111,7 +111,7 @@ export class LifecycleService implements ILifecycleService {
 		this._logService.trace(`lifecycle: phase changed (value: ${value})`);
 
 		this._phase = value;
-		mark(`LifecyclePhase/${LifecyclePhase[value]}`);
+		mark(`LifecyclePhase/${LifecyclePhaseToString(value)}`);
 
 		if (this._phaseWhen.has(this._phase)) {
 			this._phaseWhen.get(this._phase).open();
@@ -119,7 +119,7 @@ export class LifecycleService implements ILifecycleService {
 		}
 	}
 
-	public when(phase: LifecyclePhase): Thenable<any> {
+	when(phase: LifecyclePhase): Thenable<any> {
 		if (phase <= this._phase) {
 			return Promise.resolve();
 		}
@@ -133,15 +133,15 @@ export class LifecycleService implements ILifecycleService {
 		return barrier.wait();
 	}
 
-	public get startupKind(): StartupKind {
+	get startupKind(): StartupKind {
 		return this._startupKind;
 	}
 
-	public get onWillShutdown(): Event<ShutdownEvent> {
+	get onWillShutdown(): Event<ShutdownEvent> {
 		return this._onWillShutdown.event;
 	}
 
-	public get onShutdown(): Event<ShutdownReason> {
+	get onShutdown(): Event<ShutdownReason> {
 		return this._onShutdown.event;
 	}
 }

@@ -5,24 +5,25 @@
 
 'use strict';
 
-import * as path from 'path';
+import * as es from 'event-stream';
 import * as gulp from 'gulp';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as filter from 'gulp-filter';
+import * as concat from 'gulp-concat';
 import * as minifyCSS from 'gulp-cssnano';
+import * as filter from 'gulp-filter';
+import * as flatmap from 'gulp-flatmap';
+import * as sourcemaps from 'gulp-sourcemaps';
 import * as uglify from 'gulp-uglify';
 import * as composer from 'gulp-uglify/composer';
-import * as uglifyes from 'uglify-es';
-import * as es from 'event-stream';
-import * as concat from 'gulp-concat';
-import * as VinylFile from 'vinyl';
-import * as bundle from './bundle';
-import * as util from './util';
-import * as i18n from './i18n';
 import * as gulpUtil from 'gulp-util';
-import * as flatmap from 'gulp-flatmap';
+import * as path from 'path';
 import * as pump from 'pump';
 import * as sm from 'source-map';
+import * as uglifyes from 'uglify-es';
+import * as VinylFile from 'vinyl';
+import * as bundle from './bundle';
+import { Language, processNlsFiles } from './i18n';
+import { createStatsStream } from './stats';
+import * as util from './util';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -50,21 +51,21 @@ declare class FileSourceMap extends VinylFile {
 	public sourceMap: sm.RawSourceMap;
 }
 
-function loader(bundledFileHeader: string, bundleLoader: boolean): NodeJS.ReadWriteStream {
+function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): NodeJS.ReadWriteStream {
 	let sources = [
-		'out-build/vs/loader.js'
+		`${src}/vs/loader.js`
 	];
 	if (bundleLoader) {
 		sources = sources.concat([
-			'out-build/vs/css.js',
-			'out-build/vs/nls.js'
+			`${src}/vs/css.js`,
+			`${src}/vs/nls.js`
 		]);
 	}
 
 	let isFirst = true;
 	return (
 		gulp
-			.src(sources, { base: 'out-build' })
+			.src(sources, { base: `${src}` })
 			.pipe(es.through(function (data) {
 				if (isFirst) {
 					isFirst = false;
@@ -87,7 +88,7 @@ function loader(bundledFileHeader: string, bundleLoader: boolean): NodeJS.ReadWr
 	);
 }
 
-function toConcatStream(bundledFileHeader: string, sources: bundle.IFile[], dest: string): NodeJS.ReadWriteStream {
+function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.IFile[], dest: string): NodeJS.ReadWriteStream {
 	const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
 
 	// If a bundle ends up including in any of the sources our copyright, then
@@ -110,7 +111,7 @@ function toConcatStream(bundledFileHeader: string, sources: bundle.IFile[], dest
 
 	const treatedSources = sources.map(function (source) {
 		const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-		const base = source.path ? root + '/out-build' : '';
+		const base = source.path ? root + `/${src}` : '';
 
 		return new VinylFile({
 			path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
@@ -121,16 +122,21 @@ function toConcatStream(bundledFileHeader: string, sources: bundle.IFile[], dest
 
 	return es.readArray(treatedSources)
 		.pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-		.pipe(concat(dest));
+		.pipe(concat(dest))
+		.pipe(createStatsStream(dest));
 }
 
-function toBundleStream(bundledFileHeader: string, bundles: bundle.IConcatFile[]): NodeJS.ReadWriteStream {
+function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.IConcatFile[]): NodeJS.ReadWriteStream {
 	return es.merge(bundles.map(function (bundle) {
-		return toConcatStream(bundledFileHeader, bundle.sources, bundle.dest);
+		return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
 	}));
 }
 
 export interface IOptimizeTaskOpts {
+	/**
+	 * The folder to read files from.
+	 */
+	src: string;
 	/**
 	 * (for AMD files, will get bundled and get Copyright treatment)
 	 */
@@ -161,11 +167,13 @@ export interface IOptimizeTaskOpts {
 	 */
 	out: string;
 	/**
-	 * (languages to process)
+	 * (out folder name)
 	 */
-	languages: i18n.Language[];
+	languages?: Language[];
 }
+
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
+	const src = opts.src;
 	const entryPoints = opts.entryPoints;
 	const otherSources = opts.otherSources;
 	const resources = opts.resources;
@@ -182,7 +190,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
 			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
-			toBundleStream(bundledFileHeader, result.files).pipe(bundlesStream);
+			toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
 
 			// Remove css inlined resources
 			const filteredResources = resources.slice();
@@ -192,7 +200,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				}
 				filteredResources.push('!' + resource);
 			});
-			gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
+			gulp.src(filteredResources, { base: `${src}` }).pipe(resourcesStream);
 
 			const bundleInfoArray: VinylFile[] = [];
 			if (opts.bundleInfo) {
@@ -208,9 +216,9 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		const otherSourcesStream = es.through();
 		const otherSourcesStreamArr: NodeJS.ReadWriteStream[] = [];
 
-		gulp.src(otherSources, { base: 'out-build' })
+		gulp.src(otherSources, { base: `${src}` })
 			.pipe(es.through(function (data) {
-				otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
+				otherSourcesStreamArr.push(toConcatStream(src, bundledFileHeader, [data], data.relative));
 			}, function () {
 				if (!otherSourcesStreamArr.length) {
 					setTimeout(function () { otherSourcesStream.emit('end'); }, 0);
@@ -220,7 +228,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 			}));
 
 		const result = es.merge(
-			loader(bundledFileHeader, bundleLoader),
+			loader(src, bundledFileHeader, bundleLoader),
 			bundlesStream,
 			otherSourcesStream,
 			resourcesStream,
@@ -233,10 +241,10 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				addComment: true,
 				includeContent: true
 			}))
-			.pipe(i18n.processNlsFiles({
+			.pipe(opts.languages && opts.languages.length ? processNlsFiles({
 				fileHeader: bundledFileHeader,
 				languages: opts.languages
-			}))
+			}) : es.through())
 			.pipe(gulp.dest(out));
 	};
 }

@@ -214,7 +214,9 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setClassName('defineKeybindingWidget');
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.")));
+
+		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
+		dom.append(this._domNode.domNode, dom.$('.message', null, message));
 
 		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
 			if (colors.editorWidgetBackground) {
@@ -230,7 +232,7 @@ export class DefineKeybindingWidget extends Widget {
 			}
 		}));
 
-		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, {}));
+		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, { ariaLabel: message }));
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.onKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));

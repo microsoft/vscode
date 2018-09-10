@@ -5,7 +5,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { QuickInputService } from 'vs/workbench/browser/parts/quickinput/quickInput';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider, Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -14,8 +13,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { getZoomFactor } from 'vs/base/browser/browser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { isMacintosh } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
@@ -27,8 +26,9 @@ import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activity
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
+import { getZoomFactor } from 'vs/base/browser/browser';
 
-const TITLE_BAR_HEIGHT = 22;
+const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
 const ACTIVITY_BAR_WIDTH = 50;
 
@@ -69,7 +69,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private _panelHeight: number;
 	private _panelWidth: number;
 
-	// Take parts as an object bag since instatation service does not have typings for constructors with 9+ arguments
 	constructor(
 		private parent: HTMLElement,
 		private workbenchContainer: HTMLElement,
@@ -214,7 +213,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	@memoize
-	private get partLayoutInfo() {
+	public get partLayoutInfo() {
 		return {
 			titlebar: {
 				height: TITLE_BAR_HEIGHT
@@ -294,7 +293,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout({ source: Parts.SIDEBAR_PART }), errors.onUnexpectedError);
+				promise.then(() => this.layout({ source: Parts.SIDEBAR_PART }));
 			}
 		}));
 
@@ -332,7 +331,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout({ source: Parts.PANEL_PART }), errors.onUnexpectedError);
+				promise.then(() => this.layout({ source: Parts.PANEL_PART }));
 			}
 		}));
 
@@ -370,7 +369,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			}
 
 			if (doLayout) {
-				promise.done(() => this.layout({ source: Parts.PANEL_PART }), errors.onUnexpectedError);
+				promise.then(() => this.layout({ source: Parts.PANEL_PART }));
 			}
 		}));
 
@@ -397,7 +396,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(optimalWidth, DEFAULT_SIDEBAR_PART_WIDTH);
 			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
-			this.partService.setSideBarHidden(false).done(() => this.layout(), errors.onUnexpectedError);
+			this.partService.setSideBarHidden(false).then(() => this.layout());
 		}));
 
 		this._register(this.sashXTwo.onDidReset(() => {
@@ -417,6 +416,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		const isSidebarHidden = !this.partService.isVisible(Parts.SIDEBAR_PART);
 		const sidebarPosition = this.partService.getSideBarPosition();
 		const panelPosition = this.partService.getPanelPosition();
+		const menubarVisibility = this.partService.getMenubarVisibility();
 
 		// Sidebar
 		if (this.sidebarWidth === -1) {
@@ -424,7 +424,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		}
 
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
-		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
+		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / (!menubarVisibility || menubarVisibility === 'hidden' ? getZoomFactor() : 1); // adjust for zoom prevention
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
@@ -702,7 +702,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		return this.panelMaximized;
 	}
 
-	// change part size along the main axis
 	resizePart(part: Parts, sizeChange: number): void {
 		const panelPosition = this.partService.getPanelPosition();
 		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);

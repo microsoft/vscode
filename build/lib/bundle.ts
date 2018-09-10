@@ -46,7 +46,7 @@ export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
-	prepend: string[];
+	prepend?: string[];
 	append?: string[];
 	dest?: string;
 }

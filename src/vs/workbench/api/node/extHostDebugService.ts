@@ -6,10 +6,10 @@
 
 import * as paths from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
@@ -31,6 +31,7 @@ import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/co
 import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -123,7 +124,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
 
 		if (args.kind === 'integrated') {
 
@@ -136,20 +137,31 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				});
 			}
 
-			let t = this._integratedTerminalInstance;
+			return new TPromise(resolve => {
+				if (this._integratedTerminalInstance) {
+					this._integratedTerminalInstance.processId.then(pid => {
+						resolve(hasChildprocesses(pid));
+					}, err => {
+						resolve(true);
+					});
+				} else {
+					resolve(true);
+				}
+			}).then(needNewTerminal => {
 
-			if ((t && hasChildprocesses(await t.processId)) || !t) {
-				t = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
-				this._integratedTerminalInstance = t;
-			}
-			t.show();
+				if (needNewTerminal) {
+					this._integratedTerminalInstance = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
+				}
 
-			return new TPromise((resolve, error) => {
-				setTimeout(_ => {
-					const command = prepareCommand(args, config);
-					t.sendText(command, true);
-					resolve(void 0);
-				}, 500);
+				this._integratedTerminalInstance.show();
+
+				return new TPromise((resolve, error) => {
+					setTimeout(_ => {
+						const command = prepareCommand(args, config);
+						this._integratedTerminalInstance.sendText(command, true);
+						resolve(void 0);
+					}, 500);
+				});
 			});
 
 		} else if (args.kind === 'external') {
@@ -166,16 +178,19 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!this._variableResolver) {
 			this._variableResolver = new ExtHostVariableResolverService(this._workspaceService, this._editorsService, this._configurationService);
 		}
+		let ws: IWorkspaceFolder;
 		const folder = this.getFolder(folderUri);
-		let ws: IWorkspaceFolder = {
-			uri: folder.uri,
-			name: folder.name,
-			index: folder.index,
-			toResource: () => {
-				throw new Error('Not implemented');
-			}
-		};
-		return asWinJsPromise(token => this._variableResolver.resolveAny(ws, config));
+		if (folder) {
+			ws = {
+				uri: folder.uri,
+				name: folder.name,
+				index: folder.index,
+				toResource: () => {
+					throw new Error('Not implemented');
+				}
+			};
+		}
+		return TPromise.wrap(this._variableResolver.resolveAny(ws, config));
 	}
 
 	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
@@ -321,7 +336,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {
+	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): Thenable<void> {
 
 		this.startBreakpoints();
 
@@ -387,7 +402,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$registerBreakpoints(dtos);
 	}
 
-	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): TPromise<void> {
+	public removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Thenable<void> {
 
 		this.startBreakpoints();
 
@@ -412,9 +427,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private fireBreakpointChanges(added: vscode.Breakpoint[], removed: vscode.Breakpoint[], changed: vscode.Breakpoint[]) {
 		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 			this._onDidChangeBreakpoints.fire(Object.freeze({
-				added: Object.freeze<vscode.Breakpoint[]>(added),
-				removed: Object.freeze<vscode.Breakpoint[]>(removed),
-				changed: Object.freeze<vscode.Breakpoint[]>(changed)
+				added,
+				removed,
+				changed,
 			}));
 		}
 	}
@@ -437,7 +452,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		});
 	}
 
-	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): TPromise<vscode.DebugConfiguration[]> {
+	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): Thenable<vscode.DebugConfiguration[]> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('no handler found'));
@@ -445,10 +460,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!handler.provideDebugConfigurations) {
 			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('handler has no method provideDebugConfigurations'));
 		}
-		return asWinJsPromise(token => handler.provideDebugConfigurations(this.getFolder(folderUri), token));
+		return asThenable(() => handler.provideDebugConfigurations(this.getFolder(folderUri), CancellationToken.None));
 	}
 
-	public $resolveDebugConfiguration(handle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): TPromise<vscode.DebugConfiguration> {
+	public $resolveDebugConfiguration(handle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): Thenable<vscode.DebugConfiguration> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('no handler found'));
@@ -456,10 +471,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!handler.resolveDebugConfiguration) {
 			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('handler has no method resolveDebugConfiguration'));
 		}
-		return asWinJsPromise(token => handler.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, token));
+		return asThenable(() => handler.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, CancellationToken.None));
 	}
 
-	public $debugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): TPromise<vscode.DebugAdapterExecutable> {
+	public $debugAdapterExecutable(handle: number, folderUri: UriComponents | undefined): Thenable<vscode.DebugAdapterExecutable> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('no handler found'));
@@ -467,10 +482,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!handler.debugAdapterExecutable) {
 			return TPromise.wrapError<vscode.DebugAdapterExecutable>(new Error('handler has no method debugAdapterExecutable'));
 		}
-		return asWinJsPromise(token => handler.debugAdapterExecutable(this.getFolder(folderUri), token));
+		return asThenable(() => handler.debugAdapterExecutable(this.getFolder(folderUri), CancellationToken.None));
 	}
 
-	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {
+	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean> {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 
@@ -524,7 +539,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
 	}
 
-	private getFolder(_folderUri: UriComponents | undefined): vscode.WorkspaceFolder {
+	private getFolder(_folderUri: UriComponents | undefined): vscode.WorkspaceFolder | undefined {
 		if (_folderUri) {
 			const folderURI = URI.revive(_folderUri);
 			return this._workspaceService.resolveWorkspaceFolder(folderURI);

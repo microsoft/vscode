@@ -329,9 +329,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
-				let toUnbind: IDisposable[] = [];
+				let toDispose: IDisposable[] = [];
 				let eventCounter: number = 0;
-				toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 					if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 						eventCounter++;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -354,7 +354,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return;
 				}
 				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
+				terminal.processReady.then(() => {
 					processStartedSignaled = true;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
 				}, (_error) => {
@@ -397,8 +397,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (processStartedSignaled) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					}
-					toUnbind = dispose(toUnbind);
-					toUnbind = null;
+					toDispose = dispose(toDispose);
+					toDispose = null;
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);
@@ -415,7 +415,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return;
 				}
 				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
+				terminal.processReady.then(() => {
 					processStartedSignaled = true;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
 				}, (_error) => {
@@ -970,13 +970,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let taskSystemInfo: TaskSystemInfo = resolver.taskSystemInfo;
 			let hasFilePrefix = matcher.filePrefix !== void 0;
-			let hasScheme = taskSystemInfo !== void 0 && taskSystemInfo.fileSystemScheme !== void 0 && taskSystemInfo.fileSystemScheme !== 'file';
-			if (!hasFilePrefix && !hasScheme) {
+			let hasUriProvider = taskSystemInfo !== void 0 && taskSystemInfo.uriProvider !== void 0;
+			if (!hasFilePrefix && !hasUriProvider) {
 				result.push(matcher);
 			} else {
 				let copy = Objects.deepClone(matcher);
-				if (hasScheme) {
-					copy.fileSystemScheme = taskSystemInfo.fileSystemScheme;
+				if (hasUriProvider) {
+					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
 					copy.filePrefix = this.resolveVariable(resolver, copy.filePrefix);

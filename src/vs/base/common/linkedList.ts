@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IIterator } from 'vs/base/common/iterator';
+import { Iterator } from 'vs/base/common/iterator';
 
 class Node<E> {
 	element: E;
@@ -94,7 +94,7 @@ export class LinkedList<E> {
 		};
 	}
 
-	iterator(): IIterator<E> {
+	iterator(): Iterator<E> {
 		let element = {
 			done: undefined,
 			value: undefined,

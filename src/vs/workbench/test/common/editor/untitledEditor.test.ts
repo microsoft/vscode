@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import { join } from 'vs/base/common/paths';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

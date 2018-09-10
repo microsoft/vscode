@@ -12,7 +12,7 @@ import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -21,9 +21,10 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 
 export interface PositionLike {
 	line: number;
@@ -110,7 +111,7 @@ export namespace Diagnostic {
 			code: String(value.code),
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
-			customTags: Array.isArray(value.customTags) ? value.customTags.map(DiagnosticTag.from) : undefined,
+			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
 		};
 	}
 }
@@ -269,18 +270,19 @@ export const TextEdit = {
 };
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
+		const result: WorkspaceEditDto = {
 			edits: []
 		};
-		for (const entry of value.entries()) {
+		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				result.edits.push({ resource: uri, edits: uriOrEdits.map(TextEdit.from) });
+				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
+				result.edits.push(<ResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
@@ -294,11 +296,12 @@ export namespace WorkspaceEdit {
 					URI.revive((<ResourceTextEditDto>edit).resource),
 					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
-				// } else {
-				// 	result.renameResource(
-				// 		URI.revive((<ResourceFileEditDto>edit).oldUri),
-				// 		URI.revive((<ResourceFileEditDto>edit).newUri)
-				// 	);
+			} else {
+				result.renameFile(
+					URI.revive((<ResourceFileEditDto>edit).oldUri),
+					URI.revive((<ResourceFileEditDto>edit).newUri),
+					(<ResourceFileEditDto>edit).options
+				);
 			}
 		}
 		return result;
@@ -374,8 +377,8 @@ export namespace DocumentSymbol {
 		let result: modes.DocumentSymbol = {
 			name: info.name,
 			detail: info.detail,
-			fullRange: Range.from(info.fullRange),
-			identifierRange: Range.from(info.gotoRange),
+			range: Range.from(info.range),
+			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind)
 		};
 		if (info.children) {
@@ -388,8 +391,8 @@ export namespace DocumentSymbol {
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
-			Range.to(info.fullRange),
-			Range.to(info.identifierRange),
+			Range.to(info.range),
+			Range.to(info.selectionRange),
 		);
 		if (info.children) {
 			result.children = info.children.map(to) as any;
@@ -409,6 +412,23 @@ export const location = {
 		return new types.Location(value.uri, Range.to(value.range));
 	}
 };
+
+export namespace DefinitionLink {
+	export function from(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+		const definitionLink = <vscode.DefinitionLink>value;
+		const location = <vscode.Location>value;
+		return {
+			origin: definitionLink.originSelectionRange
+				? Range.from(definitionLink.originSelectionRange)
+				: undefined,
+			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
+			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
+			selectionRange: definitionLink.targetSelectionRange
+				? Range.from(definitionLink.targetSelectionRange)
+				: undefined,
+		};
+	}
+}
 
 export namespace Hover {
 	export function from(hover: vscode.Hover): modes.Hover {
@@ -509,6 +529,8 @@ export namespace Suggest {
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
+		result.preselect = suggestion.preselect;
+		result.commitCharacters = suggestion.commitCharacters;
 
 		// 'overwrite[Before|After]'-logic
 		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;

@@ -6,9 +6,13 @@
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/@types/markdown-it/-/markdown-it-0.0.2.tgz#5d9ad19e6e6508cdd2f2596df86fd0aade598660"
 
-"@types/node@6.0.78", "@types/node@^6.0.46":
+"@types/node@^6.0.46":
   version "6.0.78"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-6.0.78.tgz#5d4a3f579c1524e01ee21bf474e6fba09198f470"
+
+"@types/node@^8.10.25":
+  version "8.10.25"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
 
 argparse@^1.0.7:
   version "1.0.9"
@@ -20,9 +24,9 @@ entities@~1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/entities/-/entities-1.1.1.tgz#6e5c2d0a5621b5dadaecef80b90edfb5cd7772f0"
 
-jsonc-parser@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
+jsonc-parser@^2.0.2:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.2.tgz#42fcf56d70852a043fadafde51ddb4a85649978d"
 
 linkify-it@^2.0.0:
   version "2.0.3"
@@ -58,6 +62,6 @@ uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.3.tgz#7ed50d5e0f9a9fb0a573379259f2a77458d50192"
 
-vscode-nls@^3.2.1:
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.1.tgz#b1f3e04e8a94a715d5a7bcbc8339c51e6d74ca51"
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"

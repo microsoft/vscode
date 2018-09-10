@@ -7,10 +7,9 @@
 import { getLanguageService as getHTMLLanguageService, DocumentContext } from 'vscode-html-languageservice';
 import {
 	CompletionItem, Location, SignatureHelp, Definition, TextEdit, TextDocument, Diagnostic, DocumentLink, Range,
-	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation
+	Hover, DocumentHighlight, CompletionList, Position, FormattingOptions, SymbolInformation, FoldingRange
 } from 'vscode-languageserver-types';
 import { ColorInformation, ColorPresentation, Color, WorkspaceFolder } from 'vscode-languageserver';
-import { FoldingRange } from 'vscode-languageserver-protocol-foldingprovider';
 
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';

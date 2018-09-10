@@ -6,14 +6,14 @@
 'use strict';
 
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class Link implements ILink {
 
@@ -40,7 +40,7 @@ export class Link implements ILink {
 		return this._link.url;
 	}
 
-	resolve(): TPromise<URI> {
+	resolve(token: CancellationToken): Thenable<URI> {
 		if (this._link.url) {
 			try {
 				return TPromise.as(URI.parse(this._link.url));
@@ -50,11 +50,11 @@ export class Link implements ILink {
 		}
 
 		if (typeof this._provider.resolveLink === 'function') {
-			return asWinJsPromise(token => this._provider.resolveLink(this._link, token)).then(value => {
+			return Promise.resolve(this._provider.resolveLink(this._link, token)).then(value => {
 				this._link = value || this._link;
 				if (this._link.url) {
 					// recurse
-					return this.resolve();
+					return this.resolve(token);
 				}
 
 				return TPromise.wrapError<URI>(new Error('missing'));
@@ -65,13 +65,13 @@ export class Link implements ILink {
 	}
 }
 
-export function getLinks(model: ITextModel): TPromise<Link[]> {
+export function getLinks(model: ITextModel, token: CancellationToken): Promise<Link[]> {
 
 	let links: Link[] = [];
 
 	// ask all providers for links in parallel
 	const promises = LinkProviderRegistry.ordered(model).reverse().map(provider => {
-		return asWinJsPromise(token => provider.provideLinks(model, token)).then(result => {
+		return Promise.resolve(provider.provideLinks(model, token)).then(result => {
 			if (Array.isArray(result)) {
 				const newLinks = result.map(link => new Link(link, provider));
 				links = union(links, newLinks);
@@ -79,7 +79,7 @@ export function getLinks(model: ITextModel): TPromise<Link[]> {
 		}, onUnexpectedExternalError);
 	});
 
-	return TPromise.join(promises).then(() => {
+	return Promise.all(promises).then(() => {
 		return links;
 	});
 }
@@ -137,5 +137,5 @@ CommandsRegistry.registerCommand('_executeLinkProvider', (accessor, ...args) => 
 		return undefined;
 	}
 
-	return getLinks(model);
+	return getLinks(model, CancellationToken.None);
 });

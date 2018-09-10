@@ -47,7 +47,7 @@ export class MarkdownEngine {
 							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
 						} catch (error) { }
 					}
-					return `<code><div>${this.md!.utils.escapeHtml(str)}</div>`;
+					return `<code><div>${this.md!.utils.escapeHtml(str)}</div></code>`;
 				}
 			}).use(mdnh, {
 				slugify: (header: string) => this.slugifier.fromHeading(header).value
@@ -107,6 +107,7 @@ export class MarkdownEngine {
 		return engine.parse(text, {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
+				token.map[1] += offset;
 			}
 			return token;
 		});

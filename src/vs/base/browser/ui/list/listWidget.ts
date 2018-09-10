@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
+import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, firstIndex } from 'vs/base/common/arrays';
@@ -15,27 +16,17 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListOpenEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
+import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
-}
-
-class CombinedSpliceable<T> implements ISpliceable<T> {
-
-	constructor(private spliceables: ISpliceable<T>[]) { }
-
-	splice(start: number, deleteCount: number, elements: T[]): void {
-		for (const spliceable of this.spliceables) {
-			spliceable.splice(start, deleteCount, elements);
-		}
-	}
 }
 
 interface ITraitChangeEvent {
@@ -76,6 +67,10 @@ class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 		}
 
 		this.trait.renderIndex(index, templateData);
+	}
+
+	disposeElement(): void {
+		// noop
 	}
 
 	splice(start: number, deleteCount: number, insertCount: number): void {
@@ -358,6 +353,11 @@ class DOMFocusController<T> implements IDisposable {
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
 		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement)) {
+			return;
+		}
+
+		const style = window.getComputedStyle(tabIndexElement);
+		if (style.visibility === 'hidden' || style.display === 'none') {
 			return;
 		}
 
@@ -817,6 +817,14 @@ class PipelineRenderer<T> implements IRenderer<T, any> {
 		}
 	}
 
+	disposeElement(element: T, index: number, templateData: any[]): void {
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.disposeElement(element, index, templateData[i++]);
+		}
+	}
+
 	disposeTemplate(templateData: any[]): void {
 		let i = 0;
 
@@ -881,7 +889,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	constructor(
 		container: HTMLElement,
-		delegate: IDelegate<T>,
+		virtualDelegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
@@ -892,7 +900,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
-		this.view = new ListView(container, delegate, renderers, options);
+		this.view = new ListView(container, virtualDelegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;
@@ -932,13 +940,21 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
-			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
+			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", options.ariaLabel));
 		}
 
 		this.style(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
+		if (start < 0 || start > this.view.length) {
+			throw new Error(`Invalid start index: ${start}`);
+		}
+
+		if (deleteCount < 0) {
+			throw new Error(`Invalid delete count: ${deleteCount}`);
+		}
+
 		if (deleteCount === 0 && elements.length === 0) {
 			return;
 		}
@@ -1206,5 +1222,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	dispose(): void {
 		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
+
+		this._onOpen.dispose();
+		this._onPin.dispose();
+		this._onDidDispose.dispose();
 	}
 }

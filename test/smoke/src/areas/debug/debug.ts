@@ -23,9 +23,9 @@ const BREAKPOINT_GLYPH = '.debug-breakpoint';
 const PAUSE = `.debug-actions-widget .debug-action.pause`;
 const DEBUG_STATUS_BAR = `.statusbar.debugging`;
 const NOT_DEBUG_STATUS_BAR = `.statusbar:not(debugging)`;
-const TOOLBAR_HIDDEN = `.debug-actions-widget.monaco-builder-hidden`;
+const TOOLBAR_HIDDEN = `.debug-actions-widget[aria-hidden="true"]`;
 const STACK_FRAME = `${VIEWLET} .monaco-tree-row .stack-frame`;
-const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title$="${filename}"]`;
+const SPECIFIC_STACK_FRAME = filename => `${STACK_FRAME} .file[title*="${filename}"]`;
 const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression .value`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
@@ -130,7 +130,7 @@ export class Debug extends Viewlet {
 		await this.code.waitForSetValue(REPL_FOCUSED, text);
 
 		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
-		await this.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
+		await this.editor.waitForEditorContents('debug:replinput', s => s.indexOf(text) >= 0);
 		await this.code.dispatchKeybinding('enter');
 		await this.code.waitForElement(CONSOLE_INPUT_OUTPUT);
 		await this.waitForOutput(output => accept(output[output.length - 1] || ''));

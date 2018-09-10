@@ -8,7 +8,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { marked } from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asText } from 'vs/base/node/request';
 import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -25,8 +25,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 function renderBody(
 	body: string,
@@ -51,6 +52,7 @@ export class ReleaseNotesManager {
 	private _releaseNotesCache: { [version: string]: TPromise<string>; } = Object.create(null);
 
 	private _currentReleaseNotes: WebviewEditorInput | undefined = undefined;
+	private _lastText: string;
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -60,14 +62,25 @@ export class ReleaseNotesManager {
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-	) { }
+		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService
+	) {
+		TokenizationRegistry.onDidChange(async () => {
+			if (!this._currentReleaseNotes || !this._lastText) {
+				return;
+			}
+			const html = await this.renderBody(this._lastText);
+			if (this._currentReleaseNotes) {
+				this._currentReleaseNotes.html = html;
+			}
+		});
+	}
 
 	public async show(
 		accessor: ServicesAccessor,
 		version: string
-	): TPromise<boolean> {
+	): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version);
+		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
@@ -87,6 +100,11 @@ export class ReleaseNotesManager {
 					onDispose: () => { this._currentReleaseNotes = undefined; }
 				});
 
+			const iconPath = URI.parse(require.toUrl('./media/code-icon.svg'));
+			this._currentReleaseNotes.iconPath = {
+				light: iconPath,
+				dark: iconPath
+			};
 			this._currentReleaseNotes.html = html;
 		}
 
@@ -118,7 +136,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingIO.readKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
 
 				if (!keybinding) {
 					return unassigned;
@@ -139,8 +157,15 @@ export class ReleaseNotesManager {
 		};
 
 		if (!this._releaseNotesCache[version]) {
-			this._releaseNotesCache[version] = this._requestService.request({ url })
+			this._releaseNotesCache[version] = this._requestService.request({ url }, CancellationToken.None)
 				.then(asText)
+				.then(text => {
+					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+						return TPromise.wrapError<string>(new Error('Invalid release notes'));
+					}
+
+					return TPromise.wrap(text);
+				})
 				.then(text => patchKeybindings(text));
 		}
 
@@ -154,13 +179,14 @@ export class ReleaseNotesManager {
 	}
 
 	private async renderBody(text: string) {
+		const content = await this.renderContent(text);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = generateTokensCSSForColorMap(colorMap);
-		const body = renderBody(await this.renderContent(text), css);
+		const body = renderBody(content, css);
 		return body;
 	}
 
-	private async renderContent(text: string): TPromise<string> {
+	private async renderContent(text: string): Promise<string> {
 		const renderer = await this.getRenderer(text);
 		return marked(text, { renderer });
 	}

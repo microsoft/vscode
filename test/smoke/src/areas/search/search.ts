@@ -53,7 +53,7 @@ export class Search extends Viewlet {
 		await this.waitForInputFocus(INPUT);
 
 		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"]`);
+		await this.code.waitForElement(`${VIEWLET} .messages`);
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
@@ -109,11 +109,11 @@ export class Search extends Viewlet {
 	}
 
 	async waitForResultText(text: string): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
+		await this.code.waitForTextContent(`${VIEWLET} .messages .message>p`, text);
 	}
 
 	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, el => !el);
+		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="true"] .message>p`);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

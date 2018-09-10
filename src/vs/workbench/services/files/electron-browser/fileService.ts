@@ -18,11 +18,11 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer, asWinJSImport } from 'vs/base/common/async';
-import uri from 'vs/base/common/uri';
+import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
+import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as pfs from 'vs/base/node/pfs';
 import * as encoding from 'vs/base/node/encoding';
@@ -76,9 +76,9 @@ export interface IFileServiceTestOptions {
 	encodingOverride?: IEncodingOverride[];
 }
 
-export class FileService implements IFileService {
+export class FileService extends Disposable implements IFileService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static readonly FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
@@ -89,14 +89,17 @@ export class FileService implements IFileService {
 	private static readonly ENOSPC_ERROR = 'ENOSPC';
 	private static readonly ENOSPC_ERROR_IGNORE_KEY = 'ignoreEnospcError';
 
-	protected readonly _onFileChanges: Emitter<FileChangesEvent>;
-	protected readonly _onAfterOperation: Emitter<FileOperationEvent>;
-	protected readonly _onDidChangeFileSystemProviderRegistrations = new Emitter<IFileSystemProviderRegistrationEvent>();
+	protected readonly _onFileChanges: Emitter<FileChangesEvent> = this._register(new Emitter<FileChangesEvent>());
+	get onFileChanges(): Event<FileChangesEvent> { return this._onFileChanges.event; }
 
-	protected toDispose: IDisposable[];
+	protected readonly _onAfterOperation: Emitter<FileOperationEvent> = this._register(new Emitter<FileOperationEvent>());
+	get onAfterOperation(): Event<FileOperationEvent> { return this._onAfterOperation.event; }
+
+	protected readonly _onDidChangeFileSystemProviderRegistrations = this._register(new Emitter<IFileSystemProviderRegistrationEvent>());
+	get onDidChangeFileSystemProviderRegistrations(): Event<IFileSystemProviderRegistrationEvent> { return this._onDidChangeFileSystemProviderRegistrations.event; }
 
 	private activeWorkspaceFileChangeWatcher: IDisposable;
-	private activeFileChangesWatchers: ResourceMap<fs.FSWatcher>;
+	private activeFileChangesWatchers: ResourceMap<{ unwatch: Function, count: number }>;
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
@@ -112,15 +115,9 @@ export class FileService implements IFileService {
 		private notificationService: INotificationService,
 		private options: IFileServiceTestOptions = Object.create(null)
 	) {
-		this.toDispose = [];
+		super();
 
-		this._onFileChanges = new Emitter<FileChangesEvent>();
-		this.toDispose.push(this._onFileChanges);
-
-		this._onAfterOperation = new Emitter<FileOperationEvent>();
-		this.toDispose.push(this._onAfterOperation);
-
-		this.activeFileChangesWatchers = new ResourceMap<fs.FSWatcher>();
+		this.activeFileChangesWatchers = new ResourceMap<{ unwatch: Function, count: number }>();
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 
@@ -129,7 +126,7 @@ export class FileService implements IFileService {
 		this.registerListeners();
 	}
 
-	public get encoding(): ResourceEncodings {
+	get encoding(): ResourceEncodings {
 		return this._encoding;
 	}
 
@@ -141,7 +138,7 @@ export class FileService implements IFileService {
 		});
 
 		// Workbench State Change
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => {
+		this._register(this.contextService.onDidChangeWorkbenchState(() => {
 			if (this.lifecycleService.phase >= LifecyclePhase.Running) {
 				this.setupFileWatching();
 			}
@@ -195,14 +192,6 @@ export class FileService implements IFileService {
 		}
 	}
 
-	public get onFileChanges(): Event<FileChangesEvent> {
-		return this._onFileChanges.event;
-	}
-
-	public get onAfterOperation(): Event<FileOperationEvent> {
-		return this._onAfterOperation.event;
-	}
-
 	private setupFileWatching(): void {
 
 		// dispose old if any
@@ -240,30 +229,28 @@ export class FileService implements IFileService {
 		}
 	}
 
-	public readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent> = this._onDidChangeFileSystemProviderRegistrations.event;
-
-	public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
 		throw new Error('not implemented');
 	}
 
-	public canHandleResource(resource: uri): boolean {
+	canHandleResource(resource: uri): boolean {
 		return resource.scheme === Schemas.file;
 	}
 
-	public resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
+	resolveFile(resource: uri, options?: IResolveFileOptions): TPromise<IFileStat> {
 		return this.resolve(resource, options);
 	}
 
-	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
+	resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
 		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
 			.then(stat => ({ stat, success: true }), error => ({ stat: void 0, success: false }))));
 	}
 
-	public existsFile(resource: uri): TPromise<boolean> {
+	existsFile(resource: uri): TPromise<boolean> {
 		return this.resolveFile(resource).then(() => true, () => false);
 	}
 
-	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
+	resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new TPromise<IContent>((resolve, reject) => {
 
@@ -273,6 +260,7 @@ export class FileService implements IFileService {
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
 					value: ''
 				};
 
@@ -285,7 +273,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
+	resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== Schemas.file || !resource.fsPath) {
@@ -302,6 +290,7 @@ export class FileService implements IFileService {
 			mtime: void 0,
 			etag: void 0,
 			encoding: void 0,
+			isReadonly: false,
 			value: void 0
 		};
 
@@ -575,7 +564,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+	updateContent(resource: uri, value: string | ITextSnapshot, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		if (options.writeElevated) {
 			return this.doUpdateContentElevated(resource, value, options);
 		}
@@ -618,22 +607,23 @@ export class FileService implements IFileService {
 				return addBomPromise.then(addBom => {
 
 					// 4.) set contents and resolve
-					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite).then(void 0, error => {
-						if (!exists || error.code !== 'EPERM' || !isWindows) {
-							return TPromise.wrapError(error);
-						}
+					if (!exists || !isWindows) {
+						return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite);
+					}
 
-						// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
-						// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
-						// (see https://github.com/Microsoft/vscode/issues/931)
+					// On Windows and if the file exists, we use a different strategy of saving the file
+					// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+					// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
+					// (see https://github.com/Microsoft/vscode/issues/6363)
+					else {
 
-						// 5.) truncate
+						// 4.) truncate
 						return pfs.truncate(absolutePath, 0).then(() => {
 
-							// 6.) set contents (this time with r+ mode) and resolve again
+							// 5.) set contents (with r+ mode) and resolve
 							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
 						});
-					});
+					}
 				});
 			});
 		}).then(null, error => {
@@ -689,7 +679,7 @@ export class FileService implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return asWinJSImport(import('sudo-prompt')).then(sudoPrompt => {
+				return TPromise.wrap(import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
@@ -737,7 +727,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): TPromise<IFileStat> {
+	createFile(resource: uri, content: string = '', options: ICreateFileOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		let checkFilePromise: TPromise<boolean>;
@@ -768,7 +758,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public createFolder(resource: uri): TPromise<IFileStat> {
+	createFolder(resource: uri): TPromise<IFileStat> {
 
 		// 1.) Create folder
 		const absolutePath = this.toAbsolutePath(resource);
@@ -847,17 +837,11 @@ export class FileService implements IFileService {
 		));
 	}
 
-	public rename(resource: uri, newName: string): TPromise<IFileStat> {
-		const newPath = paths.join(paths.dirname(resource.fsPath), newName);
-
-		return this.moveFile(resource, uri.file(newPath));
-	}
-
-	public moveFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
+	moveFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
 		return this.moveOrCopyFile(source, target, false, overwrite);
 	}
 
-	public copyFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
+	copyFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
 		return this.moveOrCopyFile(source, target, true, overwrite);
 	}
 
@@ -903,7 +887,7 @@ export class FileService implements IFileService {
 					return TPromise.wrapError<boolean>(new Error(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in."))); // catch this corner case!
 				}
 
-				deleteTargetPromise = this.del(uri.file(targetPath));
+				deleteTargetPromise = this.del(uri.file(targetPath), { recursive: true });
 			}
 
 			return deleteTargetPromise.then(() => {
@@ -924,36 +908,56 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public del(resource: uri, useTrash?: boolean): TPromise<void> {
-		if (useTrash) {
+	del(resource: uri, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
+		if (options && options.useTrash) {
 			return this.doMoveItemToTrash(resource);
 		}
 
-		return this.doDelete(resource);
+		return this.doDelete(resource, options && options.recursive);
 	}
 
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const absolutePath = resource.fsPath;
 
-		return asWinJSImport(import('electron')).then(electron => {
-			const result = electron.shell.moveItemToTrash(absolutePath);
-			if (!result) {
-				return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
-			}
+		const shell = (require('electron') as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
+		const result = shell.moveItemToTrash(absolutePath);
+		if (!result) {
+			return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+		}
 
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 
-			return void 0;
-		});
+		return TPromise.as(void 0);
 	}
 
-	private doDelete(resource: uri): TPromise<void> {
+	private doDelete(resource: uri, recursive: boolean): TPromise<void> {
 		const absolutePath = this.toAbsolutePath(resource);
 
-		return pfs.del(absolutePath, os.tmpdir()).then(() => {
+		let assertNonRecursiveDelete: TPromise<void>;
+		if (!recursive) {
+			assertNonRecursiveDelete = pfs.stat(absolutePath).then(stat => {
+				if (!stat.isDirectory()) {
+					return TPromise.as(void 0);
+				}
 
-			// Events
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+				return pfs.readdir(absolutePath).then(children => {
+					if (children.length === 0) {
+						return TPromise.as(void 0);
+					}
+
+					return TPromise.wrapError(new Error(nls.localize('deleteFailed', "Failed to delete non-empty folder '{0}'.", paths.basename(absolutePath))));
+				});
+			}, error => TPromise.as(void 0) /* ignore errors */);
+		} else {
+			assertNonRecursiveDelete = TPromise.as(void 0);
+		}
+
+		return assertNonRecursiveDelete.then(() => {
+			return pfs.del(absolutePath, os.tmpdir()).then(() => {
+
+				// Events
+				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+			});
 		});
 	}
 
@@ -984,62 +988,70 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public watchFileChanges(resource: uri): void {
+	watchFileChanges(resource: uri): void {
 		assert.ok(resource && resource.scheme === Schemas.file, `Invalid resource for watching: ${resource}`);
 
-		// Create or get watcher for provided path
-		let watcher = this.activeFileChangesWatchers.get(resource);
-		if (!watcher) {
-			const fsPath = resource.fsPath;
-			const fsName = paths.basename(resource.fsPath);
+		// Check for existing watcher first
+		const entry = this.activeFileChangesWatchers.get(resource);
+		if (entry) {
+			entry.count += 1;
 
-			watcher = extfs.watch(fsPath, (eventType: string, filename: string) => {
-				const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
-
-				// The file was either deleted or renamed. Many tools apply changes to files in an
-				// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
-				// renaming it back to the original name. Our watcher will detect this as a rename
-				// and then stops to work on Mac and Linux because the watcher is applied to the
-				// inode and not the name. The fix is to detect this case and trying to watch the file
-				// again after a certain delay.
-				// In addition, we send out a delete event if after a timeout we detect that the file
-				// does indeed not exist anymore.
-				if (renamedOrDeleted) {
-
-					// Very important to dispose the watcher which now points to a stale inode
-					this.unwatchFileChanges(resource);
-
-					// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
-					setTimeout(() => {
-						this.existsFile(resource).done(exists => {
-
-							// File still exists, so reapply the watcher
-							if (exists) {
-								this.watchFileChanges(resource);
-							}
-
-							// File seems to be really gone, so emit a deleted event
-							else {
-								this.onRawFileChange({
-									type: FileChangeType.DELETED,
-									path: fsPath
-								});
-							}
-						});
-					}, FileService.FS_REWATCH_DELAY);
-				}
-
-				// Handle raw file change
-				this.onRawFileChange({
-					type: FileChangeType.UPDATED,
-					path: fsPath
-				});
-			}, (error: string) => this.handleError(error));
-
-			if (watcher) {
-				this.activeFileChangesWatchers.set(resource, watcher);
-			}
+			return;
 		}
+
+		// Create or get watcher for provided path
+		const fsPath = resource.fsPath;
+		const fsName = paths.basename(resource.fsPath);
+
+		const watcherDisposable = extfs.watch(fsPath, (eventType: string, filename: string) => {
+			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
+
+			// The file was either deleted or renamed. Many tools apply changes to files in an
+			// atomic way ("Atomic Save") by first renaming the file to a temporary name and then
+			// renaming it back to the original name. Our watcher will detect this as a rename
+			// and then stops to work on Mac and Linux because the watcher is applied to the
+			// inode and not the name. The fix is to detect this case and trying to watch the file
+			// again after a certain delay.
+			// In addition, we send out a delete event if after a timeout we detect that the file
+			// does indeed not exist anymore.
+			if (renamedOrDeleted) {
+
+				// Very important to dispose the watcher which now points to a stale inode
+				watcherDisposable.dispose();
+				this.activeFileChangesWatchers.delete(resource);
+
+				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
+				setTimeout(() => {
+					this.existsFile(resource).then(exists => {
+
+						// File still exists, so reapply the watcher
+						if (exists) {
+							this.watchFileChanges(resource);
+						}
+
+						// File seems to be really gone, so emit a deleted event
+						else {
+							this.onRawFileChange({
+								type: FileChangeType.DELETED,
+								path: fsPath
+							});
+						}
+					});
+				}, FileService.FS_REWATCH_DELAY);
+			}
+
+			// Handle raw file change
+			this.onRawFileChange({
+				type: FileChangeType.UPDATED,
+				path: fsPath
+			});
+		}, (error: string) => this.handleError(error));
+
+		// Remember in map
+		this.activeFileChangesWatchers.set(resource, {
+			count: 1,
+			unwatch: () => watcherDisposable.dispose()
+		});
 	}
 
 	private onRawFileChange(event: IRawFileChange): void {
@@ -1048,7 +1060,7 @@ export class FileService implements IFileService {
 		this.undeliveredRawFileChangesEvents.push(event);
 
 		if (this.environmentService.verbose) {
-			console.log('%c[node.js Watcher]%c', 'color: green', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', `${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
 		// handle emit through delayer to accommodate for bulk changes
@@ -1062,7 +1074,7 @@ export class FileService implements IFileService {
 			// Logging
 			if (this.environmentService.verbose) {
 				normalizedEvents.forEach(r => {
-					console.log('%c[node.js Watcher]%c >> normalized', 'color: green', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', `${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 				});
 			}
 
@@ -1073,23 +1085,23 @@ export class FileService implements IFileService {
 		});
 	}
 
-	public unwatchFileChanges(resource: uri): void {
+	unwatchFileChanges(resource: uri): void {
 		const watcher = this.activeFileChangesWatchers.get(resource);
-		if (watcher) {
-			watcher.close();
+		if (watcher && --watcher.count === 0) {
+			watcher.unwatch();
 			this.activeFileChangesWatchers.delete(resource);
 		}
 	}
 
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+	dispose(): void {
+		super.dispose();
 
 		if (this.activeWorkspaceFileChangeWatcher) {
 			this.activeWorkspaceFileChangeWatcher.dispose();
 			this.activeWorkspaceFileChangeWatcher = null;
 		}
 
-		this.activeFileChangesWatchers.forEach(watcher => watcher.close());
+		this.activeFileChangesWatchers.forEach(watcher => watcher.unwatch());
 		this.activeFileChangesWatchers.clear();
 	}
 }
@@ -1128,13 +1140,14 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 	}
 
-	public resolve(options: IResolveFileOptions): TPromise<IFileStat> {
+	resolve(options: IResolveFileOptions): TPromise<IFileStat> {
 
 		// General Data
 		const fileStat: IFileStat = {
 			resource: this.resource,
 			isDirectory: this.isDirectory,
 			isSymbolicLink: this.isSymbolicLink,
+			isReadonly: false,
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
@@ -1219,6 +1232,7 @@ export class StatResolver {
 							resource: fileResource,
 							isDirectory: fileStat.isDirectory(),
 							isSymbolicLink,
+							isReadonly: false,
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),

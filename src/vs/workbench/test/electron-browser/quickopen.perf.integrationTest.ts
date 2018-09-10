@@ -12,7 +12,6 @@ import { createSyncDescriptor } from 'vs/platform/instantiation/common/descripto
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IExperimentService, IExperiments } from 'vs/platform/telemetry/common/experiments';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
@@ -24,13 +23,14 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -68,11 +68,9 @@ suite.skip('QuickOpen performance (integration)', () => {
 		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
 
 		const telemetryService = new TestTelemetryService();
-		const experimentService = new TestExperimentService();
 		const configurationService = new TestConfigurationService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
-			[IExperimentService, experimentService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
@@ -90,7 +88,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 		function measure() {
 			const handler = descriptor.instantiate(instantiationService);
 			handler.onOpen();
-			return handler.getResults('a').then(result => {
+			return handler.getResults('a', CancellationToken.None).then(result => {
 				const uncachedEvent = popEvent();
 				assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 				assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
@@ -99,7 +97,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 				}
 				return uncachedEvent;
 			}).then(uncachedEvent => {
-				return handler.getResults('ab').then(result => {
+				return handler.getResults('ab', CancellationToken.None).then(result => {
 					const cachedEvent = popEvent();
 					assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 					assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');
@@ -177,14 +175,5 @@ class TestTelemetryService implements ITelemetryService {
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
-	}
-}
-
-class TestExperimentService implements IExperimentService {
-
-	_serviceBrand: any;
-
-	getExperiments(): IExperiments {
-		return {};
 	}
 }

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import * as fs from 'original-fs';
+import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
@@ -25,7 +25,7 @@ export class FileStorage {
 		}
 	}
 
-	public getItem<T>(key: string, defaultValue?: T): T {
+	getItem<T>(key: string, defaultValue?: T): T {
 		this.ensureLoaded();
 
 		const res = this.database[key];
@@ -36,7 +36,7 @@ export class FileStorage {
 		return res;
 	}
 
-	public setItem(key: string, data: any): void {
+	setItem(key: string, data: any): void {
 		this.ensureLoaded();
 
 		// Remove an item when it is undefined or null
@@ -55,7 +55,7 @@ export class FileStorage {
 		this.saveSync();
 	}
 
-	public removeItem(key: string): void {
+	removeItem(key: string): void {
 		this.ensureLoaded();
 
 		// Only update if the key is actually present (not undefined)
@@ -96,15 +96,15 @@ export class StateService implements IStateService {
 		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, 'storage.json'), error => logService.error(error));
 	}
 
-	public getItem<T>(key: string, defaultValue?: T): T {
+	getItem<T>(key: string, defaultValue?: T): T {
 		return this.fileStorage.getItem(key, defaultValue);
 	}
 
-	public setItem(key: string, data: any): void {
+	setItem(key: string, data: any): void {
 		this.fileStorage.setItem(key, data);
 	}
 
-	public removeItem(key: string): void {
+	removeItem(key: string): void {
 		this.fileStorage.removeItem(key);
 	}
 }

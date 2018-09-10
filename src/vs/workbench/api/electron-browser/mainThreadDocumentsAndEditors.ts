@@ -24,7 +24,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 namespace mapset {

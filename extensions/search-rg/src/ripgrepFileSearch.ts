@@ -7,10 +7,10 @@ import * as cp from 'child_process';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
-import { rgPath } from 'vscode-ripgrep';
 import { normalizeNFC, normalizeNFD } from './normalization';
-import { anchorGlob } from './ripgrepHelpers';
+import { rgPath } from './ripgrep';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
+import { anchorGlob } from './utils';
 
 const isMac = process.platform === 'darwin';
 
@@ -19,18 +19,18 @@ const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.u
 
 export class RipgrepFileSearchEngine {
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: (code?: number) => void;
+	private isDone: boolean;
 
-	constructor(private outputChannel: vscode.OutputChannel) {
-		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
-		process.once('exit', this.killRgProcFn);
+	constructor(private outputChannel: vscode.OutputChannel) { }
+
+	cancel() {
+		this.isDone = true;
+		if (this.rgProc) {
+			this.rgProc.kill();
+		}
 	}
 
-	private dispose() {
-		process.removeListener('exit', this.killRgProcFn);
-	}
-
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
 			...options,
 			...{
@@ -39,12 +39,7 @@ export class RipgrepFileSearchEngine {
 		})}`);
 
 		return new Promise((resolve, reject) => {
-			let isDone = false;
-			const cancel = () => {
-				isDone = true;
-				this.rgProc.kill();
-			};
-			token.onCancellationRequested(cancel);
+			token.onCancellationRequested(() => this.cancel());
 
 			const rgArgs = getRgArgs(options);
 
@@ -93,7 +88,7 @@ export class RipgrepFileSearchEngine {
 				});
 
 				if (last) {
-					if (isDone) {
+					if (this.isDone) {
 						resolve();
 					} else {
 						// Trigger last result
@@ -106,12 +101,7 @@ export class RipgrepFileSearchEngine {
 					}
 				}
 			});
-		}).then(
-			() => this.dispose(),
-			err => {
-				this.dispose();
-				return Promise.reject(err);
-			});
+		});
 	}
 
 	private collectStdout(cmd: cp.ChildProcess, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
@@ -123,16 +113,22 @@ export class RipgrepFileSearchEngine {
 			cb(err, stdout, last);
 		};
 
+		let gotData = false;
 		if (cmd.stdout) {
+			// Should be non-null, but #38195
 			this.forwardData(cmd.stdout, onData);
+			cmd.stdout.once('data', () => gotData = true);
 		} else {
 			this.outputChannel.appendLine('stdout is null');
 		}
 
-		const stderr = this.collectData(cmd.stderr);
-
-		let gotData = false;
-		cmd.stdout.once('data', () => gotData = true);
+		let stderr: Buffer[];
+		if (cmd.stderr) {
+			// Should be non-null, but #38195
+			stderr = this.collectData(cmd.stderr);
+		} else {
+			this.outputChannel.appendLine('stderr is null');
+		}
 
 		cmd.on('error', (err: Error) => {
 			onData(err);
@@ -207,6 +203,9 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 	if (options.followSymlinks) {
 		args.push('--follow');
 	}
+
+	args.push('--no-config');
+	args.push('--no-ignore-global');
 
 	// Folder to search
 	args.push('--');

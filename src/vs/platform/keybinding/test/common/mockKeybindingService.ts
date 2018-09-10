@@ -124,4 +124,8 @@ export class MockKeybindingService implements IKeybindingService {
 	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		return false;
 	}
+
+	mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
+		return false;
+	}
 }

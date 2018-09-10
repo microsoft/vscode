@@ -8,12 +8,11 @@
 import 'vs/css!./parameterHints';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
@@ -39,18 +38,18 @@ export class ParameterHintsModel extends Disposable {
 
 	static DELAY = 120; // ms
 
-	private _onHint = this._register(new Emitter<IHintEvent>());
-	onHint: Event<IHintEvent> = this._onHint.event;
+	private readonly _onHint = this._register(new Emitter<IHintEvent>());
+	public readonly onHint: Event<IHintEvent> = this._onHint.event;
 
-	private _onCancel = this._register(new Emitter<void>());
-	onCancel: Event<void> = this._onCancel.event;
+	private readonly _onCancel = this._register(new Emitter<void>());
+	public readonly onCancel: Event<void> = this._onCancel.event;
 
 	private editor: ICodeEditor;
 	private enabled: boolean;
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
-	private provideSignatureHelpRequest?: TPromise<boolean, any>;
+	private provideSignatureHelpRequest?: CancelablePromise<SignatureHelp>;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -103,21 +102,21 @@ export class ParameterHintsModel extends Disposable {
 			this.provideSignatureHelpRequest.cancel();
 		}
 
-		this.provideSignatureHelpRequest = provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
-			.then(null, onUnexpectedError)
-			.then(result => {
-				if (!result || !result.signatures || result.signatures.length === 0) {
-					this.cancel();
-					this._onCancel.fire(void 0);
-					return false;
-				}
+		this.provideSignatureHelpRequest = createCancelablePromise(token => provideSignatureHelp(this.editor.getModel(), this.editor.getPosition(), token));
 
-				this.active = true;
+		this.provideSignatureHelpRequest.then(result => {
+			if (!result || !result.signatures || result.signatures.length === 0) {
+				this.cancel();
+				this._onCancel.fire(void 0);
+				return false;
+			}
 
-				const event: IHintEvent = { hints: result };
-				this._onHint.fire(event);
-				return true;
-			});
+			this.active = true;
+			const event: IHintEvent = { hints: result };
+			this._onHint.fire(event);
+			return true;
+
+		}).catch(onUnexpectedError);
 	}
 
 	isTriggered(): boolean {
@@ -169,7 +168,7 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onEditorConfigurationChange(): void {
-		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints;
+		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints.enabled;
 
 		if (!this.enabled) {
 			this.cancel();
@@ -294,7 +293,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		this.keyVisible.set(true);
 		this.visible = true;
-		TPromise.timeout(100).done(() => dom.addClass(this.element, 'visible'));
+		setTimeout(() => dom.addClass(this.element, 'visible'), 100);
 		this.editor.layoutContentWidget(this);
 	}
 
@@ -475,26 +474,42 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	next(): boolean {
 		const length = this.hints.signatures.length;
+		const last = (this.currentSignature % length) === (length - 1);
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
-		if (length < 2) {
+		// If there is only one signature, or we're on last signature of list
+		if ((length < 2 || last) && !cycle) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature = (this.currentSignature + 1) % length;
+		if (last && cycle) {
+			this.currentSignature = 0;
+		} else {
+			this.currentSignature++;
+		}
+
 		this.render();
 		return true;
 	}
 
 	previous(): boolean {
 		const length = this.hints.signatures.length;
+		const first = this.currentSignature === 0;
+		const cycle = this.editor.getConfiguration().contribInfo.parameterHints.cycle;
 
-		if (length < 2) {
+		// If there is only one signature, or we're on first signature of list
+		if ((length < 2 || first) && !cycle) {
 			this.cancel();
 			return false;
 		}
 
-		this.currentSignature = (this.currentSignature - 1 + length) % length;
+		if (first && cycle) {
+			this.currentSignature = length - 1;
+		} else {
+			this.currentSignature--;
+		}
+
 		this.render();
 		return true;
 	}

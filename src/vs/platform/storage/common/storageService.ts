@@ -21,13 +21,13 @@ export interface IStorage {
 
 export class StorageService implements IStorageService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	public static readonly COMMON_PREFIX = 'storage://';
-	public static readonly GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
-	public static readonly WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
-	public static readonly WORKSPACE_IDENTIFIER = 'workspaceidentifier';
-	public static readonly NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
+	static readonly COMMON_PREFIX = 'storage://';
+	static readonly GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
+	static readonly WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
+	static readonly WORKSPACE_IDENTIFIER = 'workspaceidentifier';
+	static readonly NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
 
 	private _workspaceStorage: IStorage;
 	private _globalStorage: IStorage;
@@ -47,11 +47,11 @@ export class StorageService implements IStorageService {
 		this.setWorkspaceId(workspaceId, legacyWorkspaceId);
 	}
 
-	public get workspaceId(): string {
+	get workspaceId(): string {
 		return this._workspaceId;
 	}
 
-	public setWorkspaceId(workspaceId: string, legacyWorkspaceId?: number): void {
+	setWorkspaceId(workspaceId: string, legacyWorkspaceId?: number): void {
 		this._workspaceId = workspaceId;
 
 		// Calculate workspace storage key
@@ -64,11 +64,11 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	public get globalStorage(): IStorage {
+	get globalStorage(): IStorage {
 		return this._globalStorage;
 	}
 
-	public get workspaceStorage(): IStorage {
+	get workspaceStorage(): IStorage {
 		return this._workspaceStorage;
 	}
 
@@ -124,7 +124,7 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	public store(key: string, value: any, scope = StorageScope.GLOBAL): void {
+	store(key: string, value: any, scope = StorageScope.GLOBAL): void {
 		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 
 		if (types.isUndefinedOrNull(value)) {
@@ -142,7 +142,7 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	public get(key: string, scope = StorageScope.GLOBAL, defaultValue?: any): string {
+	get(key: string, scope = StorageScope.GLOBAL, defaultValue?: any): string {
 		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 
 		const value = storage.getItem(this.toStorageKey(key, scope));
@@ -153,7 +153,7 @@ export class StorageService implements IStorageService {
 		return value;
 	}
 
-	public getInteger(key: string, scope = StorageScope.GLOBAL, defaultValue?: number): number {
+	getInteger(key: string, scope = StorageScope.GLOBAL, defaultValue?: number): number {
 		const value = this.get(key, scope, defaultValue);
 
 		if (types.isUndefinedOrNull(value)) {
@@ -163,7 +163,7 @@ export class StorageService implements IStorageService {
 		return parseInt(value, 10);
 	}
 
-	public getBoolean(key: string, scope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
+	getBoolean(key: string, scope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		const value = this.get(key, scope, defaultValue);
 
 		if (types.isUndefinedOrNull(value)) {
@@ -177,7 +177,7 @@ export class StorageService implements IStorageService {
 		return value ? true : false;
 	}
 
-	public remove(key: string, scope = StorageScope.GLOBAL): void {
+	remove(key: string, scope = StorageScope.GLOBAL): void {
 		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 		const storageKey = this.toStorageKey(key, scope);
 
@@ -201,11 +201,11 @@ export class InMemoryLocalStorage implements IStorage {
 		this.store = {};
 	}
 
-	public get length() {
+	get length() {
 		return Object.keys(this.store).length;
 	}
 
-	public key(index: number): string {
+	key(index: number): string {
 		const keys = Object.keys(this.store);
 		if (keys.length > index) {
 			return keys[index];
@@ -214,11 +214,11 @@ export class InMemoryLocalStorage implements IStorage {
 		return null;
 	}
 
-	public setItem(key: string, value: any): void {
+	setItem(key: string, value: any): void {
 		this.store[key] = value.toString();
 	}
 
-	public getItem(key: string): string {
+	getItem(key: string): string {
 		const item = this.store[key];
 		if (!types.isUndefinedOrNull(item)) {
 			return item;
@@ -227,7 +227,7 @@ export class InMemoryLocalStorage implements IStorage {
 		return null;
 	}
 
-	public removeItem(key: string): void {
+	removeItem(key: string): void {
 		delete this.store[key];
 	}
 }

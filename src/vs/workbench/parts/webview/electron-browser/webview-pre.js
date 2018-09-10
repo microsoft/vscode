@@ -99,7 +99,7 @@
 			return;
 		}
 
-		const progress = event.target.body.scrollTop / event.target.body.clientHeight;
+		const progress = event.currentTarget.scrollY / event.target.body.clientHeight;
 		if (isNaN(progress)) {
 			return;
 		}
@@ -172,7 +172,7 @@
 			}
 
 			// apply default script
-			if (enableWrappedPostMessage) {
+			if (enableWrappedPostMessage && options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.textContent = `
 					const acquireVsCodeApi = (function() {
@@ -312,18 +312,18 @@
 			var setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
-				setInitialScrollPosition = (body) => {
+				setInitialScrollPosition = (body, window) => {
 					if (!isNaN(initData.initialScrollProgress)) {
 						if (body.scrollTop === 0) {
-							body.scrollTop = body.clientHeight * initData.initialScrollProgress;
+							window.scroll(0, body.clientHeight * initData.initialScrollProgress);
 						}
 					}
 				};
 			} else {
 				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
-				setInitialScrollPosition = (body) => {
+				setInitialScrollPosition = (body, window) => {
 					if (body.scrollTop === 0) {
-						body.scrollTop = scrollY;
+						window.scroll(0, scrollY);
 					}
 				};
 			}
@@ -360,7 +360,7 @@
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
-					setInitialScrollPosition(contentDocument.body);
+					setInitialScrollPosition(contentDocument.body, contentWindow);
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);

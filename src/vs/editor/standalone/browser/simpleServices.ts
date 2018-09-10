@@ -5,10 +5,10 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IDisposable, IReference, ImmortalReference, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, ImmortalReference, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry, IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -45,6 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
+import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -66,6 +67,10 @@ export class SimpleModel implements ITextEditorModel {
 
 	public get textEditorModel(): ITextModel {
 		return this.model;
+	}
+
+	public isReadonly(): boolean {
+		return false;
 	}
 
 	public dispose(): void {
@@ -230,11 +235,9 @@ export class StandaloneCommandService implements ICommandService {
 	public addCommand(command: ICommand): IDisposable {
 		const { id } = command;
 		this._dynamicCommands[id] = command;
-		return {
-			dispose: () => {
-				delete this._dynamicCommands[id];
-			}
-		};
+		return toDisposable(() => {
+			delete this._dynamicCommands[id];
+		});
 	}
 
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
@@ -289,18 +292,16 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 			weight2: 0
 		});
 
-		toDispose.push({
-			dispose: () => {
-				for (let i = 0; i < this._dynamicKeybindings.length; i++) {
-					let kb = this._dynamicKeybindings[i];
-					if (kb.command === commandId) {
-						this._dynamicKeybindings.splice(i, 1);
-						this.updateResolver({ source: KeybindingSource.Default });
-						return;
-					}
+		toDispose.push(toDisposable(() => {
+			for (let i = 0; i < this._dynamicKeybindings.length; i++) {
+				let kb = this._dynamicKeybindings[i];
+				if (kb.command === commandId) {
+					this._dynamicKeybindings.splice(i, 1);
+					this.updateResolver({ source: KeybindingSource.Default });
+					return;
 				}
 			}
-		});
+		}));
 
 		let commandService = this._commandService;
 		if (commandService instanceof StandaloneCommandService) {
@@ -507,7 +508,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: SimpleWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], name: resource.fsPath };
+		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
 	}
 
 	public getWorkspace(): IWorkspace {
@@ -592,5 +593,27 @@ export class SimpleBulkEditService implements IBulkEditService {
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
+	}
+}
+
+export class SimpleUriLabelService implements ILabelService {
+	_serviceBrand: any;
+
+	private readonly _onDidRegisterFormatter: Emitter<RegisterFormatterEvent> = new Emitter<RegisterFormatterEvent>();
+	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
+
+	public getUriLabel(resource: URI, relative?: boolean): string {
+		if (resource.scheme === 'file') {
+			return resource.fsPath;
+		}
+		return resource.path;
+	}
+
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+		return '';
+	}
+
+	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
+		throw new Error('Not implemented');
 	}
 }

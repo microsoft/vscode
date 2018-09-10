@@ -1,149 +1,17 @@
-phases:
-- phase: Windows
-  queue: Hosted VS2017
+jobs:
+- job: Windows
+  pool:
+    vmImage: VS2017-Win2016
   steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "8.9.1"
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.3.2"
-  - powershell: |
-      yarn
-    displayName: Install Dependencies
-  - powershell: |
-      yarn gulp electron
-    displayName: Download Electron
-  - powershell: |
-      yarn gulp hygiene
-    displayName: Run Hygiene Checks
-  - powershell: |
-      yarn check-monaco-editor-compilation
-    displayName: Run Monaco Editor Checks
-  - powershell: |
-      yarn compile
-    displayName: Compile Sources
-  - powershell: |
-      yarn download-builtin-extensions
-    displayName: Download Built-in Extensions
-  - powershell: |
-      .\scripts\test.bat --tfs "Unit Tests"
-    displayName: Run Unit Tests
-  - powershell: |
-      .\scripts\test-integration.bat --tfs "Integration Tests"
-    displayName: Run Integration Tests
-  - powershell: |
-      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
-    displayName: Run Smoke Tests
-    continueOnError: true
-  - task: PublishBuildArtifacts@1
-    displayName: Publish Smoketest Artifacts
-    inputs:
-      PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
-      ArtifactName: build-artifacts-win32
-      publishLocation: Container
-    condition: eq(variables['System.PullRequest.IsFork'], 'False')
-  - task: PublishTestResults@2
-    displayName: Publish Tests Results
-    inputs:
-      testResultsFiles: '*-results.xml'
-      searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
-    condition: succeededOrFailed()
+  - template: win32/continuous-build-win32.yml
 
-- phase: Linux
-  queue: Hosted Linux Preview
+- job: Linux
+  pool: Hosted Linux Preview
   steps:
-  - script: |
-      set -e
-      apt-get update
-      apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 libgconf-2-4 dbus xvfb libgtk-3-0
-      cp build/tfs/linux/x64/xvfb.init /etc/init.d/xvfb
-      chmod +x /etc/init.d/xvfb
-      update-rc.d xvfb defaults
-      ln -sf /bin/dbus-daemon /usr/bin/dbus-daemon
-      service xvfb start
-      service dbus start
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "8.9.1"
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.3.2"
-  - script: |
-      yarn
-    displayName: Install Dependencies
-  - script: |
-      yarn gulp electron-x64
-    displayName: Download Electron
-  - script: |
-      yarn gulp hygiene
-    displayName: Run Hygiene Checks
-  - script: |
-      yarn check-monaco-editor-compilation
-    displayName: Run Monaco Editor Checks
-  - script: |
-      yarn compile
-    displayName: Compile Sources
-  - script: |
-      yarn download-builtin-extensions
-    displayName: Download Built-in Extensions
-  - script: |
-      DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
-    displayName: Run Unit Tests
-  - task: PublishTestResults@2
-    displayName: Publish Tests Results
-    inputs:
-      testResultsFiles: '*-results.xml'
-      searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
-    condition: succeededOrFailed()
+  - template: linux/continuous-build-linux.yml
 
-- phase: macOS
-  queue: Hosted macOS Preview
+- job: macOS
+  pool:
+    vmImage: macOS 10.13
   steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "8.9.1"
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
-    inputs:
-      versionSpec: "1.3.2"
-  - script: |
-      yarn
-    displayName: Install Dependencies
-  - script: |
-      yarn gulp electron-x64
-    displayName: Download Electron
-  - script: |
-      yarn gulp hygiene
-    displayName: Run Hygiene Checks
-  - script: |
-      yarn check-monaco-editor-compilation
-    displayName: Run Monaco Editor Checks
-  - script: |
-      yarn compile
-    displayName: Compile Sources
-  - script: |
-      yarn download-builtin-extensions
-    displayName: Download Built-in Extensions
-  - script: |
-      ./scripts/test.sh --tfs "Unit Tests"
-    displayName: Run Unit Tests
-  - script: |
-      ./scripts/test-integration.sh --tfs "Integration Tests"
-    displayName: Run Integration Tests
-  - script: |
-      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
-    displayName: Run Smoke Tests
-    continueOnError: true
-  - task: PublishBuildArtifacts@1
-    displayName: Publish Smoketest Artifacts
-    inputs:
-      PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
-      ArtifactName: build-artifacts-darwin
-      publishLocation: Container
-    condition: eq(variables['System.PullRequest.IsFork'], 'False')
-  - task: PublishTestResults@2
-    displayName: Publish Tests Results
-    inputs:
-      testResultsFiles: '*-results.xml'
-      searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
-    condition: succeededOrFailed()
+  - template: darwin/continuous-build-darwin.yml

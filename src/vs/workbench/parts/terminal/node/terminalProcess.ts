@@ -5,161 +5,137 @@
 
 import * as os from 'os';
 import * as path from 'path';
+import * as platform from 'vs/base/common/platform';
 import * as pty from 'node-pty';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 
-// The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
-// see https://github.com/electron/electron/issues/38
-var shellName: string;
-if (os.platform() === 'win32') {
-	shellName = path.basename(process.env.PTYSHELL);
-} else {
-	// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
-	// color prompt as defined in the default ~/.bashrc file.
-	shellName = 'xterm-256color';
-}
-var shell = process.env.PTYSHELL;
-var args = getArgs();
-var cwd = process.env.PTYCWD;
-var cols = process.env.PTYCOLS;
-var rows = process.env.PTYROWS;
-var currentTitle = '';
+export class TerminalProcess implements ITerminalChildProcess, IDisposable {
+	private _exitCode: number;
+	private _closeTimeout: number;
+	private _ptyProcess: pty.IPty;
+	private _currentTitle: string = '';
 
-setupPlanB(Number(process.env.PTYPID));
-cleanEnv();
+	private readonly _onProcessData: Emitter<string> = new Emitter<string>();
+	public get onProcessData(): Event<string> { return this._onProcessData.event; }
+	private readonly _onProcessExit: Emitter<number> = new Emitter<number>();
+	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
+	private readonly _onProcessIdReady: Emitter<number> = new Emitter<number>();
+	public get onProcessIdReady(): Event<number> { return this._onProcessIdReady.event; }
+	private readonly _onProcessTitleChanged: Emitter<string> = new Emitter<string>();
+	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
-interface IOptions {
-	name: string;
-	cwd: string;
-	cols?: number;
-	rows?: number;
-}
+	constructor(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		env: platform.IProcessEnvironment
+	) {
+		let shellName: string;
+		if (os.platform() === 'win32') {
+			shellName = path.basename(shellLaunchConfig.executable);
+		} else {
+			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
+			// color prompt as defined in the default ~/.bashrc file.
+			shellName = 'xterm-256color';
+		}
 
-var options: IOptions = {
-	name: shellName,
-	cwd
-};
-if (cols && rows) {
-	options.cols = parseInt(cols, 10);
-	options.rows = parseInt(rows, 10);
-}
+		const options: pty.IPtyForkOptions = {
+			name: shellName,
+			cwd,
+			env,
+			cols,
+			rows
+		};
 
-var ptyProcess = pty.spawn(shell, args, options);
+		this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
+		this._ptyProcess.on('data', (data) => {
+			this._onProcessData.fire(data);
+			if (this._closeTimeout) {
+				clearTimeout(this._closeTimeout);
+				this._queueProcessExit();
+			}
+		});
+		this._ptyProcess.on('exit', (code) => {
+			this._exitCode = code;
+			this._queueProcessExit();
+		});
 
-var closeTimeout: number;
-var exitCode: number;
-
-// Allow any trailing data events to be sent before the exit event is sent.
-// See https://github.com/Tyriar/node-pty/issues/72
-function queueProcessExit() {
-	if (closeTimeout) {
-		clearTimeout(closeTimeout);
+		// TODO: We should no longer need to delay this since pty.spawn is sync
+		setTimeout(() => {
+			this._sendProcessId();
+		}, 500);
+		this._setupTitlePolling();
 	}
-	closeTimeout = setTimeout(function () {
-		ptyProcess.kill();
-		process.exit(exitCode);
-	}, 250);
-}
 
-ptyProcess.on('data', function (data) {
-	process.send({
-		type: 'data',
-		content: data
-	});
-	if (closeTimeout) {
-		clearTimeout(closeTimeout);
-		queueProcessExit();
+	public dispose(): void {
+		this._onProcessData.dispose();
+		this._onProcessExit.dispose();
+		this._onProcessIdReady.dispose();
+		this._onProcessTitleChanged.dispose();
 	}
-});
 
-ptyProcess.on('exit', function (code) {
-	exitCode = code;
-	queueProcessExit();
-});
+	private _setupTitlePolling() {
+		// Send initial timeout async to give event listeners a chance to init
+		setTimeout(() => {
+			this._sendProcessTitle();
+		}, 0);
+		// Setup polling
+		setInterval(() => {
+			if (this._currentTitle !== this._ptyProcess.process) {
+				this._sendProcessTitle();
+			}
+		}, 200);
+	}
 
-process.on('message', function (message) {
-	if (message.event === 'input') {
-		ptyProcess.write(message.data);
-	} else if (message.event === 'resize') {
+	// Allow any trailing data events to be sent before the exit event is sent.
+	// See https://github.com/Tyriar/node-pty/issues/72
+	private _queueProcessExit() {
+		if (this._closeTimeout) {
+			clearTimeout(this._closeTimeout);
+		}
+		this._closeTimeout = setTimeout(() => this._kill(), 250);
+	}
+
+	private _kill(): void {
+		// Attempt to kill the pty, it may have already been killed at this
+		// point but we want to make sure
+		try {
+			this._ptyProcess.kill();
+		} catch (ex) {
+			// Swallow, the pty has already been killed
+		}
+		this._onProcessExit.fire(this._exitCode);
+		this.dispose();
+	}
+
+	private _sendProcessId() {
+		this._onProcessIdReady.fire(this._ptyProcess.pid);
+	}
+
+	private _sendProcessTitle(): void {
+		this._currentTitle = this._ptyProcess.process;
+		this._onProcessTitleChanged.fire(this._currentTitle);
+	}
+
+	public shutdown(immediate: boolean): void {
+		if (immediate) {
+			this._kill();
+		} else {
+			this._queueProcessExit();
+		}
+	}
+
+	public input(data: string): void {
+		this._ptyProcess.write(data);
+	}
+
+	public resize(cols: number, rows: number): void {
 		// Ensure that cols and rows are always >= 1, this prevents a native
 		// exception in winpty.
-		ptyProcess.resize(Math.max(message.cols, 1), Math.max(message.rows, 1));
-	} else if (message.event === 'shutdown') {
-		queueProcessExit();
+		this._ptyProcess.resize(Math.max(cols, 1), Math.max(rows, 1));
 	}
-});
-
-sendProcessId();
-setupTitlePolling();
-
-function getArgs(): string | string[] {
-	if (process.env['PTYSHELLCMDLINE']) {
-		return process.env['PTYSHELLCMDLINE'];
-	}
-	var args = [];
-	var i = 0;
-	while (process.env['PTYSHELLARG' + i]) {
-		args.push(process.env['PTYSHELLARG' + i]);
-		i++;
-	}
-	return args;
-}
-
-function cleanEnv() {
-	var keys = [
-		'AMD_ENTRYPOINT',
-		'ELECTRON_NO_ASAR',
-		'ELECTRON_RUN_AS_NODE',
-		'GOOGLE_API_KEY',
-		'PTYCWD',
-		'PTYPID',
-		'PTYSHELL',
-		'PTYCOLS',
-		'PTYROWS',
-		'PTYSHELLCMDLINE',
-		'VSCODE_LOGS'
-	];
-	keys.forEach(function (key) {
-		if (process.env[key]) {
-			delete process.env[key];
-		}
-	});
-	var i = 0;
-	while (process.env['PTYSHELLARG' + i]) {
-		delete process.env['PTYSHELLARG' + i];
-		i++;
-	}
-}
-
-function setupPlanB(parentPid: number) {
-	setInterval(function () {
-		try {
-			process.kill(parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-		} catch (e) {
-			process.exit();
-		}
-	}, 5000);
-}
-
-function sendProcessId() {
-	process.send({
-		type: 'pid',
-		content: ptyProcess.pid
-	});
-}
-
-function setupTitlePolling() {
-	sendProcessTitle();
-	setInterval(function () {
-		if (currentTitle !== ptyProcess.process) {
-			sendProcessTitle();
-		}
-	}, 200);
-}
-
-function sendProcessTitle() {
-	process.send({
-		type: 'title',
-		content: ptyProcess.process
-	});
-	currentTitle = ptyProcess.process;
 }

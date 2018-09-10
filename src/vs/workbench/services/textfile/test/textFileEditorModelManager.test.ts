@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { join } from 'vs/base/common/paths';
@@ -105,7 +105,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
-		return manager.loadOrCreate(resource, { encoding, reload: true }).then(model => {
+		return manager.loadOrCreate(resource, { encoding }).then(model => {
 			assert.ok(model);
 			assert.equal(model.getEncoding(), encoding);
 			assert.equal(manager.get(resource), model);

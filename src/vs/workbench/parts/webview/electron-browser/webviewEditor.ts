@@ -4,24 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -44,7 +43,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IPartService private readonly _partService: IPartService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IWindowService private readonly _windowService: IWindowService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
@@ -83,8 +83,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		// Make sure we restore focus when switching back to a VS Code window
-		this._onFocusWindowHandler = domEvent(window, 'focus')(() => {
-			if (this._editorService.activeControl === this) {
+		this._onFocusWindowHandler = this._windowService.onDidChangeFocus(focused => {
+			if (focused && this._editorService.activeControl === this) {
 				this.focus();
 			}
 		});
@@ -163,35 +163,34 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+	setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		await super.setInput(input, options, token);
+		return super.setInput(input, options, token)
+			.then(() => input.resolve())
+			.then(() => {
+				if (token.isCancellationRequested) {
+					return;
+				}
 
-		await input.resolve();
-
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		input.updateGroup(this.group.id);
-		this.updateWebview(input);
+				input.updateGroup(this.group.id);
+				this.updateWebview(input);
+			});
 	}
 
 	private updateWebview(input: WebviewEditorInput) {
 		const webview = this.getWebview(input);
 		input.claimWebview(this);
-		webview.options = {
+		webview.update(input.html, {
 			allowScripts: input.options.enableScripts,
 			allowSvgs: true,
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
-		};
-		input.html = input.html;
+		});
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';

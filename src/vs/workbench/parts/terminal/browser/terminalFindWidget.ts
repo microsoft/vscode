@@ -21,13 +21,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	public find(previous: boolean) {
-		let val = this.inputValue;
-		let instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
 			if (previous) {
-				instance.findPrevious(val);
+				instance.findPrevious(this.inputValue);
 			} else {
-				instance.findNext(val);
+				instance.findNext(this.inputValue);
 			}
 		}
 	}

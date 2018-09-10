@@ -9,7 +9,7 @@
     "copy-driver": "cpx src/vscode/driver.js out/vscode",
     "watch-driver": "cpx src/vscode/driver.js out/vscode -w",
     "copy-driver-definition": "node tools/copy-driver-definition.js",
-    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/common",
+    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\" ../../src/vs/platform/driver/node",
     "mocha": "mocha"
   },
   "devDependencies": {
@@ -33,7 +33,7 @@
     "rimraf": "^2.6.1",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
-    "typescript": "2.5.2",
+    "typescript": "2.9.2",
     "watch": "^1.0.2"
   }
 }

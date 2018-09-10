@@ -35,7 +35,6 @@ class WindowManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
-
 	// --- Zoom Factor
 	private _zoomFactor: number = 0;
 
@@ -45,7 +44,6 @@ class WindowManager {
 	public setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
 	}
-
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
@@ -92,8 +90,6 @@ class WindowManager {
 	public getAccessibilitySupport(): Platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
-
-
 }
 
 /** A zoom index, e.g. 1, 2, 3 */

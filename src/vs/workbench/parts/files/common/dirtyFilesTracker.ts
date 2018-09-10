@@ -12,16 +12,15 @@ import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } 
 import { platform, Platform } from 'vs/base/common/platform';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
-export class DirtyFilesTracker implements IWorkbenchContribution {
+export class DirtyFilesTracker extends Disposable implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
-	private toUnbind: IDisposable[];
 	private lastDirtyCount: number;
 	private badgeHandle: IDisposable;
 
@@ -33,7 +32,8 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 		@IWindowService private windowService: IWindowService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
-		this.toUnbind = [];
+		super();
+
 		this.isDocumentedEdited = false;
 
 		this.registerListeners();
@@ -42,11 +42,11 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Local text file changes
-		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
-		this.toUnbind.push(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
-		this.toUnbind.push(this.textFileService.models.onModelsSaved(e => this.onTextFilesSaved(e)));
-		this.toUnbind.push(this.textFileService.models.onModelsSaveError(e => this.onTextFilesSaveError(e)));
-		this.toUnbind.push(this.textFileService.models.onModelsReverted(e => this.onTextFilesReverted(e)));
+		this._register(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
+		this._register(this.textFileService.models.onModelsDirty(e => this.onTextFilesDirty(e)));
+		this._register(this.textFileService.models.onModelsSaved(e => this.onTextFilesSaved(e)));
+		this._register(this.textFileService.models.onModelsSaveError(e => this.onTextFilesSaveError(e)));
+		this._register(this.textFileService.models.onModelsReverted(e => this.onTextFilesReverted(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
@@ -141,9 +141,5 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 			this.windowService.setDocumentEdited(hasDirtyFiles);
 		}
-	}
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }

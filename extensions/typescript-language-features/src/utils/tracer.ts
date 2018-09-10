@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace } from 'vscode';
-
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import Logger from './logger';
-
 
 enum Trace {
 	Off,
@@ -45,7 +43,7 @@ export default class Tracer {
 	}
 
 	private static readTrace(): Trace {
-		let result: Trace = Trace.fromString(workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
+		let result: Trace = Trace.fromString(vscode.workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
 		if (result === Trace.Off && !!process.env.TSS_TRACE) {
 			result = Trace.Messages;
 		}

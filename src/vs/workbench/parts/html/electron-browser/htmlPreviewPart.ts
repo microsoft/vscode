@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -42,8 +42,8 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	private _modelRef: IReference<ITextEditorModel>;
 	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
-	private _modelChangeSubscription = EmptyDisposable;
-	private _themeChangeSubscription = EmptyDisposable;
+	private _modelChangeSubscription = Disposable.None;
+	private _themeChangeSubscription = Disposable.None;
 
 	private _content: HTMLElement;
 	private _scrollYPercentage: number = 0;

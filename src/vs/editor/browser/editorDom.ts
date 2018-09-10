@@ -14,13 +14,11 @@ import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
  */
 export class PageCoordinates {
 	_pageCoordinatesBrand: void;
-	public readonly x: number;
-	public readonly y: number;
 
-	constructor(x: number, y: number) {
-		this.x = x;
-		this.y = y;
-	}
+	constructor(
+		public readonly x: number,
+		public readonly y: number
+	) { }
 
 	public toClientCoordinates(): ClientCoordinates {
 		return new ClientCoordinates(this.x - dom.StandardWindow.scrollX, this.y - dom.StandardWindow.scrollY);
@@ -37,13 +35,10 @@ export class PageCoordinates {
 export class ClientCoordinates {
 	_clientCoordinatesBrand: void;
 
-	public readonly clientX: number;
-	public readonly clientY: number;
-
-	constructor(clientX: number, clientY: number) {
-		this.clientX = clientX;
-		this.clientY = clientY;
-	}
+	constructor(
+		public readonly clientX: number,
+		public readonly clientY: number
+	) { }
 
 	public toPageCoordinates(): PageCoordinates {
 		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
@@ -56,17 +51,12 @@ export class ClientCoordinates {
 export class EditorPagePosition {
 	_editorPagePositionBrand: void;
 
-	public readonly x: number;
-	public readonly y: number;
-	public readonly width: number;
-	public readonly height: number;
-
-	constructor(x: number, y: number, width: number, height: number) {
-		this.x = x;
-		this.y = y;
-		this.width = width;
-		this.height = height;
-	}
+	constructor(
+		public readonly x: number,
+		public readonly y: number,
+		public readonly width: number,
+		public readonly height: number
+	) { }
 }
 
 export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {

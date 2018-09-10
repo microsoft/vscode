@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export class ToggleRenderControlCharacterAction extends Action {
 
@@ -33,3 +33,12 @@ export class ToggleRenderControlCharacterAction extends Action {
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRenderControlCharacterAction, ToggleRenderControlCharacterAction.ID, ToggleRenderControlCharacterAction.LABEL), 'View: Toggle Control Characters');
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	command: {
+		id: ToggleRenderControlCharacterAction.ID,
+		title: nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters")
+	},
+	order: 4
+});

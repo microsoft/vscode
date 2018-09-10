@@ -21,7 +21,8 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as watcherCommon from 'vs/workbench/services/files/node/watcher/common';
-import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { Emitter, Event } from 'vs/base/common/event';
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
@@ -44,29 +45,20 @@ export class ChokidarWatcherService implements IWatcherService {
 	private _watchers: { [watchPath: string]: IWatcher };
 	private _watcherCount: number;
 
-	private _watcherPromise: TPromise<void>;
 	private _options: IWatcherOptions & IChockidarWatcherOptions;
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
 	private enospcErrorLogged: boolean;
-	private _errorCallback: (error: Error) => void;
-	private _fileChangeCallback: (changes: watcherCommon.IRawFileChange[]) => void;
 
-	public initialize(options: IWatcherOptions & IChockidarWatcherOptions): TPromise<void> {
+	private _onWatchEvent = new Emitter<watcherCommon.IRawFileChange[] | IWatchError>();
+	readonly onWatchEvent = this._onWatchEvent.event;
+
+	watch(options: IWatcherOptions & IChockidarWatcherOptions): Event<watcherCommon.IRawFileChange[] | IWatchError> {
 		this._options = options;
 		this._watchers = Object.create(null);
 		this._watcherCount = 0;
-		this._watcherPromise = new TPromise<void>((c, e, p) => {
-			this._errorCallback = (error) => {
-				this.stop();
-				e(error);
-			};
-			this._fileChangeCallback = p;
-		}, () => {
-			this.stop();
-		});
-		return this._watcherPromise;
+		return this.onWatchEvent;
 	}
 
 	public setRoots(requests: IWatcherRequest[]): TPromise<void> {
@@ -121,7 +113,8 @@ export class ChokidarWatcherService implements IWatcherService {
 		};
 
 		// if there's only one request, use the built-in ignore-filterering
-		if (requests.length === 1) {
+		const isSingleFolder = requests.length === 1;
+		if (isSingleFolder) {
 			watcherOpts.ignored = requests[0].ignored;
 		}
 
@@ -202,15 +195,19 @@ export class ChokidarWatcherService implements IWatcherService {
 					return;
 			}
 
-			if (isIgnored(path, watcher.requests)) {
-				return;
+			// if there's more than one request we need to do
+			// extra filtering due to potentially overlapping roots
+			if (!isSingleFolder) {
+				if (isIgnored(path, watcher.requests)) {
+					return;
+				}
 			}
 
 			let event = { type: eventType, path };
 
 			// Logging
 			if (this._options.verboseLogging) {
-				console.log(eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', path);
+				console.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
 			// Check for spam
@@ -233,12 +230,12 @@ export class ChokidarWatcherService implements IWatcherService {
 
 				// Broadcast to clients normalized
 				const res = watcherCommon.normalize(events);
-				this._fileChangeCallback(res);
+				this._onWatchEvent.fire(res);
 
 				// Logging
 				if (this._options.verboseLogging) {
 					res.forEach(r => {
-						console.log(' >> normalized', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+						console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 					});
 				}
 
@@ -257,7 +254,8 @@ export class ChokidarWatcherService implements IWatcherService {
 				if ((<any>error).code === 'ENOSPC') {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;
-						this._errorCallback(new Error('Inotify limit reached (ENOSPC)'));
+						this.stop();
+						this._onWatchEvent.fire({ message: 'Inotify limit reached (ENOSPC)' });
 					}
 				} else {
 					console.error(error.toString());

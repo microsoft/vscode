@@ -6,29 +6,26 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as errors from 'vs/base/common/errors';
-import * as types from 'vs/base/common/types';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
-import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IWindowsService, IWindowService, IWindowSettings, IPath, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, IWindowSettings, IOpenFileRequest, IWindowsConfiguration, IAddFoldersRequest, IRunActionInWindowRequest, IPathData } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable } from 'vs/workbench/common/theme';
 import { ipcRenderer as ipc, webFrame } from 'electron';
@@ -38,7 +35,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -46,6 +42,8 @@ import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/bas
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -60,8 +58,6 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Themable {
 
-	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
-
 	private touchBarMenu: IMenu;
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarDisposables: IDisposable[];
@@ -70,10 +66,9 @@ export class ElectronWindow extends Themable {
 	private previousConfiguredZoomLevel: number;
 
 	private addFoldersScheduler: RunOnceScheduler;
-	private pendingFoldersToAdd: IAddFoldersRequest[];
+	private pendingFoldersToAdd: URI[];
 
 	constructor(
-		shellContainer: HTMLElement,
 		@IEditorService private editorService: EditorServiceImpl,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
@@ -97,8 +92,7 @@ export class ElectronWindow extends Themable {
 		this.touchBarDisposables = [];
 
 		this.pendingFoldersToAdd = [];
-		this.addFoldersScheduler = new RunOnceScheduler(() => this.doAddFolders(), 100);
-		this.toUnbind.push(this.addFoldersScheduler);
+		this.addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 
 		this.registerListeners();
 		this.create();
@@ -107,7 +101,7 @@ export class ElectronWindow extends Themable {
 	private registerListeners(): void {
 
 		// React to editor input changes
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the shell
 		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
@@ -134,7 +128,7 @@ export class ElectronWindow extends Themable {
 				args.push({ from: request.from }); // TODO@telemetry this is a bit weird to send this to every action?
 			}
 
-			this.commandService.executeCommand(request.id, ...args).done(_ => {
+			this.commandService.executeCommand(request.id, ...args).then(_ => {
 				/* __GDPR__
 					"commandExecuted" : {
 						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -157,11 +151,11 @@ export class ElectronWindow extends Themable {
 			}
 
 			// Resolve keys using the keybinding service and send back to browser process
-			this.resolveKeybindings(actionIds).done(keybindings => {
+			this.resolveKeybindings(actionIds).then(keybindings => {
 				if (keybindings.length) {
 					ipc.send('vscode:keybindingsResolved', JSON.stringify(keybindings));
 				}
-			}, () => errors.onUnexpectedError);
+			});
 		});
 
 		ipc.on('vscode:reportError', (event: any, error: string) => {
@@ -181,11 +175,6 @@ export class ElectronWindow extends Themable {
 		// Message support
 		ipc.on('vscode:showInfoMessage', (event: any, message: string) => {
 			this.notificationService.info(message);
-		});
-
-		// Support toggling auto save
-		ipc.on('vscode.toggleAutoSave', () => {
-			this.toggleAutoSave();
 		});
 
 		// Fullscreen Events
@@ -215,7 +204,7 @@ export class ElectronWindow extends Themable {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-					this.themeService.setColorTheme(VS_DARK_THEME, null);
+					this.themeService.restoreColorTheme();
 				});
 			}
 		});
@@ -232,7 +221,7 @@ export class ElectronWindow extends Themable {
 
 		// Zoom level changes
 		this.updateWindowZoomLevel();
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
 			}
@@ -246,12 +235,12 @@ export class ElectronWindow extends Themable {
 		if (e.target instanceof HTMLElement) {
 			const target = <HTMLElement>e.target;
 			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
-				e.preventDefault();
-				e.stopPropagation();
+				DOM.EventHelper.stop(e, true);
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e,
-					getActions: () => TPromise.as(TextInputActions)
+					getActions: () => TPromise.as(TextInputActions),
+					onHide: () => target.focus() // fixes https://github.com/Microsoft/vscode/issues/52948
 				});
 			}
 		}
@@ -394,19 +383,16 @@ export class ElectronWindow extends Themable {
 				if (!binding) {
 					return null;
 				}
-
 				// first try to resolve a native accelerator
 				const electronAccelerator = binding.getElectronAccelerator();
 				if (electronAccelerator) {
 					return { id, label: electronAccelerator, isNative: true };
 				}
-
 				// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
 				const acceleratorLabel = binding.getLabel();
 				if (acceleratorLabel) {
 					return { id, label: acceleratorLabel, isNative: false };
 				}
-
 				return null;
 			}));
 		});
@@ -415,7 +401,7 @@ export class ElectronWindow extends Themable {
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
 
 		// Buffer all pending requests
-		this.pendingFoldersToAdd.push(request);
+		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(f => URI.revive(f)));
 
 		// Delay the adding of folders a bit to buffer in case more requests are coming
 		if (!this.addFoldersScheduler.isScheduled()) {
@@ -426,13 +412,13 @@ export class ElectronWindow extends Themable {
 	private doAddFolders(): void {
 		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(request => {
-			foldersToAdd.push(...request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) })));
+		this.pendingFoldersToAdd.forEach(folder => {
+			foldersToAdd.push(({ uri: folder }));
 		});
 
 		this.pendingFoldersToAdd = [];
 
-		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
+		this.workspaceEditingService.addFolders(foldersToAdd);
 	}
 
 	private onOpenFiles(request: IOpenFileRequest): void {
@@ -459,12 +445,12 @@ export class ElectronWindow extends Themable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.file(p.filePath));
+			const resourcesToWaitFor = request.filesToWait.paths.map(p => URI.revive(p.fileUri));
 			const waitMarkerFile = URI.file(request.filesToWait.waitMarkerFilePath);
 			const unbind = this.editorService.onDidCloseEditor(() => {
 				if (resourcesToWaitFor.every(resource => !this.editorService.isOpen({ resource }))) {
 					unbind.dispose();
-					this.fileService.del(waitMarkerFile).done(null, errors.onUnexpectedError);
+					this.fileService.del(waitMarkerFile);
 				}
 			});
 		}
@@ -488,9 +474,9 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
-	private toInputs(paths: IPath[], isNew: boolean): IResourceEditor[] {
+	private toInputs(paths: IPathData[], isNew: boolean): IResourceEditor[] {
 		return paths.map(p => {
-			const resource = URI.file(p.filePath);
+			const resource = URI.revive(p.fileUri);
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
 				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
@@ -509,24 +495,7 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
-	private toggleAutoSave(): void {
-		const setting = this.configurationService.inspect(ElectronWindow.AUTO_SAVE_SETTING);
-		let userAutoSaveConfig = setting.user;
-		if (types.isUndefinedOrNull(userAutoSaveConfig)) {
-			userAutoSaveConfig = setting.default; // use default if setting not defined
-		}
-
-		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => s === userAutoSaveConfig)) {
-			newAutoSaveValue = AutoSaveConfiguration.OFF;
-		} else {
-			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
-		}
-
-		this.configurationService.updateValue(ElectronWindow.AUTO_SAVE_SETTING, newAutoSaveValue, ConfigurationTarget.USER);
-	}
-
-	public dispose(): void {
+	dispose(): void {
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
 
 		super.dispose();

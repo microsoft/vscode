@@ -38,10 +38,13 @@ export interface IInputBoxStyles {
 	inputBorder?: Color;
 	inputValidationInfoBorder?: Color;
 	inputValidationInfoBackground?: Color;
+	inputValidationInfoForeground?: Color;
 	inputValidationWarningBorder?: Color;
 	inputValidationWarningBackground?: Color;
+	inputValidationWarningForeground?: Color;
 	inputValidationErrorBorder?: Color;
 	inputValidationErrorBackground?: Color;
+	inputValidationErrorForeground?: Color;
 }
 
 export interface IInputValidator {
@@ -58,7 +61,7 @@ export interface IInputValidationOptions {
 	validation: IInputValidator;
 }
 
-export enum MessageType {
+export const enum MessageType {
 	INFO = 1,
 	WARNING = 2,
 	ERROR = 3
@@ -100,10 +103,13 @@ export class InputBox extends Widget {
 
 	private inputValidationInfoBorder: Color;
 	private inputValidationInfoBackground: Color;
+	private inputValidationInfoForeground: Color;
 	private inputValidationWarningBorder: Color;
 	private inputValidationWarningBackground: Color;
+	private inputValidationWarningForeground: Color;
 	private inputValidationErrorBorder: Color;
 	private inputValidationErrorBackground: Color;
+	private inputValidationErrorForeground: Color;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -128,10 +134,13 @@ export class InputBox extends Widget {
 
 		this.inputValidationInfoBorder = this.options.inputValidationInfoBorder;
 		this.inputValidationInfoBackground = this.options.inputValidationInfoBackground;
+		this.inputValidationInfoForeground = this.options.inputValidationInfoForeground;
 		this.inputValidationWarningBorder = this.options.inputValidationWarningBorder;
 		this.inputValidationWarningBackground = this.options.inputValidationWarningBackground;
+		this.inputValidationWarningForeground = this.options.inputValidationWarningForeground;
 		this.inputValidationErrorBorder = this.options.inputValidationErrorBorder;
 		this.inputValidationErrorBackground = this.options.inputValidationErrorBackground;
+		this.inputValidationErrorForeground = this.options.inputValidationErrorForeground;
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
@@ -349,11 +358,11 @@ export class InputBox extends Widget {
 		return !errorMsg;
 	}
 
-	private stylesForType(type: MessageType): { border: Color; background: Color } {
+	private stylesForType(type: MessageType): { border: Color; background: Color; foreground: Color } {
 		switch (type) {
-			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground };
-			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground };
-			default: return { border: this.inputValidationErrorBorder, background: this.inputValidationErrorBackground };
+			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground, foreground: this.inputValidationInfoForeground };
+			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground, foreground: this.inputValidationWarningForeground };
+			default: return { border: this.inputValidationErrorBorder, background: this.inputValidationErrorBackground, foreground: this.inputValidationErrorForeground };
 		}
 	}
 
@@ -394,6 +403,7 @@ export class InputBox extends Widget {
 
 				const styles = this.stylesForType(this.message.type);
 				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : null;
+				spanElement.style.color = styles.foreground ? styles.foreground.toString() : null;
 				spanElement.style.border = styles.border ? `1px solid ${styles.border}` : null;
 
 				dom.append(div, spanElement);
@@ -443,10 +453,13 @@ export class InputBox extends Widget {
 		this.inputBorder = styles.inputBorder;
 
 		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoForeground = styles.inputValidationInfoForeground;
 		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
 		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningForeground = styles.inputValidationWarningForeground;
 		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
 		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorForeground = styles.inputValidationErrorForeground;
 		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
 
 		this.applyStyles();
@@ -513,9 +526,9 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		this.history = new HistoryNavigator<string>(options.history, 100);
 	}
 
-	public addToHistory(value: string): void {
-		if (value !== this.history.current()) {
-			this.history.add(value);
+	public addToHistory(): void {
+		if (this.value && this.value !== this.getCurrentValue()) {
+			this.history.add(this.value);
 		}
 	}
 
@@ -524,23 +537,55 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	public showNextValue(): void {
-		let next = this.history.next();
+		if (!this.history.has(this.value)) {
+			this.addToHistory();
+		}
+
+		let next = this.getNextValue();
+		if (next) {
+			next = next === this.value ? this.getNextValue() : next;
+		}
+
 		if (next) {
 			this.value = next;
+			aria.status(this.value);
 		}
 	}
 
 	public showPreviousValue(): void {
-		if (this.value.length !== 0) {
-			this.history.addIfNotPresent(this.value);
+		if (!this.history.has(this.value)) {
+			this.addToHistory();
 		}
-		const previous = this.history.previous();
+
+		let previous = this.getPreviousValue();
+		if (previous) {
+			previous = previous === this.value ? this.getPreviousValue() : previous;
+		}
+
 		if (previous) {
 			this.value = previous;
+			aria.status(this.value);
 		}
 	}
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	private getCurrentValue(): string {
+		let currentValue = this.history.current();
+		if (!currentValue) {
+			currentValue = this.history.last();
+			this.history.next();
+		}
+		return currentValue;
+	}
+
+	private getPreviousValue(): string {
+		return this.history.previous() || this.history.first();
+	}
+
+	private getNextValue(): string {
+		return this.history.next() || this.history.last();
 	}
 }

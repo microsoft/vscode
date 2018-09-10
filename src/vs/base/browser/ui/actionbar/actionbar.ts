@@ -8,10 +8,9 @@
 import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
-import * as lifecycle from 'vs/base/common/lifecycle';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
@@ -36,77 +35,78 @@ export interface IBaseActionItemOptions {
 	isMenu?: boolean;
 }
 
-export class BaseActionItem implements IActionItem {
+export class BaseActionItem extends Disposable implements IActionItem {
 
-	public builder: Builder;
-	public _callOnDispose: lifecycle.IDisposable[];
-	public _context: any;
-	public _action: IAction;
+	element: HTMLElement;
+	_context: any;
+	_action: IAction;
 
 	private _actionRunner: IActionRunner;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
-		this._callOnDispose = [];
+		super();
+
 		this._context = context || this;
 		this._action = action;
 
 		if (action instanceof Action) {
-			this._callOnDispose.push(action.onDidChange(event => {
-				if (!this.builder) {
+			this._register(action.onDidChange(event => {
+				if (!this.element) {
 					// we have not been rendered yet, so there
 					// is no point in updating the UI
 					return;
 				}
-				this._handleActionChangeEvent(event);
+
+				this.handleActionChangeEvent(event);
 			}));
 		}
 	}
 
-	protected _handleActionChangeEvent(event: IActionChangeEvent): void {
+	private handleActionChangeEvent(event: IActionChangeEvent): void {
 		if (event.enabled !== void 0) {
-			this._updateEnabled();
+			this.updateEnabled();
 		}
+
 		if (event.checked !== void 0) {
-			this._updateChecked();
+			this.updateChecked();
 		}
+
 		if (event.class !== void 0) {
-			this._updateClass();
+			this.updateClass();
 		}
+
 		if (event.label !== void 0) {
-			this._updateLabel();
-			this._updateTooltip();
+			this.updateLabel();
+			this.updateTooltip();
 		}
+
 		if (event.tooltip !== void 0) {
-			this._updateTooltip();
+			this.updateTooltip();
 		}
 	}
 
-	public get callOnDispose() {
-		return this._callOnDispose;
-	}
-
-	public set actionRunner(actionRunner: IActionRunner) {
+	set actionRunner(actionRunner: IActionRunner) {
 		this._actionRunner = actionRunner;
 	}
 
-	public get actionRunner(): IActionRunner {
+	get actionRunner(): IActionRunner {
 		return this._actionRunner;
 	}
 
-	public getAction(): IAction {
+	getAction(): IAction {
 		return this._action;
 	}
 
-	public isEnabled(): boolean {
+	isEnabled(): boolean {
 		return this._action.enabled;
 	}
 
-	public setActionContext(newContext: any): void {
+	setActionContext(newContext: any): void {
 		this._context = newContext;
 	}
 
-	public render(container: HTMLElement): void {
-		this.builder = $(container);
+	render(container: HTMLElement): void {
+		this.element = container;
 		Gesture.addTarget(container);
 
 		const enableDragging = this.options && this.options.draggable;
@@ -114,20 +114,20 @@ export class BaseActionItem implements IActionItem {
 			container.draggable = true;
 		}
 
-		this.builder.on(EventType.Tap, e => this.onClick(e));
+		this._register(DOM.addDisposableListener(this.element, EventType.Tap, e => this.onClick(e)));
 
-		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_DOWN, e => {
 			if (!enableDragging) {
 				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
 			const mouseEvent = e as MouseEvent;
 			if (this._action.enabled && mouseEvent.button === 0) {
-				this.builder.addClass('active');
+				DOM.addClass(this.element, 'active');
 			}
-		});
+		}));
 
-		this.builder.on(DOM.EventType.CLICK, (e) => {
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
 			// > Writing to the clipboard
@@ -142,15 +142,21 @@ export class BaseActionItem implements IActionItem {
 			} else {
 				platform.setImmediate(() => this.onClick(e));
 			}
-		});
+		}));
 
-		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e) => {
-			DOM.EventHelper.stop(e);
-			this.builder.removeClass('active');
+		this._register(DOM.addDisposableListener(this.element, DOM.EventType.DBLCLICK, e => {
+			DOM.EventHelper.stop(e, true);
+		}));
+
+		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
+			this._register(DOM.addDisposableListener(this.element, event, e => {
+				DOM.EventHelper.stop(e);
+				DOM.removeClass(this.element, 'active');
+			}));
 		});
 	}
 
-	public onClick(event: DOM.EventLike): void {
+	onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 
 		let context: any;
@@ -158,64 +164,68 @@ export class BaseActionItem implements IActionItem {
 			context = event;
 		} else {
 			context = this._context;
-			context.event = event;
+
+			if (types.isObject(context)) {
+				context.event = event;
+			}
 		}
 
 		this._actionRunner.run(this._action, context);
 	}
 
-	public focus(): void {
-		if (this.builder) {
-			this.builder.domFocus();
+	focus(): void {
+		if (this.element) {
+			this.element.focus();
+			DOM.addClass(this.element, 'focused');
 		}
 	}
 
-	public blur(): void {
-		if (this.builder) {
-			this.builder.domBlur();
+	blur(): void {
+		if (this.element) {
+			this.element.blur();
+			DOM.removeClass(this.element, 'focused');
 		}
 	}
 
-	protected _updateEnabled(): void {
+	protected updateEnabled(): void {
 		// implement in subclass
 	}
 
-	protected _updateLabel(): void {
+	protected updateLabel(): void {
 		// implement in subclass
 	}
 
-	protected _updateTooltip(): void {
+	protected updateTooltip(): void {
 		// implement in subclass
 	}
 
-	protected _updateClass(): void {
+	protected updateClass(): void {
 		// implement in subclass
 	}
 
-	protected _updateChecked(): void {
+	protected updateChecked(): void {
 		// implement in subclass
 	}
 
-	public dispose(): void {
-		if (this.builder) {
-			this.builder.destroy();
-			this.builder = null;
+	dispose(): void {
+		if (this.element) {
+			this.element.remove();
+			this.element = null;
 		}
 
-		this._callOnDispose = lifecycle.dispose(this._callOnDispose);
+		super.dispose();
 	}
 }
 
 export class Separator extends Action {
 
-	public static readonly ID = 'vs.actions.separator';
+	static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string, order?: number) {
+	constructor(label?: string) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
 		this.checked = false;
 		this.radio = false;
 		this.enabled = false;
-		this.order = order;
 	}
 }
 
@@ -227,8 +237,9 @@ export interface IActionItemOptions extends IBaseActionItemOptions {
 
 export class ActionItem extends BaseActionItem {
 
-	protected $e: Builder;
+	protected label: HTMLElement;
 	protected options: IActionItemOptions;
+
 	private cssClass: string;
 
 	constructor(context: any, action: IAction, options: IActionItemOptions = {}) {
@@ -240,44 +251,44 @@ export class ActionItem extends BaseActionItem {
 		this.cssClass = '';
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
 
-		this.$e = $('a.action-label').appendTo(this.builder);
+		this.label = DOM.append(this.element, DOM.$('a.action-label'));
 		if (this._action.id === Separator.ID) {
-			// A separator is a presentation item
-			this.$e.attr({ role: 'presentation' });
+			this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
 		} else {
 			if (this.options.isMenu) {
-				this.$e.attr({ role: 'menuitem' });
+				this.label.setAttribute('role', 'menuitem');
 			} else {
-				this.$e.attr({ role: 'button' });
+				this.label.setAttribute('role', 'button');
 			}
 		}
 
 		if (this.options.label && this.options.keybinding) {
-			$('span.keybinding').text(this.options.keybinding).appendTo(this.builder);
+			DOM.append(this.element, DOM.$('span.keybinding')).textContent = this.options.keybinding;
 		}
 
-		this._updateClass();
-		this._updateLabel();
-		this._updateTooltip();
-		this._updateEnabled();
-		this._updateChecked();
+		this.updateClass();
+		this.updateLabel();
+		this.updateTooltip();
+		this.updateEnabled();
+		this.updateChecked();
 	}
 
-	public focus(): void {
+	focus(): void {
 		super.focus();
-		this.$e.domFocus();
+
+		this.label.focus();
 	}
 
-	public _updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this.getAction().label);
+			this.label.textContent = this.getAction().label;
 		}
 	}
 
-	public _updateTooltip(): void {
+	updateTooltip(): void {
 		let title: string = null;
 
 		if (this.getAction().tooltip) {
@@ -292,48 +303,52 @@ export class ActionItem extends BaseActionItem {
 		}
 
 		if (title) {
-			this.$e.attr({ title: title });
+			this.label.title = title;
 		}
 	}
 
-	public _updateClass(): void {
+	updateClass(): void {
 		if (this.cssClass) {
-			this.$e.removeClass(this.cssClass);
+			DOM.removeClasses(this.label, this.cssClass);
 		}
+
 		if (this.options.icon) {
 			this.cssClass = this.getAction().class;
-			this.$e.addClass('icon');
+			DOM.addClass(this.label, 'icon');
 			if (this.cssClass) {
-				this.$e.addClass(this.cssClass);
+				DOM.addClasses(this.label, this.cssClass);
 			}
-			this._updateEnabled();
+
+			this.updateEnabled();
 		} else {
-			this.$e.removeClass('icon');
+			DOM.removeClass(this.label, 'icon');
 		}
 	}
 
-	public _updateEnabled(): void {
+	updateEnabled(): void {
 		if (this.getAction().enabled) {
-			this.builder.removeClass('disabled');
-			this.$e.removeClass('disabled');
-			this.$e.attr({ tabindex: 0 });
+			this.label.removeAttribute('aria-disabled');
+			DOM.removeClass(this.element, 'disabled');
+			DOM.removeClass(this.label, 'disabled');
+			this.label.tabIndex = 0;
 		} else {
-			this.builder.addClass('disabled');
-			this.$e.addClass('disabled');
-			DOM.removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
+			this.label.setAttribute('aria-disabled', 'true');
+			DOM.addClass(this.element, 'disabled');
+			DOM.addClass(this.label, 'disabled');
+			DOM.removeTabIndexAndUpdateFocus(this.label);
 		}
 	}
 
-	public _updateChecked(): void {
+	updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$e.addClass('checked');
+			DOM.addClass(this.label, 'checked');
 		} else {
-			this.$e.removeClass('checked');
+			DOM.removeClass(this.label, 'checked');
 		}
 	}
 }
 
-export enum ActionsOrientation {
+export const enum ActionsOrientation {
 	HORIZONTAL,
 	HORIZONTAL_REVERSE,
 	VERTICAL,
@@ -351,7 +366,6 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
-	isMenu?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -363,43 +377,48 @@ export interface IActionOptions extends IActionItemOptions {
 	index?: number;
 }
 
-export class ActionBar implements IActionRunner {
+export class ActionBar extends Disposable implements IActionRunner {
 
-	public options: IActionBarOptions;
+	options: IActionBarOptions;
 
 	private _actionRunner: IActionRunner;
 	private _context: any;
 
 	// Items
-	public items: IActionItem[];
-
-	private focusedItem: number;
+	items: IActionItem[];
+	protected focusedItem: number;
 	private focusTracker: DOM.IFocusTracker;
 
 	// Elements
-	public domNode: HTMLElement;
-	private actionsList: HTMLElement;
+	domNode: HTMLElement;
+	protected actionsList: HTMLElement;
 
-	private toDispose: lifecycle.IDisposable[];
+	private _onDidBlur = this._register(new Emitter<void>());
+	get onDidBlur(): Event<void> { return this._onDidBlur.event; }
 
-	private _onDidBlur = new Emitter<void>();
-	private _onDidCancel = new Emitter<void>();
-	private _onDidRun = new Emitter<IRunEvent>();
-	private _onDidBeforeRun = new Emitter<IRunEvent>();
+	private _onDidCancel = this._register(new Emitter<void>());
+	get onDidCancel(): Event<void> { return this._onDidCancel.event; }
+
+	private _onDidRun = this._register(new Emitter<IRunEvent>());
+	get onDidRun(): Event<IRunEvent> { return this._onDidRun.event; }
+
+	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
+	get onDidBeforeRun(): Event<IRunEvent> { return this._onDidBeforeRun.event; }
 
 	constructor(container: HTMLElement, options: IActionBarOptions = defaultOptions) {
+		super();
+
 		this.options = options;
 		this._context = options.context;
-		this.toDispose = [];
 		this._actionRunner = this.options.actionRunner;
 
 		if (!this._actionRunner) {
 			this._actionRunner = new ActionRunner();
-			this.toDispose.push(this._actionRunner);
+			this._register(this._actionRunner);
 		}
 
-		this.toDispose.push(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
-		this.toDispose.push(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
+		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
 
 		this.items = [];
 		this.focusedItem = undefined;
@@ -436,7 +455,7 @@ export class ActionBar implements IActionRunner {
 				break;
 		}
 
-		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e) => {
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
@@ -456,9 +475,9 @@ export class ActionBar implements IActionRunner {
 				event.preventDefault();
 				event.stopPropagation();
 			}
-		});
+		}));
 
-		$(this.domNode).on(DOM.EventType.KEY_UP, (e) => {
+		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_UP, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 
 			// Run action on Enter/Space
@@ -472,25 +491,22 @@ export class ActionBar implements IActionRunner {
 			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
 				this.updateFocusedItem();
 			}
-		});
+		}));
 
-		this.focusTracker = DOM.trackFocus(this.domNode);
-		this.toDispose.push(this.focusTracker.onDidBlur(() => {
+		this.focusTracker = this._register(DOM.trackFocus(this.domNode));
+		this._register(this.focusTracker.onDidBlur(() => {
 			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
 				this._onDidBlur.fire();
 				this.focusedItem = undefined;
 			}
 		}));
 
-		this.toDispose.push(this.focusTracker.onDidFocus(() => this.updateFocusedItem()));
+		this._register(this.focusTracker.onDidFocus(() => this.updateFocusedItem()));
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		if (this.options.isMenu) {
-			this.actionsList.setAttribute('role', 'menubar');
-		} else {
-			this.actionsList.setAttribute('role', 'toolbar');
-		}
+		this.actionsList.setAttribute('role', 'toolbar');
+
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}
@@ -500,23 +516,7 @@ export class ActionBar implements IActionRunner {
 		container.appendChild(this.domNode);
 	}
 
-	public get onDidBlur(): Event<void> {
-		return this._onDidBlur.event;
-	}
-
-	public get onDidCancel(): Event<void> {
-		return this._onDidCancel.event;
-	}
-
-	public get onDidRun(): Event<IRunEvent> {
-		return this._onDidRun.event;
-	}
-
-	public get onDidBeforeRun(): Event<IRunEvent> {
-		return this._onDidBeforeRun.event;
-	}
-
-	public setAriaLabel(label: string): void {
+	setAriaLabel(label: string): void {
 		if (label) {
 			this.actionsList.setAttribute('aria-label', label);
 		} else {
@@ -534,32 +534,31 @@ export class ActionBar implements IActionRunner {
 		}
 	}
 
-	public get context(): any {
+	get context(): any {
 		return this._context;
 	}
 
-	public set context(context: any) {
+	set context(context: any) {
 		this._context = context;
 		this.items.forEach(i => i.setActionContext(context));
 	}
 
-	public get actionRunner(): IActionRunner {
+	get actionRunner(): IActionRunner {
 		return this._actionRunner;
 	}
 
-	public set actionRunner(actionRunner: IActionRunner) {
+	set actionRunner(actionRunner: IActionRunner) {
 		if (actionRunner) {
 			this._actionRunner = actionRunner;
 			this.items.forEach(item => item.actionRunner = actionRunner);
 		}
 	}
 
-	public getContainer(): HTMLElement {
+	getContainer(): HTMLElement {
 		return this.domNode;
 	}
 
-	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
-
+	push(arg: IAction | IAction[], options: IActionOptions = {}): void {
 		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
 
 		let index = types.isNumber(options.index) ? options.index : null;
@@ -570,10 +569,10 @@ export class ActionBar implements IActionRunner {
 			actionItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+			this._register(DOM.addDisposableListener(actionItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 				e.preventDefault();
 				e.stopPropagation();
-			});
+			}));
 
 			let item: IActionItem = null;
 
@@ -597,11 +596,10 @@ export class ActionBar implements IActionRunner {
 				this.items.splice(index, 0, item);
 				index++;
 			}
-
 		});
 	}
 
-	public getWidth(index: number): number {
+	getWidth(index: number): number {
 		if (index >= 0 && index < this.actionsList.children.length) {
 			return this.actionsList.children.item(index).clientWidth;
 		}
@@ -609,7 +607,7 @@ export class ActionBar implements IActionRunner {
 		return 0;
 	}
 
-	public getHeight(index: number): number {
+	getHeight(index: number): number {
 		if (index >= 0 && index < this.actionsList.children.length) {
 			return this.actionsList.children.item(index).clientHeight;
 		}
@@ -617,32 +615,34 @@ export class ActionBar implements IActionRunner {
 		return 0;
 	}
 
-	public pull(index: number): void {
+	pull(index: number): void {
 		if (index >= 0 && index < this.items.length) {
 			this.items.splice(index, 1);
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
 		}
 	}
 
-	public clear(): void {
-		this.items = lifecycle.dispose(this.items);
-		$(this.actionsList).empty();
+	clear(): void {
+		this.items = dispose(this.items);
+		DOM.clearNode(this.actionsList);
 	}
 
-	public length(): number {
+	length(): number {
 		return this.items.length;
 	}
 
-	public isEmpty(): boolean {
+	isEmpty(): boolean {
 		return this.items.length === 0;
 	}
 
-	public focus(selectFirst?: boolean): void {
+	focus(selectFirst?: boolean): void {
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
-			this.focusedItem = 0;
+			// Focus the first enabled item
+			this.focusedItem = this.items.length - 1;
+			this.focusNext();
+		} else {
+			this.updateFocus();
 		}
-
-		this.updateFocus();
 	}
 
 	private focusNext(): void {
@@ -690,10 +690,9 @@ export class ActionBar implements IActionRunner {
 		this.updateFocus(true);
 	}
 
-	private updateFocus(fromRight?: boolean): void {
+	protected updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.domNode.focus();
-			return;
+			this.actionsList.focus();
 		}
 
 		for (let i = 0; i < this.items.length; i++) {
@@ -702,8 +701,12 @@ export class ActionBar implements IActionRunner {
 			let actionItem = <any>item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionItem.focus)) {
-					actionItem.focus(fromRight);
+				if (types.isFunction(actionItem.isEnabled)) {
+					if (actionItem.isEnabled() && types.isFunction(actionItem.focus)) {
+						actionItem.focus(fromRight);
+					} else {
+						this.actionsList.focus();
+					}
 				}
 			} else {
 				if (types.isFunction(actionItem.blur)) {
@@ -722,7 +725,7 @@ export class ActionBar implements IActionRunner {
 		let actionItem = this.items[this.focusedItem];
 		if (actionItem instanceof BaseActionItem) {
 			const context = (actionItem._context === null || actionItem._context === undefined) ? event : actionItem._context;
-			this.run(actionItem._action, context).done();
+			this.run(actionItem._action, context);
 		}
 	}
 
@@ -734,78 +737,65 @@ export class ActionBar implements IActionRunner {
 		this._onDidCancel.fire();
 	}
 
-	public run(action: IAction, context?: any): TPromise<void> {
+	run(action: IAction, context?: any): TPromise<void> {
 		return this._actionRunner.run(action, context);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.items !== null) {
-			lifecycle.dispose(this.items);
+			dispose(this.items);
 		}
 		this.items = null;
 
-		if (this.focusTracker) {
-			this.focusTracker.dispose();
-			this.focusTracker = null;
-		}
+		this.getContainer().remove();
 
-		this.toDispose = lifecycle.dispose(this.toDispose);
-
-		$(this.getContainer()).destroy();
+		super.dispose();
 	}
 }
 
 export class SelectActionItem extends BaseActionItem {
 	protected selectBox: SelectBox;
-	protected toDispose: lifecycle.IDisposable[];
 
-	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider
-	) {
+	constructor(ctx: any, action: IAction, options: string[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
 		super(ctx, action);
-		this.selectBox = new SelectBox(options, selected, contextViewProvider);
 
-		this.toDispose = [];
-		this.toDispose.push(this.selectBox);
+		this.selectBox = new SelectBox(options, selected, contextViewProvider, null, selectBoxOptions);
+
+		this._register(this.selectBox);
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected?: number, disabled?: number): void {
+	setOptions(options: string[], selected?: number, disabled?: number): void {
 		this.selectBox.setOptions(options, selected, disabled);
 	}
 
-	public select(index: number): void {
+	select(index: number): void {
 		this.selectBox.select(index);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected)).done();
+		this._register(this.selectBox.onDidSelect(e => {
+			this.actionRunner.run(this._action, this.getActionContext(e.selected, e.index));
 		}));
 	}
 
-	protected getActionContext(option: string) {
+	protected getActionContext(option: string, index: number) {
 		return option;
 	}
 
-	public focus(): void {
+	focus(): void {
 		if (this.selectBox) {
 			this.selectBox.focus();
 		}
 	}
 
-	public blur(): void {
+	blur(): void {
 		if (this.selectBox) {
 			this.selectBox.blur();
 		}
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		this.selectBox.render(container);
-	}
-
-	public dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
-
-		super.dispose();
 	}
 }

@@ -22,13 +22,15 @@ import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/e
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { once } from 'vs/base/common/event';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const GOTO_LINE_PREFIX = ':';
 
 export class GotoLineAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.gotoLine';
-	public static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
+	static readonly ID = 'workbench.action.gotoLine';
+	static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
 
 	constructor(actionId: string, actionLabel: string,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
@@ -37,7 +39,7 @@ export class GotoLineAction extends QuickOpenAction {
 		super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
 	}
 
-	public run(): TPromise<void> {
+	run(): TPromise<void> {
 
 		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (isDiffEditor(activeTextEditorWidget)) {
@@ -60,12 +62,7 @@ export class GotoLineAction extends QuickOpenAction {
 		const result = super.run();
 
 		if (restoreOptions) {
-			let toDispose = this._quickOpenService.onHide(() => {
-				if (!toDispose) {
-					return;
-				}
-				toDispose.dispose();
-				toDispose = null;
+			once(this._quickOpenService.onHide)(() => {
 				activeTextEditorWidget.updateOptions(restoreOptions);
 			});
 		}
@@ -92,7 +89,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		this.column = numbers[1];
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 
 		// Inform user about valid range if input is invalid
 		const maxLineNumber = this.getMaxLineNumber();
@@ -123,7 +120,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return model && types.isFunction((<ITextModel>model).getLineCount) ? (<ITextModel>model).getLineCount() : -1;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -131,18 +128,18 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.runPreview();
 	}
 
-	public getInput(): IEditorInput {
+	getInput(): IEditorInput {
 		return this.editorService.activeEditor;
 	}
 
-	public getOptions(pinned?: boolean): ITextEditorOptions {
+	getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
 			selection: this.toSelection(),
 			pinned
 		};
 	}
 
-	public runOpen(context: IEntryRunContext): boolean {
+	runOpen(context: IEntryRunContext): boolean {
 
 		// No-op if range is not valid
 		if (this.invalidRange()) {
@@ -166,7 +163,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return true;
 	}
 
-	public runPreview(): boolean {
+	runPreview(): boolean {
 
 		// No-op if range is not valid
 		if (this.invalidRange()) {
@@ -208,7 +205,7 @@ interface IEditorLineDecoration {
 
 export class GotoLineHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.line';
+	static readonly ID = 'workbench.picker.line';
 
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
@@ -217,11 +214,11 @@ export class GotoLineHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		// Remember view state to be able to restore on cancel
@@ -233,13 +230,13 @@ export class GotoLineHandler extends QuickOpenHandler {
 		return TPromise.as(new QuickOpenModel([new GotoLineEntry(searchValue, this.editorService, this)]));
 	}
 
-	public canRun(): boolean | string {
+	canRun(): boolean | string {
 		const canRun = !!this.editorService.activeTextEditorWidget;
 
 		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
 	}
 
-	public decorateOutline(range: IRange, editor: IEditor, group: IEditorGroup): void {
+	decorateOutline(range: IRange, editor: IEditor, group: IEditorGroup): void {
 		editor.changeDecorations(changeAccessor => {
 			const deleteDecorations: string[] = [];
 
@@ -284,7 +281,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		});
 	}
 
-	public clearDecorations(): void {
+	clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
 				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
@@ -302,7 +299,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		}
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 
 		// Clear Highlight Decorations if present
 		this.clearDecorations();
@@ -318,7 +315,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		this.lastKnownEditorViewState = null;
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: searchValue.trim().length > 0
 		};
