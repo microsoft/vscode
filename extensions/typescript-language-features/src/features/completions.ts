@@ -244,17 +244,22 @@ namespace CompletionConfiguration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
-	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
+	export const autoImportSuggestions_deprecated = 'autoImportSuggestions.enabled';
+	export const autoImportSuggestions = 'suggest.autoImports';
 
 	export function getConfigurationForResource(
+		modeId: string,
 		resource: vscode.Uri
 	): CompletionConfiguration {
-		// TS settings are shared by both JS and TS.
+		const config = vscode.workspace.getConfiguration(modeId, resource);
+
+		// Deprecated TS settings that were shared by both JS and TS.
 		const typeScriptConfig = vscode.workspace.getConfiguration('typescript', resource);
+
 		return {
 			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
 			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(CompletionConfiguration.quickSuggestionsForPaths, true),
-			autoImportSuggestions: typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
+			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions_deprecated, true)),
 			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions, true)
 		};
 	}
@@ -266,6 +271,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly modeId: string,
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager
@@ -296,7 +302,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 
 		const line = document.lineAt(position.line);
-		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(document.uri);
+		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
 
 		if (!this.shouldTrigger(context, completionConfiguration, line, position)) {
 			return null;
@@ -619,6 +625,6 @@ export function register(
 ) {
 	return new ConfigurationDependentRegistration(modeId, 'suggest.enabled', () =>
 		vscode.languages.registerCompletionItemProvider(selector,
-			new TypeScriptCompletionItemProvider(client, typingsStatus, fileConfigurationManager, commandManager),
+			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager),
 			...TypeScriptCompletionItemProvider.triggerCharacters));
 }

@@ -403,6 +403,19 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoImportSuggestions.enabled%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.autoImportSuggestions.enabled.deprecationMessage%"
+        },
+        "javascript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "typescript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
           "scope": "resource"
         },
         "typescript.locale": {
