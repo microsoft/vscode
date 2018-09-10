@@ -5,8 +5,7 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent, toNativePromise, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -61,7 +60,7 @@ enum State {
  * with at most one single return value.
  */
 export interface IChannel {
-	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): TPromise<T>;
+	call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T>;
 	listen<T>(event: string, arg?: any): Event<T>;
 }
 
@@ -87,8 +86,8 @@ export interface IChannelClient {
  * channels (each from a separate client) to pick from.
  */
 export interface IClientRouter {
-	routeCall(command: string, arg?: any, cancellationToken?: CancellationToken): TPromise<string>;
-	routeEvent(event: string, arg?: any): TPromise<string>;
+	routeCall(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<string>;
+	routeEvent(event: string, arg?: any): Thenable<string>;
 }
 
 /**
@@ -206,40 +205,36 @@ export class ChannelServer implements IChannelServer, IDisposable {
 	private onPromise(request: IRawPromiseRequest): void {
 		const channel = this.channels.get(request.channelName);
 		const cancellationTokenSource = new CancellationTokenSource();
-		let promise: TPromise<any>;
+		let promise: Thenable<any>;
 
 		try {
 			promise = channel.call(request.name, request.arg, cancellationTokenSource.token);
 		} catch (err) {
-			promise = TPromise.wrapError(err);
+			promise = Promise.reject(err);
 		}
 
 		const id = request.id;
 
-		const requestPromise = promise.then(data => {
+		promise.then(data => {
 			this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseSuccess });
 			this.activeRequests.delete(request.id);
-		}, data => {
-			if (data instanceof Error) {
+		}, err => {
+			if (err instanceof Error) {
 				this.sendResponse(<IRawResponse>{
 					id, data: {
-						message: data.message,
-						name: data.name,
-						stack: data.stack ? (data.stack.split ? data.stack.split('\n') : data.stack) : void 0
+						message: err.message,
+						name: err.name,
+						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : void 0
 					}, type: ResponseType.PromiseError
 				});
 			} else {
-				this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseErrorObj });
+				this.sendResponse(<IRawResponse>{ id, data: err, type: ResponseType.PromiseErrorObj });
 			}
 
 			this.activeRequests.delete(request.id);
 		});
 
-		const disposable = toDisposable(() => {
-			cancellationTokenSource.cancel();
-			requestPromise.cancel();
-		});
-
+		const disposable = toDisposable(() => cancellationTokenSource.cancel());
 		this.activeRequests.set(request.id, disposable);
 	}
 
@@ -298,20 +293,23 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): TPromise<any> {
+	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<any> {
 		const id = this.lastRequestId++;
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
 		if (cancellationToken.isCancellationRequested) {
-			return TPromise.wrapError(errors.canceled());
+			return Promise.reject(errors.canceled());
 		}
 
-		let uninitializedPromise: CancelablePromise<void> | null = null;
-		let cancellationTokenListener: IDisposable = Disposable.None;
+		let disposable: IDisposable;
 
-		const result = new TPromise((c, e) => {
-			uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
+		const result = new Promise((c, e) => {
+			if (cancellationToken.isCancellationRequested) {
+				return e(errors.canceled());
+			}
+
+			let uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
 			uninitializedPromise.then(() => {
 				uninitializedPromise = null;
 
@@ -340,24 +338,24 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				this.handlers.set(id, handler);
 				this.sendRequest(request);
 			});
-		}, () => {
-			if (uninitializedPromise) {
-				uninitializedPromise.cancel();
-				uninitializedPromise = null;
-			} else {
-				this.sendRequest({ id, type: RequestType.PromiseCancel });
-			}
+
+			const cancel = () => {
+				if (uninitializedPromise) {
+					uninitializedPromise.cancel();
+					uninitializedPromise = null;
+				} else {
+					this.sendRequest({ id, type: RequestType.PromiseCancel });
+				}
+
+				e(errors.canceled());
+			};
+
+			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
+			disposable = combinedDisposable([toDisposable(cancel), cancellationTokenListener]);
 		});
 
-		cancellationTokenListener = cancellationToken.onCancellationRequested(() => result.cancel());
-
-		const disposable = toDisposable(() => result.cancel());
 		this.activeRequests.add(disposable);
-
-		always(result, () => {
-			cancellationTokenListener.dispose();
-			this.activeRequests.delete(disposable);
-		});
+		always(result, () => this.activeRequests.delete(disposable));
 
 		return result;
 	}
@@ -530,18 +528,18 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 		this.channels.set(channelName, channel);
 	}
 
-	private getClient(clientId: string): TPromise<IChannelClient> {
+	private getClient(clientId: string): Thenable<IChannelClient> {
 		if (!clientId) {
-			return TPromise.wrapError(new Error('Client id should be provided'));
+			return Promise.reject(new Error('Client id should be provided'));
 		}
 
 		const client = this.channelClients.get(clientId);
 
 		if (client) {
-			return TPromise.as(client);
+			return Promise.resolve(client);
 		}
 
-		return new TPromise<IChannelClient>(c => {
+		return new Promise<IChannelClient>(c => {
 			const onClient = once(filterEvent(this.onClientAdded.event, id => id === clientId));
 			onClient(() => c(this.channelClients.get(clientId)));
 		});
@@ -588,13 +586,13 @@ export class IPCClient implements IChannelClient, IChannelServer, IDisposable {
 	}
 }
 
-export function getDelayedChannel<T extends IChannel>(promise: TPromise<T>): T {
+export function getDelayedChannel<T extends IChannel>(promise: Thenable<T>): T {
 	return {
-		call(command: string, arg?: any, cancellationToken?: CancellationToken) {
+		call(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
 			return promise.then(c => c.call(command, arg, cancellationToken));
 		},
 
-		listen(event: string, arg: any) {
+		listen<T>(event: string, arg?: any): Event<T> {
 			const relay = new Relay<any>();
 			promise.then(c => relay.input = c.listen(event, arg));
 			return relay.event;
@@ -606,25 +604,25 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
 	return {
-		call(command: string, arg?: any, cancellationToken?: CancellationToken) {
+		call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
 			if (didTick) {
 				return channel.call(command, arg, cancellationToken);
 			}
 
-			return TPromise.wrap(timeout(0))
+			return timeout(0)
 				.then(() => didTick = true)
-				.then(() => channel.call(command, arg, cancellationToken));
+				.then(() => channel.call<T>(command, arg, cancellationToken));
 		},
-		listen(event: string, arg?: any): Event<any> {
+		listen<T>(event: string, arg?: any): Event<T> {
 			if (didTick) {
-				return channel.listen(event, arg);
+				return channel.listen<T>(event, arg);
 			}
 
-			const relay = new Relay();
+			const relay = new Relay<T>();
 
 			timeout(0)
 				.then(() => didTick = true)
-				.then(() => relay.input = channel.listen(event, arg));
+				.then(() => relay.input = channel.listen<T>(event, arg));
 
 			return relay.event;
 		}

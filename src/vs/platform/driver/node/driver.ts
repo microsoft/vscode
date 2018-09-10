@@ -47,20 +47,20 @@ export interface IDriver {
 //*END
 
 export interface IDriverChannel extends IChannel {
-	call(command: 'getWindowIds'): TPromise<number[]>;
-	call(command: 'capturePage'): TPromise<string>;
-	call(command: 'reloadWindow', arg: number): TPromise<void>;
-	call(command: 'dispatchKeybinding', arg: [number, string]): TPromise<void>;
-	call(command: 'click', arg: [number, string, number | undefined, number | undefined]): TPromise<void>;
-	call(command: 'doubleClick', arg: [number, string]): TPromise<void>;
-	call(command: 'setValue', arg: [number, string, string]): TPromise<void>;
-	call(command: 'getTitle', arg: [number]): TPromise<string>;
-	call(command: 'isActiveElement', arg: [number, string]): TPromise<boolean>;
-	call(command: 'getElements', arg: [number, string, boolean]): TPromise<IElement[]>;
-	call(command: 'typeInEditor', arg: [number, string, string]): TPromise<void>;
-	call(command: 'getTerminalBuffer', arg: [number, string]): TPromise<string[]>;
-	call(command: 'writeInTerminal', arg: [number, string, string]): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: 'getWindowIds'): Thenable<number[]>;
+	call(command: 'capturePage'): Thenable<string>;
+	call(command: 'reloadWindow', arg: number): Thenable<void>;
+	call(command: 'dispatchKeybinding', arg: [number, string]): Thenable<void>;
+	call(command: 'click', arg: [number, string, number | undefined, number | undefined]): Thenable<void>;
+	call(command: 'doubleClick', arg: [number, string]): Thenable<void>;
+	call(command: 'setValue', arg: [number, string, string]): Thenable<void>;
+	call(command: 'getTitle', arg: [number]): Thenable<string>;
+	call(command: 'isActiveElement', arg: [number, string]): Thenable<boolean>;
+	call(command: 'getElements', arg: [number, string, boolean]): Thenable<IElement[]>;
+	call(command: 'typeInEditor', arg: [number, string, string]): Thenable<void>;
+	call(command: 'getTerminalBuffer', arg: [number, string]): Thenable<string[]>;
+	call(command: 'writeInTerminal', arg: [number, string, string]): Thenable<void>;
+	call(command: string, arg: any): Thenable<any>;
 }
 
 export class DriverChannel implements IDriverChannel {
@@ -99,55 +99,55 @@ export class DriverChannelClient implements IDriver {
 	constructor(private channel: IDriverChannel) { }
 
 	getWindowIds(): TPromise<number[]> {
-		return this.channel.call('getWindowIds');
+		return TPromise.wrap(this.channel.call('getWindowIds'));
 	}
 
 	capturePage(windowId: number): TPromise<string> {
-		return this.channel.call('capturePage', windowId);
+		return TPromise.wrap(this.channel.call('capturePage', windowId));
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
-		return this.channel.call('reloadWindow', windowId);
+		return TPromise.wrap(this.channel.call('reloadWindow', windowId));
 	}
 
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
-		return this.channel.call('dispatchKeybinding', [windowId, keybinding]);
+		return TPromise.wrap(this.channel.call('dispatchKeybinding', [windowId, keybinding]));
 	}
 
 	click(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): TPromise<void> {
-		return this.channel.call('click', [windowId, selector, xoffset, yoffset]);
+		return TPromise.wrap(this.channel.call('click', [windowId, selector, xoffset, yoffset]));
 	}
 
 	doubleClick(windowId: number, selector: string): TPromise<void> {
-		return this.channel.call('doubleClick', [windowId, selector]);
+		return TPromise.wrap(this.channel.call('doubleClick', [windowId, selector]));
 	}
 
 	setValue(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.channel.call('setValue', [windowId, selector, text]);
+		return TPromise.wrap(this.channel.call('setValue', [windowId, selector, text]));
 	}
 
 	getTitle(windowId: number): TPromise<string> {
-		return this.channel.call('getTitle', [windowId]);
+		return TPromise.wrap(this.channel.call('getTitle', [windowId]));
 	}
 
 	isActiveElement(windowId: number, selector: string): TPromise<boolean> {
-		return this.channel.call('isActiveElement', [windowId, selector]);
+		return TPromise.wrap(this.channel.call('isActiveElement', [windowId, selector]));
 	}
 
 	getElements(windowId: number, selector: string, recursive: boolean): TPromise<IElement[]> {
-		return this.channel.call('getElements', [windowId, selector, recursive]);
+		return TPromise.wrap(this.channel.call('getElements', [windowId, selector, recursive]));
 	}
 
 	typeInEditor(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.channel.call('typeInEditor', [windowId, selector, text]);
+		return TPromise.wrap(this.channel.call('typeInEditor', [windowId, selector, text]));
 	}
 
 	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
-		return this.channel.call('getTerminalBuffer', [windowId, selector]);
+		return TPromise.wrap(this.channel.call('getTerminalBuffer', [windowId, selector]));
 	}
 
 	writeInTerminal(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.channel.call('writeInTerminal', [windowId, selector, text]);
+		return TPromise.wrap(this.channel.call('writeInTerminal', [windowId, selector, text]));
 	}
 }
 
@@ -161,9 +161,9 @@ export interface IWindowDriverRegistry {
 }
 
 export interface IWindowDriverRegistryChannel extends IChannel {
-	call(command: 'registerWindowDriver', arg: number): TPromise<IDriverOptions>;
-	call(command: 'reloadWindowDriver', arg: number): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: 'registerWindowDriver', arg: number): Thenable<IDriverOptions>;
+	call(command: 'reloadWindowDriver', arg: number): Thenable<void>;
+	call(command: string, arg: any): Thenable<any>;
 }
 
 export class WindowDriverRegistryChannel implements IWindowDriverRegistryChannel {
@@ -174,7 +174,7 @@ export class WindowDriverRegistryChannel implements IWindowDriverRegistryChannel
 		throw new Error('No event found');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'registerWindowDriver': return this.registry.registerWindowDriver(arg);
 			case 'reloadWindowDriver': return this.registry.reloadWindowDriver(arg);
@@ -191,11 +191,11 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 	constructor(private channel: IWindowDriverRegistryChannel) { }
 
 	registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
-		return this.channel.call('registerWindowDriver', windowId);
+		return TPromise.wrap(this.channel.call('registerWindowDriver', windowId));
 	}
 
 	reloadWindowDriver(windowId: number): TPromise<void> {
-		return this.channel.call('reloadWindowDriver', windowId);
+		return TPromise.wrap(this.channel.call('reloadWindowDriver', windowId));
 	}
 }
 
@@ -212,16 +212,16 @@ export interface IWindowDriver {
 }
 
 export interface IWindowDriverChannel extends IChannel {
-	call(command: 'click', arg: [string, number | undefined, number | undefined]): TPromise<void>;
-	call(command: 'doubleClick', arg: string): TPromise<void>;
-	call(command: 'setValue', arg: [string, string]): TPromise<void>;
-	call(command: 'getTitle'): TPromise<string>;
-	call(command: 'isActiveElement', arg: string): TPromise<boolean>;
-	call(command: 'getElements', arg: [string, boolean]): TPromise<IElement[]>;
-	call(command: 'typeInEditor', arg: [string, string]): TPromise<void>;
-	call(command: 'getTerminalBuffer', arg: string): TPromise<string[]>;
-	call(command: 'writeInTerminal', arg: [string, string]): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: 'click', arg: [string, number | undefined, number | undefined]): Thenable<void>;
+	call(command: 'doubleClick', arg: string): Thenable<void>;
+	call(command: 'setValue', arg: [string, string]): Thenable<void>;
+	call(command: 'getTitle'): Thenable<string>;
+	call(command: 'isActiveElement', arg: string): Thenable<boolean>;
+	call(command: 'getElements', arg: [string, boolean]): Thenable<IElement[]>;
+	call(command: 'typeInEditor', arg: [string, string]): Thenable<void>;
+	call(command: 'getTerminalBuffer', arg: string): Thenable<string[]>;
+	call(command: 'writeInTerminal', arg: [string, string]): Thenable<void>;
+	call(command: string, arg: any): Thenable<any>;
 }
 
 export class WindowDriverChannel implements IWindowDriverChannel {
@@ -232,7 +232,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 		throw new Error('No event found');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2]);
 			case 'doubleClick': return this.driver.doubleClick(arg);
@@ -256,39 +256,39 @@ export class WindowDriverChannelClient implements IWindowDriver {
 	constructor(private channel: IWindowDriverChannel) { }
 
 	click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
-		return this.channel.call('click', [selector, xoffset, yoffset]);
+		return TPromise.wrap(this.channel.call('click', [selector, xoffset, yoffset]));
 	}
 
 	doubleClick(selector: string): TPromise<void> {
-		return this.channel.call('doubleClick', selector);
+		return TPromise.wrap(this.channel.call('doubleClick', selector));
 	}
 
 	setValue(selector: string, text: string): TPromise<void> {
-		return this.channel.call('setValue', [selector, text]);
+		return TPromise.wrap(this.channel.call('setValue', [selector, text]));
 	}
 
 	getTitle(): TPromise<string> {
-		return this.channel.call('getTitle');
+		return TPromise.wrap(this.channel.call('getTitle'));
 	}
 
 	isActiveElement(selector: string): TPromise<boolean> {
-		return this.channel.call('isActiveElement', selector);
+		return TPromise.wrap(this.channel.call('isActiveElement', selector));
 	}
 
 	getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
-		return this.channel.call('getElements', [selector, recursive]);
+		return TPromise.wrap(this.channel.call('getElements', [selector, recursive]));
 	}
 
 	typeInEditor(selector: string, text: string): TPromise<void> {
-		return this.channel.call('typeInEditor', [selector, text]);
+		return TPromise.wrap(this.channel.call('typeInEditor', [selector, text]));
 	}
 
 	getTerminalBuffer(selector: string): TPromise<string[]> {
-		return this.channel.call('getTerminalBuffer', selector);
+		return TPromise.wrap(this.channel.call('getTerminalBuffer', selector));
 	}
 
 	writeInTerminal(selector: string, text: string): TPromise<void> {
-		return this.channel.call('writeInTerminal', [selector, text]);
+		return TPromise.wrap(this.channel.call('writeInTerminal', [selector, text]));
 	}
 }
 
