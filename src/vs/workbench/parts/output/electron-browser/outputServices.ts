@@ -49,7 +49,7 @@ let callbacks: ((eventType: string, fileName: string) => void)[] = [];
 function watchOutputDirectory(outputDir: string, logService: ILogService, onChange: (eventType: string, fileName: string) => void): IDisposable {
 	callbacks.push(onChange);
 	if (!watchingOutputDir) {
-		const watcher = extfs.watch(outputDir, (eventType, fileName) => {
+		const watcherDisposable = extfs.watch(outputDir, (eventType, fileName) => {
 			for (const callback of callbacks) {
 				callback(eventType, fileName);
 			}
@@ -59,10 +59,7 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 		watchingOutputDir = true;
 		return toDisposable(() => {
 			callbacks = [];
-			if (watcher) {
-				watcher.removeAllListeners();
-				watcher.close();
-			}
+			watcherDisposable.dispose();
 		});
 	}
 	return toDisposable(() => { });

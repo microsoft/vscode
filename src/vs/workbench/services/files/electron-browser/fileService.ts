@@ -1003,7 +1003,7 @@ export class FileService extends Disposable implements IFileService {
 		const fsPath = resource.fsPath;
 		const fsName = paths.basename(resource.fsPath);
 
-		const watcher = extfs.watch(fsPath, (eventType: string, filename: string) => {
+		const watcherDisposable = extfs.watch(fsPath, (eventType: string, filename: string) => {
 			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
 
 			// The file was either deleted or renamed. Many tools apply changes to files in an
@@ -1017,7 +1017,7 @@ export class FileService extends Disposable implements IFileService {
 			if (renamedOrDeleted) {
 
 				// Very important to dispose the watcher which now points to a stale inode
-				watcher.close();
+				watcherDisposable.dispose();
 				this.activeFileChangesWatchers.delete(resource);
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
@@ -1048,12 +1048,10 @@ export class FileService extends Disposable implements IFileService {
 		}, (error: string) => this.handleError(error));
 
 		// Remember in map
-		if (watcher) {
-			this.activeFileChangesWatchers.set(resource, {
-				count: 1,
-				unwatch: () => watcher.close()
-			});
-		}
+		this.activeFileChangesWatchers.set(resource, {
+			count: 1,
+			unwatch: () => watcherDisposable.dispose()
+		});
 	}
 
 	private onRawFileChange(event: IRawFileChange): void {
