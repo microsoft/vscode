@@ -1083,7 +1083,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			this.el = parent;
 			addClass(this.el, 'scm-viewlet');
 			addClass(this.el, 'empty');
-			append(parent, $('div.empty-message', null, localize('no open repo', "There are no active source control providers.")));
+			append(parent, $('div.empty-message', null, localize('no open repo', "No source control providers registered.")));
 
 			this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 			this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
