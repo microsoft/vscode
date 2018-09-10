@@ -42,6 +42,8 @@
 	"typescript.npm": "Specifies the path to the NPM executable used for Automatic Type Acquisition. Requires using TypeScript 2.3.4 or newer in the workspace.",
 	"typescript.check.npmIsInstalled": "Check if NPM is installed for Automatic Type Acquisition.",
 	"javascript.nameSuggestions": "Enable/disable including unique names from the file in JavaScript suggestion lists.",
+	"javascript.nameSuggestions.deprecationMessage": "Please use the new `javascript.suggest.names` setting.",
+	"configuration.suggest.names": "Enable/disable including unique names from the file in JavaScript suggestions.",
 	"typescript.tsc.autoDetect": "Controls auto detection of tsc tasks.",
 	"typescript.tsc.autoDetect.off": "Disable this feature.",
 	"typescript.tsc.autoDetect.on": "Create both build and watch tasks.",

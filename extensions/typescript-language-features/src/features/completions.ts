@@ -242,10 +242,11 @@ interface CompletionConfiguration {
 
 namespace CompletionConfiguration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
-	export const nameSuggestions = 'nameSuggestions';
+	export const nameSuggestions = 'suggest.names';
+	export const nameSuggestions_deprecated = 'nameSuggestions';
 	export const pathSuggestions = 'suggest.paths';
-	export const autoImportSuggestions_deprecated = 'autoImportSuggestions.enabled';
 	export const autoImportSuggestions = 'suggest.autoImports';
+	export const autoImportSuggestions_deprecated = 'autoImportSuggestions.enabled';
 
 	export function getConfigurationForResource(
 		modeId: string,
@@ -260,7 +261,7 @@ namespace CompletionConfiguration {
 			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
 			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions_deprecated, true)),
-			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions, true)
+			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions_deprecated, true))
 		};
 	}
 }

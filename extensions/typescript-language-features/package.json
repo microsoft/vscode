@@ -373,6 +373,13 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.nameSuggestions%",
+          "scope": "resource",
+          "deprecationMessage": "%javascript.nameSuggestions.deprecationMessage%"
+        },
+        "javascript.suggest.names": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
