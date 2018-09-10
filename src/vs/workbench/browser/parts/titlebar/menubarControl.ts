@@ -415,14 +415,16 @@ export class MenubarControl extends Disposable {
 	}
 
 	private updateMnemonicVisibility(visible: boolean): void {
-		this.customMenus.forEach(customMenu => {
-			if (customMenu.titleElement.children.length) {
-				let child = customMenu.titleElement.children.item(0) as HTMLElement;
-				if (child) {
-					child.style.textDecoration = visible ? 'underline' : null;
+		if (this.customMenus) {
+			this.customMenus.forEach(customMenu => {
+				if (customMenu.titleElement.children.length) {
+					let child = customMenu.titleElement.children.item(0) as HTMLElement;
+					if (child) {
+						child.style.textDecoration = visible ? 'underline' : null;
+					}
 				}
-			}
-		});
+			});
+		}
 	}
 
 	private onRecentlyOpenedChange(): void {
