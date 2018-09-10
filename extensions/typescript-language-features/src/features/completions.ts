@@ -22,7 +22,7 @@ const localize = nls.loadMessageBundle();
 
 
 interface CommitCharactersSettings {
-	readonly enabled: boolean;
+	readonly isNewIdentifierLocation: boolean;
 	readonly enableDotCompletions: boolean;
 	readonly enableCallCompletions: boolean;
 }
@@ -151,7 +151,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	@memoize
 	public get commitCharacters(): string[] | undefined {
-		if (!this.commitCharactersSettings.enabled) {
+		if (this.commitCharactersSettings.isNewIdentifierLocation) {
 			return undefined;
 		}
 
@@ -179,6 +179,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
+			case PConst.Kind.keyword:
 				if (this.commitCharactersSettings.enableDotCompletions) {
 					commitCharacters.push('.', ',', ';');
 				}
@@ -187,7 +188,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 				}
 				break;
 		}
-
 		return commitCharacters.length === 0 ? undefined : commitCharacters;
 	}
 }
@@ -313,7 +313,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
-		let enableCommitCharacters = true;
+		let isNewIdentifierLocation = true;
 		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
 		try {
 			if (this.client.apiVersion.gte(API.v300)) {
@@ -321,7 +321,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 				if (!body) {
 					return null;
 				}
-				enableCommitCharacters = !body.isNewIdentifierLocation;
+				isNewIdentifierLocation = body.isNewIdentifierLocation;
 				msg = body.entries;
 			} else {
 				const { body } = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
@@ -338,7 +338,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		return msg
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
-				enabled: enableCommitCharacters,
+				isNewIdentifierLocation,
 				enableDotCompletions,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}));
@@ -454,7 +454,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			const preText = document.getText(new vscode.Range(
 				position.line, 0,
 				position.line, position.character - 1));
-			return preText.match(/[a-z_$\(\)\[\]\{\}]\s*$/ig) !== null;
+			return preText.match(/(^|[a-z_$\(\)\[\]\{\}])\s*$/ig) !== null;
 		}
 
 		return true;
