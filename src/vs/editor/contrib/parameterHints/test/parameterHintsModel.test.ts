@@ -71,7 +71,7 @@ suite('ParameterHintsModel', () => {
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
-				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
 				assert.strictEqual(context.triggerCharacter, 'c');
 
 				// Give some time to allow for later triggers
@@ -89,7 +89,7 @@ suite('ParameterHintsModel', () => {
 		editor.trigger('keyboard', Handler.Type, { text: 'c' });
 	});
 
-	test.skip('Provider should be retriggered if already active', (done) => {
+	test('Provider should be retriggered if already active', (done) => {
 		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(textModel);
 

@@ -131,7 +131,7 @@ export class ParameterHintsModel extends Disposable {
 		}).catch(onUnexpectedError);
 	}
 
-	isTriggered(): boolean {
+	get isTriggered(): boolean {
 		return this.active || this.throttledDelayer.isScheduled();
 	}
 
@@ -163,7 +163,7 @@ export class ParameterHintsModel extends Disposable {
 		const lastCharIndex = text.length - 1;
 		if (this.triggerChars.has(text.charCodeAt(lastCharIndex))) {
 			this.trigger({
-				triggerReason: this.active
+				triggerReason: this.isTriggered
 					? modes.SignatureHelpTriggerReason.Retrigger
 					: modes.SignatureHelpTriggerReason.TriggerCharacter,
 				triggerCharacter: text.charAt(lastCharIndex)
@@ -174,13 +174,13 @@ export class ParameterHintsModel extends Disposable {
 	private onCursorChange(e: ICursorSelectionChangedEvent): void {
 		if (e.source === 'mouse') {
 			this.cancel();
-		} else if (this.isTriggered()) {
+		} else if (this.isTriggered) {
 			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Retrigger });
 		}
 	}
 
 	private onModelContentChange(): void {
-		if (this.isTriggered()) {
+		if (this.isTriggered) {
 			this.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Retrigger });
 		}
 	}
