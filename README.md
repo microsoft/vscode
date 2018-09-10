@@ -1,6 +1,6 @@
 # Visual Studio Code - Open Source
 
-[![Build Status](https://vscode.visualstudio.com/_apis/public/build/definitions/a4cdce18-a05c-4bb8-9476-5d07e63bfd76/1/badge?branch=master)](https://aka.ms/vscode-builds)
+[![Build Status](https://vscode.visualstudio.com/_apis/public/build/definitions/a4cdce18-a05c-4bb8-9476-5d07e63bfd76/1/badge?branchName=master)](https://aka.ms/vscode-builds)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
