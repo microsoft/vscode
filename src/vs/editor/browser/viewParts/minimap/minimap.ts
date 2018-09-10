@@ -26,7 +26,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as platform from 'vs/base/common/platform';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
+import { minimapOpacity, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 const enum RenderMinimap {
 	None = 0,
@@ -926,6 +926,10 @@ export class Minimap extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
+	const minimapOpacityValue = theme.getColor(minimapOpacity);
+	if (minimapOpacityValue) {
+		collector.addRule(`.monaco-editor .minimap { opacity: ${minimapOpacityValue.rgba.a}; will-change: opacity; }`);
+	}
 	const sliderBackground = theme.getColor(scrollbarSliderBackground);
 	if (sliderBackground) {
 		const halfSliderBackground = sliderBackground.transparent(0.5);
