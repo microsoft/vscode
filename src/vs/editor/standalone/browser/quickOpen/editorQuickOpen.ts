@@ -69,7 +69,13 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			}
 
 			this.lastKnownEditorSelection = null;
-			this.editor.focus();
+
+			// Return focus to the editor if
+			// - focus is back on the <body> element because no other focusable element was clicked
+			// - a command was picked from the picker which indicates the editor should get focused
+			if (document.activeElement === document.body || !canceled) {
+				this.editor.focus();
+			}
 		};
 
 		this.widget = new QuickOpenEditorWidget(
