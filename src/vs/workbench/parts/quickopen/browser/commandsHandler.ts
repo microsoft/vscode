@@ -34,6 +34,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -118,13 +119,13 @@ class CommandsHistory {
 	private save(): void {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		commandHistory.forEach((value, key) => serializedCache.entries.push({ key, value }));
+
 		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache));
 		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, commandCounter);
 	}
 
 	push(commandId: string): void {
-		// set counter to command
-		commandHistory.set(commandId, commandCounter++);
+		commandHistory.set(commandId, commandCounter++); // set counter to command
 	}
 
 	peek(commandId: string): number {
@@ -385,7 +386,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		super();
 
@@ -400,77 +402,86 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 
 	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
-		searchValue = searchValue.trim();
-		this.lastSearchValue = searchValue;
 
-		// Editor Actions
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		let editorActions: IEditorAction[] = [];
-		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
-			editorActions = activeTextEditorWidget.getSupportedActions();
-		}
-
-		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
-
-		// Other Actions
-		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
-		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
-		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
-
-		// Concat
-		let entries = [...editorEntries, ...commandEntries];
-
-		// Remove duplicates
-		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
-
-		// Handle label clashes
-		const commandLabels = new Set<string>();
-		entries.forEach(entry => {
-			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
-			if (commandLabels.has(commandLabel)) {
-				entry.setDescription(entry.getCommandId());
-			} else {
-				commandLabels.add(commandLabel);
-			}
-		});
-
-		// Sort by MRU order and fallback to name otherwie
-		entries = entries.sort((elementA, elementB) => {
-			const counterA = this.commandsHistory.peek(elementA.getCommandId());
-			const counterB = this.commandsHistory.peek(elementB.getCommandId());
-
-			if (counterA && counterB) {
-				return counterA > counterB ? -1 : 1; // use more recently used command before older
+		// wait for extensions being registered to cover all commands
+		// also from extensions
+		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			if (token.isCancellationRequested) {
+				return new QuickOpenModel([]);
 			}
 
-			if (counterA) {
-				return -1; // first command was used, so it wins over the non used one
+			searchValue = searchValue.trim();
+			this.lastSearchValue = searchValue;
+
+			// Editor Actions
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			let editorActions: IEditorAction[] = [];
+			if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+				editorActions = activeTextEditorWidget.getSupportedActions();
 			}
 
-			if (counterB) {
-				return 1; // other command was used so it wins over the command
-			}
+			const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
-			// both commands were never used, so we sort by name
-			return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
-		});
+			// Other Actions
+			const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
+			const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]).filter(action => action instanceof MenuItemAction) as MenuItemAction[];
+			const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 
-		// Introduce group marker border between recently used and others
-		// only if we have recently used commands in the result set
-		const firstEntry = entries[0];
-		if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
-			firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
-			for (let i = 1; i < entries.length; i++) {
-				const entry = entries[i];
-				if (!this.commandsHistory.peek(entry.getCommandId())) {
-					entry.setShowBorder(true);
-					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
-					break;
+			// Concat
+			let entries = [...editorEntries, ...commandEntries];
+
+			// Remove duplicates
+			entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
+
+			// Handle label clashes
+			const commandLabels = new Set<string>();
+			entries.forEach(entry => {
+				const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
+				if (commandLabels.has(commandLabel)) {
+					entry.setDescription(entry.getCommandId());
+				} else {
+					commandLabels.add(commandLabel);
+				}
+			});
+
+			// Sort by MRU order and fallback to name otherwie
+			entries = entries.sort((elementA, elementB) => {
+				const counterA = this.commandsHistory.peek(elementA.getCommandId());
+				const counterB = this.commandsHistory.peek(elementB.getCommandId());
+
+				if (counterA && counterB) {
+					return counterA > counterB ? -1 : 1; // use more recently used command before older
+				}
+
+				if (counterA) {
+					return -1; // first command was used, so it wins over the non used one
+				}
+
+				if (counterB) {
+					return 1; // other command was used so it wins over the command
+				}
+
+				// both commands were never used, so we sort by name
+				return elementA.getSortLabel().localeCompare(elementB.getSortLabel());
+			});
+
+			// Introduce group marker border between recently used and others
+			// only if we have recently used commands in the result set
+			const firstEntry = entries[0];
+			if (firstEntry && this.commandsHistory.peek(firstEntry.getCommandId())) {
+				firstEntry.setGroupLabel(nls.localize('recentlyUsed', "recently used"));
+				for (let i = 1; i < entries.length; i++) {
+					const entry = entries[i];
+					if (!this.commandsHistory.peek(entry.getCommandId())) {
+						entry.setShowBorder(true);
+						entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
+						break;
+					}
 				}
 			}
-		}
 
-		return TPromise.as(new QuickOpenModel(entries));
+			return new QuickOpenModel(entries);
+		});
 	}
 
 	private editorActionsToEntries(actions: IEditorAction[], searchValue: string): EditorActionCommandEntry[] {
