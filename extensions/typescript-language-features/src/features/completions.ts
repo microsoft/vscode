@@ -236,14 +236,14 @@ class ApplyCompletionCodeActionCommand implements Command {
 interface CompletionConfiguration {
 	readonly useCodeSnippetsOnMethodSuggest: boolean;
 	readonly nameSuggestions: boolean;
-	readonly quickSuggestionsForPaths: boolean;
+	readonly pathSuggestions: boolean;
 	readonly autoImportSuggestions: boolean;
 }
 
 namespace CompletionConfiguration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'nameSuggestions';
-	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
+	export const pathSuggestions = 'suggest.paths';
 	export const autoImportSuggestions_deprecated = 'autoImportSuggestions.enabled';
 	export const autoImportSuggestions = 'suggest.autoImports';
 
@@ -258,7 +258,7 @@ namespace CompletionConfiguration {
 
 		return {
 			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
-			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(CompletionConfiguration.quickSuggestionsForPaths, true),
+			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
 			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions_deprecated, true)),
 			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions, true)
 		};
@@ -304,7 +304,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		const line = document.lineAt(position.line);
 		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
 
-		if (!this.shouldTrigger(context, completionConfiguration, line, position)) {
+		if (!this.shouldTrigger(context, line, position)) {
 			return null;
 		}
 
@@ -466,7 +466,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 	private shouldTrigger(
 		context: vscode.CompletionContext,
-		config: CompletionConfiguration,
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
@@ -480,10 +479,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			}
 
 			if (context.triggerCharacter === '/') {
-				if (!config.quickSuggestionsForPaths) {
-					return false;
-				}
-
 				// make sure we are in something that looks like an import path
 				const pre = line.text.slice(0, position.character);
 				if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
@@ -609,8 +604,8 @@ function shouldExcludeCompletionEntry(
 ) {
 	return (
 		(!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
-		|| (!completionConfiguration.quickSuggestionsForPaths &&
-			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script))
+		|| (!completionConfiguration.pathSuggestions &&
+			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script || element.kind === PConst.Kind.externalModuleName))
 		|| (!completionConfiguration.autoImportSuggestions && element.hasAction)
 	);
 }

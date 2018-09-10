@@ -397,6 +397,19 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.quickSuggestionsForPaths%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.quickSuggestionsForPaths.deprecationMessage%"
+        },
+        "javascript.suggest.paths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.paths%",
+          "scope": "resource"
+        },
+        "typescript.suggest.paths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.paths%",
           "scope": "resource"
         },
         "typescript.autoImportSuggestions.enabled": {

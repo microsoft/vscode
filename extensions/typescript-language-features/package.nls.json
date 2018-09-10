@@ -50,6 +50,8 @@
 	"typescript.problemMatchers.tsc.label": "TypeScript problems",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript problems (watch mode)",
 	"typescript.quickSuggestionsForPaths": "Enable/disable quick suggestions when typing out an import path.",
+	"typescript.quickSuggestionsForPaths.deprecationMessage": "Please use the new `javascript.suggest.paths` and `typescript.suggest.paths` settings to enable/disable path suggestions.",
+	"configuration.suggest.paths": "Enable/disable suggestions for paths in import statements and require calls.",
 	"typescript.locale": "Sets the locale used to report JavaScript and TypeScript errors. Requires using TypeScript 2.6.0 or newer in the workspace. Default of `null` uses VS Code's locale.",
 	"javascript.implicitProjectConfig.experimentalDecorators": "Enable/disable `experimentalDecorators` for JavaScript files that are not part of a project. Existing jsconfig.json or tsconfig.json files override this setting. Requires using TypeScript 2.3.1 or newer in the workspace.",
 	"configuration.suggest.autoImports": "Enable/disable auto import suggestions. Requires using TypeScript 2.6.1 or newer in the workspace.",
