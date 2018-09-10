@@ -10,28 +10,27 @@ import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
-import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
-import { IRawDebugSession, IDebugAdapter, IConfig } from 'vs/workbench/parts/debug/common/debug';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 
-export class RawDebugSession implements IRawDebugSession {
+export class RawDebugSession {
 
 	private debugAdapter: IDebugAdapter;
 	private cachedInitDebugAdapterP: TPromise<void>;
-	private startTime: number;
-	private terminated: boolean;
-	private cancellationTokens: CancellationTokenSource[];
 	private allThreadsContinued: boolean;
-	private isAttached: boolean;
-
-	private _emittedStopped: boolean;
 	private _readyForBreakpoints: boolean;
-	private _disconnected: boolean;
 	private _capabilities: DebugProtocol.Capabilities;
+
+	// shutdown
+	private inShutdown: boolean;
+	private terminated: boolean;
+	private firedAdapterExitEvent: boolean;
+
+	// telemetry
+	private startTime: number;
+	private emittedStopped: boolean;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -47,20 +46,23 @@ export class RawDebugSession implements IRawDebugSession {
 	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
 
 	// DA events
-	private readonly _onDidExitAdapter: Emitter<Error>;
+	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
 
 	constructor(
 		private debugServerPort: number,
-		private _debugger: Debugger,
+		private _debugger: IDebugger,
 		public customTelemetryService: ITelemetryService,
 		private root: IWorkspaceFolder,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService
 	) {
-		this._emittedStopped = false;
 		this._readyForBreakpoints = false;
+		this.inShutdown = false;
+		this.firedAdapterExitEvent = false;
+
+		this.emittedStopped = false;
+
 		this.allThreadsContinued = true;
-		this.cancellationTokens = [];
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -74,31 +76,23 @@ export class RawDebugSession implements IRawDebugSession {
 		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 
-		this._onDidExitAdapter = new Emitter<Error>();
+		this._onDidExitAdapter = new Emitter<AdapterEndEvent>();
 	}
 
-	public get onDidExitAdapter(): Event<Error> {
+	public get onDidExitAdapter(): Event<AdapterEndEvent> {
 		return this._onDidExitAdapter.event;
-	}
-
-	public get sessionLengthInSeconds(): number {
-		return (new Date().getTime() - this.startTime) / 1000;
 	}
 
 	public get capabilities(): DebugProtocol.Capabilities {
 		return this._capabilities || {};
 	}
 
+	/**
+	 * DA is ready to accepts setBreakpoint requests.
+	 * Becomes true after "initialized" events has been received.
+	 */
 	public get readyForBreakpoints(): boolean {
 		return this._readyForBreakpoints;
-	}
-
-	public get emittedStopped(): boolean {
-		return this._emittedStopped;
-	}
-
-	public get disconnected(): boolean {
-		return this._disconnected;
 	}
 
 	//---- DAP events
@@ -150,18 +144,24 @@ export class RawDebugSession implements IRawDebugSession {
 	//---- DAP requests
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
-		return this.send('initialize', args).then(response => {
-			this.readCapabilities(response);
+		return this.send('initialize', args).then((response: DebugProtocol.InitializeResponse) => {
+			this.mergeCapabilities(response.body);
 			return response;
 		});
 	}
 
 	public launchOrAttach(config: IConfig): TPromise<DebugProtocol.Response> {
-		this.isAttached = config.request === 'attach';
-		return this.send(this.isAttached ? 'attach' : 'launch', config).then(response => {
-			this.readCapabilities(response);
+		return this.send(config.request, config).then(response => {
+			this.mergeCapabilities(response.body);
 			return response;
 		});
+	}
+
+	public restart(): TPromise<DebugProtocol.RestartResponse> {
+		if (this.capabilities.supportsRestartRequest) {
+			return this.send('restart', null);
+		}
+		return TPromise.wrapError(new Error('restart not supported'));
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
@@ -215,16 +215,31 @@ export class RawDebugSession implements IRawDebugSession {
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
-		return this.send<DebugProtocol.CompletionsResponse>('completions', args);
+		if (this.capabilities.supportsCompletionsRequest) {
+			return this.send<DebugProtocol.CompletionsResponse>('completions', args);
+		}
+		return TPromise.wrapError(new Error('completions not supported'));
 	}
 
+	/**
+	 * Try terminate the debuggee softly
+	 */
 	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-
-		if (this.capabilities.supportsTerminateRequest && !this.terminated && !this.isAttached) {
-			this.terminated = true;
-			return this.send('terminate', { restart });
+		if (this.capabilities.supportsTerminateRequest) {
+			if (!this.terminated) {
+				this.terminated = true;
+				return this.send('terminate', { restart });
+			}
+			return this.disconnect(restart);
 		}
-		return this.disconnect(restart);
+		return TPromise.wrapError(new Error('terminated not supported'));
+	}
+
+	/**
+	 * Terminate the debuggee
+	 */
+	public disconnect(restart = false): TPromise<any> {
+		return this.shutdown(undefined, restart);
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
@@ -232,7 +247,10 @@ export class RawDebugSession implements IRawDebugSession {
 	}
 
 	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse> {
-		return this.send<DebugProtocol.SetFunctionBreakpointsResponse>('setFunctionBreakpoints', args);
+		if (this.capabilities.supportsFunctionBreakpoints) {
+			return this.send<DebugProtocol.SetFunctionBreakpointsResponse>('setFunctionBreakpoints', args);
+		}
+		return TPromise.wrapError(new Error('setFunctionBreakpoints not supported'));
 	}
 
 	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
@@ -264,7 +282,10 @@ export class RawDebugSession implements IRawDebugSession {
 	}
 
 	public loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse> {
-		return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
+		if (this.capabilities.supportsLoadedSourcesRequest) {
+			return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
+		}
+		return TPromise.wrapError(new Error('loadedSources not supported'));
 	}
 
 	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
@@ -297,27 +318,6 @@ export class RawDebugSession implements IRawDebugSession {
 		return this.send(request, args);
 	}
 
-	public disconnect(restart = false): TPromise<any> {
-		if (this.disconnected) {
-			return this.stopAdapter();
-		}
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		// Give a 1s timeout to give a chance for some promises to complete.
-		setTimeout(() => {
-			this.cancellationTokens.forEach(token => token.cancel());
-			this.cancellationTokens = [];
-		}, 1000);
-
-		if (this.debugAdapter && !this.disconnected) {
-			// point of no return: from now on don't report any errors
-			this._disconnected = true;
-			return this.send('disconnect', { restart }, false).then(() => this.stopAdapter(), () => this.stopAdapter());
-		}
-
-		return TPromise.as(null);
-	}
-
 	//---- private
 
 	private startAdapter(): TPromise<void> {
@@ -329,11 +329,19 @@ export class RawDebugSession implements IRawDebugSession {
 				this.debugAdapter = debugAdapter;
 
 				this.debugAdapter.onError(err => {
-					// TODO: don't stop server on this layer
-					this.stopAdapter(err);
+					this.shutdown(err);
 				});
+
+				this.debugAdapter.onExit(code => {
+					if (code !== 0) {
+						this.shutdown(new Error(`exit code: ${code}`));
+					} else {
+						// normal exit
+						this.shutdown();
+					}
+				});
+
 				this.debugAdapter.onEvent(event => this.onDapEvent(event));
-				this.debugAdapter.onExit(code => this.onDebugAdapterExit(code));
 				this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 
 				return this.debugAdapter.startSession();
@@ -349,6 +357,52 @@ export class RawDebugSession implements IRawDebugSession {
 		return this.cachedInitDebugAdapterP;
 	}
 
+	private shutdown(error?: Error, restart = false): TPromise<any> {
+		if (!this.inShutdown) {
+			this.inShutdown = true;
+			if (this.debugAdapter) {
+				return this.send('disconnect', { restart }, 500).then(() => {
+					this.stopAdapter(error);
+				}, () => {
+					// ignore error
+					this.stopAdapter(error);
+				});
+			}
+			return this.stopAdapter(error);
+		}
+		return TPromise.as(undefined);
+	}
+
+	private stopAdapter(error?: Error): TPromise<any> {
+		if (this.debugAdapter) {
+			const da = this.debugAdapter;
+			this.debugAdapter = null;
+			return da.stopSession().then(_ => {
+				this.fireAdapterExitEvent(error);
+			}, err => {
+				this.fireAdapterExitEvent(error);
+			});
+		} else {
+			this.fireAdapterExitEvent(error);
+		}
+		return TPromise.as(undefined);
+	}
+
+	private fireAdapterExitEvent(error?: Error): void {
+		if (!this.firedAdapterExitEvent) {
+			this.firedAdapterExitEvent = true;
+
+			const e: AdapterEndEvent = {
+				emittedStopped: this.emittedStopped,
+				sessionLengthInSeconds: (new Date().getTime() - this.startTime) / 1000
+			};
+			if (error) {
+				e.error = error;
+			}
+			this._onDidExitAdapter.fire(e);
+		}
+	}
+
 	private onDapEvent(event: DebugProtocol.Event): void {
 
 		switch (event.event) {
@@ -362,11 +416,11 @@ export class RawDebugSession implements IRawDebugSession {
 			case 'capabilities':
 				if (event.body) {
 					const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-					this._capabilities = objects.mixin(this._capabilities, capabilites);
+					this.mergeCapabilities(capabilites);
 				}
 				break;
 			case 'stopped':
-				this._emittedStopped = true;
+				this.emittedStopped = true;
 				this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
 				break;
 			case 'continued':
@@ -393,16 +447,6 @@ export class RawDebugSession implements IRawDebugSession {
 				break;
 		}
 		this._onDidEvent.fire(event);
-	}
-
-	private onDebugAdapterExit(code: number): void {
-		this.debugAdapter = null;
-		if (!this.disconnected && code !== 0) {
-			this._onDidExitAdapter.fire(new Error(`exit code: ${code}`));
-		} else {
-			// normal exit
-			this._onDidExitAdapter.fire();
-		}
 	}
 
 	private dispatchRequest(request: DebugProtocol.Request): void {
@@ -451,68 +495,53 @@ export class RawDebugSession implements IRawDebugSession {
 		}
 	}
 
-	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
+	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): TPromise<R> {
 
 		return this.startAdapter().then(() => {
 
-			const cancellationSource = new CancellationTokenSource();
-
-			const promise = this.internalSend<R>(command, args, cancellationSource.token).then(
-				response => {
-					return response;
-				},
-				(errorResponse: DebugProtocol.ErrorResponse) => {
-
-					if (errors.isPromiseCanceledError(errorResponse)) {
-						return TPromise.wrapError<R>(<any>errorResponse);
+			return new TPromise<R>((completeDispatch, errorDispatch) => {
+				this.debugAdapter.sendRequest(command, args, (response: R) => {
+					if (response.success) {
+						completeDispatch(response);
+					} else {
+						errorDispatch(response);
 					}
-
-					const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
-					const errorMessage = errorResponse ? errorResponse.message : '';
-
-					if (error && error.sendTelemetry) {
-						const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
-						this.telemetryDebugProtocolErrorResponse(telemetryMessage);
-					}
-
-					const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
-					if (error && error.url) {
-						const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-						return TPromise.wrapError<R>(errors.create(userMessage, {
-							actions: [new Action('debug.moreInfo', label, null, true, () => {
-								window.open(error.url);
-								return TPromise.as(null);
-							})]
-						}));
-					}
-
-					return TPromise.wrapError<R>(new Error(userMessage));
-				}
-			);
-
-			if (cancelOnDisconnect) {
-				this.cancellationTokens.push(cancellationSource);
-			}
-			return promise;
+				}, timeout);
+			}).then(response => response, err => TPromise.wrapError(this.handleErrorResponse(err)));
 		});
 	}
 
-	private internalSend<R extends DebugProtocol.Response>(command: string, args: any, cancelationToken: CancellationToken): TPromise<R> {
-		return new TPromise<R>((completeDispatch, errorDispatch) => {
-			cancelationToken.onCancellationRequested(() => errorDispatch(errors.canceled()));
-			this.debugAdapter.sendRequest(command, args, (result: R) => {
-				if (result.success) {
-					completeDispatch(result);
-				} else {
-					errorDispatch(result);
-				}
+	private handleErrorResponse(errorResponse: DebugProtocol.Response): Error {
+
+		if (errorResponse.command === 'canceled' && errorResponse.message === 'canceled') {
+			return errors.canceled();
+		}
+
+		const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
+		const errorMessage = errorResponse ? errorResponse.message : '';
+
+		if (error && error.sendTelemetry) {
+			const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
+			this.telemetryDebugProtocolErrorResponse(telemetryMessage);
+		}
+
+		const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
+		if (error && error.url) {
+			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
+			return errors.create(userMessage, {
+				actions: [new Action('debug.moreInfo', label, null, true, () => {
+					window.open(error.url);
+					return TPromise.as(null);
+				})]
 			});
-		});
+		}
+
+		return new Error(userMessage);
 	}
 
-	private readCapabilities(response: DebugProtocol.Response): void {
-		if (response) {
-			this._capabilities = objects.mixin(this._capabilities, response.body);
+	private mergeCapabilities(capabilities: DebugProtocol.Capabilities): void {
+		if (capabilities) {
+			this._capabilities = objects.mixin(this._capabilities, capabilities);
 		}
 	}
 
@@ -526,21 +555,6 @@ export class RawDebugSession implements IRawDebugSession {
 			},
 			seq: undefined
 		});
-	}
-
-	private stopAdapter(error?: Error): TPromise<any> {
-
-		if (/* this.socket !== null */ this.debugAdapter instanceof SocketDebugAdapter) {
-			this.debugAdapter.stopSession();
-		}
-
-		this._onDidExitAdapter.fire(error);
-		this._disconnected = true;
-		if (!this.debugAdapter || this.debugAdapter instanceof SocketDebugAdapter) {
-			return TPromise.as(null);
-		}
-
-		return this.debugAdapter.stopSession();
 	}
 
 	private telemetryDebugProtocolErrorResponse(telemetryMessage: string) {
