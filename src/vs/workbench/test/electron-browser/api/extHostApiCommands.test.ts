@@ -482,6 +482,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(d.preselect, undefined);
 	});
 
+	test('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				a.commitCharacters = ['a', 'b'];
+				let b = new types.CompletionItem('item2');
+				return new types.CompletionList([a, b], false);
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 2);
+
+		let [a, b] = list.items;
+		assert.deepEqual(a.commitCharacters, ['a', 'b']);
+		assert.equal(b.commitCharacters, undefined);
+	});
+
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
