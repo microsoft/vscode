@@ -5,7 +5,6 @@
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
@@ -111,11 +110,11 @@ export class Client implements IChannelClient, IDisposable {
 
 	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<T> {
 		if (!this.disposeDelayer) {
-			return TPromise.wrapError(new Error('disposed'));
+			return Promise.reject(new Error('disposed'));
 		}
 
 		if (cancellationToken.isCancellationRequested) {
-			return TPromise.wrapError(errors.canceled());
+			return Promise.reject(errors.canceled());
 		}
 
 		this.disposeDelayer.cancel();
