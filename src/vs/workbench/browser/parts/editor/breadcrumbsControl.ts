@@ -439,7 +439,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 99,
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+		title: localize('miToggleBreadcrumbs', "Toggle &&Breadcrumbs")
 	}
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
