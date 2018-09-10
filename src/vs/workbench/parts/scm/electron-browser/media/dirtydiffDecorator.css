@@ -52,3 +52,7 @@
 	border-top-width: 0;
 	border-bottom-width: 0;
 }
+
+.monaco-editor.modified-in-monaco-diff-editor .margin-view-overlays > div > .dirty-diff-glyph {
+	display: none;
+}
