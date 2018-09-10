@@ -529,8 +529,14 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoClosingTags%"
-				},
-			  "typescript.suggestions.enabled": {
+        },
+        "javascript.suggestions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggestions.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggestions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.suggestions.enabled%",

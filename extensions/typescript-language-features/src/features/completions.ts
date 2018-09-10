@@ -9,14 +9,15 @@ import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
+import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
-import { memoize } from '../utils/memoize';
-import { nulToken } from '../utils/cancellation';
 
 const localize = nls.loadMessageBundle();
 
@@ -237,7 +238,6 @@ interface CompletionConfiguration {
 	readonly nameSuggestions: boolean;
 	readonly quickSuggestionsForPaths: boolean;
 	readonly autoImportSuggestions: boolean;
-	readonly typeScriptSuggestions: boolean;
 }
 
 namespace CompletionConfiguration {
@@ -245,7 +245,6 @@ namespace CompletionConfiguration {
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
 	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
-	export const typeScriptSuggestions = 'suggestions.enabled';
 
 	export function getConfigurationForResource(
 		resource: vscode.Uri
@@ -256,7 +255,6 @@ namespace CompletionConfiguration {
 			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
 			quickSuggestionsForPaths: typeScriptConfig.get<boolean>(CompletionConfiguration.quickSuggestionsForPaths, true),
 			autoImportSuggestions: typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
-			typeScriptSuggestions: typeScriptConfig.get<boolean>(CompletionConfiguration.typeScriptSuggestions, true),
 			nameSuggestions: vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions, true)
 		};
 	}
@@ -468,10 +466,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	): boolean {
 		if (context.triggerCharacter && !this.client.apiVersion.gte(API.v290)) {
 			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
-				if (!config.quickSuggestionsForPaths) {
-					return false;
-				}
-
 				// make sure we are in something that looks like the start of an import
 				const pre = line.text.slice(0, position.character);
 				if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
@@ -608,9 +602,7 @@ function shouldExcludeCompletionEntry(
 	completionConfiguration: CompletionConfiguration
 ) {
 	return (
-		// if TypeScript suggestions turned off, exclude every suggestion
-		!completionConfiguration.typeScriptSuggestions
-		|| (!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
+		(!completionConfiguration.nameSuggestions && element.kind === PConst.Kind.warning)
 		|| (!completionConfiguration.quickSuggestionsForPaths &&
 			(element.kind === PConst.Kind.directory || element.kind === PConst.Kind.script))
 		|| (!completionConfiguration.autoImportSuggestions && element.hasAction)
@@ -619,12 +611,14 @@ function shouldExcludeCompletionEntry(
 
 export function register(
 	selector: vscode.DocumentSelector,
+	modeId: string,
 	client: ITypeScriptServiceClient,
 	typingsStatus: TypingsStatus,
 	fileConfigurationManager: FileConfigurationManager,
 	commandManager: CommandManager,
 ) {
-	return vscode.languages.registerCompletionItemProvider(selector,
-		new TypeScriptCompletionItemProvider(client, typingsStatus, fileConfigurationManager, commandManager),
-		...TypeScriptCompletionItemProvider.triggerCharacters);
+	return new ConfigurationDependentRegistration(modeId, 'suggestions.enabled', () =>
+		vscode.languages.registerCompletionItemProvider(selector,
+			new TypeScriptCompletionItemProvider(client, typingsStatus, fileConfigurationManager, commandManager),
+			...TypeScriptCompletionItemProvider.triggerCharacters));
 }
