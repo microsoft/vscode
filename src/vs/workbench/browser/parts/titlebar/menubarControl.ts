@@ -1235,7 +1235,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				color: ${menuFgColor};
 			}
 
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .menu-item-check {
+			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .menu-item-check,
+			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .submenu-indicator {
 				background-color: ${menuFgColor};
 			}
 		`);
@@ -1257,7 +1258,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				color: ${selectedMenuItemFgColor};
 			}
 
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .menu-item-check {
+		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .menu-item-check,
+		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .submenu-indicator {
 			background-color: ${selectedMenuItemFgColor};
 		}
 		`);

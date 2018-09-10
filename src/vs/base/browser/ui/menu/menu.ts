@@ -410,7 +410,6 @@ class SubmenuActionItem extends MenuActionItem {
 
 		const submenuIndicator = append(this.item, $('span.submenu-indicator'));
 		submenuIndicator.setAttribute('aria-hidden', 'true');
-		submenuIndicator.textContent = '\u25B6';
 
 		this._register(addDisposableListener(this.element, EventType.KEY_UP, e => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
