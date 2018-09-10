@@ -617,7 +617,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	commandManager: CommandManager,
 ) {
-	return new ConfigurationDependentRegistration(modeId, 'suggestions.enabled', () =>
+	return new ConfigurationDependentRegistration(modeId, 'suggest.enabled', () =>
 		vscode.languages.registerCompletionItemProvider(selector,
 			new TypeScriptCompletionItemProvider(client, typingsStatus, fileConfigurationManager, commandManager),
 			...TypeScriptCompletionItemProvider.triggerCharacters));

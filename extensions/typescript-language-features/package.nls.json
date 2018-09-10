@@ -66,5 +66,5 @@
 	"typescript.updateImportsOnFileMove.enabled.always": "Always update paths automatically.",
 	"typescript.updateImportsOnFileMove.enabled.never": "Never rename paths and don't prompt.",
 	"typescript.autoClosingTags": "Enable/disable automatic closing of JSX tags. Requires using TypeScript 3.0 or newer in the workspace.",
-	"typescript.suggestions.enabled": "Enabled/disable autocomplete suggestions based on TypeScript"
+	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions."
 }

@@ -530,16 +530,16 @@
           "default": true,
           "description": "%typescript.autoClosingTags%"
         },
-        "javascript.suggestions.enabled": {
+        "javascript.suggest.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.suggestions.enabled%",
+          "description": "%typescript.suggest.enabled%",
           "scope": "resource"
         },
-        "typescript.suggestions.enabled": {
+        "typescript.suggest.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.suggestions.enabled%",
+          "description": "%typescript.suggest.enabled%",
           "scope": "resource"
         }
       }
