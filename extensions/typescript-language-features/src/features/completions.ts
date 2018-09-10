@@ -23,7 +23,7 @@ const localize = nls.loadMessageBundle();
 
 interface CommitCharactersSettings {
 	readonly isNewIdentifierLocation: boolean;
-	readonly enableDotCompletions: boolean;
+	readonly isInValidCommitCharacterContext: boolean;
 	readonly enableCallCompletions: boolean;
 }
 
@@ -151,7 +151,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 	@memoize
 	public get commitCharacters(): string[] | undefined {
-		if (this.commitCharactersSettings.isNewIdentifierLocation) {
+		if (this.commitCharactersSettings.isNewIdentifierLocation || !this.commitCharactersSettings.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
@@ -164,9 +164,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.indexSignature:
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
-				if (this.commitCharactersSettings.enableDotCompletions) {
-					commitCharacters.push('.', ';');
-				}
+				commitCharacters.push('.', ';');
+
 				break;
 
 			case PConst.Kind.module:
@@ -180,9 +179,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.keyword:
-				if (this.commitCharactersSettings.enableDotCompletions) {
-					commitCharacters.push('.', ',', ';');
-				}
+				commitCharacters.push('.', ',', ';');
 				if (this.commitCharactersSettings.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
@@ -334,12 +331,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return null;
 		}
 
-		const enableDotCompletions = this.shouldEnableDotCompletions(document, position);
+		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
 		return msg
 			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
 			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
 				isNewIdentifierLocation,
-				enableDotCompletions,
+				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}));
 	}
@@ -443,7 +440,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		};
 	}
 
-	private shouldEnableDotCompletions(
+	private isInValidCommitCharacterContext(
 		document: vscode.TextDocument,
 		position: vscode.Position
 	): boolean {
