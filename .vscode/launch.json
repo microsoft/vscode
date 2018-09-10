@@ -145,7 +145,7 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
-			"urlFilter": "*index.html*",
+			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875"
 			],

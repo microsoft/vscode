@@ -220,10 +220,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}
 	}
 
-	public focus(): void {
+	public focus(selectAll?: boolean): void {
 		this.inputWidget.focus();
 
-		if (this.inputWidget.getValue()) {
+		if (selectAll && this.inputWidget.getValue()) {
 			this.selectAll();
 		}
 	}

@@ -54,7 +54,8 @@ export const enum TERMINAL_COMMAND_ID {
 	SELECT_TO_NEXT_COMMAND = 'workbench.action.terminal.selectToNextCommand',
 	SELECT_TO_PREVIOUS_LINE = 'workbench.action.terminal.selectToPreviousLine',
 	SELECT_TO_NEXT_LINE = 'workbench.action.terminal.selectToNextLine',
-	TOGGLE_ESCAPE_SEQUENCE_LOGGING = 'toggleEscapeSequenceLogging'
+	TOGGLE_ESCAPE_SEQUENCE_LOGGING = 'toggleEscapeSequenceLogging',
+	SEND_SEQUENCE = 'workbench.action.terminal.sendSequence'
 }
 
 

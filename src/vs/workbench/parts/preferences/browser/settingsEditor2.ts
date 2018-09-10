@@ -165,8 +165,10 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => new Promise(process.nextTick)) // Force setInput to be async
 			.then(() => {
 				if (!options) {
-					// Persist?
-					options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
+					if (!this.viewState.settingsTarget) {
+						// Persist?
+						options = SettingsEditorOptions.create({ target: ConfigurationTarget.USER });
+					}
 				} else if (!options.target) {
 					options.target = ConfigurationTarget.USER;
 				}
@@ -207,6 +209,9 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
+		const firstEl = this.settingsTree.getFirstVisibleElement();
+		const firstElTop = this.settingsTree.getRelativeTop(firstEl);
+
 		this.layoutTrees(dimension);
 
 		let innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
@@ -218,7 +223,11 @@ export class SettingsEditor2 extends BaseEditor {
 		// #56185
 		if (dimension.width !== this.lastLayedoutWidth) {
 			this.lastLayedoutWidth = dimension.width;
-			this.delayRefreshOnLayout.trigger(() => this.renderTree(undefined, true));
+			this.delayRefreshOnLayout.trigger(() => {
+				this.renderTree(undefined, true).then(() => {
+					this.settingsTree.reveal(firstEl, firstElTop);
+				});
+			});
 		}
 	}
 
@@ -250,12 +259,12 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	focusSearch(filter?: string): void {
+	focusSearch(filter?: string, selectAll = true): void {
 		if (filter && this.searchWidget) {
 			this.searchWidget.setValue(filter);
 		}
 
-		this.searchWidget.focus();
+		this.searchWidget.focus(selectAll);
 	}
 
 	clearSearchResults(): void {
@@ -864,9 +873,9 @@ export class SettingsEditor2 extends BaseEditor {
 			this.tocTreeModel.update();
 			this.renderResultCountMessages();
 
-			if (this.searchResultModel) {
-				expandAll(this.tocTree);
-			}
+			// if (this.searchResultModel) {
+			// 	expandAll(this.tocTree);
+			// }
 
 			return this.tocTree.refresh();
 		}).then(() => { });
@@ -930,8 +939,10 @@ export class SettingsEditor2 extends BaseEditor {
 			if (this.searchResultModel) {
 				// Added a filter model
 				this.tocTree.setSelection([]);
-				this.tocTree.setFocus(null);
-				return this.settingsTree.setInput(this.searchResultModel.root).then(() => this.renderResultCountMessages());
+				expandAll(this.tocTree);
+				return this.settingsTree.setInput(this.searchResultModel.root).then(() => {
+					this.renderResultCountMessages();
+				});
 			} else {
 				// Leaving search mode
 				collapseAll(this.tocTree);
@@ -1078,7 +1089,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.tocTree.setSelection([]);
-			this.tocTree.setFocus(null);
+			this.viewState.filterToCategory = null;
 			expandAll(this.tocTree);
 
 			return this.renderTree().then(() => result);
@@ -1157,7 +1168,7 @@ class FilterByTagAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		this.settingsEditor.focusSearch(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `);
+		this.settingsEditor.focusSearch(this.tag === MODIFIED_SETTING_TAG ? `@${this.tag} ` : `@tag:${this.tag} `, false);
 		return TPromise.as(null);
 	}
 }

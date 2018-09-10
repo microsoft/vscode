@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
+import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
-import { isArray } from 'vs/base/common/types';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -230,7 +229,7 @@ export class SettingsTreeModel {
 	private _tocRoot: ITOCEntry;
 
 	constructor(
-		private _viewState: ISettingsEditorViewState,
+		protected _viewState: ISettingsEditorViewState,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) { }
 
@@ -444,18 +443,18 @@ export class SearchResultModel extends SettingsTreeModel {
 		}
 
 		const localMatchKeys = new Set();
-		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
+		const localResult = this.rawSearchResults[SearchResultIdx.Local];
 		if (localResult) {
 			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
 		}
 
-		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
+		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {
 			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
 		}
 
 		if (remoteResult) {
-			this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
+			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
 		}
 
 		this.cachedUniqueSearchResults = [localResult, remoteResult];
@@ -484,6 +483,10 @@ export class SearchResultModel extends SettingsTreeModel {
 			label: 'searchResultModel',
 			settings: this.getFlatSettings()
 		});
+
+		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		this.root.children = this.root.children
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();
