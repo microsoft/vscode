@@ -3023,8 +3023,8 @@ declare module 'vscode' {
 	export class ParameterInformation {
 
 		/**
-		 * The label of this signature. Will be shown in
-		 * the UI.
+		 * The label of this signature. *Note*: Must be a substring of its
+		 * containing signature information's [label](#SignatureInformation.label).
 		 */
 		label: string;
 
