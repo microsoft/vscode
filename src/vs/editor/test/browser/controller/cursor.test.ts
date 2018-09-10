@@ -4581,7 +4581,7 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '"' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
-			assert.equal(model.getValue(), '\'""\'');
+			assert.equal(model.getValue(), '\'"\'');
 
 			// Typing ' + space after '
 			model.setValue('\'');
