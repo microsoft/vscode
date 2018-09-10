@@ -340,6 +340,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeDocumentSymbolProvider command only returns SymbolInformation[] rather than DocumentSymbol[] #57984', function () {
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				return [
+					new types.SymbolInformation('SymbolInformation', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0))
+				];
+			}
+		}));
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				let root = new types.DocumentSymbol('DocumentSymbol', 'DocumentSymbol#detail', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
+				root.children = [new types.DocumentSymbol('DocumentSymbol#child', 'DocumentSymbol#detail#child', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0))];
+				return [root];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
+				assert.equal(values.length, 2);
+				let [first, second] = values;
+				assert.ok(first instanceof types.SymbolInformation);
+				assert.ok(!(first instanceof types.DocumentSymbol));
+				assert.ok(second instanceof types.SymbolInformation);
+				assert.equal(first.name, 'DocumentSymbol');
+				assert.equal(first.children.length, 1);
+				assert.equal(second.name, 'SymbolInformation');
+			});
+		});
+	});
+
 	// --- suggest
 
 	test('Suggest, back and forth', function () {

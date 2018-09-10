@@ -14,7 +14,7 @@ import { DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function getDocumentSymbols(model: ITextModel, token: CancellationToken): Thenable<DocumentSymbol[]> {
+export function getDocumentSymbols(model: ITextModel, flat: boolean, token: CancellationToken): Thenable<DocumentSymbol[]> {
 
 	let roots: DocumentSymbol[] = [];
 
@@ -31,7 +31,11 @@ export function getDocumentSymbols(model: ITextModel, token: CancellationToken):
 
 	return Promise.all(promises).then(() => {
 		let flatEntries: DocumentSymbol[] = [];
-		flatten(flatEntries, roots, '');
+		if (flat) {
+			flatten(flatEntries, roots, '');
+		} else {
+			flatEntries = roots;
+		}
 		flatEntries.sort(compareEntriesUsingStart);
 		return flatEntries;
 	});
@@ -68,5 +72,5 @@ registerLanguageCommand('_executeDocumentSymbolProvider', function (accessor, ar
 	if (!model) {
 		throw illegalArgument('resource');
 	}
-	return getDocumentSymbols(model, CancellationToken.None);
+	return getDocumentSymbols(model, false, CancellationToken.None);
 });

@@ -141,7 +141,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		}
 
 		// Resolve outline
-		return TPromise.wrap(getDocumentSymbols(model, CancellationToken.None).then((result: DocumentSymbol[]) => {
+		return TPromise.wrap(getDocumentSymbols(model, true, CancellationToken.None).then((result: DocumentSymbol[]) => {
 			if (result.length === 0) {
 				return;
 			}

@@ -162,7 +162,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getDocumentSymbols(model, CancellationToken.None).then(value => {
+			return getDocumentSymbols(model, true, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -177,7 +177,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return getDocumentSymbols(model, CancellationToken.None).then(value => {
+			return getDocumentSymbols(model, true, CancellationToken.None).then(value => {
 				assert.equal(value.length, 1);
 
 				let entry = value[0];

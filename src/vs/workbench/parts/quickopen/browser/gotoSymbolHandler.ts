@@ -476,7 +476,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, token)).then(entries => {
+				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, true, token)).then(entries => {
 					const model = new OutlineModel(this.toQuickOpenEntries(entries));
 
 					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
