@@ -7,7 +7,6 @@ import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -42,8 +41,6 @@ export class WebviewElement extends Disposable {
 
 	constructor(
 		private readonly _styleElement: Element,
-		private readonly _contextKey: IContextKey<boolean>,
-		private readonly _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -236,19 +233,7 @@ export class WebviewElement extends Disposable {
 		parent.appendChild(this._webview);
 	}
 
-	public notifyFindWidgetFocusChanged(isFocused: boolean) {
-		this._contextKey.set(isFocused || document.activeElement === this._webview);
-	}
-
-	public notifyFindWidgetInputFocusChanged(isFocused: boolean) {
-		this._findInputContextKey.set(isFocused);
-	}
-
 	dispose(): void {
-		if (this._contextKey) {
-			this._contextKey.reset();
-		}
-
 		if (this._webview) {
 			if (this._webview.parentElement) {
 				this._webview.parentElement.removeChild(this._webview);
@@ -331,16 +316,6 @@ export class WebviewElement extends Disposable {
 	}
 
 	private handleFocusChange(isFocused: boolean): void {
-
-		// Update context key accordingly
-		if (this._contextKey) {
-			if (isFocused) {
-				this._contextKey.set(true);
-			} else {
-				this._contextKey.reset();
-			}
-		}
-
 		if (isFocused) {
 			this._onDidFocus.fire();
 		}
