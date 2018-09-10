@@ -1,3 +1,5 @@
+import { IFindOptions } from 'vs/workbench/parts/terminal/common/terminal';
+
 /**
  * @license MIT
  *
@@ -716,17 +718,19 @@ declare module 'vscode-xterm' {
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findNext(term: string): boolean;
+		findNext(term: string, findOptions: IFindOptions): boolean;
 
 		/**
 		 * Find the previous instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findPrevious(term: string): boolean;
+		findPrevious(term: string, findOptions: IFindOptions): boolean;
 	}
 }

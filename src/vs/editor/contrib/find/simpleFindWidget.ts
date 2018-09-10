@@ -33,14 +33,15 @@ export abstract class SimpleFindWidget extends Widget {
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		showOptionButtons?: boolean
 	) {
 		super();
 
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-		}, contextKeyService));
+		}, contextKeyService, showOptionButtons));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
@@ -200,6 +201,18 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected _updateHistory() {
 		this._findInput.inputBox.addToHistory();
+	}
+
+	protected _getRegexValue(): boolean {
+		return this._findInput.getRegex();
+	}
+
+	protected _getWholeWordValue(): boolean {
+		return this._findInput.getWholeWords();
+	}
+
+	protected _getCaseSensitiveValue(): boolean {
+		return this._findInput.getCaseSensitive();
 	}
 }
 

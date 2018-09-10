@@ -45,11 +45,11 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService protected readonly _themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, themeService);
+		super(TERMINAL_PANEL_ID, telemetryService, _themeService);
 	}
 
 	public create(parent: HTMLElement): TPromise<any> {

@@ -271,6 +271,21 @@ export interface ITerminalDimensions {
 	readonly rows: number;
 }
 
+export interface IFindOptions {
+	/**
+	 * Whether the find should be done as a regex.
+	 */
+	regex?: boolean;
+	/**
+	 * Whether only whole words should match.
+	 */
+	wholeWord?: boolean;
+	/**
+	 * Whether find should pay attention to case.
+	 */
+	caseSensitive?: boolean;
+}
+
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
@@ -436,12 +451,12 @@ export interface ITerminalInstance {
 	/**
 	 * Find the next instance of the term
 	*/
-	findNext(term: string): boolean;
+	findNext(term: string, findOptions: IFindOptions): boolean;
 
 	/**
 	 * Find the previous instance of the term
 	 */
-	findPrevious(term: string): boolean;
+	findPrevious(term: string, findOptions: IFindOptions): boolean;
 
 	/**
 	 * Notifies the terminal that the find widget's focus state has been changed.
