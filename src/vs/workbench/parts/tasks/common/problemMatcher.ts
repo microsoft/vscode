@@ -1088,7 +1088,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {
@@ -1642,7 +1642,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {

@@ -68,7 +68,7 @@ export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Th
 		} else {
 			resolve(item);
 		}
-	}, () => { /* not supported */ });
+	});
 }
 
 export interface ITask<T> {
@@ -136,8 +136,6 @@ export class Throttler {
 
 			return new TPromise((c, e) => {
 				this.queuedPromise.then(c, e);
-			}, () => {
-				// no-op
 			});
 		}
 
@@ -287,8 +285,6 @@ export class Barrier {
 		this._isOpen = false;
 		this._promise = new TPromise<boolean>((c, e) => {
 			this._completePromise = c;
-		}, () => {
-			console.warn('You should really not try to cancel this ready promise!');
 		});
 	}
 
@@ -712,11 +708,11 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): TPromise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
