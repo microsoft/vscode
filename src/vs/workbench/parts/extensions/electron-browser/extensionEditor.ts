@@ -39,7 +39,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -50,11 +50,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, IExtensionData } from 'vs/workbench/parts/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesAction } from 'vs/workbench/parts/update/electron-browser/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-
-/**  A context key that is set when an extension editor webview has focus. */
-export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
-/**  A context key that is set when the find widget find input in extension editor webview is focused. */
-export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('extensionEditorFindWidgetInputFocused', false);
 
 function renderBody(body: string): string {
 	const styleSheetPath = require.toUrl('./media/markdown.css').replace('file://', 'vscode-core-resource://');
@@ -174,8 +169,6 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionManifest: Cache<IExtensionManifest>;
 	private extensionDependencies: Cache<IExtensionDependencies>;
 
-	private contextKey: IContextKey<boolean>;
-	private findInputFocusContextKey: IContextKey<boolean>;
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private contentDisposables: IDisposable[] = [];
 	private transientDisposables: IDisposable[] = [];
@@ -193,7 +186,6 @@ export class ExtensionEditor extends BaseEditor {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
@@ -202,8 +194,6 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionChangelog = null;
 		this.extensionManifest = null;
 		this.extensionDependencies = null;
-		this.contextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS.bindTo(this.contextKeyService);
-		this.findInputFocusContextKey = KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this.contextKeyService);
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -483,7 +473,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = this.instantiationService.createInstance(WebviewElement, this.partService.getContainer(Parts.EDITOR_PART), this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				this.activeWebview = this.instantiationService.createInstance(WebviewElement, this.partService.getContainer(Parts.EDITOR_PART), webViewOptions);
 				this.activeWebview.mountTo(this.content);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -702,8 +692,6 @@ export class ExtensionEditor extends BaseEditor {
 		append(container, details);
 		return true;
 	}
-
-
 
 	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
 		const contributes = manifest.contributes;
@@ -1120,7 +1108,7 @@ class ShowExtensionEditorFindCommand extends Command {
 }
 const showCommand = new ShowExtensionEditorFindCommand({
 	id: 'editor.action.extensioneditor.showfind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
+	precondition: ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID),
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 		weight: KeybindingWeight.EditorContrib

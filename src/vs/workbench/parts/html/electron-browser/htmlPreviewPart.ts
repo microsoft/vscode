@@ -95,8 +95,6 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.contextKey,
-				this.findInputFocusContextKey,
 				{
 					...webviewOptions,
 					useSameOriginForRoot: true

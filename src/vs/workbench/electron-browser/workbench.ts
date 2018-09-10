@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -621,6 +621,7 @@ export class Workbench extends Disposable implements IPartService {
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
 
+		const activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
 		const editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		const textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
 		const textCompareEditorActive = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
@@ -650,6 +651,12 @@ export class Workbench extends Disposable implements IPartService {
 				multipleEditorGroups.set(true);
 			} else {
 				multipleEditorGroups.reset();
+			}
+
+			if (activeControl) {
+				activeEditorContext.set(activeControl.getId());
+			} else {
+				activeEditorContext.reset();
 			}
 		};
 
