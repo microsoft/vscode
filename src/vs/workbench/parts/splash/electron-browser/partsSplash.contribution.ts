@@ -20,6 +20,7 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class PartsSplash {
 
@@ -34,6 +35,7 @@ class PartsSplash {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IPartService private readonly _partService: IPartService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IBroadcastService private broadcastService: IBroadcastService
 	) {
@@ -59,7 +61,7 @@ class PartsSplash {
 			statusBarBackground: this._getThemeColor(themes.STATUS_BAR_BACKGROUND),
 			statusBarNoFolderBackground: this._getThemeColor(themes.STATUS_BAR_NO_FOLDER_BACKGROUND),
 		};
-		const layoutInfo = isFullscreen() ? undefined : {
+		const layoutInfo = !this._shouldSaveLayoutInfo() ? undefined : {
 			sideBarSide: this._partService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 			editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
 			titleBarHeight: getTotalHeight(this._partService.getContainer(Parts.TITLEBAR_PART)),
@@ -89,6 +91,10 @@ class PartsSplash {
 		const theme = this._themeService.getTheme();
 		const color = theme.getColor(id);
 		return color ? color.toString() : undefined;
+	}
+
+	private _shouldSaveLayoutInfo(): boolean {
+		return !isFullscreen() && !this._envService.isExtensionDevelopment;
 	}
 
 	private _removePartsSplash(): void {
