@@ -594,28 +594,28 @@ export class MenubarControl extends Disposable {
 
 			case StateType.Idle:
 				const windowId = this.windowService.getCurrentWindowId();
-				return new Action('update.check', nls.localize('checkForUpdates', "Check for Updates..."), undefined, true, () =>
+				return new Action('update.check', nls.localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
 					this.updateService.checkForUpdates({ windowId }));
 
 			case StateType.CheckingForUpdates:
 				return new Action('update.checking', nls.localize('checkingForUpdates', "Checking For Updates..."), undefined, false);
 
 			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
+				return new Action('update.downloadNow', nls.localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Now"), null, true, () =>
 					this.updateService.downloadUpdate());
 
 			case StateType.Downloading:
 				return new Action('update.downloading', nls.localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
 
 			case StateType.Downloaded:
-				return new Action('update.install', nls.localize('installUpdate...', "Install Update..."), undefined, true, () =>
+				return new Action('update.install', nls.localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), undefined, true, () =>
 					this.updateService.applyUpdate());
 
 			case StateType.Updating:
 				return new Action('update.updating', nls.localize('installingUpdate', "Installing Update..."), undefined, false);
 
 			case StateType.Ready:
-				return new Action('update.restart', nls.localize('restartToUpdate', "Restart to Update..."), undefined, true, () =>
+				return new Action('update.restart', nls.localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update..."), undefined, true, () =>
 					this.updateService.quitAndInstall());
 		}
 	}
