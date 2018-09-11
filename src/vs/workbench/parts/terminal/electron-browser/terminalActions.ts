@@ -1177,3 +1177,57 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 		return TPromise.as(void 0);
 	}
 }
+
+export class ToggleRegexCommand extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
+	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX, "Toggle find using regex");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const state = this.terminalService.getFindState();
+		state.change({ isRegex: !state.isRegex }, false);
+		return TPromise.as(void 0);
+	}
+}
+
+export class ToggleWholeWordCommand extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
+	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD, "Toggle find using whole word");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const state = this.terminalService.getFindState();
+		state.change({ wholeWord: !state.wholeWord }, false);
+		return TPromise.as(void 0);
+	}
+}
+
+export class ToggleCaseSensitiveCommand extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
+	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE, "Toggle find using case sensitive");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const state = this.terminalService.getFindState();
+		state.change({ matchCase: !state.matchCase }, false);
+		return TPromise.as(void 0);
+	}
+}

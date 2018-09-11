@@ -9,6 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -226,6 +227,7 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
+	getFindState(): FindReplaceState;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;

@@ -16,6 +16,7 @@ import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder,
 import { SimpleButton } from './findWidget';
 import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -34,6 +35,7 @@ export abstract class SimpleFindWidget extends Widget {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		private readonly _state: FindReplaceState,
 		showOptionButtons?: boolean
 	) {
 		super();
@@ -50,6 +52,24 @@ export abstract class SimpleFindWidget extends Widget {
 			this.onInputChanged();
 			this._delayedUpdateHistory();
 		});
+
+		this._findInput.setRegex(!!this._state.isRegex);
+		this._findInput.setCaseSensitive(!!this._state.matchCase);
+		this._findInput.setWholeWords(!!this._state.wholeWord);
+
+		this._register(this._findInput.onDidOptionChange(() => {
+			this._state.change({
+				isRegex: this._findInput.getRegex(),
+				wholeWord: this._findInput.getWholeWords(),
+				matchCase: this._findInput.getCaseSensitive()
+			}, true);
+		}));
+
+		this._register(this._state.onFindReplaceStateChange(() => {
+			this._findInput.setRegex(this._state.isRegex);
+			this._findInput.setWholeWords(this._state.wholeWord);
+			this._findInput.setCaseSensitive(this._state.matchCase);
+		}));
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {

@@ -61,7 +61,7 @@ export class TerminalPanel extends Panel {
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
+		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
 		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
 
