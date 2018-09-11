@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { first2, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { first2, createCancelablePromise, CancelablePromise, timeout } from 'vs/base/common/async';
 import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -13,6 +13,7 @@ import { registerEditorContribution, EditorAction, IActionOptions, registerEdito
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import { registerColor, editorSelectionHighlight, overviewRulerSelectionHighlightForeground, activeContrastBorder, editorSelectionHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -50,6 +51,112 @@ export function getOccurrencesAtPosition(model: ITextModel, position: Position, 
 	}), result => !isFalsyOrEmpty(result));
 }
 
+interface IOccurenceAtPositionRequest {
+	readonly result: Promise<DocumentHighlight[]>;
+	isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean;
+	cancel(): void;
+}
+
+abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
+
+	private readonly _wordRange: Range;
+	public readonly result: CancelablePromise<DocumentHighlight[]>;
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
+		this._wordRange = this._getCurrentWordRange(model, selection);
+		this.result = createCancelablePromise(token => this._compute(model, selection, wordSeparators, token));
+	}
+
+	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]>;
+
+	private _getCurrentWordRange(model: ITextModel, selection: Selection): Range {
+		const word = model.getWordAtPosition(selection.getPosition());
+		if (word) {
+			return new Range(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
+		}
+		return null;
+	}
+
+	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+
+		const lineNumber = selection.startLineNumber;
+		const startColumn = selection.startColumn;
+		const endColumn = selection.endColumn;
+		const currentWordRange = this._getCurrentWordRange(model, selection);
+
+		let requestIsValid = (this._wordRange && this._wordRange.equalsRange(currentWordRange));
+
+		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
+		// (Same symbol)
+		for (let i = 0, len = decorationIds.length; !requestIsValid && i < len; i++) {
+			let range = model.getDecorationRange(decorationIds[i]);
+			if (range && range.startLineNumber === lineNumber) {
+				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
+					requestIsValid = true;
+				}
+			}
+		}
+
+		return requestIsValid;
+	}
+
+	public cancel(): void {
+		this.result.cancel();
+	}
+}
+
+class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]> {
+		return getOccurrencesAtPosition(model, selection.getPosition(), token);
+	}
+}
+
+class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
+
+	private _selectionIsEmpty: boolean;
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
+		super(model, selection, wordSeparators);
+		this._selectionIsEmpty = selection.isEmpty();
+	}
+
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]> {
+		return timeout(250, token).then(() => {
+			if (!selection.isEmpty()) {
+				return [];
+			}
+
+			const word = model.getWordAtPosition(selection.getPosition());
+
+			if (!word) {
+				return [];
+			}
+			const matches = model.findMatches(word.word, true, false, true, wordSeparators, false);
+			return matches.map(m => {
+				return {
+					range: m.range,
+					kind: DocumentHighlightKind.Text
+				};
+			});
+		});
+	}
+
+	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+		const currentSelectionIsEmpty = selection.isEmpty();
+		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
+			return false;
+		}
+		return super.isValid(model, selection, decorationIds);
+	}
+}
+
+function computeOccurencesAtPosition(model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
+	if (DocumentHighlightProviderRegistry.has(model)) {
+		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators);
+	}
+	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
+}
+
 registerDefaultLanguageCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
 
 class WordHighlighter {
@@ -57,12 +164,11 @@ class WordHighlighter {
 	private editor: ICodeEditor;
 	private occurrencesHighlight: boolean;
 	private model: ITextModel;
-	private _lastWordRange: Range;
 	private _decorationIds: string[];
 	private toUnhook: IDisposable[];
 
 	private workerRequestTokenId: number = 0;
-	private workerRequest: CancelablePromise<DocumentHighlight[]> = null;
+	private workerRequest: IOccurenceAtPositionRequest;
 	private workerRequestCompleted: boolean = false;
 	private workerRequestValue: DocumentHighlight[] = [];
 
@@ -109,7 +215,6 @@ class WordHighlighter {
 			}
 		}));
 
-		this._lastWordRange = null;
 		this._decorationIds = [];
 		this.workerRequestTokenId = 0;
 		this.workerRequest = null;
@@ -173,8 +278,6 @@ class WordHighlighter {
 	}
 
 	private _stopAll(): void {
-		this._lastWordRange = null;
-
 		// Remove any existing decorations
 		this._removeDecorations();
 
@@ -215,12 +318,6 @@ class WordHighlighter {
 	}
 
 	private _run(): void {
-		// no providers for this model
-		if (!DocumentHighlightProviderRegistry.has(this.model)) {
-			this._stopAll();
-			return;
-		}
-
 		let editorSelection = this.editor.getSelection();
 
 		// ignore multiline selection
@@ -249,21 +346,7 @@ class WordHighlighter {
 		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
-		let currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
-
-		let workerRequestIsValid = this._lastWordRange && this._lastWordRange.equalsRange(currentWordRange);
-
-		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
-		// (Same symbol)
-		for (let i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
-			let range = this.model.getDecorationRange(this._decorationIds[i]);
-			if (range && range.startLineNumber === lineNumber) {
-				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
-					workerRequestIsValid = true;
-				}
-			}
-		}
-
+		const workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this._decorationIds));
 
 		// There are 4 cases:
 		// a) old workerRequest is valid & completed, renderDecorationsTimer fired
@@ -292,9 +375,9 @@ class WordHighlighter {
 			let myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
-			this.workerRequest = createCancelablePromise(token => getOccurrencesAtPosition(this.model, this.editor.getPosition(), token));
+			this.workerRequest = computeOccurencesAtPosition(this.model, this.editor.getSelection(), this.editor.getConfiguration().wordSeparators);
 
-			this.workerRequest.then(data => {
+			this.workerRequest.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
@@ -302,8 +385,6 @@ class WordHighlighter {
 				}
 			}, onUnexpectedError);
 		}
-
-		this._lastWordRange = currentWordRange;
 	}
 
 	private _beginRenderDecorations(): void {

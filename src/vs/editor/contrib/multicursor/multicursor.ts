@@ -663,13 +663,11 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	public readonly lastWordUnderCursor: Selection;
 	public readonly searchText: string;
 	public readonly matchCase: boolean;
 	public readonly wordSeparators: string;
 
-	constructor(lastWordUnderCursor: Selection, searchText: string, matchCase: boolean, wordSeparators: string) {
-		this.lastWordUnderCursor = lastWordUnderCursor;
+	constructor(searchText: string, matchCase: boolean, wordSeparators: string) {
 		this.searchText = searchText;
 		this.matchCase = matchCase;
 		this.wordSeparators = wordSeparators;
@@ -723,7 +721,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 			if (e.selection.isEmpty()) {
 				if (e.reason === CursorChangeReason.Explicit) {
-					if (this.state && (!this.state.lastWordUnderCursor || !this.state.lastWordUnderCursor.containsPosition(e.selection.getStartPosition()))) {
+					if (this.state) {
 						// no longer valid
 						this._setState(null);
 					}
@@ -791,21 +789,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			return null;
 		}
 
-		let lastWordUnderCursor: Selection = null;
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
 		if (r.currentMatch) {
 			// This is an empty selection
-			if (hasFindOccurrences) {
-				// Do not interfere with semantic word highlighting in the no selection case
-				return null;
-			}
-
-			const config = editor.getConfiguration();
-			if (!config.contribInfo.occurrencesHighlight) {
-				return null;
-			}
-
-			lastWordUnderCursor = r.currentMatch;
+			// Do not interfere with semantic word highlighting in the no selection case
+			return null;
 		}
 		if (/^[ \t]+$/.test(r.searchText)) {
 			// whitespace only selection
@@ -837,7 +824,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(lastWordUnderCursor, r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
+		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
 	}
 
 	private _setState(state: SelectionHighlighterState): void {
