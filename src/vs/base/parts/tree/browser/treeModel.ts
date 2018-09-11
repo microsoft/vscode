@@ -451,7 +451,13 @@ export class Item {
 
 	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): WinJS.Promise {
 		if (!force && !this.isExpanded()) {
-			this.needsChildrenRefresh = true;
+			const setNeedsChildrenRefresh = (item: Item) => {
+				item.needsChildrenRefresh = true;
+				item.forEachChild(setNeedsChildrenRefresh);
+			};
+
+			setNeedsChildrenRefresh(this);
+
 			return WinJS.TPromise.as(this);
 		}
 
@@ -509,8 +515,14 @@ export class Item {
 						return child.doRefresh(recursive, true);
 					}));
 				} else {
-					this.mapEachChild(child => child.updateVisibility());
-					return WinJS.TPromise.as(null);
+					return WinJS.Promise.join(this.mapEachChild((child) => {
+						if (child.needsChildrenRefresh) {
+							return child.doRefresh(recursive, true);
+						} else {
+							child.updateVisibility();
+							return WinJS.TPromise.as(null);
+						}
+					}));
 				}
 			});
 
