@@ -85,6 +85,10 @@ export function getModifiedRange(textDocument: TextDocument, diff: LineChange): 
 }
 
 export function intersectDiffWithRange(textDocument: TextDocument, diff: LineChange, range: Range): LineChange | null {
+	if (diff.modifiedEndLineNumber === 0) {
+		return diff;
+	}
+
 	const modifiedRange = getModifiedRange(textDocument, diff);
 	const intersection = range.intersection(modifiedRange);
 
@@ -92,16 +96,12 @@ export function intersectDiffWithRange(textDocument: TextDocument, diff: LineCha
 		return null;
 	}
 
-	if (diff.modifiedEndLineNumber === 0) {
-		return diff;
-	} else {
-		return {
-			originalStartLineNumber: diff.originalStartLineNumber,
-			originalEndLineNumber: diff.originalEndLineNumber,
-			modifiedStartLineNumber: intersection.start.line + 1,
-			modifiedEndLineNumber: intersection.end.line + 1
-		};
-	}
+	return {
+		originalStartLineNumber: diff.originalStartLineNumber,
+		originalEndLineNumber: diff.originalEndLineNumber,
+		modifiedStartLineNumber: intersection.start.line + 1,
+		modifiedEndLineNumber: intersection.end.line + 1
+	};
 }
 
 export function invertLineChange(diff: LineChange): LineChange {
