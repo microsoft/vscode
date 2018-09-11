@@ -112,6 +112,7 @@ export class MenubarControl extends Disposable {
 	private mnemonics: Map<KeyCode, number>;
 
 	private _onVisibilityChange: Emitter<boolean>;
+	private _onFocusStateChange: Emitter<boolean>;
 
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
@@ -152,6 +153,7 @@ export class MenubarControl extends Disposable {
 		}));
 
 		this._onVisibilityChange = this._register(new Emitter<boolean>());
+		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
 			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
@@ -305,6 +307,7 @@ export class MenubarControl extends Disposable {
 		}
 
 		this._focusState = value;
+		this._onFocusStateChange.fire(this.focusState >= MenubarState.FOCUSED);
 	}
 
 	private get mnemonicsInUse(): boolean {
@@ -793,11 +796,6 @@ export class MenubarControl extends Disposable {
 					e.stopPropagation();
 				}));
 
-				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.CLICK, (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-				}));
-
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_ENTER, () => {
 					if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
 						this.customMenus[menuIndex].buttonElement.focus();
@@ -836,8 +834,8 @@ export class MenubarControl extends Disposable {
 				}
 			}));
 
-			this._register(DOM.addDisposableListener(window, DOM.EventType.CLICK, () => {
-				// This click is outside the menubar so it counts as a focus out
+			this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
+				// This mouse event is outside the menubar so it counts as a focus out
 				if (this.isFocused) {
 					this.setUnfocusedState();
 				}
@@ -1103,6 +1101,10 @@ export class MenubarControl extends Disposable {
 
 	public get onVisibilityChange(): Event<boolean> {
 		return this._onVisibilityChange.event;
+	}
+
+	public get onFocusStateChange(): Event<boolean> {
+		return this._onFocusStateChange.event;
 	}
 
 	public layout(dimension: DOM.Dimension) {

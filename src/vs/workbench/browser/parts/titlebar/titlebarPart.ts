@@ -134,6 +134,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
+	private onMenubarFocusChanged(focused: boolean) {
+		if (isWindows || isLinux) {
+			if (focused) {
+				hide(this.dragRegion);
+			} else {
+				show(this.dragRegion);
+			}
+		}
+	}
+
 	onMenubarVisibilityChange(): Event<boolean> {
 		return this.menubarPart.onVisibilityChange;
 	}
@@ -285,6 +295,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (!isMacintosh) {
 			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+			this._register(this.menubarPart.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 
 		// Title
