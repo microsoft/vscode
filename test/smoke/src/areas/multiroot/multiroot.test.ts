@@ -36,7 +36,7 @@ export function setup() {
 		before(async function () {
 			const app = this.app as Application;
 
-			const workspaceFilePath = await createWorkspaceFile(app.workspacePath);
+			const workspaceFilePath = await createWorkspaceFile(app.workspacePathOrFolder);
 
 			// restart with preventing additional windows from restoring
 			// to ensure the window after restart is the multi-root workspace

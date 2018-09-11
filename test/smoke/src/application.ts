@@ -25,7 +25,9 @@ export class Application {
 	private _code: Code | undefined;
 	private _workbench: Workbench;
 
-	constructor(private options: ApplicationOptions) { }
+	constructor(private options: ApplicationOptions) {
+		this._workspacePathOrFolder = options.workspacePath;
+	}
 
 	get quality(): Quality {
 		return this.options.quality;
@@ -43,8 +45,9 @@ export class Application {
 		return this.options.logger;
 	}
 
-	get workspacePath(): string {
-		return this.options.workspacePath;
+	private _workspacePathOrFolder: string;
+	get workspacePathOrFolder(): string {
+		return this._workspacePathOrFolder;
 	}
 
 	get extensionsPath(): string {
@@ -67,8 +70,8 @@ export class Application {
 		await this._start(options.workspaceOrFolder, options.extraArgs);
 	}
 
-	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
-		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
+	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
+		this._workspacePathOrFolder = workspaceOrFolder;
 		await this.startApplication(workspaceOrFolder, extraArgs);
 		await this.checkWindowReady();
 	}
