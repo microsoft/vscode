@@ -139,7 +139,7 @@ export class ParameterHintsModel extends Disposable {
 		});
 	}
 
-	get isTriggered(): boolean {
+	private get isTriggered(): boolean {
 		return this.active || this.pending || this.throttledDelayer.isScheduled();
 	}
 

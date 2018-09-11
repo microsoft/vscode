@@ -97,6 +97,39 @@ suite('ParameterHintsModel', () => {
 		editor.trigger('keyboard', Handler.Type, { text: '(' });
 	});
 
+	test('Provider should not be retriggered if previous help is canceled first', (done) => {
+		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
+		disposables.push(textModel);
+
+		const editor = createMockEditor(textModel);
+		const hintModel = new ParameterHintsModel(editor);
+		disposables.push(hintModel);
+
+		let invokeCount = 0;
+		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+			signatureHelpTriggerCharacters = ['('];
+
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+				++invokeCount;
+				if (invokeCount === 1) {
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerCharacter, '(');
+
+					// Cancel and retrigger
+					hintModel.cancel();
+					editor.trigger('keyboard', Handler.Type, { text: '(' });
+				} else {
+					assert.strictEqual(invokeCount, 2);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerCharacter, '(');
+					done();
+				}
+				return emptySigHelpResult;
+			}
+		}));
+
+		editor.trigger('keyboard', Handler.Type, { text: '(' });
+	});
 
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
 		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
