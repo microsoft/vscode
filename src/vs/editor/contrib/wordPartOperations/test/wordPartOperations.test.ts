@@ -20,10 +20,10 @@ suite('WordPartOperations', () => {
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
 	}
-	function moveWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void {
+	function cursorWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void {
 		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeft : _cursorWordPartLeft);
 	}
-	function moveWordPartRight(editor: ICodeEditor, inSelectionmode: boolean = false): void {
+	function cursorWordPartRight(editor: ICodeEditor, inSelectionmode: boolean = false): void {
 		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeft : _cursorWordPartRight);
 	}
 	function deleteWordPartLeft(editor: ICodeEditor): void {
@@ -33,7 +33,7 @@ suite('WordPartOperations', () => {
 		runEditorCommand(editor, _deleteWordPartRight);
 	}
 
-	test('move word part left basic', () => {
+	test('cursorWordPartLeft - basic', () => {
 		const EXPECTED = [
 			'|start| |line|',
 			'|this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
@@ -43,7 +43,7 @@ suite('WordPartOperations', () => {
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1000, 1000),
-			ed => moveWordPartLeft(ed),
+			ed => cursorWordPartLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -51,13 +51,13 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #53899: move word part left whitespace', () => {
+	test('cursorWordPartLeft - issue #53899: whitespace', () => {
 		const EXPECTED = '|myvar| |=| |\'|demonstration|     |of| |selection| |with| |space|\'';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1000, 1000),
-			ed => moveWordPartLeft(ed),
+			ed => cursorWordPartLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -65,13 +65,13 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #53899: move word part left underscores', () => {
+	test('cursorWordPartLeft - issue #53899: underscores', () => {
 		const EXPECTED = '|myvar| |=| |\'|demonstration|_____of| |selection| |with| |space|\'';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1000, 1000),
-			ed => moveWordPartLeft(ed),
+			ed => cursorWordPartLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -79,7 +79,7 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('move word part right basic', () => {
+	test('cursorWordPartRight - basic', () => {
 		const EXPECTED = [
 			'start| |line|',
 			'|this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
@@ -89,7 +89,7 @@ suite('WordPartOperations', () => {
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordPartRight(ed),
+			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(3, 9))
 		);
@@ -97,13 +97,13 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #53899: move word part right whitespace', () => {
+	test('cursorWordPartRight - issue #53899: whitespace', () => {
 		const EXPECTED = 'myvar| =| \'demonstration|     |of| |selection| |with| |space|\'|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordPartRight(ed),
+			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 52))
 		);
@@ -111,13 +111,13 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #53899: move word part right underscores', () => {
+	test('cursorWordPartRight - issue #53899: underscores', () => {
 		const EXPECTED = 'myvar| =| \'demonstration_____|of| |selection| |with| |space|\'|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordPartRight(ed),
+			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 52))
 		);
@@ -125,7 +125,7 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('delete word part left basic', () => {
+	test('deleteWordPartLeft - basic', () => {
 		const EXPECTED = '|   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
@@ -139,7 +139,7 @@ suite('WordPartOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('delete word part right basic', () => {
+	test('deleteWordPartRight - basic', () => {
 		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| 3| +|5|-|3| */|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
