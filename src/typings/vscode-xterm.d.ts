@@ -1,5 +1,3 @@
-import { IFindOptions } from 'vs/workbench/parts/terminal/common/terminal';
-
 /**
  * @license MIT
  *
@@ -709,6 +707,21 @@ declare module 'vscode-xterm' {
 		};
 	}
 
+	interface ISearchOptions  {
+		/**
+		 * Whether the find should be done as a regex.
+		 */
+		regex?: boolean;
+		/**
+		 * Whether only whole words should match.
+		 */
+		wholeWord?: boolean;
+		/**
+		 * Whether find should pay attention to case.
+		 */
+		caseSensitive?: boolean;
+	}
+
 	interface Terminal {
 		_core: TerminalCore;
 
@@ -722,7 +735,7 @@ declare module 'vscode-xterm' {
 		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findNext(term: string, findOptions: IFindOptions): boolean;
+		findNext(term: string, findOptions: ISearchOptions): boolean;
 
 		/**
 		 * Find the previous instance of the term, then scroll to and select it. If it
@@ -731,6 +744,6 @@ declare module 'vscode-xterm' {
 		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findPrevious(term: string, findOptions: IFindOptions): boolean;
+		findPrevious(term: string, findOptions: ISearchOptions): boolean;
 	}
 }

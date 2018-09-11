@@ -10,11 +10,11 @@ import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions, IFindOptions } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -553,12 +553,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.selectAll();
 	}
 
-	public findNext(term: string, findOptions: IFindOptions): boolean {
-		return this._xterm.findNext(term, findOptions);
+	public findNext(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findNext(term, searchOptions);
 	}
 
-	public findPrevious(term: string, findOptions: IFindOptions): boolean {
-		return this._xterm.findPrevious(term, findOptions);
+	public findPrevious(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findPrevious(term, searchOptions);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {

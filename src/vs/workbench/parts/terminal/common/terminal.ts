@@ -273,7 +273,7 @@ export interface ITerminalDimensions {
 	readonly rows: number;
 }
 
-export interface IFindOptions {
+interface ISearchOptions {
 	/**
 	 * Whether the find should be done as a regex.
 	 */
@@ -453,12 +453,12 @@ export interface ITerminalInstance {
 	/**
 	 * Find the next instance of the term
 	*/
-	findNext(term: string, findOptions: IFindOptions): boolean;
+	findNext(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Find the previous instance of the term
 	 */
-	findPrevious(term: string, findOptions: IFindOptions): boolean;
+	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Notifies the terminal that the find widget's focus state has been changed.
