@@ -1956,9 +1956,9 @@ electron-download@^4.1.0:
     semver "^5.3.0"
     sumchecker "^2.0.1"
 
-electron-mksnapshot@~1.7.0:
-  version "1.7.1"
-  resolved "https://registry.yarnpkg.com/electron-mksnapshot/-/electron-mksnapshot-1.7.1.tgz#926be7c20cfe0593249df979b0a12a2a0c5b27f1"
+electron-mksnapshot@~2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/electron-mksnapshot/-/electron-mksnapshot-2.0.0.tgz#c7a9e95b86693fdfe60ea7b65df6c237009e4be8"
   dependencies:
     electron-download "^4.1.0"
     extract-zip "^1.6.5"
