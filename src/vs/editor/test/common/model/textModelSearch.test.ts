@@ -633,4 +633,93 @@ suite('TextModelSearch', () => {
 		assertParseSearchResult('foo\\r', true, false, null, new SearchData(/foo\r/gim, null, null));
 		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/gi, null, null));
 	});
+
+	test('issue #53415. \W should match line break.', () => {
+		assertFindMatches(
+			[
+				'text',
+				'180702-',
+				'180703-180704'
+			].join('\n'),
+			'\\d{6}-\\W', true, false, null,
+			[
+				[2, 1, 3, 1]
+			]
+		);
+
+		assertFindMatches(
+			[
+				'Just some text',
+				'',
+				'Just'
+			].join('\n'),
+			'\\W', true, false, null,
+			[
+				[1, 5, 1, 6],
+				[1, 10, 1, 11],
+				[1, 15, 2, 1],
+				[2, 1, 3, 1]
+			]
+		);
+
+		// Line break doesn't affect the result as we always use \n as line break when doing search
+		assertFindMatches(
+			[
+				'Just some text',
+				'',
+				'Just'
+			].join('\r\n'),
+			'\\W', true, false, null,
+			[
+				[1, 5, 1, 6],
+				[1, 10, 1, 11],
+				[1, 15, 2, 1],
+				[2, 1, 3, 1]
+			]
+		);
+
+		assertFindMatches(
+			[
+				'Just some text',
+				'\tJust',
+				'Just'
+			].join('\n'),
+			'\\W', true, false, null,
+			[
+				[1, 5, 1, 6],
+				[1, 10, 1, 11],
+				[1, 15, 2, 1],
+				[2, 1, 2, 2],
+				[2, 6, 3, 1],
+			]
+		);
+
+		// line break is seen as one non-word character
+		assertFindMatches(
+			[
+				'Just  some text',
+				'',
+				'Just'
+			].join('\n'),
+			'\\W{2}', true, false, null,
+			[
+				[1, 5, 1, 7],
+				[1, 16, 3, 1]
+			]
+		);
+
+		// even if it's \r\n
+		assertFindMatches(
+			[
+				'Just  some text',
+				'',
+				'Just'
+			].join('\r\n'),
+			'\\W{2}', true, false, null,
+			[
+				[1, 5, 1, 7],
+				[1, 16, 3, 1]
+			]
+		);
+	});
 });
