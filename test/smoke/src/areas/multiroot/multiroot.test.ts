@@ -13,7 +13,7 @@ export function setup() {
 
 			// restart with preventing additional windows from restoring
 			// to ensure the window after restart is the multi-root workspace
-			await app.restart({ workspaceOrFolder: app.workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+			await app.restart({ workspaceFilePath: app.workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
 		});
 
 		it('shows results from all folders', async function () {
