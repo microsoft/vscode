@@ -47,7 +47,8 @@ export class ParameterHintsModel extends Disposable {
 	private editor: ICodeEditor;
 	private enabled: boolean;
 	private triggerCharactersListeners: IDisposable[];
-	private active: boolean;
+	private active: boolean = false;
+	private pending: boolean = false;
 	private triggerChars = new CharacterSet();
 
 	private triggerContext: modes.SignatureHelpContext | undefined;
@@ -66,8 +67,6 @@ export class ParameterHintsModel extends Disposable {
 
 		this.throttledDelayer = new RunOnceScheduler(() => this.doTrigger(), delay);
 
-		this.active = false;
-
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
@@ -82,6 +81,7 @@ export class ParameterHintsModel extends Disposable {
 
 	cancel(silent: boolean = false): void {
 		this.active = false;
+		this.pending = false;
 		this.triggerContext = undefined;
 
 		this.throttledDelayer.cancel();
@@ -111,12 +111,17 @@ export class ParameterHintsModel extends Disposable {
 			this.provideSignatureHelpRequest.cancel();
 		}
 
-		this.provideSignatureHelpRequest = createCancelablePromise(token =>
-			provideSignatureHelp(this.editor.getModel(), this.editor.getPosition(), this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, token));
+		this.pending = true;
 
+		const triggerContext = this.triggerContext || { triggerReason: modes.SignatureHelpTriggerReason.Invoke };
 		this.triggerContext = undefined;
 
+		this.provideSignatureHelpRequest = createCancelablePromise(token =>
+			provideSignatureHelp(this.editor.getModel(), this.editor.getPosition(), triggerContext, token));
+
 		this.provideSignatureHelpRequest.then(result => {
+			this.pending = false;
+
 			if (!result || !result.signatures || result.signatures.length === 0) {
 				this.cancel();
 				this._onCancel.fire(void 0);
@@ -128,11 +133,14 @@ export class ParameterHintsModel extends Disposable {
 			this._onHint.fire(event);
 			return true;
 
-		}).catch(onUnexpectedError);
+		}).catch(error => {
+			this.pending = false;
+			onUnexpectedError(error);
+		});
 	}
 
 	get isTriggered(): boolean {
-		return this.active || this.throttledDelayer.isScheduled();
+		return this.active || this.pending || this.throttledDelayer.isScheduled();
 	}
 
 	private onModelChanged(): void {

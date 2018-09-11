@@ -30,6 +30,14 @@ function createMockEditor(model: TextModel): TestCodeEditor {
 }
 
 
+const emptySigHelpResult = {
+	signatures: [{
+		label: 'none',
+		parameters: []
+	}],
+	activeParameter: 0,
+	activeSignature: 0
+};
 suite('ParameterHintsModel', () => {
 	let disposables: IDisposable[] = [];
 
@@ -45,7 +53,7 @@ suite('ParameterHintsModel', () => {
 		disposables.push(new ParameterHintsModel(editor));
 
 		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters: string[] = ['('];
+			signatureHelpTriggerCharacters = ['('];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
@@ -58,6 +66,38 @@ suite('ParameterHintsModel', () => {
 		editor.trigger('keyboard', Handler.Type, { text: '(' });
 	});
 
+	test('Provider should be retriggered if already active', (done) => {
+		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
+		disposables.push(textModel);
+
+		const editor = createMockEditor(textModel);
+		disposables.push(new ParameterHintsModel(editor));
+
+		let invokeCount = 0;
+		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+			signatureHelpTriggerCharacters = ['('];
+
+			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
+				++invokeCount;
+				if (invokeCount === 1) {
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
+					assert.strictEqual(context.triggerCharacter, '(');
+					// Retrigger
+					editor.trigger('keyboard', Handler.Type, { text: '(' });
+				} else {
+					assert.strictEqual(invokeCount, 2);
+					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
+					assert.strictEqual(context.triggerCharacter, '(');
+					done();
+				}
+				return emptySigHelpResult;
+			}
+		}));
+
+		editor.trigger('keyboard', Handler.Type, { text: '(' });
+	});
+
+
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
 		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(textModel);
@@ -67,7 +107,7 @@ suite('ParameterHintsModel', () => {
 
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters: string[] = ['a', 'b', 'c'];
+			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
@@ -98,7 +138,7 @@ suite('ParameterHintsModel', () => {
 
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters: string[] = ['a', 'b'];
+			signatureHelpTriggerCharacters = ['a', 'b'];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
@@ -116,14 +156,7 @@ suite('ParameterHintsModel', () => {
 					assert.fail('Unexpected invoke');
 				}
 
-				return {
-					signatures: [{
-						label: 'none',
-						parameters: []
-					}],
-					activeParameter: 0,
-					activeSignature: 0
-				};
+				return emptySigHelpResult;
 			}
 		}));
 
@@ -140,7 +173,7 @@ suite('ParameterHintsModel', () => {
 		let didRequestCancellationOf = -1;
 		let invokeCount = 0;
 		const longRunningProvider = new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters: string[] = [];
+			signatureHelpTriggerCharacters = [];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				const count = invokeCount++;
