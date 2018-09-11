@@ -27,7 +27,7 @@ import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { asThenable } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -361,20 +361,38 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.filesymbols';
 
-	private outlineToModelCache: { [modelId: string]: OutlineModel; };
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
+
+	private cachedOutlineRequest: TPromise<OutlineModel>;
+	private pendingOutlineRequest: CancellationTokenSource;
 
 	constructor(
 		@IEditorService private editorService: IEditorService
 	) {
 		super();
 
-		this.outlineToModelCache = {};
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange());
+	}
+
+	private onDidActiveEditorChange(): void {
+		this.clearOutlineRequest();
+
+		this.lastKnownEditorViewState = void 0;
+		this.rangeHighlightDecorationId = void 0;
 	}
 
 	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Support to cancel pending outline requests
+		if (!this.pendingOutlineRequest) {
+			this.pendingOutlineRequest = new CancellationTokenSource();
+		}
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
@@ -383,7 +401,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.doGetActiveOutline(token).then(outline => {
+		return this.getOutline().then(outline => {
 			if (token.isCancellationRequested) {
 				return outline;
 			}
@@ -460,7 +478,15 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return results;
 	}
 
-	private doGetActiveOutline(token: CancellationToken): TPromise<OutlineModel> {
+	private getOutline(): TPromise<OutlineModel> {
+		if (!this.cachedOutlineRequest) {
+			this.cachedOutlineRequest = this.doGetActiveOutline();
+		}
+
+		return this.cachedOutlineRequest;
+	}
+
+	private doGetActiveOutline(): TPromise<OutlineModel> {
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (activeTextEditorWidget) {
 			let model = activeTextEditorWidget.getModel();
@@ -469,20 +495,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-
-				// Ask cache first
-				const modelId = (<ITextModel>model).id;
-				if (this.outlineToModelCache[modelId]) {
-					return TPromise.as(this.outlineToModelCache[modelId]);
-				}
-
-				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, true, token)).then(entries => {
-					const model = new OutlineModel(this.toQuickOpenEntries(entries));
-
-					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
-					this.outlineToModelCache[modelId] = model;
-
-					return model;
+				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
+					return new OutlineModel(this.toQuickOpenEntries(entries));
 				}));
 			}
 		}
@@ -537,7 +551,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	clearDecorations(): void {
+	private clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
 				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
@@ -557,8 +571,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 	onClose(canceled: boolean): void {
 
-		// Clear Cache
-		this.outlineToModelCache = {};
+		// Cancel any pending/cached outline request now
+		this.clearOutlineRequest();
 
 		// Clear Highlight Decorations if present
 		this.clearDecorations();
@@ -569,8 +583,18 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			if (activeTextEditorWidget) {
 				activeTextEditorWidget.restoreViewState(this.lastKnownEditorViewState);
 			}
+
+			this.lastKnownEditorViewState = null;
+		}
+	}
+
+	private clearOutlineRequest(): void {
+		if (this.pendingOutlineRequest) {
+			this.pendingOutlineRequest.cancel();
+			this.pendingOutlineRequest.dispose();
+			this.pendingOutlineRequest = void 0;
 		}
 
-		this.lastKnownEditorViewState = null;
+		this.cachedOutlineRequest = null;
 	}
 }
