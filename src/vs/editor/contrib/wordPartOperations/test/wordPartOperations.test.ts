@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
-import { DeleteWordPartLeft, DeleteWordPartRight, CursorWordPartLeft, CursorWordPartRight } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+import { DeleteWordPartLeft, DeleteWordPartRight, CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect } from 'vs/editor/contrib/wordPartOperations/wordPartOperations';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { deserializePipePositions, testRepeatedActionAndExtractPositions, serializePipePositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
@@ -15,16 +15,18 @@ suite('WordPartOperations', () => {
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
 	const _deleteWordPartRight = new DeleteWordPartRight();
 	const _cursorWordPartLeft = new CursorWordPartLeft();
+	const _cursorWordPartLeftSelect = new CursorWordPartLeftSelect();
 	const _cursorWordPartRight = new CursorWordPartRight();
+	const _cursorWordPartRightSelect = new CursorWordPartRightSelect();
 
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
 	}
 	function cursorWordPartLeft(editor: ICodeEditor, inSelectionmode: boolean = false): void {
-		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeft : _cursorWordPartLeft);
+		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeftSelect : _cursorWordPartLeft);
 	}
 	function cursorWordPartRight(editor: ICodeEditor, inSelectionmode: boolean = false): void {
-		runEditorCommand(editor, inSelectionmode ? _cursorWordPartLeft : _cursorWordPartRight);
+		runEditorCommand(editor, inSelectionmode ? _cursorWordPartRightSelect : _cursorWordPartRight);
 	}
 	function deleteWordPartLeft(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordPartLeft);
@@ -98,7 +100,7 @@ suite('WordPartOperations', () => {
 	});
 
 	test('cursorWordPartRight - issue #53899: whitespace', () => {
-		const EXPECTED = 'myvar| =| \'demonstration|     |of| |selection| |with| |space|\'|';
+		const EXPECTED = 'myvar| |=| |\'|demonstration|     |of| |selection| |with| |space|\'|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -112,7 +114,7 @@ suite('WordPartOperations', () => {
 	});
 
 	test('cursorWordPartRight - issue #53899: underscores', () => {
-		const EXPECTED = 'myvar| =| \'demonstration_____|of| |selection| |with| |space|\'|';
+		const EXPECTED = 'myvar| |=| |\'|demonstration_____|of| |selection| |with| |space|\'|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -120,6 +122,25 @@ suite('WordPartOperations', () => {
 			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 52))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordPartRight - issue #53899: second case', () => {
+		const EXPECTED = [
+			';| |--| |1|',
+			'|;|        |--| |2|',
+			'|;|    |#|3|',
+			'|;|   |#|4|'
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordPartRight(ed),
+			ed => ed.getPosition(),
+			ed => ed.getPosition().equals(new Position(4, 7))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -140,7 +161,7 @@ suite('WordPartOperations', () => {
 	});
 
 	test('deleteWordPartRight - basic', () => {
-		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| 3| +|5|-|3| */|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|';
+		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
