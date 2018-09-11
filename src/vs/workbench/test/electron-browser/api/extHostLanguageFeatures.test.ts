@@ -24,7 +24,7 @@ import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapSe
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover, ResourceTextEdit } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
@@ -133,7 +133,7 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- outline
 
 	test('DocumentSymbols, register/deregister', function () {
-		assert.equal(DocumentSymbolProviderRegistry.all(model).length, 0);
+		assert.equal(modes.DocumentSymbolProviderRegistry.all(model).length, 0);
 		let d1 = extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
 			provideDocumentSymbols() {
 				return <vscode.SymbolInformation[]>[];
@@ -141,7 +141,7 @@ suite('ExtHostLanguageFeatures', function () {
 		});
 
 		return rpcProtocol.sync().then(() => {
-			assert.equal(DocumentSymbolProviderRegistry.all(model).length, 1);
+			assert.equal(modes.DocumentSymbolProviderRegistry.all(model).length, 1);
 			d1.dispose();
 			return rpcProtocol.sync();
 		});
@@ -443,7 +443,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 			return getHover(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 				assert.equal(value.length, 2);
-				let [first, second] = value as Hover[];
+				let [first, second] = value as modes.Hover[];
 				assert.equal(first.contents[0].value, 'registered second');
 				assert.equal(second.contents[0].value, 'registered first');
 			});
@@ -489,7 +489,7 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-				assert.equal(entry.kind, DocumentHighlightKind.Text);
+				assert.equal(entry.kind, modes.DocumentHighlightKind.Text);
 			});
 		});
 	});
@@ -513,7 +513,7 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-				assert.equal(entry.kind, DocumentHighlightKind.Text);
+				assert.equal(entry.kind, modes.DocumentHighlightKind.Text);
 			});
 		});
 	});
@@ -537,7 +537,7 @@ suite('ExtHostLanguageFeatures', function () {
 				assert.equal(value.length, 1);
 				let [entry] = value;
 				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
-				assert.equal(entry.kind, DocumentHighlightKind.Text);
+				assert.equal(entry.kind, modes.DocumentHighlightKind.Text);
 			});
 		});
 	});
@@ -838,8 +838,8 @@ suite('ExtHostLanguageFeatures', function () {
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
 				// least relevant rename provider
 				assert.equal(value.edits.length, 2);
-				assert.equal((<ResourceTextEdit>value.edits[0]).edits.length, 1);
-				assert.equal((<ResourceTextEdit>value.edits[1]).edits.length, 1);
+				assert.equal((<modes.ResourceTextEdit>value.edits[0]).edits.length, 1);
+				assert.equal((<modes.ResourceTextEdit>value.edits[1]).edits.length, 1);
 			});
 		});
 	});
@@ -866,7 +866,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
 				assert.ok(value);
 			});
 		});
@@ -881,7 +881,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		return rpcProtocol.sync().then(() => {
 
-			return provideSignatureHelp(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+			return provideSignatureHelp(model, new EditorPosition(1, 1), { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None).then(value => {
 				assert.equal(value, undefined);
 			});
 		});

@@ -16,6 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as modes from 'vs/editor/common/modes';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -49,8 +50,8 @@ class ParameterHintsController implements IEditorContribution {
 		this.widget.next();
 	}
 
-	trigger(): void {
-		this.widget.trigger();
+	trigger(context: modes.SignatureHelpContext): void {
+		this.widget.trigger(context);
 	}
 
 	dispose(): void {
@@ -77,7 +78,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
-			controller.trigger();
+			controller.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Invoke });
 		}
 	}
 }
