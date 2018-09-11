@@ -46,10 +46,10 @@ class RenameSkeleton {
 		return this._provider.length > 0;
 	}
 
-	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation> {
+	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection> {
 
 		let [provider] = this._provider;
-		let res: RenameLocation;
+		let res: RenameLocation & Rejection;
 
 		if (provider.resolveRenameLocation) {
 			res = await provider.resolveRenameLocation(this.model, this.position, token);
@@ -136,7 +136,7 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 
-		let loc: RenameLocation;
+		let loc: RenameLocation & Rejection;
 		try {
 			loc = await skeleton.resolveRenameLocation(token);
 		} catch (e) {
@@ -145,6 +145,11 @@ class RenameController implements IEditorContribution {
 		}
 
 		if (!loc) {
+			return undefined;
+		}
+
+		if (loc.rejectReason) {
+			MessageController.get(this.editor).showMessage(loc.rejectReason, position);
 			return undefined;
 		}
 

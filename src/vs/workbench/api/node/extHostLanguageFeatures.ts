@@ -492,24 +492,17 @@ class RenameAdapter {
 			}
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
-			if (typeof err === 'string') {
-				return <WorkspaceEditDto>{
-					edits: undefined,
-					rejectReason: err
-				};
-			} else if (err instanceof Error && typeof err.message === 'string') {
-				return <WorkspaceEditDto>{
-					edits: undefined,
-					rejectReason: err.message
-				};
+			let rejectReason = RenameAdapter._asMessage(err);
+			if (rejectReason) {
+				return <WorkspaceEditDto>{ rejectReason, edits: undefined };
 			} else {
 				// generic error
-				return TPromise.wrapError<WorkspaceEditDto>(err);
+				return Promise.reject<WorkspaceEditDto>(err);
 			}
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation> {
+	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation & modes.Rejection> {
 		if (typeof this._provider.prepareRename !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -539,7 +532,24 @@ class RenameAdapter {
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
+		}, err => {
+			let rejectReason = RenameAdapter._asMessage(err);
+			if (rejectReason) {
+				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
+			} else {
+				return Promise.reject(err);
+			}
 		});
+	}
+
+	private static _asMessage(err: any): string {
+		if (typeof err === 'string') {
+			return err;
+		} else if (err instanceof Error && typeof err.message === 'string') {
+			return err.message;
+		} else {
+			return undefined;
+		}
 	}
 }
 

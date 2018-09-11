@@ -941,7 +941,7 @@ export interface WorkspaceEdit {
 }
 
 export interface Rejection {
-	rejectReason?: string; // TODO@joh, move to rename
+	rejectReason?: string;
 }
 export interface RenameLocation {
 	range: IRange;
@@ -950,7 +950,7 @@ export interface RenameLocation {
 
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
-	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
 
