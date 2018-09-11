@@ -4,7 +4,7 @@
 	"reloadProjects.title": "Reload Project",
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
-	"typescript.useCodeSnippetsOnMethodSuggest.deprecationMessage": "Please use the new `javascript.suggest.insertParametersForFunctionCalls` and `typescriptscript.suggest.insertParametersForFunctionCalls` settings.",
+	"typescript.useCodeSnippetsOnMethodSuggest.deprecationMessage": "Please use the new `javascript.suggest.insertParametersForFunctionCalls` and `typescript.suggest.insertParametersForFunctionCalls` settings.",
 	"configuration.suggest.insertParametersForFunctionCalls": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
 	"typescript.disableAutomaticTypeAcquisition": "Disables automatic type acquisition.",
