@@ -317,6 +317,7 @@ function isReadOnly(operation: Operation): boolean {
 		case Operation.GetCommitTemplate:
 		case Operation.CheckIgnore:
 		case Operation.GetObjectDetails:
+		case Operation.MergeBase:
 			return true;
 		default:
 			return false;
