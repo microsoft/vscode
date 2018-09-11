@@ -70,6 +70,10 @@
 	cursor: pointer;
 }
 
+.monaco-shell .context-view {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
 }

@@ -1077,7 +1077,7 @@ export class Workbench extends Disposable implements IPartService {
 		part.id = id;
 		part.setAttribute('role', role);
 
-		this.workbench.appendChild(part);
+		this.workbench.insertBefore(part, this.workbench.lastChild);
 
 		return part;
 	}
