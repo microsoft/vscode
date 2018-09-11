@@ -84,13 +84,11 @@ export class Lock {
 		var lock = this.getLock(item);
 
 		if (lock) {
-			var unbindListener: IDisposable;
-
 			return new WinJS.TPromise((c, e) => {
-				unbindListener = once(lock.onDispose)(() => {
+				once(lock.onDispose)(() => {
 					return this.run(item, fn).then(c, e);
 				});
-			}, () => { unbindListener.dispose(); });
+			});
 		}
 
 		var result: WinJS.Promise;

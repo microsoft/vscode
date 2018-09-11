@@ -129,8 +129,6 @@ export class Throttler {
 
 				this.queuedPromise = new TPromise(c => {
 					this.activePromise.then(onComplete, onComplete).then(c);
-				}, () => {
-					this.activePromise.cancel();
 				});
 			}
 
@@ -149,8 +147,6 @@ export class Throttler {
 				this.activePromise = null;
 				e(err);
 			});
-		}, () => {
-			this.activePromise.cancel();
 		});
 	}
 }
@@ -192,13 +188,14 @@ export class Delayer<T> {
 
 	private timeout: number;
 	private completionPromise: TPromise;
-	private onSuccess: ValueCallback;
+	private doResolve: ValueCallback;
+	private doReject: (err: any) => void;
 	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
 		this.completionPromise = null;
-		this.onSuccess = null;
+		this.doResolve = null;
 		this.task = null;
 	}
 
@@ -207,13 +204,12 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new TPromise((c) => {
-				this.onSuccess = c;
-			}, () => {
-				// no-op
+			this.completionPromise = new TPromise((c, e) => {
+				this.doResolve = c;
+				this.doReject = e;
 			}).then(() => {
 				this.completionPromise = null;
-				this.onSuccess = null;
+				this.doResolve = null;
 				const task = this.task;
 				this.task = null;
 
@@ -223,7 +219,7 @@ export class Delayer<T> {
 
 		this.timeout = setTimeout(() => {
 			this.timeout = null;
-			this.onSuccess(null);
+			this.doResolve(null);
 		}, delay);
 
 		return this.completionPromise;
@@ -237,7 +233,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.completionPromise.cancel();
+			this.doReject(errors.canceled());
 			this.completionPromise = null;
 		}
 	}
@@ -299,26 +295,6 @@ export class Barrier {
 
 	wait(): TPromise<boolean> {
 		return this._promise;
-	}
-}
-
-export class ShallowCancelThenPromise<T> extends TPromise<T> {
-
-	constructor(outer: TPromise<T>) {
-
-		let completeCallback: ValueCallback,
-			errorCallback: ErrorCallback;
-
-		super((c, e) => {
-			completeCallback = c;
-			errorCallback = e;
-		}, () => {
-			// cancel this promise but not the
-			// outer promise
-			errorCallback(errors.canceled());
-		});
-
-		outer.then(completeCallback, errorCallback);
 	}
 }
 
