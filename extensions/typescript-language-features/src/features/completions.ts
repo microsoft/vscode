@@ -459,7 +459,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			const preText = document.getText(new vscode.Range(
 				position.line, 0,
 				position.line, position.character - 1));
-			return preText.match(/(^|[a-z_$\(\)\[\]\{\}])\s*$/ig) !== null;
+			return preText.match(/(^|[a-z_$\(\)\[\]\{\}]|[^.]\.)\s*$/ig) !== null;
 		}
 
 		return true;
