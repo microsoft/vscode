@@ -66,9 +66,14 @@ function showPartsSplash(configuration) {
 		// ignore
 	}
 
-	// high contrast mode has been turned on, ignore stored colors and layouts
+	// high contrast mode has been turned on from the outside, e.g OS -> ignore stored colors and layouts
 	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
-		data = void 0;
+		data = undefined;
+	}
+
+	// developing an extension -> ignore stored layouts
+	if (data && configuration.extensionDevelopmentPath) {
+		data.layoutInfo = undefined;
 	}
 
 	// minimal color configuration (works with or without persisted data)
