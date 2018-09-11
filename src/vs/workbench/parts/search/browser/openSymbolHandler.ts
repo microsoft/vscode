@@ -15,7 +15,7 @@ import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/comm
 import * as filters from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -71,10 +71,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	run(mode: Mode, context: IEntryRunContext): boolean {
 
 		// resolve this type bearing if neccessary
-		if (!this.bearingResolve
-			&& typeof this.provider.resolveWorkspaceSymbol === 'function'
-			&& !this.bearing.location.range
-		) {
+		if (!this.bearingResolve && typeof this.provider.resolveWorkspaceSymbol === 'function' && !this.bearing.location.range) {
 			this.bearingResolve = Promise.resolve(this.provider.resolveWorkspaceSymbol(this.bearing, CancellationToken.None)).then(result => {
 				this.bearing = result || this.bearing;
 
@@ -90,7 +87,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		return mode === Mode.OPEN;
 	}
 
-	getInput(): IResourceInput | EditorInput {
+	getInput(): IResourceInput {
 		const input: IResourceInput = {
 			resource: this.bearing.location.uri,
 			options: {
@@ -130,7 +127,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.symbols';
 
-	private static readonly SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
+	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
@@ -138,7 +135,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 
-		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
+		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.TYPING_SEARCH_DELAY);
 		this.options = Object.create(null);
 	}
 
