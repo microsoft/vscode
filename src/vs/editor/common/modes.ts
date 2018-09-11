@@ -938,16 +938,18 @@ export interface ResourceTextEdit {
 
 export interface WorkspaceEdit {
 	edits: Array<ResourceTextEdit | ResourceFileEdit>;
-	rejectReason?: string; // TODO@joh, move to rename
 }
 
+export interface Rejection {
+	rejectReason?: string; // TODO@joh, move to rename
+}
 export interface RenameLocation {
 	range: IRange;
 	text: string;
 }
 
 export interface RenameProvider {
-	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
+	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
 }
 

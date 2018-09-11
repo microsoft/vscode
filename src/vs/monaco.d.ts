@@ -5310,6 +5310,9 @@ declare namespace monaco.languages {
 
 	export interface WorkspaceEdit {
 		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	}
+
+	export interface Rejection {
 		rejectReason?: string;
 	}
 
@@ -5319,7 +5322,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface RenameProvider {
-		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
+		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
 		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
 	}
 

@@ -18,7 +18,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation } from 'vs/editor/common/modes';
+import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation, Rejection } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
@@ -68,7 +68,7 @@ class RenameSkeleton {
 		return res;
 	}
 
-	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit> {
+	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
 
 		if (i >= this._provider.length) {
 			return {
@@ -88,7 +88,7 @@ class RenameSkeleton {
 	}
 }
 
-export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit> {
+export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
 	return new RenameSkeleton(model, position).provideRenameEdits(newName, undefined, undefined, CancellationToken.None);
 }
 
