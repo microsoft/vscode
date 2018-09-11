@@ -12,22 +12,15 @@ import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ParameterHintsModel } from '../parameterHintsWidget';
 
-function createMockEditor(model: TextModel): TestCodeEditor {
-	return createTestCodeEditor({
-		model: model,
-		serviceCollection: new ServiceCollection(
-			[ITelemetryService, NullTelemetryService],
-			[IStorageService, NullStorageService]
-		)
-	});
-}
+const mockFile = URI.parse('test:somefile.ttt');
+const mockFileSelector = { scheme: 'test' };
 
 
 const emptySigHelpResult = {
@@ -45,16 +38,27 @@ suite('ParameterHintsModel', () => {
 		disposables = dispose(disposables);
 	});
 
+	function createMockEditor(fileContents: string) {
+		const textModel = TextModel.createFromString(fileContents, undefined, undefined, mockFile);
+		const editor = createTestCodeEditor({
+			model: textModel,
+			serviceCollection: new ServiceCollection(
+				[ITelemetryService, NullTelemetryService],
+				[IStorageService, NullStorageService]
+			)
+		});
+		disposables.push(textModel);
+		disposables.push(editor);
+		return editor;
+	}
+
 	test('Provider should get trigger character on type', (done) => {
 		const triggerChar = '(';
 
-		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(textModel);
-
-		const editor = createMockEditor(textModel);
+		const editor = createMockEditor('');
 		disposables.push(new ParameterHintsModel(editor));
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
@@ -71,14 +75,11 @@ suite('ParameterHintsModel', () => {
 	test('Provider should be retriggered if already active', (done) => {
 		const triggerChar = '(';
 
-		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(textModel);
-
-		const editor = createMockEditor(textModel);
+		const editor = createMockEditor('');
 		disposables.push(new ParameterHintsModel(editor));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
@@ -103,15 +104,13 @@ suite('ParameterHintsModel', () => {
 
 	test('Provider should not be retriggered if previous help is canceled first', (done) => {
 		const triggerChar = '(';
-		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(textModel);
 
-		const editor = createMockEditor(textModel);
+		const editor = createMockEditor('');
 		const hintModel = new ParameterHintsModel(editor);
 		disposables.push(hintModel);
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
@@ -137,14 +136,11 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
-		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(textModel);
-
-		const editor = createMockEditor(textModel);
+		const editor = createMockEditor('');
 		disposables.push(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b', 'c'];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
@@ -168,14 +164,11 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should be retriggered if already active', (done) => {
-		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(textModel);
-
-		const editor = createMockEditor(textModel);
+		const editor = createMockEditor('');
 		disposables.push(new ParameterHintsModel(editor, 5));
 
 		let invokeCount = 0;
-		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, new class implements modes.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = ['a', 'b'];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
@@ -202,10 +195,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Should cancel existing request when new request comes in', () => {
-		const textModel = TextModel.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(textModel);
-
-		const editor = createMockEditor(textModel);
+		const editor = createMockEditor('abc def');
 		const hintsModel = new ParameterHintsModel(editor);
 
 		let didRequestCancellationOf = -1;
@@ -237,7 +227,7 @@ suite('ParameterHintsModel', () => {
 			}
 		};
 
-		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, longRunningProvider));
+		disposables.push(modes.SignatureHelpProviderRegistry.register(mockFileSelector, longRunningProvider));
 
 		hintsModel.trigger({ triggerReason: modes.SignatureHelpTriggerReason.Invoke }, 0);
 		assert.strictEqual(-1, didRequestCancellationOf);
