@@ -26,7 +26,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 		const renameInfo = body.info;
 		if (!renameInfo.canRename) {
-			return Promise.reject<vscode.Range>(new Error(renameInfo.localizedErrorMessage));
+			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
 		}
 		return null;
 	}
