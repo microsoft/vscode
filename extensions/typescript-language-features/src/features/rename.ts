@@ -14,31 +14,31 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
+	public async prepareRename(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.Range | null> {
+		const body = await this.execRename(document, position, token);
+		if (!body) {
+			return null;
+		}
+
+		const renameInfo = body.info;
+		if (!renameInfo.canRename) {
+			return Promise.reject<vscode.Range>(new Error(renameInfo.localizedErrorMessage));
+		}
+		return null;
+	}
+
 	public async provideRenameEdits(
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		newName: string,
 		token: vscode.CancellationToken
 	): Promise<vscode.WorkspaceEdit | null> {
-		const file = this.client.toPath(document.uri);
-		if (!file) {
-			return null;
-		}
-
-		const args: Proto.RenameRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(file, position),
-			findInStrings: false,
-			findInComments: false
-		};
-
-		let body: Proto.RenameResponseBody | undefined;
-		try {
-			body = (await this.client.execute('rename', args, token)).body;
-			if (!body) {
-				return null;
-			}
-		} catch {
-			// noop
+		const body = await this.execRename(document, position, token);
+		if (!body) {
 			return null;
 		}
 
@@ -47,6 +47,30 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
 		}
 		return this.toWorkspaceEdit(body.locs, newName);
+	}
+
+	public async execRename(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<Proto.RenameResponseBody | undefined> {
+		const file = this.client.toPath(document.uri);
+		if (!file) {
+			return undefined;
+		}
+
+		const args: Proto.RenameRequestArgs = {
+			...typeConverters.Position.toFileLocationRequestArgs(file, position),
+			findInStrings: false,
+			findInComments: false
+		};
+
+		try {
+			return (await this.client.execute('rename', args, token)).body;
+		} catch {
+			// noop
+			return undefined;
+		}
 	}
 
 	private toWorkspaceEdit(
