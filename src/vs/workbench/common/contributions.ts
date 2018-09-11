@@ -6,7 +6,8 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 
 // --- Workbench Contribution Registry
 
@@ -45,7 +46,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 
 	private toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
 
-	public registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+	registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
 		// Instantiate directly if we are already matching the provided phase
 		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
@@ -64,7 +65,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		}
 	}
 
-	public start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
+	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
 		this.instantiationService = instantiationService;
 		this.lifecycleService = lifecycleService;
 
@@ -89,12 +90,15 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	}
 
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
+		mark(`LifecyclePhase/${LifecyclePhaseToString(phase)}/createContrib:start`);
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
 			while (toBeInstantiated.length > 0) {
-				instantiationService.createInstance(toBeInstantiated.shift());
+				const ctor = toBeInstantiated.shift();
+				instantiationService.createInstance(ctor);
 			}
 		}
+		mark(`LifecyclePhase/${LifecyclePhaseToString(phase)}/createContrib:end`);
 	}
 }
 

@@ -77,9 +77,9 @@
 		"watch": "gulp watch-extension:php"
 	},
 	"dependencies": {
-		"vscode-nls": "^3.2.1"
+		"vscode-nls": "^4.0.0"
 	},
 	"devDependencies": {
-		"@types/node": "7.0.43"
+		"@types/node": "^8.10.25"
 	}
 }

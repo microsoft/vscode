@@ -13,24 +13,22 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Event, once, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, IEditorOpeningEvent, EditorGroupsServiceImpl, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -65,9 +63,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	constructor(
 		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILabelService private labelService: ILabelService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -235,15 +232,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return this.doOpenEditor(targetGroup, editor, editorOptions);
 		}
 
-		// Throw error for well known foreign resources (such as a http link) (TODO@ben remove me after this has been adopted)
-		const resourceInput = <IResourceInput>editor;
-		if (resourceInput.resource instanceof URI) {
-			const schema = resourceInput.resource.scheme;
-			if (schema === Schemas.http || schema === Schemas.https) {
-				return TPromise.wrapError(new Error('Invalid scheme http/https to open resource as editor. Use IOpenerService instead.'));
-			}
-		}
-
 		// Untyped Text Editor Support
 		const textInput = <IResourceEditor>editor;
 		const typedInput = this.createInput(textInput);
@@ -269,18 +257,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return group;
 		}
 
-		// Group: Active Group
-		if (group === ACTIVE_GROUP) {
-			targetGroup = this.editorGroupService.activeGroup;
-		}
-
 		// Group: Side by Side
-		else if (group === SIDE_GROUP) {
+		if (group === SIDE_GROUP) {
 			targetGroup = this.findSideBySideGroup();
 		}
 
 		// Group: Specific Group
-		else if (typeof group === 'number') {
+		else if (typeof group === 'number' && group >= 0) {
 			targetGroup = this.editorGroupService.getGroup(group);
 		}
 
@@ -487,8 +470,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Side by Side Support
 		const resourceSideBySideInput = <IResourceSideBySideInput>input;
 		if (resourceSideBySideInput.masterResource && resourceSideBySideInput.detailResource) {
-			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource });
-			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource });
+			const masterInput = this.createInput({ resource: resourceSideBySideInput.masterResource, forceFile: resourceSideBySideInput.forceFile });
+			const detailInput = this.createInput({ resource: resourceSideBySideInput.detailResource, forceFile: resourceSideBySideInput.forceFile });
 
 			return new SideBySideEditorInput(
 				resourceSideBySideInput.label || masterInput.getName(),
@@ -501,9 +484,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Diff Editor Support
 		const resourceDiffInput = <IResourceDiffInput>input;
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
-			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
-			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService), this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService));
+			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
+			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
+			const label = resourceDiffInput.label || localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput), this.toDiffLabel(rightInput));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
@@ -527,13 +510,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				label = basename(resourceInput.resource.fsPath); // derive the label from the path (but not for data URIs)
 			}
 
-			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding) as EditorInput;
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, resourceInput.description, resourceInput.encoding, resourceInput.forceFile) as EditorInput;
 		}
 
 		return null;
 	}
 
-	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string): ICachedEditorInput {
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string, forceFile?: boolean): ICachedEditorInput {
 		if (EditorService.CACHE.has(resource)) {
 			const input = EditorService.CACHE.get(resource);
 			if (input instanceof ResourceEditorInput) {
@@ -549,7 +532,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let input: ICachedEditorInput;
 
 		// File
-		if (this.fileService.canHandleResource(resource)) {
+		if (forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
 		}
 
@@ -571,7 +554,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return input;
 	}
 
-	private toDiffLabel(input: EditorInput, context: IWorkspaceContextService, environment: IEnvironmentService): string {
+	private toDiffLabel(input: EditorInput): string {
 		const res = input.getResource();
 
 		// Do not try to extract any paths from simple untitled editors
@@ -580,7 +563,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return getPathLabel(res.fsPath, context, environment);
+		return this.labelService.getUriLabel(res, true);
 	}
 
 	//#endregion
@@ -600,18 +583,16 @@ export class DelegatingEditorService extends EditorService {
 	constructor(
 		@IEditorGroupsService editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			editorGroupService,
 			untitledEditorService,
-			workspaceContextService,
 			instantiationService,
-			environmentService,
+			labelService,
 			fileService,
 			configurationService
 		);

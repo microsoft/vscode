@@ -3,30 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .action-item.markers-panel-action-filter {
+.monaco-action-bar .markers-panel-action-filter-container {
 	cursor: default;
 	margin-right: 10px;
 	min-width: 150px;
 	max-width: 500px;
 	display: flex;
-	align-items: center;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter {
+.monaco-action-bar .markers-panel-action-filter-container {
 	flex: 0.7;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter.small {
+.monaco-action-bar .markers-panel-action-filter-container.small {
 	flex: 0.5;
 }
 
-.monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+.monaco-action-bar .markers-panel-action-filter {
+	display: flex;
+	align-items: center;
+	flex: 1;
+}
+
+.monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 24px;
 	font-size: 12px;
 	flex: 1;
 }
 
-.vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
+.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
 	border: 1px solid #ddd;
 }
@@ -47,7 +52,7 @@
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
-.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.small {
+.markers-panel-action-filter-container.small .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
 	display: none;
 }
 
@@ -67,6 +72,7 @@
 .markers-panel .markers-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
+	height: 100%;
 }
 
 .markers-panel .markers-panel-container .message-box-container .messageAction {
@@ -79,8 +85,7 @@
 	display: none;
 }
 
-.markers-panel .markers-panel-container .tree-container.hidden,
-.markers-panel .markers-panel-container .message-box-container.hidden {
+.markers-panel .markers-panel-container .tree-container.hidden {
 	display: none;
 	visibility: hidden;
 }
@@ -132,7 +137,7 @@
 	font-weight: bold;
 }
 
-.markers-panel .icon {
+.markers-panel .monaco-tree .markers-panel-tree-entry > .icon {
 	height: 22px;
 	margin-right: 6px;
 	flex: 0 0 16px;
@@ -160,4 +165,38 @@
 
 .vs-dark .markers-panel .icon.info {
 	background: url('status-info-inverse.svg') center center no-repeat;
+}
+
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb.svg') center/80% no-repeat;
+	margin-right: 0px;
+}
+
+.vs-dark .markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label.icon.markers-panel-action-quickfix {
+	background: url('lightbulb-dark.svg') center/80% no-repeat;
+}
+
+.markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions {
+	width: 16px;
+}
+
+.markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions .monaco-action-bar {
+	display: none;
+}
+
+.markers-panel .monaco-tree .monaco-tree-row:hover .markers-panel-tree-entry > .actions .monaco-action-bar,
+.markers-panel .monaco-tree .monaco-tree-row.selected .markers-panel-tree-entry > .actions .monaco-action-bar,
+.markers-panel .monaco-tree .monaco-tree-row.focused .markers-panel-tree-entry > .actions .monaco-action-bar {
+	display: block;
+}
+
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-label {
+	width: 16px;
+	height: 100%;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+}
+
+.markers-panel .monaco-tree .markers-panel-tree-entry .actions .action-item.disabled {
+	display: none;
 }

@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { TextModel as EditorModel } from 'vs/editor/common/model/textModel';
@@ -122,7 +122,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics, new NullLogService());
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -332,8 +332,40 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
+				assert.ok(first instanceof types.SymbolInformation);
+				assert.ok(second instanceof types.SymbolInformation);
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
+			});
+		});
+	});
+
+	test('vscode.executeDocumentSymbolProvider command only returns SymbolInformation[] rather than DocumentSymbol[] #57984', function () {
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				return [
+					new types.SymbolInformation('SymbolInformation', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0))
+				];
+			}
+		}));
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				let root = new types.DocumentSymbol('DocumentSymbol', 'DocumentSymbol#detail', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
+				root.children = [new types.DocumentSymbol('DocumentSymbol#child', 'DocumentSymbol#detail#child', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0))];
+				return [root];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
+				assert.equal(values.length, 2);
+				let [first, second] = values;
+				assert.ok(first instanceof types.SymbolInformation);
+				assert.ok(!(first instanceof types.DocumentSymbol));
+				assert.ok(second instanceof types.SymbolInformation);
+				assert.equal(first.name, 'DocumentSymbol');
+				assert.equal(first.children.length, 1);
+				assert.equal(second.name, 'SymbolInformation');
 			});
 		});
 	});
@@ -446,6 +478,65 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.ok(list instanceof types.CompletionList);
 		assert.equal(resolveCount, 2);
 
+	});
+
+	test('"vscode.executeCompletionItemProvider" doesnot return a preselect field #53749', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				a.preselect = true;
+				let b = new types.CompletionItem('item2');
+				let c = new types.CompletionItem('item3');
+				c.preselect = true;
+				let d = new types.CompletionItem('item4');
+				return new types.CompletionList([a, b, c, d], false);
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 4);
+
+		let [a, b, c, d] = list.items;
+		assert.equal(a.preselect, true);
+		assert.equal(b.preselect, undefined);
+		assert.equal(c.preselect, true);
+		assert.equal(d.preselect, undefined);
+	});
+
+	test('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				a.commitCharacters = ['a', 'b'];
+				let b = new types.CompletionItem('item2');
+				return new types.CompletionList([a, b], false);
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 2);
+
+		let [a, b] = list.items;
+		assert.deepEqual(a.commitCharacters, ['a', 'b']);
+		assert.equal(b.commitCharacters, undefined);
 	});
 
 	// --- quickfix
@@ -630,6 +721,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.additionalTextEdits[0].range.start.character, 20);
 				assert.equal(first.additionalTextEdits[0].range.end.line, 2);
 				assert.equal(first.additionalTextEdits[0].range.end.character, 20);
+			});
+		});
+	});
+
+	test('"TypeError: e.onCancellationRequested is not a function" calling hover provider in Insiders #54174', function () {
+
+		disposables.push(extHost.registerHoverProvider(defaultSelector, <vscode.HoverProvider>{
+			provideHover(): any {
+				return new types.Hover('fofofofo');
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', model.uri, new types.Position(1, 1)).then(value => {
+				assert.equal(value.length, 1);
+				assert.equal(value[0].contents.length, 1);
 			});
 		});
 	});

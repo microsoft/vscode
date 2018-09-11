@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
-export enum GroupDirection {
+export const enum GroupDirection {
 	UP,
 	DOWN,
 	LEFT,
@@ -31,12 +31,12 @@ export function preferredSideBySideGroupDirection(configurationService: IConfigu
 	return GroupDirection.RIGHT;
 }
 
-export enum GroupOrientation {
+export const enum GroupOrientation {
 	HORIZONTAL,
 	VERTICAL
 }
 
-export enum GroupLocation {
+export const enum GroupLocation {
 	FIRST,
 	LAST,
 	NEXT,
@@ -48,7 +48,7 @@ export interface IFindGroupScope {
 	location?: GroupLocation;
 }
 
-export enum GroupsArrangement {
+export const enum GroupsArrangement {
 
 	/**
 	 * Make the current active group consume the maximum
@@ -64,7 +64,7 @@ export enum GroupsArrangement {
 
 export interface GroupLayoutArgument {
 	size?: number;
-	groups?: Array<GroupLayoutArgument>;
+	groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {
@@ -84,7 +84,7 @@ export interface IAddGroupOptions {
 	activate?: boolean;
 }
 
-export enum MergeGroupMode {
+export const enum MergeGroupMode {
 	COPY_EDITORS,
 	MOVE_EDITORS
 }
@@ -106,7 +106,7 @@ export interface IEditorReplacement {
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
-export enum GroupsOrder {
+export const enum GroupsOrder {
 
 	/**
 	 * Groups sorted by creation order (oldest one first)
@@ -124,7 +124,7 @@ export enum GroupsOrder {
 	GRID_APPEARANCE
 }
 
-export enum EditorsOrder {
+export const enum EditorsOrder {
 
 	/**
 	 * Editors sorted by most recent activity (most recent active first)
@@ -290,7 +290,7 @@ export interface IEditorGroupsService {
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 }
 
-export enum GroupChangeKind {
+export const enum GroupChangeKind {
 
 	/* Group Changes */
 	GROUP_ACTIVE,

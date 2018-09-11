@@ -316,7 +316,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			resolvedVariables = TPromise.as(result);
 		}
 		return resolvedVariables.then((variables) => {
-			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, undefined, variables, this.configurationResolverService));
+			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, taskSystemInfo, variables, this.configurationResolverService));
 		});
 	}
 
@@ -329,9 +329,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
-				let toUnbind: IDisposable[] = [];
+				let toDispose: IDisposable[] = [];
 				let eventCounter: number = 0;
-				toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+				toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 					if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 						eventCounter++;
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -354,7 +354,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return;
 				}
 				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
+				terminal.processReady.then(() => {
 					processStartedSignaled = true;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
 				}, (_error) => {
@@ -397,8 +397,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (processStartedSignaled) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, exitCode));
 					}
-					toUnbind = dispose(toUnbind);
-					toUnbind = null;
+					toDispose = dispose(toDispose);
+					toDispose = null;
 					for (let i = 0; i < eventCounter; i++) {
 						let event = TaskEvent.create(TaskEventKind.Inactive, task);
 						this._onDidStateChange.fire(event);
@@ -415,7 +415,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return;
 				}
 				let processStartedSignaled: boolean = false;
-				terminal.processReady.done(() => {
+				terminal.processReady.then(() => {
 					processStartedSignaled = true;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId));
 				}, (_error) => {
@@ -517,6 +517,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance, string, TaskError | undefined] {
+		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
 		let commandExecutable = CommandString.value(command);
@@ -537,24 +538,25 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
+			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig, platform);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
-			if (shellOptions && shellOptions.executable) {
-				shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
-				shellSpecified = true;
+			if (shellOptions) {
+				if (shellOptions.executable) {
+					shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
+					shellSpecified = true;
+				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = this.resolveVariables(resolver, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
-			} else {
-				this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];
 			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
 			let windowsShellArgs: boolean = false;
-			if (Platform.isWindows) {
+			if (platform === Platform.Platform.Windows) {
 				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 				// safe to assume that this was used by accident as Sysnative does not
 				// exist and will break the terminal in non-WoW64 environments.
@@ -641,14 +643,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (options.cwd) {
 			let cwd = options.cwd;
-			if (!path.isAbsolute(cwd)) {
+			let p: typeof path;
+			// This must be normalized to the OS
+			if (platform === Platform.Platform.Windows) {
+				p = path.win32 as any;
+			} else if (platform === Platform.Platform.Linux || platform === Platform.Platform.Mac) {
+				p = path.posix as any;
+			} else {
+				p = path;
+			}
+			if (!p.isAbsolute(cwd)) {
 				let workspaceFolder = Task.getWorkspaceFolder(task);
 				if (workspaceFolder.uri.scheme === 'file') {
-					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
+					cwd = p.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = path.normalize(cwd);
+			shellLaunchConfig.cwd = p.normalize(cwd);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -959,13 +970,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let taskSystemInfo: TaskSystemInfo = resolver.taskSystemInfo;
 			let hasFilePrefix = matcher.filePrefix !== void 0;
-			let hasScheme = taskSystemInfo !== void 0 && taskSystemInfo.fileSystemScheme !== void 0 && taskSystemInfo.fileSystemScheme !== 'file';
-			if (!hasFilePrefix && !hasScheme) {
+			let hasUriProvider = taskSystemInfo !== void 0 && taskSystemInfo.uriProvider !== void 0;
+			if (!hasFilePrefix && !hasUriProvider) {
 				result.push(matcher);
 			} else {
 				let copy = Objects.deepClone(matcher);
-				if (hasScheme) {
-					copy.fileSystemScheme = taskSystemInfo.fileSystemScheme;
+				if (hasUriProvider) {
+					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
 					copy.filePrefix = this.resolveVariable(resolver, copy.filePrefix);

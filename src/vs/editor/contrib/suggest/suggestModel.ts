@@ -5,12 +5,11 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
@@ -18,7 +17,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
-import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems } from './suggest';
+import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -89,11 +89,11 @@ export class SuggestModel implements IDisposable {
 	private _toDispose: IDisposable[] = [];
 	private _quickSuggestDelay: number;
 	private _triggerCharacterListener: IDisposable;
-	private _triggerAutoSuggestPromise: TPromise<void>;
-	private _triggerRefilter = new TimeoutTimer();
+	private readonly _triggerQuickSuggest = new TimeoutTimer();
+	private readonly _triggerRefilter = new TimeoutTimer();
 	private _state: State;
 
-	private _requestPromise: TPromise<void>;
+	private _requestPromise: CancelablePromise<ISuggestionItem[]>;
 	private _context: LineContext;
 	private _currentSelection: Selection;
 
@@ -109,7 +109,6 @@ export class SuggestModel implements IDisposable {
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._state = State.Idle;
-		this._triggerAutoSuggestPromise = null;
 		this._requestPromise = null;
 		this._completionModel = null;
 		this._context = null;
@@ -135,8 +134,23 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.push(this._editor.onDidChangeCursorSelection(e => {
 			this._onCursorChange(e);
 		}));
-		this._toDispose.push(this._editor.onDidChangeModelContent(e => {
+
+		let editorIsComposing = false;
+		this._toDispose.push(this._editor.onCompositionStart(() => {
+			editorIsComposing = true;
+		}));
+		this._toDispose.push(this._editor.onCompositionEnd(() => {
+			// refilter when composition ends
+			editorIsComposing = false;
 			this._refilterCompletionItems();
+		}));
+		this._toDispose.push(this._editor.onDidChangeModelContent(() => {
+			// only filter completions when the editor isn't
+			// composing a character, e.g. ¨ + u makes ü but just
+			// ¨ cannot be used for filtering
+			if (!editorIsComposing) {
+				this._refilterCompletionItems();
+			}
 		}));
 
 		this._updateTriggerCharacters();
@@ -144,7 +158,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	dispose(): void {
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerRefilter]);
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerCharacterListener, this._triggerQuickSuggest, this._triggerRefilter]);
 		this._toDispose = dispose(this._toDispose);
 		dispose(this._completionModel);
 		this.cancel();
@@ -180,6 +194,7 @@ export class SuggestModel implements IDisposable {
 				let set = supportsByTriggerCharacter[ch];
 				if (!set) {
 					set = supportsByTriggerCharacter[ch] = new Set();
+					set.add(getSnippetSuggestSupport());
 				}
 				set.add(support);
 			}
@@ -208,9 +223,9 @@ export class SuggestModel implements IDisposable {
 
 		this._triggerRefilter.cancel();
 
-		if (this._triggerAutoSuggestPromise) {
-			this._triggerAutoSuggestPromise.cancel();
-			this._triggerAutoSuggestPromise = null;
+		if (this._triggerQuickSuggest) {
+			this._triggerQuickSuggest.cancel();
+
 		}
 
 		if (this._requestPromise) {
@@ -264,48 +279,58 @@ export class SuggestModel implements IDisposable {
 
 		if (this._state === State.Idle) {
 
-			// trigger 24x7 IntelliSense when idle, enabled, when cursor
-			// moved RIGHT, and when at a good position
-			if (this._editor.getConfiguration().contribInfo.quickSuggestions !== false
-				&& (prevSelection.containsRange(this._currentSelection)
-					|| prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition()))
-			) {
-				this.cancel();
-
-				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
-				this._triggerAutoSuggestPromise.then(() => {
-					if (LineContext.shouldAutoTrigger(this._editor)) {
-						const model = this._editor.getModel();
-						const pos = this._editor.getPosition();
-
-						if (!model) {
-							return;
-						}
-						// validate enabled now
-						const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
-						if (quickSuggestions === false) {
-							return;
-						} else if (quickSuggestions === true) {
-							// all good
-						} else {
-							// Check the type of the token that triggered this
-							model.tokenizeIfCheap(pos.lineNumber);
-							const lineTokens = model.getLineTokens(pos.lineNumber);
-							const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-								|| quickSuggestions.strings && tokenType === StandardTokenType.String;
-
-							if (!inValidScope) {
-								return;
-							}
-						}
-
-						this.trigger({ auto: true });
-					}
-					this._triggerAutoSuggestPromise = null;
-				});
+			if (this._editor.getConfiguration().contribInfo.quickSuggestions === false) {
+				// not enabled
+				return;
 			}
+
+			if (!prevSelection.containsRange(this._currentSelection) && !prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
+				// cursor didn't move RIGHT
+				return;
+			}
+
+			if (this._editor.getConfiguration().contribInfo.suggest.snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+				// no quick suggestion when in snippet mode
+				return;
+			}
+
+			this.cancel();
+
+			this._triggerQuickSuggest.cancelAndSet(() => {
+				if (!LineContext.shouldAutoTrigger(this._editor)) {
+					return;
+				}
+
+				const model = this._editor.getModel();
+				const pos = this._editor.getPosition();
+				if (!model) {
+					return;
+				}
+				// validate enabled now
+				const { quickSuggestions } = this._editor.getConfiguration().contribInfo;
+				if (quickSuggestions === false) {
+					return;
+				} else if (quickSuggestions === true) {
+					// all good
+				} else {
+					// Check the type of the token that triggered this
+					model.tokenizeIfCheap(pos.lineNumber);
+					const lineTokens = model.getLineTokens(pos.lineNumber);
+					const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
+					const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
+						|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
+						|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+
+					if (!inValidScope) {
+						return;
+					}
+				}
+
+				// we made it till here -> trigger now
+				this.trigger({ auto: true });
+
+			}, this._quickSuggestDelay);
+
 		}
 	}
 
@@ -355,11 +380,16 @@ export class SuggestModel implements IDisposable {
 			suggestCtx = { triggerKind: SuggestTriggerKind.Invoke };
 		}
 
-		this._requestPromise = provideSuggestionItems(model, this._editor.getPosition(),
-			this._editor.getConfiguration().contribInfo.snippetSuggestions,
+		this._requestPromise = createCancelablePromise(token => provideSuggestionItems(
+			model,
+			this._editor.getPosition(),
+			this._editor.getConfiguration().contribInfo.suggest.snippets,
 			onlyFrom,
-			suggestCtx
-		).then(items => {
+			suggestCtx,
+			token
+		));
+
+		this._requestPromise.then(items => {
 
 			this._requestPromise = null;
 			if (this._state === State.Idle) {
@@ -371,7 +401,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			if (!isFalsyOrEmpty(existingItems)) {
-				const cmpFn = getSuggestionComparator(this._editor.getConfiguration().contribInfo.snippetSuggestions);
+				const cmpFn = getSuggestionComparator(this._editor.getConfiguration().contribInfo.suggest.snippets);
 				items = items.concat(existingItems).sort(cmpFn);
 			}
 
@@ -380,10 +410,12 @@ export class SuggestModel implements IDisposable {
 			this._completionModel = new CompletionModel(items, this._context.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this._context ? ctx.column - this._context.column : 0
-			}, this._editor.getConfiguration().contribInfo.snippetSuggestions);
+			},
+				this._editor.getConfiguration().contribInfo.suggest
+			);
 			this._onNewContext(ctx);
 
-		}).then(null, onUnexpectedError);
+		}).catch(onUnexpectedError);
 	}
 
 	private _onNewContext(ctx: LineContext): void {

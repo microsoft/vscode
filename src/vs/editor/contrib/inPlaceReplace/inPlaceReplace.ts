@@ -20,6 +20,9 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class InPlaceReplaceController implements IEditorContribution {
 
@@ -33,11 +36,11 @@ class InPlaceReplaceController implements IEditorContribution {
 		className: 'valueSetReplacement'
 	});
 
-	private editor: ICodeEditor;
-	private currentRequest: TPromise<IInplaceReplaceSupportResult>;
-	private decorationRemover: TPromise<void>;
-	private decorationIds: string[];
-	private editorWorkerService: IEditorWorkerService;
+	private readonly editor: ICodeEditor;
+	private readonly editorWorkerService: IEditorWorkerService;
+	private decorationIds: string[] = [];
+	private currentRequest: CancelablePromise<IInplaceReplaceSupportResult>;
+	private decorationRemover: CancelablePromise<void>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -45,9 +48,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	) {
 		this.editor = editor;
 		this.editorWorkerService = editorWorkerService;
-		this.currentRequest = TPromise.as(<IInplaceReplaceSupportResult>null);
-		this.decorationRemover = TPromise.as(<void>null);
-		this.decorationIds = [];
 	}
 
 	public dispose(): void {
@@ -57,10 +57,12 @@ class InPlaceReplaceController implements IEditorContribution {
 		return InPlaceReplaceController.ID;
 	}
 
-	public run(source: string, up: boolean): TPromise<void> {
+	public run(source: string, up: boolean): Thenable<void> {
 
 		// cancel any pending request
-		this.currentRequest.cancel();
+		if (this.currentRequest) {
+			this.currentRequest.cancel();
+		}
 
 		let selection = this.editor.getSelection();
 		const model = this.editor.getModel();
@@ -74,18 +76,12 @@ class InPlaceReplaceController implements IEditorContribution {
 		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		if (!this.editorWorkerService.canNavigateValueSet(modelURI)) {
-			this.currentRequest = TPromise.as(null);
-		} else {
-			this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, up);
-			this.currentRequest = this.currentRequest.then((basicResult) => {
-				if (basicResult && basicResult.range && basicResult.value) {
-					return basicResult;
-				}
-				return null;
-			});
+			return undefined;
 		}
 
-		return this.currentRequest.then((result: IInplaceReplaceSupportResult) => {
+		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection, up));
+
+		return this.currentRequest.then(result => {
 
 			if (!result || !result.range || !result.value) {
 				// No proper result
@@ -127,12 +123,13 @@ class InPlaceReplaceController implements IEditorContribution {
 			}]);
 
 			// remove decoration after delay
-			this.decorationRemover.cancel();
-			this.decorationRemover = TPromise.timeout(350);
-			this.decorationRemover.then(() => {
-				this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
-			});
-		});
+			if (this.decorationRemover) {
+				this.decorationRemover.cancel();
+			}
+			this.decorationRemover = timeout(350);
+			this.decorationRemover.then(() => this.decorationIds = this.editor.deltaDecorations(this.decorationIds, [])).catch(onUnexpectedError);
+
+		}).catch(onUnexpectedError);
 	}
 }
 
@@ -146,7 +143,8 @@ class InPlaceReplaceUp extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -156,7 +154,7 @@ class InPlaceReplaceUp extends EditorAction {
 		if (!controller) {
 			return undefined;
 		}
-		return controller.run(this.id, true);
+		return TPromise.wrap(controller.run(this.id, true));
 	}
 }
 
@@ -170,7 +168,8 @@ class InPlaceReplaceDown extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -180,7 +179,7 @@ class InPlaceReplaceDown extends EditorAction {
 		if (!controller) {
 			return undefined;
 		}
-		return controller.run(this.id, false);
+		return TPromise.wrap(controller.run(this.id, false));
 	}
 }
 

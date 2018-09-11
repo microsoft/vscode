@@ -54,10 +54,18 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this._toUnhook.push(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this._toUnhook.push(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
 		this._modiferPressed = false;
 		this._dragSelection = null;
+	}
+
+	private onEditorBlur() {
+		this._removeDecoration();
+		this._dragSelection = null;
+		this._mouseDown = false;
+		this._modiferPressed = false;
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
@@ -140,8 +148,8 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			if (this._dragSelection === null) {
 				if (mouseEvent.event.shiftKey) {
 					let primarySelection = this._editor.getSelection();
-					let { startLineNumber, startColumn } = primarySelection;
-					this._editor.setSelections([new Selection(startLineNumber, startColumn, newCursorPosition.lineNumber, newCursorPosition.column)]);
+					let { selectionStartLineNumber, selectionStartColumn } = primarySelection;
+					this._editor.setSelections([new Selection(selectionStartLineNumber, selectionStartColumn, newCursorPosition.lineNumber, newCursorPosition.column)]);
 				} else {
 					let newSelections = this._editor.getSelections().map(selection => {
 						if (selection.containsPosition(newCursorPosition)) {

@@ -27,6 +27,7 @@ import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IView } from 'vs/workbench/common/views';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -41,14 +42,17 @@ export interface IViewletPanelOptions extends IPanelOptions {
 	title: string;
 }
 
-export abstract class ViewletPanel extends Panel {
+export abstract class ViewletPanel extends Panel implements IView {
 
 	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidChangeTitleArea = new Emitter<void>();
+	private _onDidBlur = new Emitter<void>();
+	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+
+	protected _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
 	private _isVisible: boolean;
@@ -90,12 +94,13 @@ export abstract class ViewletPanel extends Panel {
 		const focusTracker = trackFocus(this.element);
 		this.disposables.push(focusTracker);
 		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this.disposables.push(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.renderHeaderTitle(container);
+		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
 		this.toolbar = new ToolBar(actions, this.contextMenuService, {
@@ -114,8 +119,8 @@ export abstract class ViewletPanel extends Panel {
 		this.updateActionsVisibility();
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
-		append(container, $('.title', null, this.title));
+	protected renderHeaderTitle(container: HTMLElement, title: string): void {
+		append(container, $('h3.title', null, title));
 	}
 
 	focus(): void {
@@ -202,12 +207,12 @@ export class PanelViewlet extends Viewlet {
 		super(id, partService, telemetryService, themeService);
 	}
 
-	async create(parent: HTMLElement): TPromise<void> {
-		super.create(parent);
-
-		this.panelview = this._register(new PanelView(parent, this.options));
-		this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+	create(parent: HTMLElement): TPromise<void> {
+		return super.create(parent).then(() => {
+			this.panelview = this._register(new PanelView(parent, this.options));
+			this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));
+			this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		});
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {

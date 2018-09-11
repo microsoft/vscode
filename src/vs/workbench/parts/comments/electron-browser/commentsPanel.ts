@@ -10,7 +10,7 @@ import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
+import { CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,9 +19,11 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { textLinkForeground, textLinkActiveForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -39,6 +41,7 @@ export class CommentsPanel extends Panel {
 		@ICommentService private commentService: ICommentService,
 		@IEditorService private editorService: IEditorService,
 		@ICommandService private commandService: ICommandService,
+		@IOpenerService private openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -60,7 +63,35 @@ export class CommentsPanel extends Panel {
 		this.commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this);
 		this.commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this);
 
+		const styleElement = dom.createStyleSheet(parent);
+		this.applyStyles(styleElement);
+		this.themeService.onThemeChange(_ => {
+			this.applyStyles(styleElement);
+		});
+
 		return this.render();
+	}
+
+	private applyStyles(styleElement: HTMLStyleElement) {
+		const content: string[] = [];
+
+		const theme = this.themeService.getTheme();
+		const linkColor = theme.getColor(textLinkForeground);
+		if (linkColor) {
+			content.push(`.comments-panel .comments-panel-container a { color: ${linkColor}; }`);
+		}
+
+		const linkActiveColor = theme.getColor(textLinkActiveForeground);
+		if (linkActiveColor) {
+			content.push(`.comments-panel .comments-panel-container a:hover, a:active { color: ${linkActiveColor}; }`);
+		}
+
+		const focusColor = theme.getColor(focusBorder);
+		if (focusColor) {
+			content.push(`.comments-panel .commenst-panel-container a:focus { outline-color: ${focusColor}; }`);
+		}
+
+		styleElement.innerHTML = content.join('\n');
 	}
 
 	private render(): TPromise<void> {
@@ -73,7 +104,7 @@ export class CommentsPanel extends Panel {
 	public getActions(): IAction[] {
 		if (!this.collapseAllAction) {
 			this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, this.commentsModel.hasCommentThreads());
-			this.toUnbind.push(this.collapseAllAction);
+			this._register(this.collapseAllAction);
 		}
 
 		return [this.collapseAllAction];
@@ -101,7 +132,7 @@ export class CommentsPanel extends Panel {
 	private createTree(): void {
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService),
+			renderer: new CommentsModelRenderer(this.instantiationService, this.openerService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
@@ -201,7 +232,6 @@ export class CommentsPanel extends Panel {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
-					console.log(commentToReveal.command);
 					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
 				}
 				setCommentsForFile = null;
@@ -210,6 +240,18 @@ export class CommentsPanel extends Panel {
 
 
 		return true;
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		const wasVisible = this.isVisible();
+		return super.setVisible(visible)
+			.then(() => {
+				if (this.isVisible()) {
+					if (!wasVisible) {
+						this.refresh();
+					}
+				}
+			});
 	}
 
 	private refresh(): void {
@@ -225,13 +267,15 @@ export class CommentsPanel extends Panel {
 		}
 	}
 
-	private onAllCommentsChanged(e: CommentThread[]): void {
-		this.commentsModel.setCommentThreads(e);
+	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {
+		this.commentsModel.setCommentThreads(e.ownerId, e.commentThreads);
 		this.refresh();
 	}
 
 	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
-		this.commentsModel.updateCommentThreads(e);
-		this.refresh();
+		const didUpdate = this.commentsModel.updateCommentThreads(e);
+		if (didUpdate) {
+			this.refresh();
+		}
 	}
 }

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Paths from 'path';
+import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as pfs from 'vs/base/node/pfs';
-import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 export class FileIconThemeData implements IFileIconTheme {
@@ -23,7 +23,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	hasFolderIcons?: boolean;
 	hidesExplorerArrows?: boolean;
 	isLoaded: boolean;
-	path?: string;
+	location?: URI;
 	extensionData: ExtensionData;
 
 	styleSheetContent?: string;
@@ -31,11 +31,11 @@ export class FileIconThemeData implements IFileIconTheme {
 	private constructor() {
 	}
 
-	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<string> {
+	public ensureLoaded(fileService: IFileService): TPromise<string> {
 		if (!this.isLoaded) {
-			if (this.path) {
-				return _loadIconThemeDocument(this.path).then(iconThemeDocument => {
-					let result = _processIconThemeDocument(this.id, this.path, iconThemeDocument);
+			if (this.location) {
+				return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
+					let result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
 					this.styleSheetContent = result.content;
 					this.hasFileIcons = result.hasFileIcons;
 					this.hasFolderIcons = result.hasFolderIcons;
@@ -48,13 +48,13 @@ export class FileIconThemeData implements IFileIconTheme {
 		return TPromise.as(this.styleSheetContent);
 	}
 
-	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): FileIconThemeData {
+	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
 		let themeData = new FileIconThemeData();
 		themeData.id = extensionData.extensionId + '-' + iconTheme.id;
 		themeData.label = iconTheme.label || Paths.basename(iconTheme.path);
 		themeData.settingsId = iconTheme.id;
 		themeData.description = iconTheme.description;
-		themeData.path = normalizedAbsolutePath;
+		themeData.location = iconThemeLocation;
 		themeData.extensionData = extensionData;
 		themeData.isLoaded = false;
 		return themeData;
@@ -89,12 +89,14 @@ export class FileIconThemeData implements IFileIconTheme {
 					case 'description':
 					case 'settingsId':
 					case 'extensionData':
-					case 'path':
 					case 'styleSheetContent':
 					case 'hasFileIcons':
 					case 'hidesExplorerArrows':
 					case 'hasFolderIcons':
 						theme[key] = data[key];
+						break;
+					case 'location':
+						theme.location = URI.revive(data.location);
 						break;
 				}
 			}
@@ -110,7 +112,7 @@ export class FileIconThemeData implements IFileIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			path: this.path,
+			location: this.location,
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
@@ -156,10 +158,10 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument> {
-	return pfs.readFile(fileSetPath).then(content => {
+function _loadIconThemeDocument(fileService: IFileService, location: URI): TPromise<IconThemeDocument> {
+	return fileService.resolveContent(location, { encoding: 'utf8' }).then((content) => {
 		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.toString(), errors);
+		let contentValue = Json.parse(content.value.toString(), errors);
 		if (errors.length > 0 || !contentValue) {
 			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		}
@@ -167,7 +169,7 @@ function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument
 	});
 }
 
-function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
+function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
 
 	let result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: iconThemeDocument.hidesExplorerArrows };
 
@@ -176,9 +178,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 	}
 	let selectorByDefinitionId: { [def: string]: string[] } = {};
 
+	const iconThemeDocumentLocationDirname = resources.dirname(iconThemeDocumentLocation);
 	function resolvePath(path: string) {
-		const uri = URI.file(Paths.join(Paths.dirname(iconThemeDocumentPath), path));
-		return uri.toString();
+		return resources.joinPath(iconThemeDocumentLocationDirname, path);
 	}
 
 	function collectSelectors(associations: IconsAssociation, baseThemeClassName?: string) {

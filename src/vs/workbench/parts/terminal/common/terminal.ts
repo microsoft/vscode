@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,9 +14,11 @@ export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
 export const TERMINAL_SERVICE_ID = 'terminalService';
 
-/**  A context key that is set when the integrated terminal has focus. */
+/** A context key that is set when there is at least one opened integrated terminal. */
+export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
+/** A context key that is set when the integrated terminal has focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', undefined);
-/**  A context key that is set when the integrated terminal does not have focus. */
+/** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
@@ -35,6 +38,11 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextK
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
+
+// The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
+// this delay is to allow the terminal instance to initialize correctly and have its ID set before
+// trying to create the corressponding object on the ext host.
+export const EXT_HOST_CREATION_DELAY = 100;
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
@@ -64,10 +72,12 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	macOptionIsMeta: boolean;
+	macOptionClickForcesSelection: boolean;
 	rendererType: 'auto' | 'canvas' | 'dom';
 	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
+	drawBoldTextInBrightColors: boolean;
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
@@ -87,7 +97,6 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
-	experimentalRestore: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -96,7 +105,7 @@ export interface ITerminalConfigHelper {
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
@@ -156,6 +165,12 @@ export interface IShellLaunchConfig {
 	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
 	initialText?: string;
+
+	/**
+	 * When true the terminal will be created with no process. This is primarily used to give
+	 * extensions full control over the terminal.
+	 */
+	isRendererOnly?: boolean;
 }
 
 export interface ITerminalService {
@@ -168,9 +183,11 @@ export interface ITerminalService {
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
+	onActiveInstanceChanged: Event<ITerminalInstance>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
@@ -181,6 +198,12 @@ export interface ITerminalService {
 	 * default shell selection dialog may display.
 	 */
 	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+
+	/**
+	 * Creates a terminal renderer.
+	 * @param name The name of the terminal.
+	 */
+	createTerminalRenderer(name: string): ITerminalInstance;
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
@@ -203,8 +226,6 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
-	showNextFindTermFindWidget(): void;
-	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
@@ -238,12 +259,27 @@ export interface ITerminalTab {
 	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
+export interface ITerminalDimensions {
+	/**
+	 * The columns of the terminal.
+	 */
+	readonly cols: number;
+
+	/**
+	 * The rows of the terminal.
+	 */
+	readonly rows: number;
+}
+
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
 	 * terminal instance.
 	 */
-	id: number;
+	readonly id: number;
+
+	readonly cols: number;
+	readonly rows: number;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -266,6 +302,42 @@ export interface ITerminalInstance {
 	onProcessIdReady: Event<ITerminalInstance>;
 
 	onRequestExtHostProcess: Event<ITerminalInstance>;
+
+	onDimensionsChanged: Event<void>;
+
+	onFocus: Event<ITerminalInstance>;
+
+	/**
+	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
+	 * sequences.
+	 */
+	onData: Event<string>;
+
+	/**
+	 * Attach a listener to the "renderer" input event, this event fires for terminal renderers on
+	 * keystrokes and when the Terminal.sendText extension API is used.
+	 * @param listener The listener function.
+	 */
+	onRendererInput: Event<string>;
+
+	/**
+	 * Attach a listener to listen for new lines added to this terminal instance.
+	 *
+	 * @param listener The listener function which takes new line strings added to the terminal,
+	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
+	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
+	 * not fire for the last line, until either the line is ended with a LF character of the process
+	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
+	 * characters.
+	 */
+	onLineData: Event<string>;
+
+	/**
+	 * Attach a listener that fires when the terminal's pty process exits. The number in the event
+	 * is the processes' exit code, an exit code of null means the process was killed as a result of
+	 * the ITerminalInstance being disposed.
+	 */
+	onExit: Event<number>;
 
 	processReady: TPromise<void>;
 
@@ -293,7 +365,7 @@ export interface ITerminalInstance {
 	/**
 	 * The shell launch config used to launch the shell.
 	 */
-	shellLaunchConfig: IShellLaunchConfig;
+	readonly shellLaunchConfig: IShellLaunchConfig;
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
@@ -310,8 +382,11 @@ export interface ITerminalInstance {
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 *
+	 * @param isShuttingDown Whether VS Code is shutting down, if so kill any terminal processes
+	 * immediately.
 	 */
-	dispose(): void;
+	dispose(isShuttingDown?: boolean): void;
 
 	/**
 	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
@@ -374,11 +449,19 @@ export interface ITerminalInstance {
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
 
 	/**
-	 * Focuses the terminal instance.
+	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
 	 *
 	 * @param focus Force focus even if there is a selection.
 	 */
 	focus(force?: boolean): void;
+
+	/**
+	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
+	 * when the terminal is being shown.
+	 *
+	 * @param focus Force focus even if there is a selection.
+	 */
+	focusWhenReady(force?: boolean): Promise<void>;
 
 	/**
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
@@ -395,6 +478,12 @@ export interface ITerminalInstance {
 	 * depending on the platform. This defaults to `true`.
 	 */
 	sendText(text: string, addNewLine: boolean): void;
+
+	/**
+	 * Write text directly to the terminal, skipping the process if it exists.
+	 * @param text The text to write.
+	 */
+	write(text: string): void;
 
 	/** Scroll the terminal buffer down 1 line. */
 	scrollDownLine(): void;
@@ -448,33 +537,6 @@ export interface ITerminalInstance {
 	setVisible(visible: boolean): void;
 
 	/**
-	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
-	 * sequecnes.
-	 * @param listener  The listener function.
-	 */
-	onData(listener: (data: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener to listen for new lines added to this terminal instance.
-	 *
-	 * @param listener The listener function which takes new line strings added to the terminal,
-	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
-	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
-	 * not fire for the last line, until either the line is ended with a LF character of the process
-	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
-	 * characters.
-	 */
-	onLineData(listener: (lineData: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener that fires when the terminal's pty process exits.
-	 *
-	 * @param listener The listener function which takes the processes' exit code, an exit code of
-	 * null means the process was killed as a result of the ITerminalInstance being disposed.
-	 */
-	onExit(listener: (exitCode: number) => void): IDisposable;
-
-	/**
 	 * Immediately kills the terminal's current pty process and launches a new one to replace it.
 	 *
 	 * @param shell The new launch configuration.
@@ -486,7 +548,11 @@ export interface ITerminalInstance {
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
 
+	setDimensions(dimensions: ITerminalDimensions): void;
+
 	addDisposable(disposable: IDisposable): void;
+
+	toggleEscapeSequenceLogging(): void;
 }
 
 export interface ITerminalCommandTracker {
@@ -510,12 +576,13 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number>;
 
 	addDisposable(disposable: IDisposable);
+	dispose(immediate?: boolean);
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 }
 
-export enum ProcessState {
+export const enum ProcessState {
 	// The process has not been initialized yet.
 	UNINITIALIZED,
 	// The process is currently launching, the process is marked as launching
@@ -543,9 +610,9 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitPid(pid: number): void;
 	emitExit(exitCode: number): void;
 
-	onInput(listener: (data: string) => void): void;
-	onResize(listener: (cols: number, rows: number) => void): void;
-	onShutdown(listener: () => void): void;
+	onInput: Event<string>;
+	onResize: Event<{ cols: number, rows: number }>;
+	onShutdown: Event<boolean>;
 }
 
 export interface ITerminalProcessExtHostRequest {

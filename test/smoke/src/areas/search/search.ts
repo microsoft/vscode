@@ -53,7 +53,7 @@ export class Search extends Viewlet {
 		await this.waitForInputFocus(INPUT);
 
 		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"]`);
+		await this.code.waitForElement(`${VIEWLET} .messages`);
 	}
 
 	async setFilesToIncludeText(text: string): Promise<void> {
@@ -77,6 +77,8 @@ export class Search extends Viewlet {
 			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
+		// ¯\_(ツ)_/¯
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-remove`);
 		await this.code.waitForElement(fileMatch, el => !el);
 	}
@@ -101,15 +103,17 @@ export class Search extends Viewlet {
 			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
+		// ¯\_(ツ)_/¯
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
+		await this.code.waitForTextContent(`${VIEWLET} .messages .message>p`, text);
 	}
 
 	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, el => !el);
+		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="true"] .message>p`);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

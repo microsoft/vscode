@@ -50,12 +50,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	public configFontIsMonospace(): boolean {
 		this._createCharMeasureElementIfNecessary();
-		let fontSize = 15;
-		let fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily;
-		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
-		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
+		const fontSize = 15;
+		const fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily;
+		const i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
+		const w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
-		let invalidBounds = !i_rect.width || !w_rect.width;
+		const invalidBounds = !i_rect.width || !w_rect.width;
 		if (invalidBounds) {
 			// There is no reason to believe the font is not Monospace.
 			return true;
@@ -88,7 +88,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
 		this._createCharMeasureElementIfNecessary();
 
-		let rect = this._getBoundingRectFor('X', fontFamily, fontSize);
+		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
 		if (this._lastFontMeasurement && !rect.width && !rect.height) {
@@ -122,7 +122,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 		}
 
-		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		const fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 		const letterSpacing = this.config.letterSpacing ? Math.max(Math.floor(this.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this.config.lineHeight ? Math.max(this.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
@@ -137,14 +137,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xterm) {
-			if (xterm.charMeasure && xterm.charMeasure.width && xterm.charMeasure.height) {
+			if (xterm._core.charMeasure && xterm._core.charMeasure.width && xterm._core.charMeasure.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xterm.charMeasure.height,
-					charWidth: xterm.charMeasure.width
+					charHeight: xterm._core.charMeasure.height,
+					charWidth: xterm._core.charMeasure.width
 				};
 			}
 		}
@@ -157,9 +157,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
 	}
 
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
+	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride: platform.Platform = platform.platform): void {
 		// Check whether there is a workspace setting
-		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+		const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
 		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
@@ -167,6 +167,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		let isWorkspaceShellAllowed = false;
 		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
 			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
+		}
+
+		// Always allow [] args as it would lead to an odd error message and should not be dangerous
+		if (shellConfigValue.workspace === undefined && shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
+			isWorkspaceShellAllowed = true;
 		}
 
 		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for

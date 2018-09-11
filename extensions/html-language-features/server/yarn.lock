@@ -6,62 +6,259 @@
   version "2.2.33"
   resolved "https://registry.yarnpkg.com/@types/mocha/-/mocha-2.2.33.tgz#d79a0061ec270379f4d9e225f4096fb436669def"
 
-"@types/node@7.0.43":
-  version "7.0.43"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.43.tgz#a187e08495a075f200ca946079c914e1a5fe962c"
+"@types/node@^8.10.25":
+  version "8.10.25"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.10.25.tgz#801fe4e39372cef18f268db880a5fbfcf71adc7e"
 
-vscode-css-languageservice@^3.0.9-next.18:
-  version "3.0.9-next.18"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.9-next.18.tgz#f8f25123b5a8cdc9f72fafcd2c0088f726322437"
-  dependencies:
-    vscode-languageserver-types "^3.7.2"
-    vscode-nls "^3.2.2"
+ansi-regex@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/ansi-regex/-/ansi-regex-3.0.0.tgz#ed0317c322064f79466c02966bddb605ab37d998"
 
-vscode-html-languageservice@^2.1.3-next.5:
-  version "2.1.3-next.5"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.3-next.5.tgz#cfbf4ffed96845ad13999d572ce0b5c2aeee84af"
+balanced-match@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
+
+brace-expansion@^1.1.7:
+  version "1.1.11"
+  resolved "https://registry.yarnpkg.com/brace-expansion/-/brace-expansion-1.1.11.tgz#3c7fcbf529d87226f3d2f52b966ff5271eb441dd"
   dependencies:
-    vscode-languageserver-types "^3.7.2"
-    vscode-nls "^3.2.2"
-    vscode-uri "^1.0.3"
+    balanced-match "^1.0.0"
+    concat-map "0.0.1"
+
+browser-stdout@1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/browser-stdout/-/browser-stdout-1.3.1.tgz#baa559ee14ced73452229bad7326467c61fabd60"
+
+charenc@~0.0.1:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/charenc/-/charenc-0.0.2.tgz#c0a1d2f3a7092e03774bfa83f14c0fc5790a8667"
+
+commander@2.15.1:
+  version "2.15.1"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-2.15.1.tgz#df46e867d0fc2aec66a34662b406a9ccafff5b0f"
+
+concat-map@0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/concat-map/-/concat-map-0.0.1.tgz#d8a96bd77fd68df7793a73036a3ba0d5405d477b"
+
+crypt@~0.0.1:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/crypt/-/crypt-0.0.2.tgz#88d7ff7ec0dfb86f713dc87bbb42d044d3e6c41b"
+
+debug@3.1.0, debug@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
+  dependencies:
+    ms "2.0.0"
+
+debug@^2.2.0:
+  version "2.6.9"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.9.tgz#5d128515df134ff327e90a4c93f4e077a536341f"
+  dependencies:
+    ms "2.0.0"
+
+diff@3.5.0:
+  version "3.5.0"
+  resolved "https://registry.yarnpkg.com/diff/-/diff-3.5.0.tgz#800c0dd1e0a8bfbc95835c202ad220fe317e5a12"
+
+escape-string-regexp@1.0.5:
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/escape-string-regexp/-/escape-string-regexp-1.0.5.tgz#1b61c0562190a8dff6ae3bb2cf0200ca130b86d4"
+
+fs.realpath@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
+
+glob@7.1.2, glob@^7.1.2:
+  version "7.1.2"
+  resolved "https://registry.yarnpkg.com/glob/-/glob-7.1.2.tgz#c19c9df9a028702d678612384a6552404c636d15"
+  dependencies:
+    fs.realpath "^1.0.0"
+    inflight "^1.0.4"
+    inherits "2"
+    minimatch "^3.0.4"
+    once "^1.3.0"
+    path-is-absolute "^1.0.0"
+
+growl@1.10.5:
+  version "1.10.5"
+  resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
+
+has-flag@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/has-flag/-/has-flag-3.0.0.tgz#b5d454dc2199ae225699f3467e5a07f3b955bafd"
+
+he@1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/he/-/he-1.1.1.tgz#93410fd21b009735151f8868c2f271f3427e23fd"
+
+inflight@^1.0.4:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/inflight/-/inflight-1.0.6.tgz#49bd6331d7d02d0c09bc910a1075ba8165b56df9"
+  dependencies:
+    once "^1.3.0"
+    wrappy "1"
+
+inherits@2:
+  version "2.0.3"
+  resolved "https://registry.yarnpkg.com/inherits/-/inherits-2.0.3.tgz#633c2c83e3da42a502f52466022480f4208261de"
+
+is-buffer@~1.1.1:
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/is-buffer/-/is-buffer-1.1.6.tgz#efaa2ea9daa0d7ab2ea13a97b2b8ad51fefbe8be"
+
+lodash@^4.16.4:
+  version "4.17.10"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.10.tgz#1b7793cf7259ea38fb3661d4d38b3260af8ae4e7"
+
+md5@^2.1.0:
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/md5/-/md5-2.2.1.tgz#53ab38d5fe3c8891ba465329ea23fac0540126f9"
+  dependencies:
+    charenc "~0.0.1"
+    crypt "~0.0.1"
+    is-buffer "~1.1.1"
+
+minimatch@3.0.4, minimatch@^3.0.4:
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-3.0.4.tgz#5166e286457f03306064be5497e8dbb0c3d32083"
+  dependencies:
+    brace-expansion "^1.1.7"
+
+minimist@0.0.8:
+  version "0.0.8"
+  resolved "https://registry.yarnpkg.com/minimist/-/minimist-0.0.8.tgz#857fcabfc3397d2625b8228262e86aa7a011b05d"
+
+mkdirp@0.5.1, mkdirp@~0.5.1:
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-0.5.1.tgz#30057438eac6cf7f8c4767f38648d6697d75c903"
+  dependencies:
+    minimist "0.0.8"
+
+mocha-junit-reporter@^1.17.0:
+  version "1.17.0"
+  resolved "https://registry.yarnpkg.com/mocha-junit-reporter/-/mocha-junit-reporter-1.17.0.tgz#2e5149ed40fc5d2e3ca71e42db5ab1fec9c6d85c"
+  dependencies:
+    debug "^2.2.0"
+    md5 "^2.1.0"
+    mkdirp "~0.5.1"
+    strip-ansi "^4.0.0"
+    xml "^1.0.0"
+
+mocha-multi-reporters@^1.1.7:
+  version "1.1.7"
+  resolved "https://registry.yarnpkg.com/mocha-multi-reporters/-/mocha-multi-reporters-1.1.7.tgz#cc7f3f4d32f478520941d852abb64d9988587d82"
+  dependencies:
+    debug "^3.1.0"
+    lodash "^4.16.4"
+
+mocha@^5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/mocha/-/mocha-5.2.0.tgz#6d8ae508f59167f940f2b5b3c4a612ae50c90ae6"
+  dependencies:
+    browser-stdout "1.3.1"
+    commander "2.15.1"
+    debug "3.1.0"
+    diff "3.5.0"
+    escape-string-regexp "1.0.5"
+    glob "7.1.2"
+    growl "1.10.5"
+    he "1.1.1"
+    minimatch "3.0.4"
+    mkdirp "0.5.1"
+    supports-color "5.4.0"
+
+ms@2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
+
+once@^1.3.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/once/-/once-1.4.0.tgz#583b1aa775961d4b113ac17d9c50baef9dd76bd1"
+  dependencies:
+    wrappy "1"
+
+path-is-absolute@^1.0.0:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/path-is-absolute/-/path-is-absolute-1.0.1.tgz#174b9268735534ffbc7ace6bf53a5a9e1b5c5f5f"
+
+strip-ansi@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/strip-ansi/-/strip-ansi-4.0.0.tgz#a8479022eb1ac368a871389b635262c505ee368f"
+  dependencies:
+    ansi-regex "^3.0.0"
+
+supports-color@5.4.0:
+  version "5.4.0"
+  resolved "https://registry.yarnpkg.com/supports-color/-/supports-color-5.4.0.tgz#1c6b337402c2137605efe19f10fec390f6faab54"
+  dependencies:
+    has-flag "^3.0.0"
+
+vscode-css-languageservice@^3.0.10:
+  version "3.0.10"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.10.tgz#71ece7e0d19227e9f21bcd5d5d928f817a7d701e"
+  dependencies:
+    vscode-languageserver-types "^3.12.0"
+    vscode-nls "^3.2.5"
+
+vscode-html-languageservice@^2.1.7:
+  version "2.1.7"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.7.tgz#0177c01f0946ea42aae1068bc0b7ef09e3959daa"
+  dependencies:
+    vscode-languageserver-types "^3.12.0"
+    vscode-nls "^3.2.5"
+    vscode-uri "^1.0.6"
 
 vscode-jsonrpc@^3.6.2:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
 
-vscode-languageserver-protocol-foldingprovider@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.1.tgz#051d0d9e58d1b79dc4681acd48f21797f5515bfd"
-  dependencies:
-    vscode-languageserver-protocol "^3.7.2"
-    vscode-languageserver-types "^3.7.2"
-
-vscode-languageserver-protocol@^3.7.2:
-  version "3.7.2"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.7.2.tgz#df58621c032139010888b6a9ddc969423f9ba9d6"
+vscode-languageserver-protocol@^3.13.0-next.1:
+  version "3.13.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0-next.1.tgz#24d15aa5769e4b035f6ce38342685959e1eb454e"
   dependencies:
     vscode-jsonrpc "^3.6.2"
-    vscode-languageserver-types "^3.7.2"
+    vscode-languageserver-types "^3.13.0-next.1"
 
-vscode-languageserver-types@^3.7.2:
-  version "3.7.2"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.7.2.tgz#aad8846f8e3e27962648554de5a8417e358f34eb"
+vscode-languageserver-types@^3.10.0:
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.0.tgz#944e5308f3b36a3f372c766f1a344e903ec9c389"
 
-vscode-languageserver@^4.1.3:
-  version "4.1.3"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-4.1.3.tgz#937d37c955b6b9c2409388413cd6f54d1eb9fe7d"
+vscode-languageserver-types@^3.12.0:
+  version "3.12.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.12.0.tgz#f96051381b6a050b7175b37d6cb5d2f2eb64b944"
+
+vscode-languageserver-types@^3.13.0-next.1:
+  version "3.13.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0-next.1.tgz#dd91b78b13a2a6c7131e8291e3db3183cf566280"
+
+vscode-languageserver@^5.1.0-next.5:
+  version "5.1.0-next.5"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver/-/vscode-languageserver-5.1.0-next.5.tgz#d343278b4de448a31f9db146b98638898c8d4f55"
   dependencies:
-    vscode-languageserver-protocol "^3.7.2"
-    vscode-uri "^1.0.1"
+    vscode-languageserver-protocol "^3.13.0-next.1"
+    vscode-uri "^1.0.5"
 
-vscode-nls@^3.2.2:
-  version "3.2.2"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.2.tgz#3817eca5b985c2393de325197cf4e15eb2aa5350"
+vscode-nls@^3.2.5:
+  version "3.2.5"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.5.tgz#25520c1955108036dec607c85e00a522f247f1a4"
 
-vscode-uri@^1.0.1:
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
+
+vscode-uri@^1.0.5:
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.5.tgz#3b899a8ef71c37f3054d79bdbdda31c7bf36f20d"
+
+vscode-uri@^1.0.6:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.6.tgz#6b8f141b0bbc44ad7b07e94f82f168ac7608ad4d"
+
+wrappy@1:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
+
+xml@^1.0.0:
   version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.1.tgz#11a86befeac3c4aa3ec08623651a3c81a6d0bbc8"
-
-vscode-uri@^1.0.3:
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-1.0.3.tgz#631bdbf716dccab0e65291a8dc25c23232085a52"
+  resolved "https://registry.yarnpkg.com/xml/-/xml-1.0.1.tgz#78ba72020029c5bc87b8a81a3cfcd74b4a2fc1e5"

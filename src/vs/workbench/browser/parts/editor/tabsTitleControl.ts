@@ -27,8 +27,8 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
+import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -39,6 +39,8 @@ import { addClass, addDisposableListener, hasClass, EventType, EventHelper, remo
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IEditorInputLabel {
 	name: string;
@@ -78,9 +80,10 @@ export class TabsTitleControl extends TitleControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService, extensionService, configurationService);
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -108,6 +111,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Close Action
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
+
+		// Breadcrumbs
+		const breadcrumbsContainer = document.createElement('div');
+		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
+		this.titleContainer.appendChild(breadcrumbsContainer);
+		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
 	}
 
 	private createScrollbar(): void {
@@ -126,6 +135,19 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		this.titleContainer.appendChild(this.scrollbar.getDomNode());
+	}
+
+	private updateBreadcrumbsControl(): void {
+		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+			// relayout when we have a breadcrumbs and when update changed
+			// its hidden-status
+			this.group.relayout();
+		}
+	}
+
+	protected handleBreadcrumbsEnablementChange(): void {
+		// relayout when breadcrumbs are enable/disabled
+		this.group.relayout();
 	}
 
 	private registerContainerListeners(): void {
@@ -168,6 +190,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if the target is not on the tabs container
 				if (e.target !== this.tabsContainer) {
+					this.updateDropFeedback(this.tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
 					return;
 				}
 
@@ -239,6 +262,9 @@ export class TabsTitleControl extends TitleControl {
 
 		// Redraw all tabs
 		this.redraw();
+
+		// Update Breadcrumbs
+		this.updateBreadcrumbsControl();
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -286,6 +312,9 @@ export class TabsTitleControl extends TitleControl {
 
 			this.clearEditorActionsToolbar();
 		}
+
+		// Update Breadcrumbs
+		this.updateBreadcrumbsControl();
 	}
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
@@ -382,6 +411,11 @@ export class TabsTitleControl extends TitleControl {
 		// Gesture Support
 		Gesture.addTarget(tabContainer);
 
+		// Tab Border Top
+		const tabBorderTopContainer = document.createElement('div');
+		addClass(tabBorderTopContainer, 'tab-border-top-container');
+		tabContainer.appendChild(tabBorderTopContainer);
+
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
 		this.tabLabelWidgets.push(editorLabel);
@@ -390,6 +424,11 @@ export class TabsTitleControl extends TitleControl {
 		const tabCloseContainer = document.createElement('div');
 		addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
+
+		// Tab Border Bottom
+		const tabBorderBottomContainer = document.createElement('div');
+		addClass(tabBorderBottomContainer, 'tab-border-bottom-container');
+		tabContainer.appendChild(tabBorderBottomContainer);
 
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
@@ -451,6 +490,8 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e.button === 1 /* Middle Button*/ && !this.originatesFromTabActionBar(e)) {
+				e.stopPropagation(); // for https://github.com/Microsoft/vscode/issues/56715
+
 				this.blockRevealActiveTabOnce();
 				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
 			}
@@ -830,19 +871,22 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.setAttribute('aria-selected', 'true');
 			tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 
-			const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
-			if (activeTabBorderColor) {
-				// Use boxShadow for the active tab border because if we also have a editor group header
-				// color, the two colors would collide and the tab border never shows up.
-				// see https://github.com/Microsoft/vscode/issues/33111
-				// In case of tabs container having a border, we need to inset -2px for the border to show up.
-				const hasTabsContainerBorder = !!this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
-				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 ${hasTabsContainerBorder ? -2 : -1}px inset`;
-			} else if (activeTabBorderColorTop) {
-				tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 2px inset`;
+			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			if (activeTabBorderColorBottom) {
+				addClass(tabContainer, 'tab-border-bottom');
+				tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom.toString());
 			} else {
-				tabContainer.style.boxShadow = null;
+				removeClass(tabContainer, 'tab-border-bottom');
+				tabContainer.style.removeProperty('--tab-border-bottom-color');
+			}
+
+			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+			if (activeTabBorderColorTop) {
+				addClass(tabContainer, 'tab-border-top');
+				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
+			} else {
+				removeClass(tabContainer, 'tab-border-top');
+				tabContainer.style.removeProperty('--tab-border-top-color');
 			}
 
 			// Label
@@ -894,6 +938,11 @@ export class TabsTitleControl extends TitleControl {
 		const activeTab = this.getTab(this.group.activeEditor);
 		if (!activeTab) {
 			return;
+		}
+
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			this.breadcrumbsControl.layout({ width: dimension.width, height: BreadcrumbsControl.HEIGHT });
+			this.scrollbar.getDomNode().style.height = `${dimension.height - BreadcrumbsControl.HEIGHT}px`;
 		}
 
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
@@ -1115,13 +1164,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent);
+				.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColor}, transparent) !important;
 				}
 
 
-				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title.active .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
+				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 			`);
 		}
@@ -1132,11 +1181,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
 				.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColor}, transparent);
+					background: linear-gradient(to left, ${adjustedColor}, transparent) !important;
 				}
 
 				.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
-					background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
+					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 			`);
 		}
@@ -1147,7 +1196,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			collector.addRule(`
 			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
 			.monaco-workbench > .part.editor > .content.dragged-over .editor-group-container > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
-				background: linear-gradient(to left, ${adjustedColorDrag}, transparent);
+				background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 			}
 		`);
 		}
@@ -1174,7 +1223,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
 			const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-			.monaco-workbench > .part.editor > .content .editor-group-container > .title
 			.monaco-workbench > .part.editor > .content:not(.dragged-over) .editor-group-container > .title .tabs-container > .tab.sizing-shrink:not(.dragged) > .tab-label::after {
 				background: linear-gradient(to left, ${adjustedColor}, transparent);
 			}

@@ -17,7 +17,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/parts/files/common/files';
 import { VIEWLET_ID as SCM } from 'vs/workbench/parts/scm/common/scm';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/parts/debug/common/debug';
@@ -114,7 +113,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					}
 					const registeredViews = ViewsRegistry.getViews(container);
 					const viewIds = [];
-					const viewDescriptors = coalesce(entry.value.map(item => {
+					const viewDescriptors = coalesce(entry.value.map((item, index) => {
 						// validate
 						if (viewIds.indexOf(item.id) !== -1) {
 							collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the view container `{1}`", item.id, container.id));
@@ -133,7 +132,8 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 							when: ContextKeyExpr.deserialize(item.when),
 							canToggleVisibility: true,
 							collapsed: this.showCollapsed(container),
-							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, this.getProgressLocation(container))
+							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, container),
+							order: extension.description.id === container.extensionId ? index + 1 : void 0
 						};
 
 						viewIds.push(viewDescriptor.id);
@@ -143,18 +143,6 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				});
 			}
 		});
-	}
-
-	private getProgressLocation(container: ViewContainer): ProgressLocation {
-		switch (container.id) {
-			case EXPLORER:
-				return ProgressLocation.Explorer;
-			case SCM:
-				return ProgressLocation.Scm;
-			case DEBUG:
-				return null /* No debug progress location yet */;
-		}
-		return null;
 	}
 
 	private isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {

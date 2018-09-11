@@ -8,17 +8,20 @@ import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, IProgressStep, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, IProgressStep, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
+import { IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { always } from 'vs/base/common/async';
+import { always, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { once } from 'vs/base/common/event';
+import { ViewContainer } from 'vs/workbench/common/views';
 
 class WindowProgressItem implements IStatusbarItem {
 
@@ -90,6 +93,15 @@ export class ProgressService2 implements IProgressService2 {
 	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
 
 		const { location } = options;
+		if (location instanceof ViewContainer) {
+			const viewlet = this._viewletService.getViewlet(location.id);
+			if (viewlet) {
+				return this._withViewletProgress(location.id, task);
+			}
+			console.warn(`Bad progress location: ${location.id}`);
+			return undefined;
+		}
+
 		switch (location) {
 			case ProgressLocation.Notification:
 				return this._withNotificationProgress(options, task, onDidCancel);
@@ -119,8 +131,8 @@ export class ProgressService2 implements IProgressService2 {
 			this._updateWindowProgress();
 
 			// show progress for at least 150ms
-			always(TPromise.join([
-				TPromise.timeout(150),
+			always(Promise.all([
+				timeout(150),
 				promise
 			]), () => {
 				const idx = this._stack.indexOf(task);
@@ -131,7 +143,7 @@ export class ProgressService2 implements IProgressService2 {
 		}, 150);
 
 		// cancel delay if promise finishes below 150ms
-		always(TPromise.wrap(promise), () => clearTimeout(delayHandle));
+		always(promise, () => clearTimeout(delayHandle));
 		return promise;
 	}
 
@@ -259,7 +271,7 @@ export class ProgressService2 implements IProgressService2 {
 		});
 
 		// Show progress for at least 800ms and then hide once done or canceled
-		always(TPromise.join([TPromise.timeout(800), p]), () => {
+		always(Promise.all([timeout(800), p]), () => {
 			if (handle) {
 				handle.close();
 			}

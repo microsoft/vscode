@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -19,8 +19,8 @@ import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/gr
 
 export class ToggleEditorLayoutAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleEditorGroupLayout';
-	public static readonly LABEL = nls.localize('flipLayout', "Flip Editor Group Layout");
+	static readonly ID = 'workbench.action.toggleEditorGroupLayout';
+	static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
 	private toDispose: IDisposable[];
 
@@ -48,14 +48,14 @@ export class ToggleEditorLayoutAction extends Action {
 		this.enabled = this.editorGroupService.count > 1;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
 		return TPromise.as(null);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();
@@ -74,3 +74,12 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const group = nls.localize('view', "View");
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 } }), 'View: Flip Editor Group Layout', group);
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: 'z_flip',
+	command: {
+		id: ToggleEditorLayoutAction.ID,
+		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+	},
+	order: 1
+});

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/PowerShell/EditorSyntax/commit/529562fbe4ba9abde22282ee8b00141284968f4b",
+	"version": "https://github.com/PowerShell/EditorSyntax/commit/6f5438611c54922ea94c81532a2dcfee72190039",
 	"name": "PowerShell",
 	"scopeName": "source.powershell",
 	"patterns": [
@@ -158,15 +158,15 @@
 			]
 		},
 		{
-			"match": "(?<!\\w)-([ci]?[lg][te]|eq|ne)",
-			"name": "keyword.operator.logical.powershell"
-		},
-		{
 			"match": "(\\b(([A-Za-z0-9\\-_\\.]+)\\.(?i:exe|com|cmd|bat))\\b)",
 			"name": "support.function.powershell"
 		},
 		{
-			"match": "(?<!\\w|-)((?i:begin|break|catch|continue|data|default|define|do|dynamicparam|else|elseif|end|exit|finally|for|foreach(?!-object)|from|if|in|inlinescript|parallel|param|process|return|switch|throw|trap|try|until|var|where(?!-object)|while)|%|\\?)(?!\\w)",
+			"match": "(?<!\\w|-|\\.)((?i:begin|break|catch|continue|data|default|define|do|dynamicparam|else|elseif|end|exit|finally|for|from|if|in|inlinescript|parallel|param|process|return|sequence|switch|throw|trap|try|until|var|while)|%|\\?)(?!\\w)",
+			"name": "keyword.control.powershell"
+		},
+		{
+			"match": "(?<!\\w|-|[^\\)]\\.)((?i:(foreach|where)(?!-object))|%|\\?)(?!\\w)",
 			"name": "keyword.control.powershell"
 		},
 		{
@@ -188,7 +188,7 @@
 				}
 			},
 			"comment": "capture should be entity.name.type, but it doesn't provide a good color in the default schema.",
-			"match": "(?<!\\w)((?i:class)|%|\\?)(?:\\s)+((?:\\p{L}|\\d|_|-|)+)\\b"
+			"match": "(?<!\\w|-)((?i:class)|%|\\?)(?:\\s)+((?:\\p{L}|\\d|_|-|)+)\\b"
 		},
 		{
 			"match": "(?<!\\w)-(?i:is(?:not)?|as)\\b",
@@ -207,7 +207,7 @@
 			"name": "keyword.operator.logical.powershell"
 		},
 		{
-			"match": "(?<!\\w)-(?i:band|bor|bnot|bxor)(?!\\p{L})",
+			"match": "(?<!\\w)-(?i:band|bor|bnot|bxor|shl|shr)(?!\\p{L})",
 			"name": "keyword.operator.bitwise.powershell"
 		},
 		{
@@ -314,7 +314,7 @@
 							"include": "$self"
 						},
 						{
-							"match": "(?i)\\b(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|positionalbinding|helpuri|confirmimpact|helpmessage)\\b(?:\\s+)?(=)",
+							"match": "(?i)\\b(mandatory|valuefrompipeline|valuefrompipelinebypropertyname|valuefromremainingarguments|position|parametersetname|defaultparametersetname|supportsshouldprocess|supportspaging|positionalbinding|helpuri|confirmimpact|helpmessage)\\b(?:\\s+)?(=)?",
 							"captures": {
 								"1": {
 									"name": "variable.parameter.attribute.powershell"

@@ -3,58 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty, mergeSort, flatten } from 'vs/base/common/arrays';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { illegalArgument, onUnexpectedExternalError, isPromiseCanceledError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { flatten, isFalsyOrEmpty, mergeSort } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { URI } from 'vs/base/common/uri';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionProviderRegistry, CodeActionContext, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionContext, CodeActionProviderRegistry, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
-import { Selection } from 'vs/editor/common/core/selection';
 
-export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger): TPromise<CodeAction[]> {
+export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger, token: CancellationToken = CancellationToken.None): Promise<CodeAction[]> {
 	const codeActionContext: CodeActionContext = {
 		only: trigger && trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
 		trigger: trigger && trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
 	};
 
-	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
-			if (!Array.isArray(providedCodeActions)) {
+	const promises = CodeActionProviderRegistry.all(model)
+		.filter(provider => {
+			// Avoid calling providers that we know will not return code actions of interest
+			return !provider.providedCodeActionKinds || provider.providedCodeActionKinds.some(providedKind => isValidActionKind(trigger && trigger.filter, providedKind));
+		})
+		.map(support => {
+			return Promise.resolve(support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
+				if (!Array.isArray(providedCodeActions)) {
+					return [];
+				}
+				return providedCodeActions.filter(action => isValidAction(trigger && trigger.filter, action));
+			}, (err): CodeAction[] => {
+				if (isPromiseCanceledError(err)) {
+					throw err;
+				}
+
+				onUnexpectedExternalError(err);
 				return [];
-			}
-			return providedCodeActions.filter(action => isValidAction(trigger && trigger.filter, action));
-		}, (err): CodeAction[] => {
-			if (isPromiseCanceledError(err)) {
-				throw err;
-			}
-
-			onUnexpectedExternalError(err);
-			return [];
+			});
 		});
-	});
 
-	return TPromise.join(promises)
+	return Promise.all(promises)
 		.then(flatten)
 		.then(allCodeActions => mergeSort(allCodeActions, codeActionsComparator));
 }
 
 function isValidAction(filter: CodeActionFilter | undefined, action: CodeAction): boolean {
-	if (!action) {
-		return false;
-	}
+	return action && isValidActionKind(filter, action.kind);
+}
 
+function isValidActionKind(filter: CodeActionFilter | undefined, kind: string | undefined): boolean {
 	// Filter out actions by kind
-	if (filter && filter.kind && (!action.kind || !filter.kind.contains(action.kind))) {
+	if (filter && filter.kind && (!kind || !filter.kind.contains(kind))) {
 		return false;
 	}
 
 	// Don't return source actions unless they are explicitly requested
-	if (action.kind && CodeActionKind.Source.contains(action.kind) && (!filter || !filter.includeSourceActions)) {
+	if (kind && CodeActionKind.Source.contains(kind) && (!filter || !filter.includeSourceActions)) {
 		return false;
 	}
 
@@ -88,5 +92,5 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 		throw illegalArgument();
 	}
 
-	return getCodeActions(model, model.validateRange(range), undefined);
+	return getCodeActions(model, model.validateRange(range), { type: 'manual', filter: { includeSourceActions: true } });
 });

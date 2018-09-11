@@ -40,7 +40,8 @@
 			"name": "Comments: Documentation",
 			"scope": [
 				"comment.documentation",
-				"comment.block.documentation"
+				"comment.block.documentation",
+				"comment.block.documentation punctuation.definition.comment "
 			],
 			"settings": {
 				"foreground": "#448C27"
@@ -96,7 +97,7 @@
 				"variable.language"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#9C5D27"
 			}
 		},
 		{
@@ -154,7 +155,7 @@
 				"constant"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#9C5D27"
 			}
 		},
 		{
@@ -182,7 +183,7 @@
 			"name": "Strings: Symbols",
 			"scope": "constant.other.symbol",
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#9C5D27"
 			}
 		},
 		{
@@ -255,7 +256,7 @@
 				"punctuation.definition.entity"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#9C5D27"
 			}
 		},
 		{
@@ -281,7 +282,7 @@
 				"support.type.property-name"
 			],
 			"settings": {
-				"foreground": "#AB6526"
+				"foreground": "#9C5D27"
 			}
 		},
 		{
@@ -426,7 +427,7 @@
 			"scope": "markup.inline.raw",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#AB6526"
+				"foreground": "#9C5D27"
 			}
 		},
 		{
@@ -528,6 +529,7 @@
 		"inputValidation.errorBorder": "#f1897f",
 		"errorForeground": "#f1897f",
 		"badge.background": "#705697AA",
-		"progressBar.background": "#705697"
+		"progressBar.background": "#705697",
+		"walkThrough.embeddedEditorBackground": "#00000014"
 	}
 }

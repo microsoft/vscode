@@ -271,7 +271,8 @@ const version: IJSONSchema = {
 
 const identifier: IJSONSchema = {
 	type: 'string',
-	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.')
+	description: nls.localize('JsonSchema.tasks.identifier', 'A user defined identifier to reference the task in launch.json or a dependsOn clause.'),
+	deprecationMessage: nls.localize('JsonSchema.tasks.identifier.deprecated', 'User defined identifiers are deprecated. For custom task used the name as a reference and for tasks provided by extensions use their defined task identifier.')
 };
 
 const options: IJSONSchema = Objects.deepClone(commonSchema.definitions.options);
@@ -324,9 +325,11 @@ TaskDefinitionRegistry.onReady().then(() => {
 		if (taskType.required) {
 			schema.required = taskType.required.slice();
 		}
-		for (let key of Object.keys(taskType.properties)) {
-			let property = taskType.properties[key];
-			schema.properties[key] = Objects.deepClone(property);
+		if (taskType.properties) {
+			for (let key of Object.keys(taskType.properties)) {
+				let property = taskType.properties[key];
+				schema.properties[key] = Objects.deepClone(property);
+			}
 		}
 		fixReferences(schema);
 		taskDefinitions.push(schema);

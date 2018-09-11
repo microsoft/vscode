@@ -7,7 +7,7 @@
 
 import 'vs/css!./messageController';
 import * as nls from 'vs/nls';
-import { setDisposableTimeout } from 'vs/base/common/async';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -18,8 +18,8 @@ import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPosit
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class MessageController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -75,7 +75,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		this._messageListeners.push(this._editor.onDidChangeModel(() => this.closeMessage()));
 
 		// close after 3s
-		this._messageListeners.push(setDisposableTimeout(() => this.closeMessage(), 3000));
+		this._messageListeners.push(new TimeoutTimer(() => this.closeMessage(), 3000));
 
 		// close on mouse move
 		let bounds: Range;
@@ -114,7 +114,7 @@ registerEditorCommand(new MessageCommand({
 	precondition: MessageController.MESSAGE_VISIBLE,
 	handler: c => c.closeMessage(),
 	kbOpts: {
-		weight: KeybindingsRegistry.WEIGHT.editorContrib(30),
+		weight: KeybindingWeight.EditorContrib + 30,
 		primary: KeyCode.Escape
 	}
 }));
@@ -193,5 +193,9 @@ registerThemingParticipant((theme, collector) => {
 	let background = theme.getColor(inputValidationInfoBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
+	}
+	let foreground = theme.getColor(inputValidationInfoForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
 	}
 });

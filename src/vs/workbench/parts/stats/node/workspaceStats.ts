@@ -8,7 +8,7 @@
 import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService, IFileStat, IResolveFileResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -16,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -179,6 +180,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 	}
 
+	public static tags: Tags;
+
 	private searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
@@ -226,7 +229,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private async getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
+	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -238,7 +241,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				workspaceId = void 0;
 				break;
 			case WorkbenchState.FOLDER:
-				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.fsPath).digest('hex');
+				// TODO: #54483 @Ben
+				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
 				break;
 			case WorkbenchState.WORKSPACE:
 				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
@@ -256,9 +260,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		tags['workspace.empty'] = isEmpty;
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
-		if (folders && folders.length && this.fileService) {
-			//return
-			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
+		if (!folders || !folders.length || !this.fileService) {
+			return TPromise.as(tags);
+		}
+
+		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -311,33 +317,36 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			if (nameSet.has('package.json')) {
-				await TPromise.join(folders.map(async workspaceUri => {
-					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					try {
-						const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
-						const packageJsonContents = JSON.parse(content.value);
-						if (packageJsonContents['dependencies']) {
-							for (let module of ModulesToLookFor) {
-								if ('react-native' === module) {
-									if (packageJsonContents['dependencies'][module]) {
-										tags['workspace.reactNative'] = true;
-									}
-								} else {
-									if (packageJsonContents['dependencies'][module]) {
-										tags['workspace.npm.' + module] = true;
+			const packageJsonPromises = !nameSet.has('package.json') ? [] : folders.map(workspaceUri => {
+				const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
+				return this.fileService.resolveFile(uri).then(() => {
+					return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(content => {
+						try {
+							const packageJsonContents = JSON.parse(content.value);
+							if (packageJsonContents['dependencies']) {
+								for (let module of ModulesToLookFor) {
+									if ('react-native' === module) {
+										if (packageJsonContents['dependencies'][module]) {
+											tags['workspace.reactNative'] = true;
+										}
+									} else {
+										if (packageJsonContents['dependencies'][module]) {
+											tags['workspace.npm.' + module] = true;
+										}
 									}
 								}
 							}
 						}
-					}
-					catch (e) {
-						// Ignore errors when resolving file or parsing file contents
-					}
-				}));
-			}
-		}
-		return TPromise.as(tags);
+						catch (e) {
+							// Ignore errors when resolving file or parsing file contents
+						}
+					});
+				}, err => {
+					// Ignore missing file
+				});
+			});
+			return TPromise.join(packageJsonPromises).then(() => tags);
+		});
 	}
 
 	private findFolders(configuration: IWindowConfiguration): URI[] {
@@ -347,11 +356,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 	private findFolder({ filesToOpen, filesToCreate, filesToDiff }: IWindowConfiguration): URI {
 		if (filesToOpen && filesToOpen.length) {
-			return this.parentURI(URI.file(filesToOpen[0].filePath));
+			return this.parentURI(filesToOpen[0].fileUri);
 		} else if (filesToCreate && filesToCreate.length) {
-			return this.parentURI(URI.file(filesToCreate[0].filePath));
+			return this.parentURI(filesToCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {
-			return this.parentURI(URI.file(filesToDiff[0].filePath));
+			return this.parentURI(filesToDiff[0].fileUri);
 		}
 		return undefined;
 	}
@@ -372,6 +381,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			*/
 			this.telemetryService.publicLog('workspce.tags', tags);
+			WorkspaceStats.tags = tags;
 		}, error => onUnexpectedError(error));
 	}
 

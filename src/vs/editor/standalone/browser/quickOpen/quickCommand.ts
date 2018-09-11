@@ -18,6 +18,7 @@ import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editor
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
@@ -49,18 +50,18 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 		if (mode === Mode.OPEN) {
 
 			// Use a timeout to give the quick open widget a chance to close itself first
-			TPromise.timeout(50).done(() => {
+			setTimeout(() => {
 
 				// Some actions are enabled only when editor has focus
 				this.editor.focus();
 
 				try {
 					let promise = this.action.run() || TPromise.as(null);
-					promise.done(null, onUnexpectedError);
+					promise.then(null, onUnexpectedError);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
-			}, onUnexpectedError);
+			}, 50);
 
 			return true;
 		}
@@ -79,9 +80,12 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+				primary: (browser.isIE ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1),
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
+				group: 'z_commands',
+				order: 1
 			}
 		});
 	}

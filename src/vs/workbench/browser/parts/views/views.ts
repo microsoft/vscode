@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
+import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IView } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -173,11 +173,6 @@ class ViewDescriptorCollection extends Disposable {
 	}
 }
 
-export interface IView {
-	viewDescriptor: IViewDescriptor;
-	visible: boolean;
-}
-
 export interface IViewState {
 	visible: boolean;
 	collapsed: boolean;
@@ -321,26 +316,17 @@ export class ContributableViewsModel extends Disposable {
 	}
 
 	private compareViewDescriptors(a: IViewDescriptor, b: IViewDescriptor): number {
-		const viewStateA = this.viewStates.get(a.id);
-		const viewStateB = this.viewStates.get(b.id);
-
-		let orderA = viewStateA && viewStateA.order;
-		orderA = typeof orderA === 'number' ? orderA : a.order;
-		orderA = typeof orderA === 'number' ? orderA : Number.POSITIVE_INFINITY;
-
-		let orderB = viewStateB && viewStateB.order;
-		orderB = typeof orderB === 'number' ? orderB : b.order;
-		orderB = typeof orderB === 'number' ? orderB : Number.POSITIVE_INFINITY;
-
-		if (orderA !== orderB) {
-			return orderA - orderB;
-		}
-
 		if (a.id === b.id) {
 			return 0;
 		}
 
-		return a.id < b.id ? -1 : 1;
+		return (this.getViewOrder(a) - this.getViewOrder(b)) || (a.id < b.id ? -1 : 1);
+	}
+
+	private getViewOrder(viewDescriptor: IViewDescriptor): number {
+		const viewState = this.viewStates.get(viewDescriptor.id);
+		const viewOrder = viewState && typeof viewState.order === 'number' ? viewState.order : viewDescriptor.order;
+		return typeof viewOrder === 'number' ? viewOrder : Number.MAX_VALUE;
 	}
 
 	private onDidChangeViewDescriptors(viewDescriptors: IViewDescriptor[]): void {
@@ -355,13 +341,12 @@ export class ContributableViewsModel extends Disposable {
 		for (const viewDescriptor of viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			if (viewState) {
-				if (isUndefinedOrNull(viewState.collapsed)) {
-					// collapsed state was not set, so set it from view descriptor
-					viewState.collapsed = !!viewDescriptor.collapsed;
-				}
+				// set defaults if not set
+				viewState.visible = isUndefinedOrNull(viewState.visible) ? !viewDescriptor.hideByDefault : viewState.visible;
+				viewState.collapsed = isUndefinedOrNull(viewState.collapsed) ? !!viewDescriptor.collapsed : viewState.collapsed;
 			} else {
 				this.viewStates.set(viewDescriptor.id, {
-					visible: true,
+					visible: !viewDescriptor.hideByDefault,
 					collapsed: viewDescriptor.collapsed
 				});
 			}
@@ -436,8 +421,8 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		this.storageService = storageService;
 		this.contextService = contextService;
 
-		this._register(this.onDidAdd(() => this.saveVisibilityStates()));
-		this._register(this.onDidRemove(() => this.saveVisibilityStates()));
+		this._register(this.onDidAdd(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
+		this._register(this.onDidRemove(viewDescriptorRefs => this.saveVisibilityStates(viewDescriptorRefs.map(r => r.viewDescriptor))));
 	}
 
 	saveViewsStates(): void {
@@ -451,9 +436,9 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 	}
 
-	private saveVisibilityStates(): void {
-		const storedViewsVisibilityStates: { id: string, isHidden: boolean }[] = [];
-		for (const viewDescriptor of this.viewDescriptors) {
+	private saveVisibilityStates(viewDescriptors: IViewDescriptor[]): void {
+		const storedViewsVisibilityStates = PersistentContributableViewsModel.loadViewsVisibilityState(this.hiddenViewsStorageId, this.storageService, this.contextService);
+		for (const viewDescriptor of viewDescriptors) {
 			if (viewDescriptor.canToggleVisibility) {
 				const viewState = this.viewStates.get(viewDescriptor.id);
 				storedViewsVisibilityStates.push({ id: viewDescriptor.id, isHidden: viewState ? !viewState.visible : void 0 });
@@ -465,8 +450,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	private static loadViewsStates(viewletStateStorageId: string, hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): Map<string, IViewState> {
 		const viewStates = new Map<string, IViewState>();
 		const storedViewsStates = JSON.parse(storageService.get(viewletStateStorageId, contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
-		const viewsVisibilityStates = <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
+		const viewsVisibilityStates = PersistentContributableViewsModel.loadViewsVisibilityState(hiddenViewsStorageId, storageService, contextService);
 		for (const { id, isHidden } of viewsVisibilityStates) {
 			const viewState = storedViewsStates[id];
 			if (viewState) {
@@ -478,10 +462,15 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		}
 		for (const id of Object.keys(storedViewsStates)) {
 			if (!viewStates.has(id)) {
-				viewStates.set(id, <IViewState>{ ...storedViewsStates[id], ...{ visible: true } });
+				viewStates.set(id, <IViewState>{ ...storedViewsStates[id] });
 			}
 		}
 		return viewStates;
+	}
+
+	private static loadViewsVisibilityState(hiddenViewsStorageId: string, storageService: IStorageService, contextService: IWorkspaceContextService): { id: string, isHidden: boolean }[] {
+		const storedVisibilityStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(storageService.get(hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
+		return <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
 	}
 
 	dispose(): void {
@@ -500,17 +489,18 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IViewletService private viewletService: IViewletService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
 		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
-		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.GLOBAL, viewlet.id !== TEST_VIEW_CONTAINER_ID))));
+		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, this.getStorageScope(), viewlet.id !== TEST_VIEW_CONTAINER_ID))));
 	}
 
-	openView(id: string, focus: boolean): TPromise<void> {
+	openView(id: string, focus: boolean): TPromise<IView> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);
@@ -539,6 +529,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private updateViewletEnablement(viewContainer: ViewContainer, viewDescriptorCollection: ViewDescriptorCollection): void {
 		const enabled = viewDescriptorCollection.viewDescriptors.length > 0;
 		this.viewletService.setViewletEnablement(viewContainer.id, enabled);
-		this.storageService.store(`viewservice.${viewContainer.id}.enablement`, enabled, StorageScope.GLOBAL);
+		this.storageService.store(`viewservice.${viewContainer.id}.enablement`, enabled, this.getStorageScope());
+	}
+
+	private getStorageScope(): StorageScope {
+		return this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 	}
 }

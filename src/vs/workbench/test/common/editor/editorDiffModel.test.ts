@@ -11,7 +11,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
@@ -55,7 +55,7 @@ suite('Workbench editor model', () => {
 		let otherInput = instantiationService.createInstance(ResourceEditorInput, 'name2', 'description', URI.from({ scheme: 'test', authority: null, path: 'thePath' }));
 		let diffInput = new DiffEditorInput('name', 'description', input, otherInput);
 
-		return diffInput.resolve(true).then((model: any) => {
+		return diffInput.resolve().then((model: any) => {
 			assert(model);
 			assert(model instanceof TextDiffEditorModel);
 
@@ -63,7 +63,7 @@ suite('Workbench editor model', () => {
 			assert(diffEditorModel.original);
 			assert(diffEditorModel.modified);
 
-			return diffInput.resolve(true).then((model: any) => {
+			return diffInput.resolve().then((model: any) => {
 				assert(model.isResolved());
 
 				assert(diffEditorModel !== model.textDiffEditorModel);

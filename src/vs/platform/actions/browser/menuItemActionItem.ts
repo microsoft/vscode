@@ -5,20 +5,19 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMenu, MenuItemAction, IMenuActionOptions, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { addClasses, createCSSRule, removeClasses } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
+import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { createCSSRule } from 'vs/base/browser/dom';
-import URI from 'vs/base/common/uri';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { localize } from 'vs/nls';
+import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isWindows, isLinux } from 'vs/base/common/platform';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
@@ -92,40 +91,17 @@ export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions,
 	fillInActions(groups, target, false, isPrimaryGroup);
 }
 
-function fillInActions(groups: [string, MenuItemAction[]][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, (MenuItemAction | SubmenuItemAction)[]][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (getAlternativeActions) {
-			actions = actions.map(a => !!a.alt ? a.alt : a);
+			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
 		}
 
 		if (isPrimaryGroup(group)) {
+			const to = Array.isArray<IAction>(target) ? target : target.primary;
 
-			const head = Array.isArray<IAction>(target) ? target : target.primary;
-
-			// split contributed actions at the point where order
-			// changes form lt zero to gte
-			let pivot = 0;
-			for (; pivot < actions.length; pivot++) {
-				if ((<MenuItemAction>actions[pivot]).order >= 0) {
-					break;
-				}
-			}
-			// prepend contributed actions with order lte zero
-			head.unshift(...actions.slice(0, pivot));
-
-			// find the first separator which marks the end of the
-			// navigation group - might be the whole array length
-			let sep = 0;
-			while (sep < head.length) {
-				if (head[sep] instanceof Separator) {
-					break;
-				}
-				sep++;
-			}
-			// append contributed actions with order gt zero
-			head.splice(sep, 0, ...actions.slice(pivot));
-
+			to.unshift(...actions);
 		} else {
 			const to = Array.isArray<IAction>(target) ? target : target.secondary;
 
@@ -161,7 +137,7 @@ export class MenuItemActionItem extends ActionItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconPath), label: !_action.class && !_action.item.iconPath });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
 	}
 
 	protected get _commandAction(): IAction {
@@ -178,40 +154,52 @@ export class MenuItemActionItem extends ActionItem {
 		}
 
 		this.actionRunner.run(this._commandAction)
-			.done(undefined, err => this._notificationService.error(err));
+			.then(undefined, err => this._notificationService.error(err));
 	}
 
 	render(container: HTMLElement): void {
 		super.render(container);
 
 		this._updateItemClass(this._action.item);
+
+		let mouseOver = false;
 		const alternativeKeyEmitter = AlternativeKeyEmitter.getInstance(this._contextMenuService);
 		let alternativeKeyDown = alternativeKeyEmitter.isPressed;
 
 		const updateAltState = () => {
-			if (alternativeKeyDown !== this._wantsAltCommand) {
-				this._wantsAltCommand = alternativeKeyDown;
-				this._updateLabel();
-				this._updateTooltip();
-				this._updateClass();
+			const wantsAltCommand = mouseOver && alternativeKeyDown;
+			if (wantsAltCommand !== this._wantsAltCommand) {
+				this._wantsAltCommand = wantsAltCommand;
+				this.updateLabel();
+				this.updateTooltip();
+				this.updateClass();
 			}
 		};
-		updateAltState();
 
-		this._callOnDispose.push(alternativeKeyEmitter.event(value => {
+		this._register(alternativeKeyEmitter.event(value => {
 			alternativeKeyDown = value;
+			updateAltState();
+		}));
+
+		this._register(domEvent(container, 'mouseleave')(_ => {
+			mouseOver = false;
+			updateAltState();
+		}));
+
+		this._register(domEvent(container, 'mouseenter')(e => {
+			mouseOver = true;
 			updateAltState();
 		}));
 	}
 
-	_updateLabel(): void {
+	updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this._commandAction.label);
+			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	_updateTooltip(): void {
-		const element = this.$e.getHTMLElement();
+	updateTooltip(): void {
+		const element = this.label;
 		const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 		const keybindingLabel = keybinding && keybinding.getLabel();
 
@@ -220,7 +208,7 @@ export class MenuItemActionItem extends ActionItem {
 			: this._commandAction.label;
 	}
 
-	_updateClass(): void {
+	updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
 				this._updateItemClass(this._action.alt.item);
@@ -234,20 +222,22 @@ export class MenuItemActionItem extends ActionItem {
 		dispose(this._itemClassDispose);
 		this._itemClassDispose = undefined;
 
-		if (item.iconPath) {
+		if (item.iconLocation) {
 			let iconClass: string;
 
-			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath.dark)) {
-				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath.dark);
+			const iconPathMapKey = item.iconLocation.dark.toString();
+
+			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey);
 			} else {
 				iconClass = ids.nextId();
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.light || item.iconPath.dark).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.dark).toString()}")`);
-				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath.dark, iconClass);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${(item.iconLocation.light || item.iconLocation.dark).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${item.iconLocation.dark.toString()}")`);
+				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 			}
 
-			this.$e.getHTMLElement().classList.add('icon', iconClass);
-			this._itemClassDispose = { dispose: () => this.$e.getHTMLElement().classList.remove('icon', iconClass) };
+			addClasses(this.label, 'icon', iconClass);
+			this._itemClassDispose = toDisposable(() => removeClasses(this.label, 'icon', iconClass));
 		}
 	}
 
@@ -271,6 +261,6 @@ export class ContextAwareMenuItemActionItem extends MenuItemActionItem {
 		event.stopPropagation();
 
 		this.actionRunner.run(this._commandAction, this._context)
-			.done(undefined, err => this._notificationService.error(err));
+			.then(undefined, err => this._notificationService.error(err));
 	}
 }

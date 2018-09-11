@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';

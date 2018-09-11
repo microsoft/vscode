@@ -9,14 +9,16 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
 	get extension(): IExtension { return this._extension; }
 
-	constructor(private _extension: IExtension) {
+	constructor(
+		private _extension: IExtension,
+	) {
 		super();
 	}
 
@@ -39,7 +41,7 @@ export class ExtensionsInput extends EditorInput {
 		return this.extension === otherExtensionInput.extension;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 

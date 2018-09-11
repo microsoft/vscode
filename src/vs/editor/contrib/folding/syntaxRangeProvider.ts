@@ -23,9 +23,11 @@ export interface IFoldingRangeData extends FoldingRange {
 const foldingContext: FoldingContext = {
 };
 
+export const ID_SYNTAX_PROVIDER = 'syntax';
+
 export class SyntaxRangeProvider implements RangeProvider {
 
-	readonly id = 'syntax';
+	readonly id = ID_SYNTAX_PROVIDER;
 
 	constructor(private editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}

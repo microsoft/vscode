@@ -37,6 +37,7 @@
 
 .monaco-split-view2 > .split-view-container > .split-view-view {
 	white-space: initial;
+	flex: none;
 }
 
 .monaco-split-view2.vertical > .split-view-container > .split-view-view {

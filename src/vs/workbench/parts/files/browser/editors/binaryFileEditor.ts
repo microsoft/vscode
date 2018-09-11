@@ -11,7 +11,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
  */
 export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
-	public static readonly ID = BINARY_FILE_EDITOR_ID;
+	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -59,7 +59,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		});
 	}
 
-	public getTitle(): string {
+	getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('binaryFileEditor', "Binary File Viewer");
 	}
 }

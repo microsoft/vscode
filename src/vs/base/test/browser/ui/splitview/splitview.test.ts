@@ -261,16 +261,16 @@ suite('Splitview', () => {
 		view1.dispose();
 	});
 
-	test.skip('sashes are properly enabled/disabled', () => {
+	test('sashes are properly enabled/disabled', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
 		const splitview = new SplitView(container);
 		splitview.layout(200);
 
-		splitview.addView(view1, 20);
-		splitview.addView(view2, 20);
-		splitview.addView(view3, 20);
+		splitview.addView(view1, Sizing.Distribute);
+		splitview.addView(view2, Sizing.Distribute);
+		splitview.addView(view3, Sizing.Distribute);
 
 		let sashes = getSashes(splitview);
 		assert.equal(sashes.length, 2, 'there are two sashes');
@@ -298,10 +298,14 @@ suite('Splitview', () => {
 		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		view1.maximumSize = 300;
-		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view2.maximumSize = 200;
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+
+		splitview.resizeView(0, 40);
 		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
 		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
@@ -376,7 +380,51 @@ suite('Splitview', () => {
 		splitview.addView(view3, 25);
 
 		splitview.layout(200);
-		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 160]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [67, 67, 66]);
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('split sizing', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		assert.equal(view1.size, 200);
+
+		splitview.addView(view2, Sizing.Split(0));
+		assert.deepEqual([view1.size, view2.size], [100, 100]);
+
+		splitview.addView(view3, Sizing.Split(1));
+		assert.deepEqual([view1.size, view2.size, view3.size], [100, 50, 50]);
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('split sizing 2', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		assert.equal(view1.size, 200);
+
+		splitview.addView(view2, Sizing.Split(0));
+		assert.deepEqual([view1.size, view2.size], [100, 100]);
+
+		splitview.addView(view3, Sizing.Split(0));
+		assert.deepEqual([view1.size, view2.size, view3.size], [50, 100, 50]);
 
 		splitview.dispose();
 		view3.dispose();

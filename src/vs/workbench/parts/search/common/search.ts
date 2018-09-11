@@ -9,15 +9,23 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
-import { SymbolInformation } from 'vs/editor/common/modes';
+import { SymbolKind, Location, ProviderResult } from 'vs/editor/common/modes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+
+export interface IWorkspaceSymbol {
+	name: string;
+	containerName?: string;
+	kind: SymbolKind;
+	location: Location;
+}
 
 export interface IWorkspaceSymbolProvider {
-	provideWorkspaceSymbols(search: string): TPromise<SymbolInformation[]>;
-	resolveWorkspaceSymbol?: (item: SymbolInformation) => TPromise<SymbolInformation>;
+	provideWorkspaceSymbols(search: string, token: CancellationToken): ProviderResult<IWorkspaceSymbol[]>;
+	resolveWorkspaceSymbol?(item: IWorkspaceSymbol, token: CancellationToken): ProviderResult<IWorkspaceSymbol>;
 }
 
 export namespace WorkspaceSymbolProviderRegistry {
@@ -48,12 +56,12 @@ export namespace WorkspaceSymbolProviderRegistry {
 	}
 }
 
-export function getWorkspaceSymbols(query: string): TPromise<[IWorkspaceSymbolProvider, SymbolInformation[]][]> {
+export function getWorkspaceSymbols(query: string, token: CancellationToken = CancellationToken.None): TPromise<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]> {
 
-	const result: [IWorkspaceSymbolProvider, SymbolInformation[]][] = [];
+	const result: [IWorkspaceSymbolProvider, IWorkspaceSymbol[]][] = [];
 
 	const promises = WorkspaceSymbolProviderRegistry.all().map(support => {
-		return support.provideWorkspaceSymbols(query).then(value => {
+		return Promise.resolve(support.provideWorkspaceSymbols(query, token)).then(value => {
 			if (Array.isArray(value)) {
 				result.push([support, value]);
 			}

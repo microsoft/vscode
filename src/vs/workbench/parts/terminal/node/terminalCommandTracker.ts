@@ -5,6 +5,7 @@
 
 import { Terminal, IMarker } from 'vscode-xterm';
 import { ITerminalCommandTracker } from 'vs/workbench/parts/terminal/common/terminal';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The minimize size of the prompt in which to assume the line is a command.
@@ -16,12 +17,12 @@ enum Boundary {
 	Bottom
 }
 
-export enum ScrollPosition {
+export const enum ScrollPosition {
 	Top,
 	Middle
 }
 
-export class TerminalCommandTracker implements ITerminalCommandTracker {
+export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposable {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
@@ -30,6 +31,10 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		private _xterm: Terminal
 	) {
 		this._xterm.on('key', key => this._onKey(key));
+	}
+
+	public dispose(): void {
+		this._xterm = null;
 	}
 
 	private _onKey(key: string): void {
@@ -44,7 +49,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 	}
 
 	private _onEnter(): void {
-		if (this._xterm.buffer.x >= MINIMUM_PROMPT_LENGTH) {
+		if (this._xterm._core.buffer.x >= MINIMUM_PROMPT_LENGTH) {
 			this._xterm.addMarker(0);
 		}
 	}
@@ -171,7 +176,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 	private _getLine(marker: IMarker | Boundary): number {
 		// Use the _second last_ row as the last row is likely the prompt
 		if (marker === Boundary.Bottom) {
-			return this._xterm.buffer.ybase + this._xterm.rows - 1;
+			return this._xterm._core.buffer.ybase + this._xterm.rows - 1;
 		}
 
 		if (marker === Boundary.Top) {
@@ -194,7 +199,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Bottom) {
 			this._currentMarker = this._xterm.addMarker(this._getOffset() - 1);
 		} else {
-			let offset = this._getOffset();
+			const offset = this._getOffset();
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
@@ -217,7 +222,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Top) {
 			this._currentMarker = this._xterm.addMarker(this._getOffset() + 1);
 		} else {
-			let offset = this._getOffset();
+			const offset = this._getOffset();
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
@@ -231,10 +236,10 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Bottom) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Top) {
-			return 0 - (this._xterm.buffer.ybase + this._xterm.buffer.y);
+			return 0 - (this._xterm._core.buffer.ybase + this._xterm._core.buffer.y);
 		} else {
 			let offset = this._getLine(this._currentMarker);
-			offset -= this._xterm.buffer.ybase + this._xterm.buffer.y;
+			offset -= this._xterm._core.buffer.ybase + this._xterm._core.buffer.y;
 			return offset;
 		}
 	}

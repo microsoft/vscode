@@ -331,6 +331,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		this._parent.disposeContext(this._myContextId);
 		if (this._domNode) {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+			this._domNode = undefined;
 		}
 	}
 

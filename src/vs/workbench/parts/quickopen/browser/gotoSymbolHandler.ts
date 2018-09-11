@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/gotoSymbolHandler';
+import 'vs/css!vs/editor/contrib/documentSymbols/media/symbol-icons';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -19,21 +19,45 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { asThenable } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
 
+const NLS_SYMBOL_CACHE: { [type: string]: string } = {
+	'method': nls.localize('method', "methods ({0})"),
+	'function': nls.localize('function', "functions ({0})"),
+	'constructor': nls.localize('_constructor', "constructors ({0})"),
+	'variable': nls.localize('variable', "variables ({0})"),
+	'class': nls.localize('class', "classes ({0})"),
+	'interface': nls.localize('interface', "interfaces ({0})"),
+	'namespace': nls.localize('namespace', "namespaces ({0})"),
+	'package': nls.localize('package', "packages ({0})"),
+	'module': nls.localize('modules', "modules ({0})"),
+	'property': nls.localize('property', "properties ({0})"),
+	'enum': nls.localize('enum', "enumerations ({0})"),
+	'string': nls.localize('string', "strings ({0})"),
+	'rule': nls.localize('rule', "rules ({0})"),
+	'file': nls.localize('file', "files ({0})"),
+	'array': nls.localize('array', "arrays ({0})"),
+	'number': nls.localize('number', "numbers ({0})"),
+	'boolean': nls.localize('boolean', "booleans ({0})"),
+	'object': nls.localize('object', "objects ({0})"),
+	'key': nls.localize('key', "keys ({0})")
+};
+
 export class GotoSymbolAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.gotoSymbol';
-	public static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
+	static readonly ID = 'workbench.action.gotoSymbol';
+	static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);
@@ -41,15 +65,8 @@ export class GotoSymbolAction extends QuickOpenAction {
 }
 
 class OutlineModel extends QuickOpenModel {
-	private outline: Outline;
 
-	constructor(outline: Outline, entries: SymbolEntry[]) {
-		super(entries);
-
-		this.outline = outline;
-	}
-
-	public applyFilter(searchValue: string): void {
+	applyFilter(searchValue: string): void {
 
 		// Normalize search
 		let normalizedSearchValue = searchValue;
@@ -107,7 +124,7 @@ class OutlineModel extends QuickOpenModel {
 
 					// Update previous result with count
 					if (currentResult) {
-						currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter, this.outline));
+						currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
 					}
 
 					currentType = result.getType();
@@ -125,7 +142,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Update previous result with count
 			if (currentResult) {
-				currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter, this.outline));
+				currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
 			}
 		}
 
@@ -203,38 +220,13 @@ class OutlineModel extends QuickOpenModel {
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
 
-	private renderGroupLabel(type: string, count: number, outline: Outline): string {
-
-		const pattern = OutlineModel.getDefaultGroupLabelPatterns()[type];
+	private renderGroupLabel(type: string, count: number): string {
+		const pattern = NLS_SYMBOL_CACHE[type];
 		if (pattern) {
 			return strings.format(pattern, count);
 		}
 
 		return type;
-	}
-
-	private static getDefaultGroupLabelPatterns(): { [type: string]: string } {
-		const result: { [type: string]: string } = Object.create(null);
-		result['method'] = nls.localize('method', "methods ({0})");
-		result['function'] = nls.localize('function', "functions ({0})");
-		result['constructor'] = <any>nls.localize('_constructor', "constructors ({0})");
-		result['variable'] = nls.localize('variable', "variables ({0})");
-		result['class'] = nls.localize('class', "classes ({0})");
-		result['interface'] = nls.localize('interface', "interfaces ({0})");
-		result['namespace'] = nls.localize('namespace', "namespaces ({0})");
-		result['package'] = nls.localize('package', "packages ({0})");
-		result['module'] = nls.localize('modules', "modules ({0})");
-		result['property'] = nls.localize('property', "properties ({0})");
-		result['enum'] = nls.localize('enum', "enumerations ({0})");
-		result['string'] = nls.localize('string', "strings ({0})");
-		result['rule'] = nls.localize('rule', "rules ({0})");
-		result['file'] = nls.localize('file', "files ({0})");
-		result['array'] = nls.localize('array', "arrays ({0})");
-		result['number'] = nls.localize('number', "numbers ({0})");
-		result['boolean'] = nls.localize('boolean', "booleans ({0})");
-		result['object'] = nls.localize('object', "objects ({0})");
-		result['key'] = nls.localize('key', "keys ({0})");
-		return result;
 	}
 }
 
@@ -246,9 +238,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private icon: string;
 	private description: string;
 	private range: IRange;
+	private revealRange: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
@@ -257,51 +250,52 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		this.icon = icon;
 		this.description = description;
 		this.range = range;
+		this.revealRange = revealRange || range;
 		this.setHighlights(highlights);
 		this.editorService = editorService;
 		this.handler = handler;
 	}
 
-	public getIndex(): number {
+	getIndex(): number {
 		return this.index;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.name;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, symbols", this.getLabel());
 	}
 
-	public getIcon(): string {
+	getIcon(): string {
 		return this.icon;
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public getType(): string {
+	getType(): string {
 		return this.type;
 	}
 
-	public getRange(): IRange {
+	getRange(): IRange {
 		return this.range;
 	}
 
-	public getInput(): IEditorInput {
+	getInput(): IEditorInput {
 		return this.editorService.activeEditor;
 	}
 
-	public getOptions(pinned?: boolean): ITextEditorOptions {
+	getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
 			selection: this.toSelection(),
 			pinned
 		};
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
@@ -349,16 +343,12 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	private toSelection(): IRange {
 		return {
-			startLineNumber: this.range.startLineNumber,
-			startColumn: this.range.startColumn || 1,
-			endLineNumber: this.range.startLineNumber,
-			endColumn: this.range.startColumn || 1
+			startLineNumber: this.revealRange.startLineNumber,
+			startColumn: this.revealRange.startColumn || 1,
+			endLineNumber: this.revealRange.startLineNumber,
+			endColumn: this.revealRange.startColumn || 1
 		};
 	}
-}
-
-interface Outline {
-	entries: SymbolInformation[];
 }
 
 interface IEditorLineDecoration {
@@ -369,23 +359,40 @@ interface IEditorLineDecoration {
 
 export class GotoSymbolHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.filesymbols';
+	static readonly ID = 'workbench.picker.filesymbols';
 
-	private outlineToModelCache: { [modelId: string]: OutlineModel; };
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
-	private activeOutlineRequest: TPromise<OutlineModel>;
+
+	private cachedOutlineRequest: TPromise<OutlineModel>;
+	private pendingOutlineRequest: CancellationTokenSource;
 
 	constructor(
 		@IEditorService private editorService: IEditorService
 	) {
 		super();
 
-		this.outlineToModelCache = {};
+		this.registerListeners();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	private registerListeners(): void {
+		this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange());
+	}
+
+	private onDidActiveEditorChange(): void {
+		this.clearOutlineRequest();
+
+		this.lastKnownEditorViewState = void 0;
+		this.rangeHighlightDecorationId = void 0;
+	}
+
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Support to cancel pending outline requests
+		if (!this.pendingOutlineRequest) {
+			this.pendingOutlineRequest = new CancellationTokenSource();
+		}
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
@@ -394,7 +401,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 
 		// Resolve Outline Model
-		return this.getActiveOutline().then(outline => {
+		return this.getOutline().then(outline => {
+			if (token.isCancellationRequested) {
+				return outline;
+			}
 
 			// Filter by search
 			outline.applyFilter(searchValue);
@@ -403,7 +413,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
 			return nls.localize('noSymbolsMatching', "No symbols matching");
 		}
@@ -411,11 +421,11 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return nls.localize('noSymbolsFound', "No symbols found");
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('gotoSymbolHandlerAriaLabel', "Type to narrow down symbols of the currently active editor.");
 	}
 
-	public canRun(): boolean | string {
+	canRun(): boolean | string {
 		let canRun = false;
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
@@ -433,7 +443,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return canRun ? true : activeTextEditorWidget !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		searchValue = searchValue.trim();
 
 		// Remove any type pattern (:) from search value as needed
@@ -447,7 +457,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		};
 	}
 
-	private toQuickOpenEntries(flattened: SymbolInformation[]): SymbolEntry[] {
+	private toQuickOpenEntries(flattened: DocumentSymbol[]): SymbolEntry[] {
 		const results: SymbolEntry[] = [];
 
 		for (let i = 0; i < flattened.length; i++) {
@@ -460,20 +470,20 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			results.push(new SymbolEntry(i,
-				label, icon, description, icon,
-				element.location.range, null, this.editorService, this
+				label, icon, description, `symbol-icon ${icon}`,
+				element.range, element.selectionRange, null, this.editorService, this
 			));
 		}
 
 		return results;
 	}
 
-	private getActiveOutline(): TPromise<OutlineModel> {
-		if (!this.activeOutlineRequest) {
-			this.activeOutlineRequest = this.doGetActiveOutline();
+	private getOutline(): TPromise<OutlineModel> {
+		if (!this.cachedOutlineRequest) {
+			this.cachedOutlineRequest = this.doGetActiveOutline();
 		}
 
-		return this.activeOutlineRequest;
+		return this.cachedOutlineRequest;
 	}
 
 	private doGetActiveOutline(): TPromise<OutlineModel> {
@@ -485,29 +495,16 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 
 			if (model && types.isFunction((<ITextModel>model).getLanguageIdentifier)) {
-
-				// Ask cache first
-				const modelId = (<ITextModel>model).id;
-				if (this.outlineToModelCache[modelId]) {
-					return TPromise.as(this.outlineToModelCache[modelId]);
-				}
-
-				return getDocumentSymbols(<ITextModel>model).then(outline => {
-
-					const model = new OutlineModel(outline, this.toQuickOpenEntries(outline.entries));
-
-					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
-					this.outlineToModelCache[modelId] = model;
-
-					return model;
-				});
+				return TPromise.wrap(asThenable(() => getDocumentSymbols(<ITextModel>model, true, this.pendingOutlineRequest.token)).then(entries => {
+					return new OutlineModel(this.toQuickOpenEntries(entries));
+				}));
 			}
 		}
 
 		return TPromise.wrap<OutlineModel>(null);
 	}
 
-	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {
+	decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: IEditorGroup): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const deleteDecorations: string[] = [];
 
@@ -554,7 +551,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	public clearDecorations(): void {
+	private clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
 				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
@@ -572,10 +569,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		}
 	}
 
-	public onClose(canceled: boolean): void {
+	onClose(canceled: boolean): void {
 
-		// Clear Cache
-		this.outlineToModelCache = {};
+		// Cancel any pending/cached outline request now
+		this.clearOutlineRequest();
 
 		// Clear Highlight Decorations if present
 		this.clearDecorations();
@@ -586,9 +583,18 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			if (activeTextEditorWidget) {
 				activeTextEditorWidget.restoreViewState(this.lastKnownEditorViewState);
 			}
+
+			this.lastKnownEditorViewState = null;
+		}
+	}
+
+	private clearOutlineRequest(): void {
+		if (this.pendingOutlineRequest) {
+			this.pendingOutlineRequest.cancel();
+			this.pendingOutlineRequest.dispose();
+			this.pendingOutlineRequest = void 0;
 		}
 
-		this.lastKnownEditorViewState = null;
-		this.activeOutlineRequest = null;
+		this.cachedOutlineRequest = null;
 	}
 }

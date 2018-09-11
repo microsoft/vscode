@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 
@@ -42,6 +42,15 @@ export interface IBaseResourceInput {
 	 * Description to show for the diff editor
 	 */
 	description?: string;
+
+	/**
+	 * Hint to indicate that this input should be treated as a file
+	 * that opens in an editor capable of showing file content.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 */
+	forceFile?: boolean;
 }
 
 export interface IResourceInput extends IBaseResourceInput {
@@ -66,11 +75,11 @@ export interface IEditorOptions {
 	readonly preserveFocus?: boolean;
 
 	/**
-	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	readonly forceOpen?: boolean;
+	readonly forceReload?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups. Note

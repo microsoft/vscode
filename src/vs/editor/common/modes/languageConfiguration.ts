@@ -63,6 +63,13 @@ export interface LanguageConfiguration {
 	surroundingPairs?: IAutoClosingPair[];
 
 	/**
+	 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
+	 *
+	 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
+	 */
+	autoCloseBefore?: string;
+
+	/**
 	 * The language's folding rules.
 	 */
 	folding?: FoldingRules;

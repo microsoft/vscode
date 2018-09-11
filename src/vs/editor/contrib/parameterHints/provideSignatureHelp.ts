@@ -3,39 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
+import { first2 } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
-import { asWinJsPromise, sequence } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
+import { ITextModel } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(model: ITextModel, position: Position): TPromise<SignatureHelp> {
+export function provideSignatureHelp(model: ITextModel, position: Position, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
 
-	const supports = SignatureHelpProviderRegistry.ordered(model);
-	let result: SignatureHelp;
+	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
 
-	return sequence(supports.map(support => () => {
-
-		if (result) {
-			// stop when there is a result
-			return undefined;
-		}
-
-		return asWinJsPromise(token => support.provideSignatureHelp(model, position, token)).then(thisResult => {
-			result = thisResult;
-		}, onUnexpectedExternalError);
-
-	})).then(() => result);
+	return first2(supports.map(support => () => {
+		return Promise.resolve(support.provideSignatureHelp(model, position, token, context)).catch(onUnexpectedExternalError);
+	}));
 }
 
-registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);
+registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) =>
+	provideSignatureHelp(model, position, { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None));

@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { parse, ParseError } from 'vs/base/common/json';
-import { readFile } from 'vs/base/node/pfs';
 import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -16,6 +15,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface IRegExp {
 	pattern: string;
@@ -37,6 +38,7 @@ interface ILanguageConfiguration {
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
+	autoCloseBefore?: string;
 }
 
 function isStringArr(something: string[]): boolean {
@@ -61,14 +63,13 @@ function isCharacterPair(something: CharacterPair): boolean {
 
 export class LanguageConfigurationFileHandler {
 
-	private _modeService: IModeService;
 	private _done: boolean[];
 
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService modeService: IModeService
+		@IModeService private readonly _modeService: IModeService,
+		@IFileService private readonly _fileService: IFileService
 	) {
-		this._modeService = modeService;
 		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
@@ -85,15 +86,15 @@ export class LanguageConfigurationFileHandler {
 		this._done[languageIdentifier.id] = true;
 
 		let configurationFiles = this._modeService.getConfigurationFiles(languageIdentifier.language);
-		configurationFiles.forEach((configFilePath) => this._handleConfigFile(languageIdentifier, configFilePath));
+		configurationFiles.forEach((configFileLocation) => this._handleConfigFile(languageIdentifier, configFileLocation));
 	}
 
-	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFilePath: string): void {
-		readFile(configFilePath).then((fileContents) => {
+	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFileLocation: URI): void {
+		this._fileService.resolveContent(configFileLocation, { encoding: 'utf8' }).then((contents) => {
 			const errors: ParseError[] = [];
-			const configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
+			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
-				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.join('\n')));
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {
@@ -274,6 +275,11 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.surroundingPairs = surroundingPairs;
 		}
 
+		const autoCloseBefore = configuration.autoCloseBefore;
+		if (typeof autoCloseBefore === 'string') {
+			richEditConfig.autoCloseBefore = autoCloseBefore;
+		}
+
 		if (configuration.wordPattern) {
 			try {
 				let wordPattern = this._parseRegex(configuration.wordPattern);
@@ -432,6 +438,11 @@ const schema: IJSONSchema = {
 					}
 				}]
 			}
+		},
+		autoCloseBefore: {
+			default: ';:.,=}])> \n\t',
+			description: nls.localize('schema.autoCloseBefore', 'Defines what characters must be after the cursor in order for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting. This is typically the set of characters which can not start an expression.'),
+			type: 'string',
 		},
 		surroundingPairs: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],

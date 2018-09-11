@@ -113,6 +113,22 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		});
 	});
 
+	test('Emmet Select Next/Prev item at boundary', function(): any {
+		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
+			editor.selections = [new Selection(4, 1, 4, 1)];
+
+			fetchSelectItem('next');
+			testSelection(editor.selection, 2, 4, 6);
+
+			editor.selections = [new Selection(4, 1, 4, 1)];
+
+			fetchSelectItem('prev');
+			testSelection(editor.selection, 1, 3, 5);
+
+			return Promise.resolve();
+		});
+	});
+
 	test('Emmet Next/Prev Item in html template', function (): any {
 		const templateContents = `
 <script type="text/template">

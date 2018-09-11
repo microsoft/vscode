@@ -5,14 +5,18 @@
 
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
+import * as objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { relative } from 'path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { TPromise } from 'vs/base/common/winjs.base';
 
-export interface IVariableAccessor {
+export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
 	getConfigurationValue(folderUri: uri, section: string): string | undefined;
@@ -22,47 +26,78 @@ export interface IVariableAccessor {
 	getLineNumber(): string;
 }
 
-export class VariableResolver {
+export class AbstractVariableResolverService implements IConfigurationResolverService {
 
 	static VARIABLE_REGEXP = /\$\{(.*?)\}/g;
 
-	private envVariables: IProcessEnvironment;
+	_serviceBrand: any;
 
 	constructor(
-		private accessor: IVariableAccessor,
-		envVariables: IProcessEnvironment
+		private _context: IVariableResolveContext,
+		private _envVariables: IProcessEnvironment = process.env
 	) {
 		if (isWindows) {
-			this.envVariables = Object.create(null);
-			Object.keys(envVariables).forEach(key => {
-				this.envVariables[key.toLowerCase()] = envVariables[key];
+			this._envVariables = Object.create(null);
+			Object.keys(_envVariables).forEach(key => {
+				this._envVariables[key.toLowerCase()] = _envVariables[key];
 			});
-		} else {
-			this.envVariables = envVariables;
 		}
 	}
 
-	resolveAny(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>): any {
+	public resolve(root: IWorkspaceFolder, value: string): string;
+	public resolve(root: IWorkspaceFolder, value: string[]): string[];
+	public resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+	public resolve(root: IWorkspaceFolder, value: any): any {
+		return this.recursiveResolve(root ? root.uri : undefined, value);
+	}
+
+	public resolveAny(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any {
+
+		const result = objects.deepClone(config) as any;
+
+		// hoist platform specific attributes to top level
+		if (isWindows && result.windows) {
+			Object.keys(result.windows).forEach(key => result[key] = result.windows[key]);
+		} else if (isMacintosh && result.osx) {
+			Object.keys(result.osx).forEach(key => result[key] = result.osx[key]);
+		} else if (isLinux && result.linux) {
+			Object.keys(result.linux).forEach(key => result[key] = result.linux[key]);
+		}
+
+		// delete all platform specific sections
+		delete result.windows;
+		delete result.osx;
+		delete result.linux;
+
+		// substitute all variables recursively in string values
+		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping);
+	}
+
+	public resolveWithCommands(folder: IWorkspaceFolder, config: any): TPromise<any> {
+		throw new Error('resolveWithCommands not implemented.');
+	}
+
+	private recursiveResolve(folderUri: uri, value: any, commandValueMapping?: IStringDictionary<string>): any {
 		if (types.isString(value)) {
-			return this.resolve(folderUri, value, commandValueMapping);
+			return this.resolveString(folderUri, value, commandValueMapping);
 		} else if (types.isArray(value)) {
-			return value.map(s => this.resolveAny(folderUri, s, commandValueMapping));
+			return value.map(s => this.recursiveResolve(folderUri, s, commandValueMapping));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
-				const resolvedKey = this.resolve(folderUri, key, commandValueMapping);
-				result[resolvedKey] = this.resolveAny(folderUri, value[key], commandValueMapping);
+				const resolvedKey = this.resolveString(folderUri, key, commandValueMapping);
+				result[resolvedKey] = this.recursiveResolve(folderUri, value[key], commandValueMapping);
 			});
 			return result;
 		}
 		return value;
 	}
 
-	resolve(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): string {
+	private resolveString(folderUri: uri, value: string, commandValueMapping: IStringDictionary<string>): string {
 
-		const filePath = this.accessor.getFilePath();
+		const filePath = this._context.getFilePath();
 
-		return value.replace(VariableResolver.VARIABLE_REGEXP, (match: string, variable: string) => {
+		return value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
 
 			let argument: string;
 			const parts = variable.split(':');
@@ -78,7 +113,7 @@ export class VariableResolver {
 						if (isWindows) {
 							argument = argument.toLowerCase();
 						}
-						const env = this.envVariables[argument];
+						const env = this._envVariables[argument];
 						if (types.isString(env)) {
 							return env;
 						}
@@ -89,7 +124,7 @@ export class VariableResolver {
 
 				case 'config':
 					if (argument) {
-						const config = this.accessor.getConfigurationValue(folderUri, argument);
+						const config = this._context.getConfigurationValue(folderUri, argument);
 						if (types.isUndefinedOrNull(config)) {
 							throw new Error(localize('configNotFound', "'{0}' can not be resolved because setting '{1}' not found.", match, argument));
 						}
@@ -120,7 +155,7 @@ export class VariableResolver {
 						case 'workspaceFolderBasename':
 						case 'relativeFile':
 							if (argument) {
-								const folder = this.accessor.getFolderUri(argument);
+								const folder = this._context.getFolderUri(argument);
 								if (folder) {
 									folderUri = folder;
 								} else {
@@ -128,7 +163,7 @@ export class VariableResolver {
 								}
 							}
 							if (!folderUri) {
-								if (this.accessor.getWorkspaceFolderCount() > 1) {
+								if (this._context.getWorkspaceFolderCount() > 1) {
 									throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "'{0}' can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
 								}
 								throw new Error(localize('canNotResolveWorkspaceFolder', "'{0}' can not be resolved. Please open a folder.", match));
@@ -167,14 +202,14 @@ export class VariableResolver {
 							return paths.basename(folderUri.fsPath);
 
 						case 'lineNumber':
-							const lineNumber = this.accessor.getLineNumber();
+							const lineNumber = this._context.getLineNumber();
 							if (lineNumber) {
 								return lineNumber;
 							}
 							throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
 
 						case 'selectedText':
-							const selectedText = this.accessor.getSelectedText();
+							const selectedText = this._context.getSelectedText();
 							if (selectedText) {
 								return selectedText;
 							}
@@ -203,7 +238,7 @@ export class VariableResolver {
 							return basename.slice(0, basename.length - paths.extname(basename).length);
 
 						case 'execPath':
-							const ep = this.accessor.getExecPath();
+							const ep = this._context.getExecPath();
 							if (ep) {
 								return ep;
 							}

@@ -6,7 +6,7 @@
 import { Viewlet } from '../workbench/viewlet';
 import { Code } from '../../vscode/code';
 
-const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] input.search-box';
+const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
 
 export class Extensions extends Viewlet {
 
@@ -27,12 +27,13 @@ export class Extensions extends Viewlet {
 	async searchForExtension(name: string): Promise<any> {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.waitForSetValue(SEARCH_BOX, `name:"${name}"`);
+		await this.code.waitForTypeInEditor(SEARCH_BOX, `name:"${name}"`);
 	}
 
 	async installExtension(name: string): Promise<void> {
 		await this.searchForExtension(name);
-		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.install`);
-		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${name}"] .extension li[class='action-item'] .extension-action.reload`);
+		const ariaLabel = `${name}. Press enter for extension details.`;
+		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension li[class='action-item'] .extension-action.install`);
+		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.reload`);
 	}
 }

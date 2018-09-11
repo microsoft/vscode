@@ -22,7 +22,7 @@
 					"PHP",
 					"php"
 				],
-				"firstLine": "^#!/.*\\bphp\\b",
+				"firstLine": "^#!\\s*/.*\\bphp\\b",
 				"mimetypes": [
 					"application/x-php"
 				],

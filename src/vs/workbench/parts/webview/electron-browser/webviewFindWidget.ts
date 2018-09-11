@@ -7,58 +7,49 @@ import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WebviewElement } from './webviewElement';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
-		private readonly webview: WebviewElement,
+		private _webview: WebviewElement,
 		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(contextViewService, contextKeyService, keybindingService, notificationService, storageService);
+		super(contextViewService, contextKeyService);
+	}
+
+	dispose() {
+		this._webview = undefined;
+		super.dispose();
 	}
 
 	public find(previous: boolean) {
 		const val = this.inputValue;
 		if (val) {
-			this.webview.find(val, { findNext: true, forward: !previous });
+			this._webview.find(val, { findNext: true, forward: !previous });
 		}
 	}
 
 	public hide() {
 		super.hide();
-		this.webview.stopFind(true);
-		this.webview.focus();
+		this._webview.stopFind(true);
+		this._webview.focus();
 	}
 
 	public onInputChanged() {
 		const val = this.inputValue;
 		if (val) {
-			this.webview.startFind(val);
+			this._webview.startFind(val);
 		} else {
-			this.webview.stopFind(false);
+			this._webview.stopFind(false);
 		}
 	}
 
-	protected onFocusTrackerFocus() {
-		this.webview.notifyFindWidgetFocusChanged(true);
-	}
+	protected onFocusTrackerFocus() { }
 
-	protected onFocusTrackerBlur() {
-		this.webview.notifyFindWidgetFocusChanged(false);
-	}
+	protected onFocusTrackerBlur() { }
 
-	protected onFindInputFocusTrackerFocus() {
-		this.webview.notifyFindWidgetInputFocusChanged(true);
-	}
+	protected onFindInputFocusTrackerFocus() { }
 
-	protected onFindInputFocusTrackerBlur() {
-		this.webview.notifyFindWidgetInputFocusChanged(false);
-	}
+	protected onFindInputFocusTrackerBlur() { }
 }

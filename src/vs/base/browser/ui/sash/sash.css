@@ -54,8 +54,8 @@
 .monaco-sash:not(.disabled).orthogonal-start::before,
 .monaco-sash:not(.disabled).orthogonal-end::after {
 	content: ' ';
-	height: 4px;
-	width: 4px;
+	height: 8px;
+	width: 8px;
 	z-index: 100;
 	display: block;
 	cursor: all-scroll;
@@ -63,19 +63,23 @@
 }
 
 .monaco-sash.orthogonal-start.vertical::before {
-	top: -2px;
+	left: -2px;
+	top: -4px;
 }
 
 .monaco-sash.orthogonal-end.vertical::after {
-	bottom: -2px;
+	left: -2px;
+	bottom: -4px;
 }
 
 .monaco-sash.orthogonal-start.horizontal::before {
-	left: -2px;
+	top: -2px;
+	left: -4px;
 }
 
 .monaco-sash.orthogonal-end.horizontal::after {
-	right: -2px;
+	top: -2px;
+	right: -4px;
 }
 
 .monaco-sash.disabled {
@@ -90,4 +94,15 @@
 
 .monaco-sash.touch.horizontal {
 	height: 20px;
+}
+
+/** Debug **/
+
+.monaco-sash.debug:not(.disabled) {
+	background: cyan;
+}
+
+.monaco-sash.debug:not(.disabled).orthogonal-start::before,
+.monaco-sash.debug:not(.disabled).orthogonal-end::after {
+	background: red;
 }

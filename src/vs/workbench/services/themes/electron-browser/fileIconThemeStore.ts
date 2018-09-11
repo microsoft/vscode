@@ -7,14 +7,14 @@
 import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
-import * as Paths from 'path';
+import * as resources from 'vs/base/common/resources';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
 	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
@@ -95,14 +95,13 @@ export class FileIconThemeStore {
 				));
 				return;
 			}
-			// TODO@extensionLocation
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionLocation.fsPath, iconTheme.path));
 
-			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionLocation.fsPath)) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, normalizedAbsolutePath, extensionLocation.fsPath));
+			const iconThemeLocation = resources.joinPath(extensionLocation, iconTheme.path);
+			if (!resources.isEqualOrParent(iconThemeLocation, extensionLocation)) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, iconThemeLocation.path, extensionLocation.path));
 			}
 
-			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, normalizedAbsolutePath, extensionData);
+			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, iconThemeLocation, extensionData);
 			this.knownIconThemes.push(themeData);
 		});
 

@@ -233,9 +233,9 @@ export class ProcessTaskSystem implements ITaskSystem {
 		}
 		if (task.isBackground) {
 			let watchingProblemMatcher = new WatchingProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
-			let toUnbind: IDisposable[] = [];
+			let toDispose: IDisposable[] = [];
 			let eventCounter: number = 0;
-			toUnbind.push(watchingProblemMatcher.onDidStateChange((event) => {
+			toDispose.push(watchingProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					eventCounter++;
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -249,7 +249,21 @@ export class ProcessTaskSystem implements ITaskSystem {
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
-			const startPromise = this.childProcess.start();
+			const onProgress = (progress: LineData) => {
+				let line = Strings.removeAnsiEscapeCodes(progress.line);
+				this.outputChannel.append(line + '\n');
+				watchingProblemMatcher.processLine(line);
+				if (delayer === null) {
+					delayer = new Async.Delayer(3000);
+				}
+				delayer.trigger(() => {
+					watchingProblemMatcher.forceDelivery();
+					return null;
+				}).then(() => {
+					delayer = null;
+				});
+			};
+			const startPromise = this.childProcess.start(onProgress);
 			this.childProcess.pid.then(pid => {
 				if (pid !== -1) {
 					processStartedSignaled = true;
@@ -263,8 +277,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 				if (processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
 				}
-				toUnbind = dispose(toUnbind);
-				toUnbind = null;
+				toDispose = dispose(toDispose);
+				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
 				}
@@ -280,26 +294,13 @@ export class ProcessTaskSystem implements ITaskSystem {
 			}, (error: ErrorData) => {
 				this.childProcessEnded();
 				watchingProblemMatcher.dispose();
-				toUnbind = dispose(toUnbind);
-				toUnbind = null;
+				toDispose = dispose(toDispose);
+				toDispose = null;
 				for (let i = 0; i < eventCounter; i++) {
 					this._onDidStateChange.fire(inactiveEvent);
 				}
 				eventCounter = 0;
 				return this.handleError(task, error);
-			}, (progress: LineData) => {
-				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
-				watchingProblemMatcher.processLine(line);
-				if (delayer === null) {
-					delayer = new Async.Delayer(3000);
-				}
-				delayer.trigger(() => {
-					watchingProblemMatcher.forceDelivery();
-					return null;
-				}).then(() => {
-					delayer = null;
-				});
 			});
 			let result: ITaskExecuteResult = (<any>task).tscWatch
 				? { kind: TaskExecuteKind.Started, started: { restartOnFileChanges: '**/*.ts' }, promise: this.activeTaskPromise }
@@ -312,7 +313,12 @@ export class ProcessTaskSystem implements ITaskSystem {
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
 			let processStartedSignaled: boolean = false;
-			const startPromise = this.childProcess.start();
+			const onProgress = (progress) => {
+				let line = Strings.removeAnsiEscapeCodes(progress.line);
+				this.outputChannel.append(line + '\n');
+				startStopProblemMatcher.processLine(line);
+			};
+			const startPromise = this.childProcess.start(onProgress);
 			this.childProcess.pid.then(pid => {
 				if (pid !== -1) {
 					processStartedSignaled = true;
@@ -340,10 +346,6 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this._onDidStateChange.fire(inactiveEvent);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return this.handleError(task, error);
-			}, (progress) => {
-				let line = Strings.removeAnsiEscapeCodes(progress.line);
-				this.outputChannel.append(line + '\n');
-				startStopProblemMatcher.processLine(line);
 			});
 			return { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 		}
@@ -359,7 +361,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		let makeVisible = false;
 		if (errorData.error && !errorData.terminated) {
 			let args: string = task.command.args ? task.command.args.join(' ') : '';
-			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', task.command.name, args));
+			this.log(nls.localize('TaskRunnerSystem.childProcessError', 'Failed to launch external program {0} {1}.', JSON.stringify(task.command.name), args));
 			this.outputChannel.append(errorData.error.message);
 			makeVisible = true;
 		}

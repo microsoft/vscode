@@ -18,19 +18,17 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
 import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/colorThemeStore';
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 
 // implementation
 
@@ -70,6 +68,8 @@ export interface IColorCustomizations {
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
+	private fileService: IFileService;
+
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
@@ -94,7 +94,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		container: HTMLElement,
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
-		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
@@ -127,9 +126,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (persistedThemeData) {
 			themeData = ColorThemeData.fromStorageData(persistedThemeData);
 		}
-		if (!themeData) {
-			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
-			themeData = ColorThemeData.createUnloadedTheme(isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME);
+		let containerBaseTheme = this.getBaseThemeFromContainer();
+		if (!themeData || themeData && themeData.baseTheme !== containerBaseTheme) {
+			themeData = ColorThemeData.createUnloadedTheme(containerBaseTheme);
 		}
 		themeData.setCustomColors(this.colorCustomizations);
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
@@ -180,6 +179,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
+	}
+
+	acquireFileService(fileService: IFileService): void {
+		this.fileService = fileService;
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -278,7 +281,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return themeData.ensureLoaded(this).then(_ => {
+				return themeData.ensureLoaded(this.fileService).then(_ => {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
@@ -291,11 +294,22 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message)));
+					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location.toString(), error.message)));
 				});
 			}
 			return null;
 		});
+	}
+
+	public restoreColorTheme() {
+		let colorThemeSetting = this.configurationService.getValue<string>(COLOR_THEME_SETTING);
+		if (colorThemeSetting !== this.currentColorTheme.settingsId) {
+			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, null).then(theme => {
+				if (theme) {
+					this.setColorTheme(theme.id, null);
+				}
+			});
+		}
 	}
 
 	private updateDynamicCSSRules(themeData: ITheme) {
@@ -335,11 +349,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.onColorThemeChange.fire(this.currentColorTheme);
 
-		if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
-			let background = Color.Format.CSS.formatHex(newTheme.getColor(editorBackground)); // only take RGB, its what is used in the initial CSS
-			let data = { id: newTheme.id, background: background };
-			this.broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify(data) });
-		}
 		// remember theme data for a quick restore
 		this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData());
 
@@ -405,7 +414,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!iconThemeData) {
 				iconThemeData = FileIconThemeData.noIconTheme();
 			}
-			return iconThemeData.ensureLoaded(this).then(_ => {
+			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
 		});
@@ -441,6 +450,18 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this._configurationWriter = this.instantiationService.createInstance(ConfigurationWriter);
 		}
 		return this._configurationWriter;
+	}
+
+	private getBaseThemeFromContainer() {
+		if (this.container) {
+			for (let i = this.container.classList.length - 1; i >= 0; i--) {
+				const item = document.body.classList.item(i);
+				if (item === VS_LIGHT_THEME || item === VS_DARK_THEME || item === VS_HC_THEME) {
+					return item;
+				}
+			}
+		}
+		return VS_DARK_THEME;
 	}
 }
 

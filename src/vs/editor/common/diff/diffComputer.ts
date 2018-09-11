@@ -255,7 +255,7 @@ class LineChange implements ILineChange {
 		this.charChanges = charChanges;
 	}
 
-	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineMarkerSequence, modifiedLineSequence: LineMarkerSequence, continueProcessingPredicate: () => boolean, shouldPostProcessCharChanges: boolean): LineChange {
+	public static createFromDiffResult(shouldIgnoreTrimWhitespace: boolean, diffChange: IDiffChange, originalLineSequence: LineMarkerSequence, modifiedLineSequence: LineMarkerSequence, continueProcessingPredicate: () => boolean, shouldComputeCharChanges: boolean, shouldPostProcessCharChanges: boolean): LineChange {
 		let originalStartLineNumber: number;
 		let originalEndLineNumber: number;
 		let modifiedStartLineNumber: number;
@@ -278,7 +278,7 @@ class LineChange implements ILineChange {
 			modifiedEndLineNumber = modifiedLineSequence.getEndLineNumber(diffChange.modifiedStart + diffChange.modifiedLength - 1);
 		}
 
-		if (diffChange.originalLength !== 0 && diffChange.modifiedLength !== 0 && continueProcessingPredicate()) {
+		if (shouldComputeCharChanges && diffChange.originalLength !== 0 && diffChange.modifiedLength !== 0 && continueProcessingPredicate()) {
 			const originalCharSequence = originalLineSequence.getCharSequence(shouldIgnoreTrimWhitespace, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength - 1);
 			const modifiedCharSequence = modifiedLineSequence.getCharSequence(shouldIgnoreTrimWhitespace, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength - 1);
 
@@ -299,6 +299,7 @@ class LineChange implements ILineChange {
 }
 
 export interface IDiffComputerOpts {
+	shouldComputeCharChanges: boolean;
 	shouldPostProcessCharChanges: boolean;
 	shouldIgnoreTrimWhitespace: boolean;
 	shouldMakePrettyDiff: boolean;
@@ -306,6 +307,7 @@ export interface IDiffComputerOpts {
 
 export class DiffComputer {
 
+	private readonly shouldComputeCharChanges: boolean;
 	private readonly shouldPostProcessCharChanges: boolean;
 	private readonly shouldIgnoreTrimWhitespace: boolean;
 	private readonly shouldMakePrettyDiff: boolean;
@@ -318,6 +320,7 @@ export class DiffComputer {
 	private computationStartTime: number;
 
 	constructor(originalLines: string[], modifiedLines: string[], opts: IDiffComputerOpts) {
+		this.shouldComputeCharChanges = opts.shouldComputeCharChanges;
 		this.shouldPostProcessCharChanges = opts.shouldPostProcessCharChanges;
 		this.shouldIgnoreTrimWhitespace = opts.shouldIgnoreTrimWhitespace;
 		this.shouldMakePrettyDiff = opts.shouldMakePrettyDiff;
@@ -380,7 +383,7 @@ export class DiffComputer {
 		if (this.shouldIgnoreTrimWhitespace) {
 			let lineChanges: LineChange[] = [];
 			for (let i = 0, length = rawChanges.length; i < length; i++) {
-				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
+				lineChanges.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 			}
 			return lineChanges;
 		}
@@ -455,7 +458,7 @@ export class DiffComputer {
 
 			if (nextChange) {
 				// Emit the actual change
-				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
+				result.push(LineChange.createFromDiffResult(this.shouldIgnoreTrimWhitespace, nextChange, this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldComputeCharChanges, this.shouldPostProcessCharChanges));
 
 				originalLineIndex += nextChange.originalLength;
 				modifiedLineIndex += nextChange.modifiedLength;
@@ -475,15 +478,17 @@ export class DiffComputer {
 			return;
 		}
 
+		let charChanges: CharChange[];
+		if (this.shouldComputeCharChanges) {
+			charChanges = [new CharChange(
+				originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
+				modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
+			)];
+		}
 		result.push(new LineChange(
 			originalLineNumber, originalLineNumber,
 			modifiedLineNumber, modifiedLineNumber,
-			[
-				new CharChange(
-					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
-					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
-				)
-			]
+			charChanges
 		));
 	}
 
@@ -507,10 +512,12 @@ export class DiffComputer {
 		if (prevChange.originalEndLineNumber + 1 === originalLineNumber && prevChange.modifiedEndLineNumber + 1 === modifiedLineNumber) {
 			prevChange.originalEndLineNumber = originalLineNumber;
 			prevChange.modifiedEndLineNumber = modifiedLineNumber;
-			prevChange.charChanges.push(new CharChange(
-				originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
-				modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
-			));
+			if (this.shouldComputeCharChanges) {
+				prevChange.charChanges.push(new CharChange(
+					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
+					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
+				));
+			}
 			return true;
 		}
 

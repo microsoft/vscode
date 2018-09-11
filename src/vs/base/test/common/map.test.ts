@@ -7,8 +7,8 @@
 
 import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache } from 'vs/base/common/map';
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
-import { IIteratorResult } from 'vs/base/common/iterator';
+import { URI } from 'vs/base/common/uri';
+import { IteratorResult } from 'vs/base/common/iterator';
 
 suite('Map', () => {
 
@@ -419,7 +419,7 @@ suite('Map', () => {
 		map.set('/user/foo/flip/flop', 3);
 		map.set('/usr/foo', 4);
 
-		let item: IIteratorResult<number>;
+		let item: IteratorResult<number>;
 		let iter = map.findSuperstr('/user');
 
 		item = iter.next();

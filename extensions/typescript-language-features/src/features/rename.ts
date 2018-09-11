@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
 	public constructor(
@@ -31,22 +31,22 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			findInComments: false
 		};
 
+		let body: Proto.RenameResponseBody | undefined;
 		try {
-			const response = await this.client.execute('rename', args, token);
-			if (!response.body) {
+			body = (await this.client.execute('rename', args, token)).body;
+			if (!body) {
 				return null;
 			}
-
-			const renameInfo = response.body.info;
-			if (!renameInfo.canRename) {
-				return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
-			}
-
-			return this.toWorkspaceEdit(response.body.locs, newName);
 		} catch {
 			// noop
+			return null;
 		}
-		return null;
+
+		const renameInfo = body.info;
+		if (!renameInfo.canRename) {
+			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
+		}
+		return this.toWorkspaceEdit(body.locs, newName);
 	}
 
 	private toWorkspaceEdit(

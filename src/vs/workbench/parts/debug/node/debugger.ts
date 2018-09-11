@@ -8,10 +8,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -19,11 +19,12 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import uri from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-export class Debugger {
+export class Debugger implements IDebugger {
 
 	private mergedExtensionDescriptions: IExtensionDescription[];
 
@@ -72,23 +73,13 @@ export class Debugger {
 	}
 
 	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-
-		// first resolve command variables (which might have a UI)
-		return this.configurationResolverService.executeCommandVariables(config, this.variables).then(commandValueMapping => {
-
-			if (!commandValueMapping) { // cancelled by user
-				return null;
-			}
-
-			// now substitute all other variables
-			return (this.inEH() ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
-				try {
-					return TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService, commandValueMapping));
-				} catch (e) {
-					return TPromise.wrapError(e);
-				}
+		if (this.inEH()) {
+			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
+				return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
 			});
-		});
+		} else {
+			return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
+		}
 	}
 
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
@@ -98,7 +89,7 @@ export class Debugger {
 
 	private inEH(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter;
+		return debugConfigs.extensionHostDebugAdapter || this.extensionDescription.extensionLocation.scheme !== 'file';
 	}
 
 	public get label(): string {
@@ -182,7 +173,7 @@ export class Debugger {
 			return telemetryInfo;
 		}).then(data => {
 			const client = new TelemetryClient(
-				uri.parse(require.toUrl('bootstrap')).fsPath,
+				getPathFromAmdModule(require, 'bootstrap-fork'),
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,
@@ -207,6 +198,7 @@ export class Debugger {
 			return null;
 		}
 		// fill in the default configuration attributes shared by all adapters.
+		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
@@ -239,12 +231,16 @@ export class Debugger {
 				default: 4711
 			};
 			properties['preLaunchTask'] = {
-				type: ['string', 'null'],
+				anyOf: [taskSchema, {
+					type: ['string', 'null'],
+				}],
 				default: '',
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 			};
 			properties['postDebugTask'] = {
-				type: ['string', 'null'],
+				anyOf: [taskSchema, {
+					type: ['string', 'null'],
+				}],
 				default: '',
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};

@@ -155,6 +155,101 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('should jump to the previous line when on first column', function () {
+			withTestCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'onetwo', '001');
+
+					editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
+					assert.equal(model.getLinesContent().length, 1);
+
+					editor.setSelection(new Selection(1, 1, 1, 1));
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLinesContent()[0], 'onetwothree');
+				});
+		});
+
+		test('should keep deleting lines in multi cursor mode', function () {
+			withTestCodeEditor(
+				[
+					'hi my name is Carlos Matos',
+					'BCC',
+					'waso waso waso',
+					'my wife doesnt believe in me',
+					'nonononono',
+					'bitconneeeect'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					const beforeSecondWasoSelection = new Selection(3, 5, 3, 5);
+					const endOfBCCSelection = new Selection(2, 4, 2, 4);
+					const endOfNonono = new Selection(5, 11, 5, 11);
+
+					editor.setSelections([beforeSecondWasoSelection, endOfBCCSelection, endOfNonono]);
+					let selections;
+
+					deleteAllLeftAction.run(null, editor);
+					selections = editor.getSelections();
+
+					assert.equal(model.getLineContent(2), '');
+					assert.equal(model.getLineContent(3), ' waso waso');
+					assert.equal(model.getLineContent(5), '');
+
+					assert.deepEqual([
+						selections[0].startLineNumber,
+						selections[0].startColumn,
+						selections[0].endLineNumber,
+						selections[0].endColumn
+					], [3, 1, 3, 1]);
+
+					assert.deepEqual([
+						selections[1].startLineNumber,
+						selections[1].startColumn,
+						selections[1].endLineNumber,
+						selections[1].endColumn
+					], [2, 1, 2, 1]);
+
+					assert.deepEqual([
+						selections[2].startLineNumber,
+						selections[2].startColumn,
+						selections[2].endLineNumber,
+						selections[2].endColumn
+					], [5, 1, 5, 1]);
+
+					deleteAllLeftAction.run(null, editor);
+					selections = editor.getSelections();
+
+					assert.equal(model.getLineContent(1), 'hi my name is Carlos Matos waso waso');
+					assert.equal(selections.length, 2);
+
+					assert.deepEqual([
+						selections[0].startLineNumber,
+						selections[0].startColumn,
+						selections[0].endLineNumber,
+						selections[0].endColumn
+					], [1, 27, 1, 27]);
+
+					assert.deepEqual([
+						selections[1].startLineNumber,
+						selections[1].startColumn,
+						selections[1].endLineNumber,
+						selections[1].endColumn
+					], [2, 29, 2, 29]);
+				});
+		});
+
 		test('should work in multi cursor mode', function () {
 			withTestCodeEditor(
 				[

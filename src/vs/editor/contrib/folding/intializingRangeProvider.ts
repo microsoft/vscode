@@ -12,8 +12,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
 
+export const ID_INIT_PROVIDER = 'init';
+
 export class InitializingRangeProvider implements RangeProvider {
-	readonly id = 'init';
+	readonly id = ID_INIT_PROVIDER;
 
 	private decorationIds: string[] | undefined;
 	private timeout: number;

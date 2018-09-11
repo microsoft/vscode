@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ab08007feb924996eff9399c169f171fa17899ca",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/4504240cdb13a4640f64fc98a0adb858226a879e",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -722,7 +722,7 @@
 							"contentName": "meta.embedded.block.dosbatch",
 							"patterns": [
 								{
-									"include": "source.dosbatch"
+									"include": "source.batchfile"
 								}
 							]
 						}
@@ -1994,7 +1994,7 @@
 					"while": "(^|\\G)([ ]{4}|\\t)"
 				},
 				"separator": {
-					"match": "(^|\\G)[ ]{0,3}([*-_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
+					"match": "(^|\\G)[ ]{0,3}([\\*\\-\\_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
 					"name": "meta.separator.markdown"
 				}
 			}

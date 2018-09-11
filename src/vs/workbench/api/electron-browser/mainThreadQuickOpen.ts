@@ -5,16 +5,16 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
-import { InputBoxOptions, CancellationToken } from 'vscode';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { InputBoxOptions } from 'vscode';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { URI } from 'vs/base/common/uri';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
-interface MultiStepSession {
-	handle: number;
+interface QuickInputSession {
 	input: IQuickInput;
-	token: CancellationToken;
+	handlesToItems: Map<number, TransferQuickPickItems>;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadQuickOpen)
@@ -22,11 +22,10 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
 	private _quickInputService: IQuickInputService;
-	private _doSetItems: (items: MyQuickPickItems[]) => any;
+	private _doSetItems: (items: TransferQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
-	private _contents: TPromise<MyQuickPickItems[]>;
+	private _contents: TPromise<TransferQuickPickItems[]>;
 	private _token: number = 0;
-	private _multiStep: MultiStepSession;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -39,17 +38,10 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	public dispose(): void {
 	}
 
-	$show(multiStepHandle: number | undefined, options: IPickOptions): TPromise<number | number[]> {
-
-		const multiStep = typeof multiStepHandle === 'number';
-		if (multiStep && !(this._multiStep && multiStepHandle === this._multiStep.handle && !this._multiStep.token.isCancellationRequested)) {
-			return TPromise.as(undefined);
-		}
-		const input: IQuickInput = multiStep ? this._multiStep.input : this._quickInputService;
-
+	$show(options: IPickOptions<TransferQuickPickItems>, token: CancellationToken): Thenable<number | number[]> {
 		const myToken = ++this._token;
 
-		this._contents = new TPromise<MyQuickPickItems[]>((c, e) => {
+		this._contents = new TPromise<TransferQuickPickItems[]>((c, e) => {
 			this._doSetItems = (items) => {
 				if (myToken === this._token) {
 					c(items);
@@ -63,39 +55,40 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		});
 
+		options = {
+			...options,
+			onDidFocus: el => {
+				if (el) {
+					this._proxy.$onItemSelected((<TransferQuickPickItems>el).handle);
+				}
+			}
+		};
+
 		if (options.canPickMany) {
-			return asWinJsPromise(token => input.pick(this._contents, options as { canPickMany: true }, token)).then(items => {
+			return this._quickInputService.pick(this._contents, options as { canPickMany: true }, token).then(items => {
 				if (items) {
 					return items.map(item => item.handle);
 				}
 				return undefined;
-			}, undefined, progress => {
-				if (progress) {
-					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
-				}
 			});
 		} else {
-			return asWinJsPromise(token => input.pick(this._contents, options, token)).then(item => {
+			return this._quickInputService.pick(this._contents, options, token).then(item => {
 				if (item) {
 					return item.handle;
 				}
 				return undefined;
-			}, undefined, progress => {
-				if (progress) {
-					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
-				}
 			});
 		}
 	}
 
-	$setItems(items: MyQuickPickItems[]): TPromise<any> {
+	$setItems(items: TransferQuickPickItems[]): Thenable<void> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
 		}
 		return undefined;
 	}
 
-	$setError(error: Error): TPromise<any> {
+	$setError(error: Error): Thenable<void> {
 		if (this._doSetError) {
 			this._doSetError(error);
 		}
@@ -104,14 +97,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(multiStepHandle: number | undefined, options: InputBoxOptions, validateInput: boolean): TPromise<string> {
-
-		const multiStep = typeof multiStepHandle === 'number';
-		if (multiStep && !(this._multiStep && multiStepHandle === this._multiStep.handle && !this._multiStep.token.isCancellationRequested)) {
-			return TPromise.as(undefined);
-		}
-		const input: IQuickInput = multiStep ? this._multiStep.input : this._quickInputService;
-
+	$input(options: InputBoxOptions, validateInput: boolean, token: CancellationToken): Thenable<string> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {
@@ -129,27 +115,111 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			};
 		}
 
-		return asWinJsPromise(token => input.input(inputOptions, token));
+		return this._quickInputService.input(inputOptions, token);
 	}
 
-	// ---- Multi-step input
+	// ---- QuickInput
 
-	$multiStep(handle: number): TPromise<never> {
-		let outerReject: (err: any) => void;
-		let innerResolve: (value: void) => void;
-		const promise = new TPromise<never>((_, rej) => outerReject = rej, () => innerResolve(undefined));
-		this._quickInputService.multiStepInput((input, token) => {
-			this._multiStep = { handle, input, token };
-			const promise = new TPromise<void>(res => innerResolve = res);
-			token.onCancellationRequested(() => innerResolve(undefined));
-			return promise;
-		})
-			.then(() => promise.cancel(), err => outerReject(err))
-			.then(() => {
-				if (this._multiStep && this._multiStep.handle === handle) {
-					this._multiStep = null;
+	private sessions = new Map<number, QuickInputSession>();
+
+	$createOrUpdate(params: TransferQuickInput): Thenable<void> {
+		const sessionId = params.id;
+		let session = this.sessions.get(sessionId);
+		if (!session) {
+			if (params.type === 'quickPick') {
+				const input = this._quickInputService.createQuickPick();
+				input.onDidAccept(() => {
+					this._proxy.$onDidAccept(sessionId);
+				});
+				input.onDidChangeActive(items => {
+					this._proxy.$onDidChangeActive(sessionId, items.map(item => (item as TransferQuickPickItems).handle));
+				});
+				input.onDidChangeSelection(items => {
+					this._proxy.$onDidChangeSelection(sessionId, items.map(item => (item as TransferQuickPickItems).handle));
+				});
+				input.onDidTriggerButton(button => {
+					this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
+				});
+				input.onDidChangeValue(value => {
+					this._proxy.$onDidChangeValue(sessionId, value);
+				});
+				input.onDidHide(() => {
+					this._proxy.$onDidHide(sessionId);
+				});
+				session = {
+					input,
+					handlesToItems: new Map()
+				};
+			} else {
+				const input = this._quickInputService.createInputBox();
+				input.onDidAccept(() => {
+					this._proxy.$onDidAccept(sessionId);
+				});
+				input.onDidTriggerButton(button => {
+					this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
+				});
+				input.onDidChangeValue(value => {
+					this._proxy.$onDidChangeValue(sessionId, value);
+				});
+				input.onDidHide(() => {
+					this._proxy.$onDidHide(sessionId);
+				});
+				session = {
+					input,
+					handlesToItems: new Map()
+				};
+			}
+			this.sessions.set(sessionId, session);
+		}
+		const { input, handlesToItems } = session;
+		for (const param in params) {
+			if (param === 'id' || param === 'type') {
+				continue;
+			}
+			if (param === 'visible') {
+				if (params.visible) {
+					input.show();
+				} else {
+					input.hide();
 				}
-			});
-		return promise;
+			} else if (param === 'items') {
+				handlesToItems.clear();
+				params[param].forEach(item => {
+					handlesToItems.set(item.handle, item);
+				});
+				input[param] = params[param];
+			} else if (param === 'activeItems' || param === 'selectedItems') {
+				input[param] = params[param]
+					.filter(handle => handlesToItems.has(handle))
+					.map(handle => handlesToItems.get(handle));
+			} else if (param === 'buttons') {
+				input[param] = params.buttons.map(button => {
+					if (button.handle === -1) {
+						return this._quickInputService.backButton;
+					}
+					const { iconPath, tooltip, handle } = button;
+					return {
+						iconPath: {
+							dark: URI.revive(iconPath.dark),
+							light: iconPath.light && URI.revive(iconPath.light)
+						},
+						tooltip,
+						handle
+					};
+				});
+			} else {
+				input[param] = params[param];
+			}
+		}
+		return TPromise.as(undefined);
+	}
+
+	$dispose(sessionId: number): Thenable<void> {
+		const session = this.sessions.get(sessionId);
+		if (session) {
+			session.input.dispose();
+			this.sessions.delete(sessionId);
+		}
+		return TPromise.as(undefined);
 	}
 }

@@ -5,14 +5,15 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileMatch, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, SearchProviderType } from 'vs/platform/search/common/search';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -29,12 +30,20 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	}
 
 	dispose(): void {
-		this._searchProvider.forEach(value => dispose());
+		this._searchProvider.forEach(value => value.dispose());
 		this._searchProvider.clear();
 	}
 
-	$registerSearchProvider(handle: number, scheme: string): void {
-		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, scheme, handle, this._proxy));
+	$registerTextSearchProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.text, scheme, handle, this._proxy));
+	}
+
+	$registerFileSearchProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.file, scheme, handle, this._proxy));
+	}
+
+	$registerFileIndexProvider(handle: number, scheme: string): void {
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.fileIndex, scheme, handle, this._proxy));
 	}
 
 	$unregisterProvider(handle: number): void {
@@ -42,7 +51,11 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._searchProvider.delete(handle);
 	}
 
-	$handleFindMatch(handle: number, session, data: UriComponents | IRawFileMatch2[]): void {
+	$handleFileMatch(handle: number, session, data: UriComponents[]): void {
+		this._searchProvider.get(handle).handleFindMatch(session, data);
+	}
+
+	$handleTextMatch(handle: number, session, data: IRawFileMatch2[]): void {
 		this._searchProvider.get(handle).handleFindMatch(session, data);
 	}
 
@@ -66,7 +79,7 @@ class SearchOperation {
 	addMatch(match: IFileMatch): void {
 		if (this.matches.has(match.resource.toString())) {
 			// Merge with previous IFileMatches
-			this.matches.get(match.resource.toString()).lineMatches.push(...match.lineMatches);
+			this.matches.get(match.resource.toString()).matches.push(...match.matches);
 		} else {
 			this.matches.set(match.resource.toString(), match);
 		}
@@ -75,81 +88,68 @@ class SearchOperation {
 	}
 }
 
-class RemoteSearchProvider implements ISearchResultProvider {
+class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 	private readonly _registrations: IDisposable[];
 	private readonly _searches = new Map<number, SearchOperation>();
 
 	constructor(
 		searchService: ISearchService,
+		type: SearchProviderType,
 		private readonly _scheme: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostSearchShape
 	) {
-		this._registrations = [searchService.registerSearchResultProvider(this)];
+		this._registrations = [searchService.registerSearchResultProvider(this._scheme, type, this)];
 	}
 
 	dispose(): void {
 		dispose(this._registrations);
 	}
 
-	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
-
+	search(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): TPromise<ISearchComplete> {
 		if (isFalsyOrEmpty(query.folderQueries)) {
-			return PPromise.as(undefined);
+			return TPromise.as(undefined);
 		}
 
-		const folderQueriesForScheme = query.folderQueries.filter(fq => fq.folder.scheme === this._scheme);
-		if (!folderQueriesForScheme.length) {
-			return TPromise.wrap(null);
-		}
+		const search = new SearchOperation(onProgress);
+		this._searches.set(search.id, search);
 
-		query = {
-			...query,
-			folderQueries: folderQueriesForScheme
-		};
+		const searchP = query.type === QueryType.File
+			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
+			: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query, token);
 
-		let outer: TPromise;
-
-		return new PPromise((resolve, reject, report) => {
-
-			const search = new SearchOperation(report);
-			this._searches.set(search.id, search);
-
-			outer = query.type === QueryType.File
-				? this._proxy.$provideFileSearchResults(this._handle, search.id, query)
-				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query);
-
-			outer.then((result: ISearchCompleteStats) => {
-				this._searches.delete(search.id);
-				resolve(({ results: values(search.matches), stats: result.stats, limitHit: result.limitHit }));
-			}, err => {
-				this._searches.delete(search.id);
-				reject(err);
-			});
-		}, () => {
-			if (outer) {
-				outer.cancel();
-			}
+		return TPromise.wrap(searchP).then((result: ISearchCompleteStats) => {
+			this._searches.delete(search.id);
+			return { results: values(search.matches), stats: result.stats, limitHit: result.limitHit };
+		}, err => {
+			this._searches.delete(search.id);
+			return TPromise.wrapError(err);
 		});
 	}
 
-	handleFindMatch(session: number, dataOrUri: UriComponents | IRawFileMatch2[]): void {
+	clearCache(cacheKey: string): TPromise<void> {
+		return TPromise.wrap(this._proxy.$clearCache(cacheKey));
+	}
+
+	handleFindMatch(session: number, dataOrUri: (UriComponents | IRawFileMatch2)[]): void {
 		if (!this._searches.has(session)) {
 			// ignore...
 			return;
 		}
 
 		const searchOp = this._searches.get(session);
-		if (Array.isArray(dataOrUri)) {
-			dataOrUri.forEach(m => {
+		dataOrUri.forEach(result => {
+			if ((<IRawFileMatch2>result).matches) {
 				searchOp.addMatch({
-					resource: URI.revive(m.resource),
-					lineMatches: m.lineMatches
+					resource: URI.revive((<IRawFileMatch2>result).resource),
+					matches: (<IRawFileMatch2>result).matches
 				});
-			});
-		} else {
-			searchOp.addMatch({ resource: URI.revive(dataOrUri) });
-		}
+			} else {
+				searchOp.addMatch({
+					resource: URI.revive(result)
+				});
+			}
+		});
 	}
 }

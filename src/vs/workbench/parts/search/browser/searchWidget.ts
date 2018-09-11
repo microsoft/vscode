@@ -14,13 +14,12 @@ import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findI
 import { IMessage, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
@@ -31,7 +30,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { Delayer } from 'vs/base/common/async';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -94,6 +94,7 @@ export class SearchWidget extends Widget {
 	private replaceActionBar: ActionBar;
 	public replaceInputFocusTracker: dom.IFocusTracker;
 	private replaceInputBoxFocused: IContextKey<boolean>;
+	private _replaceHistoryDelayer: Delayer<void>;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string;
@@ -120,7 +121,7 @@ export class SearchWidget extends Widget {
 	public readonly onBlur: Event<void> = this._onBlur.event;
 
 	constructor(
-		container: Builder,
+		container: HTMLElement,
 		options: ISearchWidgetOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
@@ -133,6 +134,7 @@ export class SearchWidget extends Widget {
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
+		this._replaceHistoryDelayer = new Delayer<void>(500);
 		this.render(container, options);
 	}
 
@@ -225,8 +227,10 @@ export class SearchWidget extends Widget {
 		this.searchInput.focusOnRegex();
 	}
 
-	private render(container: Builder, options: ISearchWidgetOptions): void {
-		this.domNode = container.div({ 'class': 'search-widget' }).style({ position: 'relative' }).getHTMLElement();
+	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
+		this.domNode = dom.append(container, dom.$('.search-widget'));
+		this.domNode.style.position = 'relative';
+
 		this.renderToggleReplaceButton(this.domNode);
 
 		this.renderSearchInput(this.domNode, options);
@@ -241,7 +245,9 @@ export class SearchWidget extends Widget {
 			buttonHoverBackground: null
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
-		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
+		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
+		this.toggleReplaceButton.element.classList.add('collapse');
+		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 		this.toggleReplaceButton.element.title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
@@ -267,13 +273,13 @@ export class SearchWidget extends Widget {
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
 		this._register(this.onSearchSubmit(() => {
-			this.searchInput.inputBox.addToHistory(this.searchInput.getValue());
+			this.searchInput.inputBox.addToHistory();
 		}));
 		this.searchInput.onCaseSensitiveKeyDown((keyboardEvent: IKeyboardEvent) => this.onCaseSensitiveKeyDown(keyboardEvent));
 		this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent));
 
 		this._register(this.onReplaceValueChanged(() => {
-			this.replaceInput.addToHistory(this.replaceInput.value);
+			this._replaceHistoryDelayer.trigger(() => this.replaceInput.addToHistory());
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
@@ -284,7 +290,7 @@ export class SearchWidget extends Widget {
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = this.clipboardServce.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
-					this.searchInput.inputBox.addToHistory(this.searchInput.getValue());
+					this.searchInput.inputBox.addToHistory();
 					this.searchInput.setValue(globalBufferText);
 					this.searchInput.select();
 				}
@@ -315,6 +321,7 @@ export class SearchWidget extends Widget {
 		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
+		this.onkeydown(this.replaceActionBar.domNode, (keyboardEvent) => this.onReplaceActionbarKeyDown(keyboardEvent));
 
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
 		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
@@ -330,6 +337,7 @@ export class SearchWidget extends Widget {
 		dom.toggleClass(this.replaceContainer, 'disabled');
 		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
 		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
+		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
 	}
@@ -376,6 +384,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputChanged(): void {
+		this.searchInput.clearMessage();
 		this.setReplaceAllActionState(false);
 	}
 
@@ -437,6 +446,13 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	private onReplaceActionbarKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this.focusRegexAction();
+			keyboardEvent.preventDefault();
+		}
+	}
+
 	private submitSearch(refresh: boolean = true): void {
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
@@ -460,7 +476,7 @@ export class SearchWidget extends Widget {
 export function registerContributions() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ReplaceAllAction.ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {

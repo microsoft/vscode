@@ -16,8 +16,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
+export const ID_INDENT_PROVIDER = 'indent';
+
 export class IndentRangeProvider implements RangeProvider {
-	readonly id = 'indent';
+	readonly id = ID_INDENT_PROVIDER;
 
 	readonly decorations;
 

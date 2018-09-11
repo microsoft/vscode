@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ISuggestSupport } from 'vs/editor/common/modes';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { Context as SuggestContext } from './suggest';
-import { SuggestModel, State } from './suggestModel';
-import { ICompletionItem } from './completionModel';
-import { SuggestWidget, ISelectedSuggestion } from './suggestWidget';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICompletionItem } from './completionModel';
+import { Context as SuggestContext } from './suggest';
+import { State, SuggestModel } from './suggestModel';
+import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 
 class AcceptOnCharacterOracle {
 
@@ -88,6 +88,8 @@ export class SuggestController implements IEditorContribution {
 	private _memory: SuggestMemories;
 	private _toDispose: IDisposable[] = [];
 
+	private readonly _sticky = false; // for development purposes only
+
 	constructor(
 		private _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -110,6 +112,11 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.push(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.hideWidget();
+			}
+		}));
+		this._toDispose.push(this._editor.onDidBlurEditorText(() => {
+			if (!this._sticky) {
+				this._model.cancel();
 			}
 		}));
 
@@ -196,10 +203,12 @@ export class SuggestController implements IEditorContribution {
 		const editorColumn = this._editor.getPosition().column;
 		const columnDelta = editorColumn - position.column;
 
+		// pushing undo stops *before* additional text edits and
+		// *after* the main edit
+		this._editor.pushUndoStop();
+
 		if (Array.isArray(suggestion.additionalTextEdits)) {
-			this._editor.pushUndoStop();
 			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-			this._editor.pushUndoStop();
 		}
 
 		// keep item in memory
@@ -213,8 +222,12 @@ export class SuggestController implements IEditorContribution {
 		SnippetController2.get(this._editor).insert(
 			insertText,
 			suggestion.overwriteBefore + columnDelta,
-			suggestion.overwriteAfter
+			suggestion.overwriteAfter,
+			false, false,
+			!suggestion.noWhitespaceAdjust
 		);
+
+		this._editor.pushUndoStop();
 
 		if (!suggestion.command) {
 			// done
@@ -226,7 +239,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).then(undefined, onUnexpectedError);
 			this._model.cancel();
 		}
 
@@ -320,7 +333,8 @@ export class TriggerSuggestAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -339,7 +353,7 @@ export class TriggerSuggestAction extends EditorAction {
 registerEditorContribution(SuggestController);
 registerEditorAction(TriggerSuggestAction);
 
-const weight = KeybindingsRegistry.WEIGHT.editorContrib(90);
+const weight = KeybindingWeight.EditorContrib + 90;
 
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 
@@ -350,7 +364,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Tab
 	}
 }));

@@ -7,14 +7,14 @@
 
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import * as encoding from 'vs/base/node/encoding';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IResolveContentOptions, isParent, IResourceEncodings } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { join, extname } from 'path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IEncodingOverride {
 	parent?: uri;
@@ -26,9 +26,8 @@ export interface IEncodingOverride {
 // service and then ideally be passed in as option to the file service
 // the file service should talk about string | Buffer for reading and writing and only convert
 // to strings if a encoding is provided
-export class ResourceEncodings implements IResourceEncodings {
+export class ResourceEncodings extends Disposable implements IResourceEncodings {
 	private encodingOverride: IEncodingOverride[];
-	private toDispose: IDisposable[];
 
 	constructor(
 		private textResourceConfigurationService: ITextResourceConfigurationService,
@@ -36,8 +35,9 @@ export class ResourceEncodings implements IResourceEncodings {
 		private contextService: IWorkspaceContextService,
 		encodingOverride?: IEncodingOverride[]
 	) {
+		super();
+
 		this.encodingOverride = encodingOverride || this.getEncodingOverrides();
-		this.toDispose = [];
 
 		this.registerListeners();
 	}
@@ -45,12 +45,12 @@ export class ResourceEncodings implements IResourceEncodings {
 	private registerListeners(): void {
 
 		// Workspace Folder Change
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => {
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
 			this.encodingOverride = this.getEncodingOverrides();
 		}));
 	}
 
-	public getReadEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
+	getReadEncoding(resource: uri, options: IResolveContentOptions, detected: encoding.IDetectedEncodingResult): string {
 		let preferredEncoding: string;
 
 		// Encoding passed in as option
@@ -79,7 +79,7 @@ export class ResourceEncodings implements IResourceEncodings {
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
 
-	public getWriteEncoding(resource: uri, preferredEncoding?: string): string {
+	getWriteEncoding(resource: uri, preferredEncoding?: string): string {
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
 
@@ -137,9 +137,5 @@ export class ResourceEncodings implements IResourceEncodings {
 		}
 
 		return null;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

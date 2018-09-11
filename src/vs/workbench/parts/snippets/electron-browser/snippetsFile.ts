@@ -9,16 +9,19 @@ import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
-import { readFile } from 'vs/base/node/pfs';
 import { basename, extname } from 'path';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class Snippet {
 
 	private _codeSnippet: string;
 	private _isBogous: boolean;
+
+	readonly prefixLow: string;
 
 	constructor(
 		readonly scopes: string[],
@@ -30,6 +33,7 @@ export class Snippet {
 		readonly isFromExtension?: boolean,
 	) {
 		//
+		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
 	}
 
 	get codeSnippet(): string {
@@ -140,11 +144,12 @@ export class SnippetFile {
 	private _loadPromise: Promise<this>;
 
 	constructor(
-		readonly filepath: string,
+		readonly location: URI,
 		readonly defaultScopes: string[],
-		private readonly _extension: IExtensionDescription
+		private readonly _extension: IExtensionDescription,
+		private readonly _fileService: IFileService
 	) {
-		this.isGlobalSnippets = extname(filepath) === '.code-snippets';
+		this.isGlobalSnippets = extname(location.path) === '.code-snippets';
 		this.isUserSnippets = !this._extension;
 	}
 
@@ -158,7 +163,7 @@ export class SnippetFile {
 
 	private _filepathSelect(selector: string, bucket: Snippet[]): void {
 		// for `fooLang.json` files all snippets are accepted
-		if (selector === basename(this.filepath, '.json')) {
+		if (selector === basename(this.location.path, '.json')) {
 			bucket.push(...this.data);
 		}
 	}
@@ -190,8 +195,8 @@ export class SnippetFile {
 
 	load(): Promise<this> {
 		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(readFile(this.filepath)).then(value => {
-				const data = <JsonSerializedSnippets>jsonParse(value.toString());
+			this._loadPromise = Promise.resolve(this._fileService.resolveContent(this.location, { encoding: 'utf8' })).then(content => {
+				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
 				if (typeof data === 'object') {
 					forEach(data, entry => {
 						const { key: name, value: scopeOrTemplate } = entry;

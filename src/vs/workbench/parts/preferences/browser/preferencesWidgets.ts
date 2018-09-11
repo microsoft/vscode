@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { $ } from 'vs/base/browser/builder';
+import { URI } from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -318,7 +317,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	}
 
 	public render(container: HTMLElement): void {
-		this.builder = $(container);
+		this.element = container;
 
 		this.container = container;
 		this.labelElement = DOM.$('.action-title');
@@ -356,11 +355,11 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		}
 	}
 
-	protected _updateEnabled(): void {
+	protected updateEnabled(): void {
 		this.update();
 	}
 
-	protected _updateChecked(): void {
+	protected updateChecked(): void {
 		this.update();
 	}
 
@@ -561,6 +560,8 @@ export class SettingsTargetsWidget extends Widget {
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
 	showResultCount?: boolean;
+	ariaLive?: string;
+	ariaLabelledBy?: string;
 }
 
 export class SearchWidget extends Widget {
@@ -608,7 +609,10 @@ export class SearchWidget extends Widget {
 			}));
 		}
 
-		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');
+		if (this.options.ariaLabelledBy) {
+			this.inputBox.inputElement.setAttribute('aria-labelledBy', this.options.ariaLabelledBy);
+		}
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 
@@ -633,7 +637,8 @@ export class SearchWidget extends Widget {
 	}
 
 	public showMessage(message: string, count: number): void {
-		if (this.countElement) {
+		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
+		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
 			DOM.toggleClass(this.countElement, 'no-results', count === 0);

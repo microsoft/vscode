@@ -7,10 +7,11 @@ import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 import { CodeActionsComputeEvent } from './codeActionModel';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
@@ -52,7 +53,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position.position.lineNumber < this._model.position.lineNumber) {
+			if (this._position && this._position.position.lineNumber < this._model.position.lineNumber) {
 				pad += lineHeight;
 			}
 
@@ -114,13 +115,18 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { token } = this._futureFixes;
 		this._model = value;
 
-		this._model.actions.done(fixes => {
+		const selection = this._model.rangeOrSelection;
+		this._model.actions.then(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				this._show();
+				if (selection.isEmpty() && fixes.every(fix => fix.kind && CodeActionKind.Refactor.contains(fix.kind))) {
+					this.hide();
+				} else {
+					this._show();
+				}
 			} else {
 				this.hide();
 			}
-		}, err => {
+		}).catch(err => {
 			this.hide();
 		});
 	}
@@ -142,7 +148,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
 		}
-		const { lineNumber } = this._model.position;
+		const { lineNumber, column } = this._model.position;
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
@@ -152,13 +158,21 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
+		const isFolded = (lineNumber) => {
+			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
+		};
 
 		let effectiveLineNumber = lineNumber;
 		if (!lineHasSpace) {
-			if (lineNumber > 1) {
+			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				effectiveLineNumber -= 1;
-			} else {
+			} else if (!isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
+			} else if (column * config.fontInfo.spaceWidth < 22) {
+				// cannot show lightbulb above/below and showing
+				// it inline would overlay the cursor...
+				this.hide();
+				return;
 			}
 		}
 

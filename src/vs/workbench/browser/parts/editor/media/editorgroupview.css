@@ -13,8 +13,9 @@
 	opacity: 0.5; /* dimmed to indicate inactive state */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container.empty.active {
-	opacity: 1; /* indicate active group through undimmed state */
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.active,
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.dragged-over {
+	opacity: 1; /* indicate active/dragged-over group through undimmed state */
 }
 
 /* Letterpress */
@@ -42,10 +43,28 @@
 /* Title */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
-	height: 35px;
+	position: relative;
 	display: flex;
+	flex-wrap: nowrap;
 	box-sizing:	border-box;
 	overflow: hidden;
+	justify-content: space-between;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.tabs {
+	flex-wrap: wrap;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.title-border-bottom::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+	background-color: var(--title-border-bottom-color);
+	width: 100%;
+	height: 1px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.empty > .title {
@@ -73,12 +92,12 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close.svg');
+	background-image: url('close-big.svg');
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 .hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close-inverse.svg');
+	background-image: url('close-big-inverse.svg');
 }
 
 /* Editor */
@@ -92,5 +111,10 @@
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .editor-container > .editor-instance {
+	height: 100%;
+}
+
+.monaco-workbench > .part.editor > .content .grid-view-container {
+	width: 100%;
 	height: 100%;
 }

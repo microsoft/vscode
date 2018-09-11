@@ -4,23 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as errors from 'vs/base/common/errors';
-import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
+import { URI } from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isLinux } from 'vs/base/common/platform';
-import { ResourceQueue } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,12 +26,13 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class FileEditorTracker implements IWorkbenchContribution {
+export class FileEditorTracker extends Disposable implements IWorkbenchContribution {
 
 	protected closeOnFileDelete: boolean;
 
-	private toUnbind: IDisposable[];
 	private modelLoadQueue: ResourceQueue;
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
@@ -49,7 +47,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWindowService private windowService: IWindowService
 	) {
-		this.toUnbind = [];
+		super();
+
 		this.modelLoadQueue = new ResourceQueue();
 		this.activeOutOfWorkspaceWatchers = new ResourceMap<URI>();
 
@@ -61,29 +60,29 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private registerListeners(): void {
 
 		// Update editors from operation changes
-		this.toUnbind.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this._register(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
 
 		// Update editors from disk changes
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this._register(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Editor changing
-		this.toUnbind.push(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
 
 		// Update visible editors when focus is gained
-		this.toUnbind.push(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
+		this._register(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
 
 		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 
 		// Configuration
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
 	}
 
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
 		if (configuration.workbench && configuration.workbench.editor && typeof configuration.workbench.editor.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
-			this.closeOnFileDelete = true; // default
+			this.closeOnFileDelete = false; // default
 		}
 	}
 
@@ -125,7 +124,9 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Handle updates
-		this.handleUpdates(e);
+		if (e.gotAdded() || e.gotUpdated()) {
+			this.handleUpdates(e);
+		}
 
 		// Handle deletes
 		if (e.gotDeleted()) {
@@ -147,7 +148,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 				// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 				// path but different casing.
-				if (movedTo && paths.isEqualOrParent(resource.fsPath, movedTo.fsPath, !isLinux /* ignorecase */) && resource.fsPath.indexOf(movedTo.fsPath) === 0) {
+				if (movedTo && resources.isEqualOrParent(resource, movedTo)) {
 					return;
 				}
 
@@ -155,7 +156,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				if (arg1 instanceof FileChangesEvent) {
 					matches = arg1.contains(resource, FileChangeType.DELETED);
 				} else {
-					matches = paths.isEqualOrParent(resource.fsPath, arg1.fsPath, !isLinux /* ignorecase */);
+					matches = resources.isEqualOrParent(resource, arg1);
 				}
 
 				if (!matches) {
@@ -168,14 +169,14 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				// file is really gone and not just a faulty file event.
 				// This only applies to external file events, so we need to check for the isExternal
 				// flag.
-				let checkExists: TPromise<boolean>;
+				let checkExists: Thenable<boolean>;
 				if (isExternal) {
-					checkExists = TPromise.timeout(100).then(() => this.fileService.existsFile(resource));
+					checkExists = timeout(100).then(() => this.fileService.existsFile(resource));
 				} else {
-					checkExists = TPromise.as(false);
+					checkExists = Promise.resolve(false);
 				}
 
-				checkExists.done(exists => {
+				checkExists.then(exists => {
 					if (!exists && !editor.isDisposed()) {
 						editor.dispose();
 					} else if (this.environmentService.verbose) {
@@ -217,31 +218,33 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
 		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(input => {
-				if (input instanceof FileEditorInput) {
-					const resource = input.getResource();
+			group.editors.forEach(editor => {
+				if (editor instanceof FileEditorInput) {
+					const resource = editor.getResource();
 
 					// Update Editor if file (or any parent of the input) got renamed or moved
-					if (paths.isEqualOrParent(resource.fsPath, oldResource.fsPath, !isLinux /* ignorecase */)) {
+					if (resources.isEqualOrParent(resource, oldResource)) {
 						let reopenFileResource: URI;
 						if (oldResource.toString() === resource.toString()) {
 							reopenFileResource = newResource; // file got moved
 						} else {
 							const index = this.getIndexOfPath(resource.path, oldResource.path);
-							reopenFileResource = newResource.with({ path: paths.join(newResource.path, resource.path.substr(index + oldResource.path.length + 1)) }); // parent folder got moved
+							reopenFileResource = resources.joinPath(newResource, resource.path.substr(index + oldResource.path.length + 1)); // parent folder got moved
 						}
 
-						// Reopen
-						this.editorService.openEditor({
-							resource: reopenFileResource,
-							options: {
-								preserveFocus: true,
-								pinned: group.isPinned(input),
-								index: group.getIndexOfEditor(input),
-								inactive: !group.isActive(input),
-								viewState: this.getViewStateFor(oldResource, group)
-							}
-						}, group);
+						this.editorService.replaceEditors([{
+							editor: { resource },
+							replacement: {
+								resource: reopenFileResource,
+								options: {
+									preserveFocus: true,
+									pinned: group.isPinned(editor),
+									index: group.getIndexOfEditor(editor),
+									inactive: !group.isActive(editor),
+									viewState: this.getViewStateFor(oldResource, group)
+								}
+							},
+						}], group);
 					}
 				}
 			});
@@ -286,31 +289,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 	private handleUpdates(e: FileChangesEvent): void {
 
-		// Handle updates to visible binary editors
-		this.handleUpdatesToVisibleBinaryEditors(e);
-
 		// Handle updates to text models
 		this.handleUpdatesToTextModels(e);
-	}
 
-	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
-		const editors = this.editorService.visibleControls;
-		editors.forEach(editor => {
-			const resource = toResource(editor.input, { supportSideBySide: true });
-
-			// Support side-by-side binary editors too
-			let isBinaryEditor = false;
-			if (editor instanceof SideBySideEditor) {
-				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
-			} else {
-				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
-			}
-
-			// Binary editor that should reload from event
-			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.group);
-			}
-		});
+		// Handle updates to visible binary editors
+		this.handleUpdatesToVisibleBinaryEditors(e);
 	}
 
 	private handleUpdatesToTextModels(e: FileChangesEvent): void {
@@ -332,8 +315,28 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		// to have a size of 2 (1 running load and 1 queued load).
 		const queue = this.modelLoadQueue.queueFor(model.getResource());
 		if (queue.size <= 1) {
-			queue.queue(() => model.load().then(null, errors.onUnexpectedError));
+			queue.queue(() => model.load().then(null, onUnexpectedError));
 		}
+	}
+
+	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
+		const editors = this.editorService.visibleControls;
+		editors.forEach(editor => {
+			const resource = toResource(editor.input, { supportSideBySide: true });
+
+			// Support side-by-side binary editors too
+			let isBinaryEditor = false;
+			if (editor instanceof SideBySideEditor) {
+				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
+			} else {
+				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
+			}
+
+			// Binary editor that should reload from event
+			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
+				this.editorService.openEditor(editor.input, { forceReload: true, preserveFocus: true }, editor.group);
+			}
+		});
 	}
 
 	private handleOutOfWorkspaceWatchers(): void {
@@ -363,8 +366,8 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		});
 	}
 
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
+	dispose(): void {
+		super.dispose();
 
 		// Dispose watchers if any
 		this.activeOutOfWorkspaceWatchers.forEach(resource => this.fileService.unwatchFileChanges(resource));

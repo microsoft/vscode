@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
+import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IOptions {
@@ -130,10 +130,7 @@ export class PatternInputWidget extends Widget {
 	}
 
 	public onSearchSubmit(): void {
-		const value = this.getValue();
-		if (value) {
-			this.inputBox.addToHistory(value);
-		}
+		this.inputBox.addToHistory();
 	}
 
 	public showNextTerm() {
@@ -215,17 +212,17 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 	}
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useExcludesAndIgnoreFilesBox = new Checkbox({
+		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
-			onChange: (viaKeyboard) => {
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
+		}));
+		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
+			this.onOptionChange(null);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
 			}
-		});
+		}));
 		this._register(attachCheckboxStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
 
 		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);

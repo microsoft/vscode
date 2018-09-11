@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -54,7 +54,7 @@ export class TextFileService extends AbstractTextFileService {
 		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
 
-	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
+	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
 		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
 			return createTextBufferFactoryFromStream(streamContent.value).then(res => {
 				const r: IRawTextContent = {
@@ -63,6 +63,7 @@ export class TextFileService extends AbstractTextFileService {
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
 					value: res
 				};
 				return r;
@@ -70,7 +71,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+	confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
 			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
@@ -101,7 +102,7 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): TPromise<string> {
+	promptForPath(defaultPath: string): TPromise<string> {
 		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 

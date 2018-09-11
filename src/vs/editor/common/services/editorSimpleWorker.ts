@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
@@ -16,13 +16,14 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
-import { computeLinks } from 'vs/editor/common/modes/linkComputer';
+import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
-import { IIterator } from 'vs/base/common/iterator';
+import { Iterator } from 'vs/base/common/iterator';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -50,7 +51,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel {
+export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
@@ -59,7 +60,7 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	createWordIterator(wordDefinition: RegExp): IIterator<string>;
+	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
@@ -147,7 +148,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		};
 	}
 
-	public createWordIterator(wordDefinition: RegExp): IIterator<string> {
+	public createWordIterator(wordDefinition: RegExp): Iterator<string> {
 		let obj = {
 			done: false,
 			value: ''
@@ -332,6 +333,7 @@ export abstract class BaseEditorSimpleWorker {
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: true,
 			shouldPostProcessCharChanges: true,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
@@ -349,6 +351,7 @@ export abstract class BaseEditorSimpleWorker {
 		let originalLines = original.getLinesContent();
 		let modifiedLines = modified.getLinesContent();
 		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
+			shouldComputeCharChanges: false,
 			shouldPostProcessCharChanges: false,
 			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
 			shouldMakePrettyDiff: true
@@ -371,6 +374,8 @@ export abstract class BaseEditorSimpleWorker {
 
 		const result: TextEdit[] = [];
 		let lastEol: EndOfLineSequence;
+
+		edits = mergeSort(edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
 		for (let { range, text, eol } of edits) {
 
@@ -527,6 +532,7 @@ export abstract class BaseEditorSimpleWorker {
 			}
 			return TPromise.as(methods);
 		}
+		// ESM-comment-begin
 		return new TPromise<any>((c, e) => {
 			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
@@ -542,6 +548,11 @@ export abstract class BaseEditorSimpleWorker {
 
 			}, e);
 		});
+		// ESM-comment-end
+
+		// ESM-uncomment-begin
+		// return TPromise.wrapError(new Error(`Unexpected usage`));
+		// ESM-uncomment-end
 	}
 
 	// foreign method request

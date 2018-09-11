@@ -70,10 +70,10 @@
 }
 
 .monaco-shell.vs .screen-reader-detected-explanation .cancel {
-	background: url('close-big.svg') center center no-repeat;
+	background: url('close-statusview.svg') center center no-repeat;
 }
 
 .monaco-shell.vs-dark .screen-reader-detected-explanation .cancel,
 .monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
-	background: url('close-big-inverse.svg') center center no-repeat;
+	background: url('close-statusview-inverse.svg') center center no-repeat;
 }

@@ -135,7 +135,11 @@
 	background: url('clear-repl-inverse.svg') center center no-repeat;
 }
 
-/* Output coloring */
+/* Output coloring  and styling */
+
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .ignore {
+	font-style: italic;
+}
 
 .vs .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content > .output.expression > .warn {
 	color: #cd9731;

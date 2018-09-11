@@ -9,7 +9,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -49,7 +49,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 			weight: 100 * first.severity,
 			bubble: true,
 			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
-			letter: markers.length < 10 ? markers.length.toString() : '+9',
+			letter: markers.length < 10 ? markers.length.toString() : '9+',
 			color: first.severity === MarkerSeverity.Error ? listErrorForeground : listWarningForeground,
 		};
 	}

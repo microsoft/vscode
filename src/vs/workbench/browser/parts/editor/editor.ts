@@ -21,8 +21,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
-export const EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
-export const EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
+export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
+export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export interface IEditorPartOptions extends IWorkbenchEditorPartConfiguration {
 	iconTheme?: string;
@@ -117,6 +117,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	isEmpty(): boolean;
 	setActive(isActive: boolean): void;
 	setLabel(label: string): void;
+	relayout(): void;
 
 	shutdown(): void;
 }

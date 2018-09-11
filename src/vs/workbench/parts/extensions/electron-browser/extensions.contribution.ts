@@ -5,13 +5,12 @@
 
 import 'vs/css!./media/extensions';
 import { localize } from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionGalleryService, IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { IExtensionTipsService, ExtensionsLabel, ExtensionsChannelId, PreferencesLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -23,7 +22,7 @@ import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, OpenExtensionsFolderAction, InstallVSIXAction, ReinstallAction
-} from 'vs/workbench/parts/extensions/browser/extensionsActions';
+} from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from 'vs/workbench/parts/extensions/electron-browser/extensionEditor';
@@ -44,9 +43,8 @@ import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensio
 import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/extensionProfileService';
 
 // Singletons
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
-registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
+registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
@@ -57,7 +55,7 @@ workbenchRegistry.registerWorkbenchContribution(KeymapExtensions, LifecyclePhase
 workbenchRegistry.registerWorkbenchContribution(ExtensionsViewletViewsContribution, LifecyclePhase.Starting);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)
-	.registerChannel(ExtensionsChannelId, ExtensionsLabel);
+	.registerChannel({ id: ExtensionsChannelId, label: ExtensionsLabel, log: false });
 
 // Quickopen
 Registry.as<IQuickOpenRegistry>(Extensions.Quickopen).registerQuickOpenHandler(
@@ -204,18 +202,32 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'extensions.autoUpdate': {
 				type: 'boolean',
-				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
+				description: localize('extensionsAutoUpdate', "When enabled, automatically installs updates for extensions. The updates are fetched from an online service."),
 				default: true,
-				scope: ConfigurationScope.APPLICATION
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
+			},
+			'extensions.autoCheckUpdates': {
+				type: 'boolean',
+				description: localize('extensionsCheckUpdates', "When enabled, automatically checks extensions for updates. If an extension has an update, it is marked as outdated in the Extensions view. The updates are fetched from an online service."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['usesOnlineServices']
 			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
-				description: localize('extensionsIgnoreRecommendations', "If set to true, the notifications for extension recommendations will stop showing up."),
+				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
 				default: false
 			},
 			'extensions.showRecommendationsOnlyOnDemand': {
 				type: 'boolean',
-				description: localize('extensionsShowRecommendationsOnlyOnDemand', "If set to true, recommendations will not be fetched or shown unless specifically requested by the user."),
+				description: localize('extensionsShowRecommendationsOnlyOnDemand', "When enabled, recommendations will not be fetched or shown unless specifically requested by the user. Some recommendations are fetched from an online service."),
+				default: false,
+				tags: ['usesOnlineServices']
+			},
+			'extensions.closeExtensionDetailsOnViewChange': {
+				type: 'boolean',
+				description: localize('extensionsCloseExtensionDetailsOnViewChange', "When enabled, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
 			}
 		}
@@ -229,6 +241,37 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.filter(e => areSameExtensions(e, { id: extensionId }));
 	if (extension.length === 1) {
-		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
+		extensionService.open(extension[0]);
 	}
+});
+
+// File menu registration
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '2_keybindings',
+	command: {
+		id: ShowRecommendedKeymapExtensionsAction.ID,
+		title: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymaps")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '1_settings',
+	command: {
+		id: VIEWLET_ID,
+		title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+	},
+	order: 2
+});
+
+// View menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '3_views',
+	command: {
+		id: VIEWLET_ID,
+		title: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions")
+	},
+	order: 5
 });

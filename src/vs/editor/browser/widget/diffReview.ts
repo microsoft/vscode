@@ -30,6 +30,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -768,6 +769,7 @@ export class DiffReview extends Disposable {
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(
 			(config.fontInfo.isMonospace && !config.viewInfo.disableMonospaceOptimizations),
+			config.fontInfo.canUseHalfwidthRightwardsArrow,
 			lineContent,
 			false,
 			isBasicASCII,
@@ -810,7 +812,8 @@ class DiffReviewNext extends EditorAction {
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyCode.F7
+				primary: KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -832,7 +835,8 @@ class DiffReviewPrev extends EditorAction {
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Shift | KeyCode.F7
+				primary: KeyMod.Shift | KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export enum WorkbenchState {
+export const enum WorkbenchState {
 	EMPTY = 1,
 	FOLDER,
 	WORKSPACE
@@ -77,17 +77,20 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 }
 
+export namespace IWorkspace {
+	export function isIWorkspace(thing: any): thing is IWorkspace {
+		return thing && typeof thing === 'object'
+			&& typeof (thing as IWorkspace).id === 'string'
+			&& Array.isArray((thing as IWorkspace).folders);
+	}
+}
+
 export interface IWorkspace {
 
 	/**
 	 * the unique identifier of the workspace.
 	 */
 	readonly id: string;
-
-	/**
-	 * the name of the workspace.
-	 */
-	readonly name: string;
 
 	/**
 	 * Folders in the workspace.
@@ -118,6 +121,15 @@ export interface IWorkspaceFolderData {
 	readonly index: number;
 }
 
+export namespace IWorkspaceFolder {
+	export function isIWorkspaceFolder(thing: any): thing is IWorkspaceFolder {
+		return thing && typeof thing === 'object'
+			&& URI.isUri((thing as IWorkspaceFolder).uri)
+			&& typeof (thing as IWorkspaceFolder).name === 'string'
+			&& typeof (thing as IWorkspaceFolder).toResource === 'function';
+	}
+}
+
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 	/**
@@ -133,7 +145,6 @@ export class Workspace implements IWorkspace {
 
 	constructor(
 		private _id: string,
-		private _name: string = '',
 		folders: WorkspaceFolder[] = [],
 		private _configuration: URI = null,
 		private _ctime?: number
@@ -141,48 +152,39 @@ export class Workspace implements IWorkspace {
 		this.folders = folders;
 	}
 
-	public update(workspace: Workspace) {
+	update(workspace: Workspace) {
 		this._id = workspace.id;
-		this._name = workspace.name;
 		this._configuration = workspace.configuration;
 		this._ctime = workspace.ctime;
 		this.folders = workspace.folders;
 	}
 
-	public get folders(): WorkspaceFolder[] {
+	get folders(): WorkspaceFolder[] {
 		return this._folders;
 	}
 
-	public set folders(folders: WorkspaceFolder[]) {
+	set folders(folders: WorkspaceFolder[]) {
 		this._folders = folders;
 		this.updateFoldersMap();
 	}
 
-	public get id(): string {
+	get id(): string {
 		return this._id;
 	}
 
-	public get ctime(): number {
+	get ctime(): number {
 		return this._ctime;
 	}
 
-	public get name(): string {
-		return this._name;
-	}
-
-	public set name(name: string) {
-		this._name = name;
-	}
-
-	public get configuration(): URI {
+	get configuration(): URI {
 		return this._configuration;
 	}
 
-	public set configuration(configuration: URI) {
+	set configuration(configuration: URI) {
 		this._configuration = configuration;
 	}
 
-	public getFolder(resource: URI): IWorkspaceFolder {
+	getFolder(resource: URI): IWorkspaceFolder {
 		if (!resource) {
 			return null;
 		}
@@ -197,8 +199,8 @@ export class Workspace implements IWorkspace {
 		}
 	}
 
-	public toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, name: this.name, configuration: this.configuration };
+	toJSON(): IWorkspace {
+		return { id: this.id, folders: this.folders, configuration: this.configuration };
 	}
 }
 
@@ -216,7 +218,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toResource(relativePath: string): URI {
-		return this.uri.with({ path: paths.join(this.uri.path, relativePath) });
+		return resources.joinPath(this.uri, relativePath);
 	}
 
 	toJSON(): IWorkspaceFolderData {
@@ -260,7 +262,7 @@ function toUri(path: string, relativeTo: URI): URI {
 			return URI.file(path);
 		}
 		if (relativeTo) {
-			return relativeTo.with({ path: paths.join(relativeTo.path, path) });
+			return resources.joinPath(relativeTo, path);
 		}
 	}
 	return null;

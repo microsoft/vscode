@@ -5,7 +5,7 @@
 'use strict';
 
 import { TokenTheme, ITokenThemeRule, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme, IColors } from 'vs/editor/standalone/common/standaloneThemeService';
+import { IStandaloneThemeService, BuiltinTheme, IStandaloneThemeData, IStandaloneTheme } from 'vs/editor/standalone/common/standaloneThemeService';
 import { vs, vs_dark, hc_black } from 'vs/editor/standalone/common/themes';
 import * as dom from 'vs/base/browser/dom';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
@@ -26,13 +26,15 @@ const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingC
 class StandaloneTheme implements IStandaloneTheme {
 	public readonly id: string;
 	public readonly themeName: string;
-	private rules: ITokenThemeRule[];
-	public readonly base: string;
+
+	private themeData: IStandaloneThemeData;
 	private colors: { [colorId: string]: Color };
 	private defaultColors: { [colorId: string]: Color };
 	private _tokenTheme: TokenTheme;
 
-	constructor(base: string, name: string, colors: IColors, rules: ITokenThemeRule[]) {
+	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
+		this.themeData = standaloneThemeData;
+		let base = standaloneThemeData.base;
 		if (name.length > 0) {
 			this.id = base + ' ' + name;
 			this.themeName = name;
@@ -40,18 +42,46 @@ class StandaloneTheme implements IStandaloneTheme {
 			this.id = base;
 			this.themeName = base;
 		}
-		this.base = base;
-		this.rules = rules;
-		this.colors = {};
-		for (let id in colors) {
-			this.colors[id] = Color.fromHex(colors[id]);
+		this.colors = null;
+		this.defaultColors = Object.create(null);
+		this._tokenTheme = null;
+	}
+
+	public get base(): string {
+		return this.themeData.base;
+	}
+
+	public notifyBaseUpdated() {
+		if (this.themeData.inherit) {
+			this.colors = null;
+			this._tokenTheme = null;
 		}
-		this.defaultColors = {};
+	}
+
+	private getColors(): { [colorId: string]: Color } {
+		if (!this.colors) {
+			let colors: { [colorId: string]: Color } = Object.create(null);
+			for (let id in this.themeData.colors) {
+				colors[id] = Color.fromHex(this.themeData.colors[id]);
+			}
+			if (this.themeData.inherit) {
+				let baseData = getBuiltinRules(this.themeData.base);
+				for (let id in baseData.colors) {
+					if (!colors[id]) {
+						colors[id] = Color.fromHex(baseData.colors[id]);
+					}
+
+				}
+			}
+			this.colors = colors;
+		}
+		return this.colors;
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
-		if (this.colors.hasOwnProperty(colorId)) {
-			return this.colors[colorId];
+		const color = this.getColors()[colorId];
+		if (color) {
+			return color;
 		}
 		if (useDefault !== false) {
 			return this.getDefault(colorId);
@@ -60,16 +90,17 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	private getDefault(colorId: ColorIdentifier): Color {
-		if (this.defaultColors.hasOwnProperty(colorId)) {
-			return this.defaultColors[colorId];
+		let color = this.defaultColors[colorId];
+		if (color) {
+			return color;
 		}
-		let color = colorRegistry.resolveDefaultColor(colorId, this);
+		color = colorRegistry.resolveDefaultColor(colorId, this);
 		this.defaultColors[colorId] = color;
 		return color;
 	}
 
 	public defines(colorId: ColorIdentifier): boolean {
-		return this.colors.hasOwnProperty(colorId);
+		return Object.prototype.hasOwnProperty.call(this.getColors(), colorId);
 	}
 
 	public get type() {
@@ -82,7 +113,20 @@ class StandaloneTheme implements IStandaloneTheme {
 
 	public get tokenTheme(): TokenTheme {
 		if (!this._tokenTheme) {
-			this._tokenTheme = TokenTheme.createFromRawTokenTheme(this.rules);
+			let rules: ITokenThemeRule[] = [];
+			let encodedTokensColors = [];
+			if (this.themeData.inherit) {
+				let baseData = getBuiltinRules(this.themeData.base);
+				rules = baseData.rules;
+				if (baseData.encodedTokensColors) {
+					encodedTokensColors = baseData.encodedTokensColors;
+				}
+			}
+			rules = rules.concat(this.themeData.rules);
+			if (this.themeData.encodedTokensColors) {
+				encodedTokensColors = this.themeData.encodedTokensColors;
+			}
+			this._tokenTheme = TokenTheme.createFromRawTokenTheme(rules, encodedTokensColors);
 		}
 		return this._tokenTheme;
 	}
@@ -109,7 +153,7 @@ function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
 
 function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 	let themeData = getBuiltinRules(builtinTheme);
-	return new StandaloneTheme(builtinTheme, '', themeData.colors, themeData.rules);
+	return new StandaloneTheme(builtinTheme, themeData);
 }
 
 export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
@@ -139,28 +183,25 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	}
 
 	public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
-		if (!/^[a-z0-9\-]+$/i.test(themeName) || isBuiltinTheme(themeName)) {
+		if (!/^[a-z0-9\-]+$/i.test(themeName)) {
 			throw new Error('Illegal theme name!');
 		}
-		if (!isBuiltinTheme(themeData.base)) {
+		if (!isBuiltinTheme(themeData.base) && !isBuiltinTheme(themeName)) {
 			throw new Error('Illegal theme base!');
 		}
+		// set or replace theme
+		this._knownThemes.set(themeName, new StandaloneTheme(themeName, themeData));
 
-		let rules: ITokenThemeRule[] = [];
-		let colors: IColors = {};
-		if (themeData.inherit) {
-			let baseData = getBuiltinRules(themeData.base);
-			rules = rules.concat(baseData.rules);
-			for (let id in baseData.colors) {
-				colors[id] = baseData.colors[id];
-			}
+		if (isBuiltinTheme(themeName)) {
+			this._knownThemes.forEach(theme => {
+				if (theme.base === themeName) {
+					theme.notifyBaseUpdated();
+				}
+			});
 		}
-		rules = rules.concat(themeData.rules);
-		for (let id in themeData.colors) {
-			colors[id] = themeData.colors[id];
+		if (this._theme && this._theme.themeName === themeName) {
+			this.setTheme(themeName); // refresh theme
 		}
-
-		this._knownThemes.set(themeName, new StandaloneTheme(themeData.base, themeName, colors, rules));
 	}
 
 	public getTheme(): IStandaloneTheme {

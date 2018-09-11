@@ -12,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
 	readonly selections: Selection[];
@@ -113,12 +114,13 @@ export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Remove Selection of Last Find Match"),
-			alias: 'Remove Selection of Last Find Match',
+			label: nls.localize('cursor.undo', "Soft Undo"),
+			alias: 'Soft Undo',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_U
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_U,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

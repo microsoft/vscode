@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
+import { URI } from 'vs/base/common/uri';
 
 suite('LanguagesRegistry', () => {
 
@@ -250,19 +251,19 @@ suite('LanguagesRegistry', () => {
 		registry._registerLanguages([{
 			id: 'a',
 			aliases: ['aName'],
-			configuration: 'aFilename'
+			configuration: URI.file('/path/to/aFilename')
 		}]);
 
-		assert.deepEqual(registry.getConfigurationFiles('a'), ['aFilename']);
+		assert.deepEqual(registry.getConfigurationFiles('a'), [URI.file('/path/to/aFilename')]);
 		assert.deepEqual(registry.getConfigurationFiles('aname'), []);
 		assert.deepEqual(registry.getConfigurationFiles('aName'), []);
 
 		registry._registerLanguages([{
 			id: 'a',
-			configuration: 'aFilename2'
+			configuration: URI.file('/path/to/aFilename2')
 		}]);
 
-		assert.deepEqual(registry.getConfigurationFiles('a'), ['aFilename', 'aFilename2']);
+		assert.deepEqual(registry.getConfigurationFiles('a'), [URI.file('/path/to/aFilename'), URI.file('/path/to/aFilename2')]);
 		assert.deepEqual(registry.getConfigurationFiles('aname'), []);
 		assert.deepEqual(registry.getConfigurationFiles('aName'), []);
 	});

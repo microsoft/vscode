@@ -381,4 +381,16 @@ suite('Strings', () => {
 			assert.equal(strings.containsUppercaseCharacter(<string>str, true), result, `Wrong result for ${str}`);
 		});
 	});
+
+	test('uppercaseFirstLetter', () => {
+		[
+			['', ''],
+			['foo', 'Foo'],
+			['f', 'F'],
+			['123', '123'],
+			['.a', '.a'],
+		].forEach(([inStr, result]) => {
+			assert.equal(strings.uppercaseFirstLetter(inStr), result, `Wrong result for ${inStr}`);
+		});
+	});
 });

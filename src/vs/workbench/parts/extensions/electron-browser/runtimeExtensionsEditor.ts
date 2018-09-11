@@ -9,7 +9,7 @@ import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -21,7 +21,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -36,7 +36,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
@@ -216,7 +216,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IDelegate<IRuntimeExtension>{
+		const delegate = new class implements IVirtualDelegate<IRuntimeExtension>{
 			getHeight(element: IRuntimeExtension): number {
 				return 62;
 			}
@@ -318,6 +318,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							]
 						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
+				} else if (/^workspaceContainsTimeout:/.test(activationTimes.activationEvent)) {
+					const glob = activationTimes.activationEvent.substr('workspaceContainsTimeout:'.length);
+					title = nls.localize({
+						key: 'workspaceContainsTimeout',
+						comment: [
+							'{0} will be a glob pattern'
+						]
+					}, "Activated because searching for {0} took too long", glob);
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
@@ -368,6 +376,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.profileTimeline.innerHTML = '';
 				}
 			},
+
+			disposeElement: () => null,
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
@@ -443,7 +453,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return true;
 	}
 
-	resolve(refresh?: boolean): TPromise<any> {
+	resolve(): TPromise<any> {
 		return TPromise.as(null);
 	}
 
@@ -573,7 +583,11 @@ class SaveExtensionHostProfileAction extends Action {
 		});
 	}
 
-	async run(): TPromise<any> {
+	run(): TPromise<any> {
+		return TPromise.wrap(this._asyncRun());
+	}
+
+	private async _asyncRun(): Promise<any> {
 		let picked = await this._windowService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',

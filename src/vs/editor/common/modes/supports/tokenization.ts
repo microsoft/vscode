@@ -99,7 +99,7 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 /**
  * Resolve rules (i.e. inheritance).
  */
-function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]): TokenTheme {
+function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
 
 	// Sort rules lexicographically, and then by index if necessary
 	parsedThemeRules.sort((a, b) => {
@@ -127,9 +127,17 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]):
 		}
 	}
 	let colorMap = new ColorMap();
-	// ensure default foreground gets id 1 and default background gets id 2
-	let defaults = new ThemeTrieElementRule(defaultFontStyle, colorMap.getId(defaultForeground), colorMap.getId(defaultBackground));
 
+	// start with token colors from custom token themes
+	for (let color of customTokenColors) {
+		colorMap.getId(color);
+	}
+
+
+	let foregroundColorId = colorMap.getId(defaultForeground);
+	let backgroundColorId = colorMap.getId(defaultBackground);
+
+	let defaults = new ThemeTrieElementRule(defaultFontStyle, foregroundColorId, backgroundColorId);
 	let root = new ThemeTrieElement(defaults);
 	for (let i = 0, len = parsedThemeRules.length; i < len; i++) {
 		let rule = parsedThemeRules[i];
@@ -138,6 +146,8 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]):
 
 	return new TokenTheme(colorMap, root);
 }
+
+const colorRegExp = /^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/;
 
 export class ColorMap {
 
@@ -155,10 +165,11 @@ export class ColorMap {
 		if (color === null) {
 			return 0;
 		}
-		color = color.toUpperCase();
-		if (!/^[0-9A-F]{6}$/.test(color)) {
-			throw new Error('Illegal color name: ' + color);
+		const match = color.match(colorRegExp);
+		if (!match) {
+			throw new Error('Illegal value for token color: ' + color);
 		}
+		color = match[1].toUpperCase();
 		let value = this._color2id.get(color);
 		if (value) {
 			return value;
@@ -177,12 +188,12 @@ export class ColorMap {
 
 export class TokenTheme {
 
-	public static createFromRawTokenTheme(source: ITokenThemeRule[]): TokenTheme {
-		return this.createFromParsedTokenTheme(parseTokenTheme(source));
+	public static createFromRawTokenTheme(source: ITokenThemeRule[], customTokenColors: string[]): TokenTheme {
+		return this.createFromParsedTokenTheme(parseTokenTheme(source), customTokenColors);
 	}
 
-	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[]): TokenTheme {
-		return resolveParsedTokenThemeRules(source);
+	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
+		return resolveParsedTokenThemeRules(source, customTokenColors);
 	}
 
 	private readonly _colorMap: ColorMap;

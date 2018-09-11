@@ -10,8 +10,9 @@ import * as types from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
+import { IQuickOpenRegistry, Extensions, QuickOpenHandler, QuickOpenHandlerDescriptor, QuickOpenHandlerHelpEntry } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const HELP_PREFIX = '?';
 
@@ -37,19 +38,19 @@ class HelpEntry extends QuickOpenEntryGroup {
 		this.openOnPreview = openOnPreview;
 	}
 
-	public getLabel(): string {
+	getLabel(): string {
 		return this.prefixLabel;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, picker help", this.getLabel());
 	}
 
-	public getDescription(): string {
+	getDescription(): string {
 		return this.description;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN || this.openOnPreview) {
 			this.quickOpenService.show(this.prefix);
 		}
@@ -60,13 +61,13 @@ class HelpEntry extends QuickOpenEntryGroup {
 
 export class HelpHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.help';
+	static readonly ID = 'workbench.picker.help';
 
 	constructor(@IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		const registry = (Registry.as<IQuickOpenRegistry>(Extensions.Quickopen));
@@ -79,9 +80,9 @@ export class HelpHandler extends QuickOpenHandler {
 
 		const workbenchScoped: HelpEntry[] = [];
 		const editorScoped: HelpEntry[] = [];
-		let entry: HelpEntry;
 
-		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach((handlerDescriptor) => {
+		const matchingHandlers: (QuickOpenHandlerHelpEntry | QuickOpenHandlerDescriptor)[] = [];
+		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach(handlerDescriptor => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
@@ -90,19 +91,26 @@ export class HelpHandler extends QuickOpenHandler {
 						const helpEntry = handlerDescriptor.helpEntries[j];
 
 						if (helpEntry.prefix.indexOf(searchValue) === 0) {
-							entry = new HelpEntry(helpEntry.prefix, helpEntry.description, this.quickOpenService, searchValue.length > 0);
-							if (helpEntry.needsEditor) {
-								editorScoped.push(entry);
-							} else {
-								workbenchScoped.push(entry);
-							}
+							matchingHandlers.push(helpEntry);
 						}
 					}
 				}
 
 				// Single Help entry for descriptor
 				else if (handlerDescriptor.prefix.indexOf(searchValue) === 0) {
-					entry = new HelpEntry(handlerDescriptor.prefix, handlerDescriptor.description, this.quickOpenService, searchValue.length > 0);
+					matchingHandlers.push(handlerDescriptor);
+				}
+			}
+		});
+
+		matchingHandlers.forEach(handler => {
+			if (handler instanceof QuickOpenHandlerDescriptor) {
+				workbenchScoped.push(new HelpEntry(handler.prefix, handler.description, this.quickOpenService, matchingHandlers.length === 1));
+			} else {
+				const entry = new HelpEntry(handler.prefix, handler.description, this.quickOpenService, matchingHandlers.length === 1);
+				if (handler.needsEditor) {
+					editorScoped.push(entry);
+				} else {
 					workbenchScoped.push(entry);
 				}
 			}
@@ -124,7 +132,7 @@ export class HelpHandler extends QuickOpenHandler {
 		return TPromise.as(new QuickOpenModel([...workbenchScoped, ...editorScoped]));
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		searchValue = searchValue.trim();
 		return {
 			autoFocusFirstEntry: searchValue.length > 0,

@@ -2,19 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
-import { sequence, asWinJsPromise } from 'vs/base/common/async';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { first2, createCancelablePromise, CancelablePromise, timeout } from 'vs/base/common/async';
+import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorAction, IActionOptions, registerEditorAction, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import { registerColor, editorSelectionHighlight, overviewRulerSelectionHighlightForeground, activeContrastBorder, editorSelectionHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -23,9 +22,11 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TrackedRangeStickiness, OverviewRulerLane, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable. The color must not be opaque to not hide underlying decorations.'), true);
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable. The color must not be opaque to not hide underlying decorations.'), true);
@@ -37,50 +38,137 @@ export const overviewRulerWordHighlightStrongForeground = registerColor('editorO
 
 export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(model: ITextModel, position: Position): TPromise<DocumentHighlight[]> {
+export function getOccurrencesAtPosition(model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
-	let foundResult = false;
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
 	// (good = none empty array)
-	return sequence(orderedByScore.map(provider => {
-		return (): TPromise<DocumentHighlight[]> => {
-			if (!foundResult) {
-				return asWinJsPromise((token) => {
-					return provider.provideDocumentHighlights(model, position, token);
-				}).then(data => {
-					if (Array.isArray(data) && data.length > 0) {
-						foundResult = true;
-						return data;
-					}
-					return undefined;
-				}, err => {
-					onUnexpectedExternalError(err);
-					return undefined;
-				});
-			}
-			return undefined;
-		};
-	})).then(values => {
-		return values[0];
-	});
+	return first2(orderedByScore.map(provider => () => {
+		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
-registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
+interface IOccurenceAtPositionRequest {
+	readonly result: Promise<DocumentHighlight[]>;
+	isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean;
+	cancel(): void;
+}
+
+abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
+
+	private readonly _wordRange: Range;
+	public readonly result: CancelablePromise<DocumentHighlight[]>;
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
+		this._wordRange = this._getCurrentWordRange(model, selection);
+		this.result = createCancelablePromise(token => this._compute(model, selection, wordSeparators, token));
+	}
+
+	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]>;
+
+	private _getCurrentWordRange(model: ITextModel, selection: Selection): Range {
+		const word = model.getWordAtPosition(selection.getPosition());
+		if (word) {
+			return new Range(selection.startLineNumber, word.startColumn, selection.startLineNumber, word.endColumn);
+		}
+		return null;
+	}
+
+	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+
+		const lineNumber = selection.startLineNumber;
+		const startColumn = selection.startColumn;
+		const endColumn = selection.endColumn;
+		const currentWordRange = this._getCurrentWordRange(model, selection);
+
+		let requestIsValid = (this._wordRange && this._wordRange.equalsRange(currentWordRange));
+
+		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
+		// (Same symbol)
+		for (let i = 0, len = decorationIds.length; !requestIsValid && i < len; i++) {
+			let range = model.getDecorationRange(decorationIds[i]);
+			if (range && range.startLineNumber === lineNumber) {
+				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
+					requestIsValid = true;
+				}
+			}
+		}
+
+		return requestIsValid;
+	}
+
+	public cancel(): void {
+		this.result.cancel();
+	}
+}
+
+class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]> {
+		return getOccurrencesAtPosition(model, selection.getPosition(), token);
+	}
+}
+
+class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
+
+	private _selectionIsEmpty: boolean;
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
+		super(model, selection, wordSeparators);
+		this._selectionIsEmpty = selection.isEmpty();
+	}
+
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Thenable<DocumentHighlight[]> {
+		return timeout(250, token).then(() => {
+			if (!selection.isEmpty()) {
+				return [];
+			}
+
+			const word = model.getWordAtPosition(selection.getPosition());
+
+			if (!word) {
+				return [];
+			}
+			const matches = model.findMatches(word.word, true, false, true, wordSeparators, false);
+			return matches.map(m => {
+				return {
+					range: m.range,
+					kind: DocumentHighlightKind.Text
+				};
+			});
+		});
+	}
+
+	public isValid(model: ITextModel, selection: Selection, decorationIds: string[]): boolean {
+		const currentSelectionIsEmpty = selection.isEmpty();
+		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
+			return false;
+		}
+		return super.isValid(model, selection, decorationIds);
+	}
+}
+
+function computeOccurencesAtPosition(model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
+	if (DocumentHighlightProviderRegistry.has(model)) {
+		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators);
+	}
+	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
+}
+
+registerDefaultLanguageCommand('_executeDocumentHighlights', (model, position) => getOccurrencesAtPosition(model, position, CancellationToken.None));
 
 class WordHighlighter {
 
 	private editor: ICodeEditor;
 	private occurrencesHighlight: boolean;
 	private model: ITextModel;
-	private _lastWordRange: Range;
 	private _decorationIds: string[];
 	private toUnhook: IDisposable[];
 
 	private workerRequestTokenId: number = 0;
-	private workerRequest: TPromise<DocumentHighlight[]> = null;
+	private workerRequest: IOccurenceAtPositionRequest;
 	private workerRequestCompleted: boolean = false;
 	private workerRequestValue: DocumentHighlight[] = [];
 
@@ -127,7 +215,6 @@ class WordHighlighter {
 			}
 		}));
 
-		this._lastWordRange = null;
 		this._decorationIds = [];
 		this.workerRequestTokenId = 0;
 		this.workerRequest = null;
@@ -191,8 +278,6 @@ class WordHighlighter {
 	}
 
 	private _stopAll(): void {
-		this._lastWordRange = null;
-
 		// Remove any existing decorations
 		this._removeDecorations();
 
@@ -233,12 +318,6 @@ class WordHighlighter {
 	}
 
 	private _run(): void {
-		// no providers for this model
-		if (!DocumentHighlightProviderRegistry.has(this.model)) {
-			this._stopAll();
-			return;
-		}
-
 		let editorSelection = this.editor.getSelection();
 
 		// ignore multiline selection
@@ -267,21 +346,7 @@ class WordHighlighter {
 		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
-		let currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
-
-		let workerRequestIsValid = this._lastWordRange && this._lastWordRange.equalsRange(currentWordRange);
-
-		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
-		// (Same symbol)
-		for (let i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
-			let range = this.model.getDecorationRange(this._decorationIds[i]);
-			if (range && range.startLineNumber === lineNumber) {
-				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
-					workerRequestIsValid = true;
-				}
-			}
-		}
-
+		const workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this._decorationIds));
 
 		// There are 4 cases:
 		// a) old workerRequest is valid & completed, renderDecorationsTimer fired
@@ -310,18 +375,16 @@ class WordHighlighter {
 			let myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
-			this.workerRequest = getOccurrencesAtPosition(this.model, this.editor.getPosition());
+			this.workerRequest = computeOccurencesAtPosition(this.model, this.editor.getSelection(), this.editor.getConfiguration().wordSeparators);
 
-			this.workerRequest.then(data => {
+			this.workerRequest.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
 				}
-			}).done();
+			}, onUnexpectedError);
 		}
-
-		this._lastWordRange = currentWordRange;
 	}
 
 	private _beginRenderDecorations(): void {
@@ -478,7 +541,8 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.F7
+				primary: KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -493,7 +557,8 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyCode.F7
+				primary: KeyMod.Shift | KeyCode.F7,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

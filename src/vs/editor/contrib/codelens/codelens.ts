@@ -7,13 +7,11 @@
 
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { mergeSort } from 'vs/base/common/arrays';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface ICodeLensData {
@@ -21,20 +19,20 @@ export interface ICodeLensData {
 	provider: CodeLensProvider;
 }
 
-export function getCodeLensData(model: ITextModel): TPromise<ICodeLensData[]> {
+export function getCodeLensData(model: ITextModel, token: CancellationToken): Promise<ICodeLensData[]> {
 
 	const symbols: ICodeLensData[] = [];
 	const provider = CodeLensProviderRegistry.ordered(model);
 
-	const promises = provider.map(provider => asWinJsPromise(token => provider.provideCodeLenses(model, token)).then(result => {
+	const promises = provider.map(provider => Promise.resolve(provider.provideCodeLenses(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (let symbol of result) {
 				symbols.push({ symbol, provider });
 			}
 		}
-	}, onUnexpectedExternalError));
+	}).catch(onUnexpectedExternalError));
 
-	return TPromise.join(promises).then(() => {
+	return Promise.all(promises).then(() => {
 
 		return mergeSort(symbols, (a, b) => {
 			// sort by lineNumber, provider-rank, and column
@@ -70,7 +68,7 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 	}
 
 	const result: ICodeLensSymbol[] = [];
-	return getCodeLensData(model).then(value => {
+	return getCodeLensData(model, CancellationToken.None).then(value => {
 
 		let resolve: Thenable<any>[] = [];
 

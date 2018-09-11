@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -368,60 +368,61 @@ suite('ExtHostTypes', function () {
 		]);
 
 		edit.set(b, undefined);
-		assert.ok(edit.has(b));
-		assert.equal(edit.size, 2);
+		assert.ok(!edit.has(b));
+		assert.equal(edit.size, 1);
 
 		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
 		assert.equal(edit.get(b).length, 1);
-
 	});
 
-	// test('WorkspaceEdit should fail when editing deleted resource', () => {
-	// 	const resource = URI.parse('file:///a.ts');
+	test('WorkspaceEdit - keep order of text and file changes', function () {
 
-	// 	const edit = new types.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.insert(resource, new types.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow edit of deleted resource');
-	// 	} catch {
-	// 		// expected
-	// 	}
-	// });
+		const edit = new types.WorkspaceEdit();
+		edit.replace(URI.parse('foo:a'), new types.Range(1, 1, 1, 1), 'foo');
+		edit.renameFile(URI.parse('foo:a'), URI.parse('foo:b'));
+		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
+		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
 
-	// test('WorkspaceEdit - keep order of text and file changes', function () {
+		const all = edit._allEntries();
+		assert.equal(all.length, 4);
 
-	// 	const edit = new types.WorkspaceEdit();
-	// 	edit.replace(URI.parse('foo:a'), new types.Range(1, 1, 1, 1), 'foo');
-	// 	edit.renameResource(URI.parse('foo:a'), URI.parse('foo:b'));
-	// 	edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
-	// 	edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
+		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, URI, { overwrite?: boolean }] {
+			const [f, s] = thing;
+			return URI.isUri(f) && URI.isUri(s);
+		}
 
-	// 	const all = edit.allEntries();
-	// 	assert.equal(all.length, 3);
+		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, types.TextEdit[]] {
+			const [f, s] = thing;
+			return URI.isUri(f) && Array.isArray(s);
+		}
 
-	// 	function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI]): thing is [URI, URI] {
-	// 		const [f, s] = thing;
-	// 		return URI.isUri(f) && URI.isUri(s);
-	// 	}
+		const [first, second, third, fourth] = all;
+		assert.equal(first[0].toString(), 'foo:a');
+		assert.ok(!isFileChange(first));
+		assert.ok(isTextChange(first) && first[1].length === 1);
 
-	// 	function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI]): thing is [URI, types.TextEdit[]] {
-	// 		const [f, s] = thing;
-	// 		return URI.isUri(f) && Array.isArray(s);
-	// 	}
+		assert.equal(second[0].toString(), 'foo:a');
+		assert.ok(isFileChange(second));
 
-	// 	const [first, second, third] = all;
-	// 	assert.equal(first[0].toString(), 'foo:a');
-	// 	assert.ok(!isFileChange(first));
-	// 	assert.ok(isTextChange(first) && first[1].length === 2);
+		assert.equal(third[0].toString(), 'foo:a');
+		assert.ok(isTextChange(third) && third[1].length === 1);
 
-	// 	assert.equal(second[0].toString(), 'foo:a');
-	// 	assert.ok(isFileChange(second));
+		assert.equal(fourth[0].toString(), 'foo:b');
+		assert.ok(!isFileChange(fourth));
+		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
+	});
 
-	// 	assert.equal(third[0].toString(), 'foo:b');
-	// 	assert.ok(!isFileChange(third));
-	// 	assert.ok(isTextChange(third) && third[1].length === 1);
-	// });
+	test('WorkspaceEdit - two edits for one resource', function () {
+		let edit = new types.WorkspaceEdit();
+		let uri = URI.parse('foo:bar');
+		edit.insert(uri, new types.Position(0, 0), 'Hello');
+		edit.insert(uri, new types.Position(0, 0), 'Foo');
+
+		assert.equal(edit._allEntries().length, 2);
+		let [first, second] = edit._allEntries();
+		assert.equal((first as [URI, types.TextEdit[]])[1][0].newText, 'Hello');
+		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
+	});
 
 	test('DocumentLink', function () {
 		assert.throws(() => new types.DocumentLink(null, null));

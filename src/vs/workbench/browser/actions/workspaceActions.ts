@@ -19,6 +19,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, defaultWorkspacePath, defaultFilePath, defaultFolderPath } from 'vs/workbench/browser/actions/workspaceCommands';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class OpenFileAction extends Action {
 
@@ -36,7 +38,8 @@ export class OpenFileAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFileAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
+		const defaultPathURI = defaultFilePath(this.contextService, this.historyService, Schemas.file);
+		return this.windowService.pickFileAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 }
 
@@ -56,7 +59,8 @@ export class OpenFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFolderPath(this.contextService, this.historyService) } });
+		const defaultPathURI = defaultFolderPath(this.contextService, this.historyService, Schemas.file);
+		return this.windowService.pickFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 }
 
@@ -76,7 +80,8 @@ export class OpenFileFolderAction extends Action {
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
+		const defaultPathURI = defaultFilePath(this.contextService, this.historyService, Schemas.file);
+		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 }
 
@@ -93,7 +98,7 @@ export class AddRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
 	}
 }
@@ -113,7 +118,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const state = this.contextService.getWorkbenchState();
 
 		// Workspace / Folder
@@ -148,7 +153,7 @@ export class SaveWorkspaceAsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.getNewWorkspaceConfigPath().then(configPath => {
 			if (configPath) {
 				switch (this.contextService.getWorkbenchState()) {
@@ -167,11 +172,12 @@ export class SaveWorkspaceAsAction extends Action {
 	}
 
 	private getNewWorkspaceConfigPath(): TPromise<string> {
+		const defaultPathURI = defaultWorkspacePath(this.contextService, this.historyService, this.environmentService, Schemas.file);
 		return this.windowService.showSaveDialog({
 			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService)
+			defaultPath: defaultPathURI && defaultPathURI.fsPath
 		});
 	}
 }
@@ -192,15 +198,16 @@ export class OpenWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickWorkspaceAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService) } });
+	run(event?: any, data?: ITelemetryData): TPromise<any> {
+		const defaultPathURI = defaultWorkspacePath(this.contextService, this.historyService, this.environmentService, Schemas.file);
+		return this.windowService.pickWorkspaceAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultPathURI && defaultPathURI.fsPath } });
 	}
 }
 
 export class OpenWorkspaceConfigFileAction extends Action {
 
-	public static readonly ID = 'workbench.action.openWorkspaceConfigFile';
-	public static readonly LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
+	static readonly ID = 'workbench.action.openWorkspaceConfigFile';
+	static readonly LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
 
 	constructor(
 		id: string,
@@ -213,15 +220,15 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		this.enabled = !!this.workspaceContextService.getWorkspace().configuration;
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
 
 export class DuplicateWorkspaceInNewWindowAction extends Action {
 
-	public static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
-	public static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
+	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
+	static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
 
 	constructor(
 		id: string,
@@ -234,12 +241,12 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
 		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-				return this.windowService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
+				return this.windowService.openWindow([URI.file(newWorkspace.configPath)], { forceNewWindow: true });
 			});
 		});
 	}

@@ -63,7 +63,7 @@ export class OpenDocumentLinkCommand implements Command {
 			if (entry) {
 				return editor.revealRange(new vscode.Range(entry.line, 0, entry.line, 0), vscode.TextEditorRevealType.AtTop);
 			}
-			const lineNumberFragment = fragment.match(/^L(\d+)$/);
+			const lineNumberFragment = fragment.match(/^L(\d+)$/i);
 			if (lineNumberFragment) {
 				const line = +lineNumberFragment[1] - 1;
 				if (!isNaN(line)) {

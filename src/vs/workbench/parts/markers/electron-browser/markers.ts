@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkersModel, FilterOptions } from './markersModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { localize } from 'vs/nls';
 import Constants from './constants';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -49,10 +49,11 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		@IMarkerService private markerService: IMarkerService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IActivityService private activityService: IActivityService
+		@IActivityService private activityService: IActivityService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this.markersModel = this._register(new MarkersModel(this.readMarkers()));
+		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
 		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (this.useFilesExclude && e.affectsConfiguration('files.exclude')) {

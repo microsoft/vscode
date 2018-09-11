@@ -9,7 +9,7 @@ import { join } from 'vs/base/common/paths';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FolderSettingsModelParser, WorkspaceConfigurationChangeEvent, StandaloneConfigurationModelParser, AllKeysConfigurationChangeEvent, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -30,7 +30,8 @@ suite('FolderSettingsModelParser', () => {
 				'FolderSettingsModelParser.resource': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+					scope: ConfigurationScope.RESOURCE,
+					overridable: true
 				},
 				'FolderSettingsModelParser.application': {
 					'type': 'string',
@@ -55,6 +56,14 @@ suite('FolderSettingsModelParser', () => {
 		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
 
 		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
+	});
+
+	test('parse overridable resource settings', () => {
+		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
+
+		testObject.parse(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' } }));
+
+		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource' } }, 'identifiers': ['json'] }]);
 	});
 
 	test('reprocess folder settings excludes application setting', () => {
@@ -106,7 +115,7 @@ suite('WorkspaceConfigurationChangeEvent', () => {
 		configurationChangeEvent.change(['window.restoreWindows'], URI.file('folder2'));
 		configurationChangeEvent.telemetryData(ConfigurationTarget.WORKSPACE, {});
 
-		let testObject = new WorkspaceConfigurationChangeEvent(configurationChangeEvent, new Workspace('id', 'name',
+		let testObject = new WorkspaceConfigurationChangeEvent(configurationChangeEvent, new Workspace('id',
 			[new WorkspaceFolder({ index: 0, name: '1', uri: URI.file('folder1') }),
 			new WorkspaceFolder({ index: 1, name: '2', uri: URI.file('folder2') }),
 			new WorkspaceFolder({ index: 2, name: '3', uri: URI.file('folder3') })]));

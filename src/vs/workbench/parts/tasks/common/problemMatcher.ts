@@ -14,7 +14,7 @@ import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
@@ -134,7 +134,7 @@ export interface ProblemMatcher {
 	pattern: ProblemPattern | ProblemPattern[];
 	severity?: Severity;
 	watching?: WatchingMatcher;
-	fileSystemScheme?: string;
+	uriProvider?: (path: string) => URI;
 }
 
 export interface NamedProblemMatcher extends ProblemMatcher {
@@ -196,8 +196,8 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	if (matcher.fileSystemScheme !== void 0) {
-		return URI.parse(`${matcher.fileSystemScheme}://${fullPath}`);
+	if (matcher.uriProvider !== void 0) {
+		return matcher.uriProvider(fullPath);
 	} else {
 		return URI.file(fullPath);
 	}
@@ -1088,7 +1088,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {
@@ -1642,7 +1642,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {

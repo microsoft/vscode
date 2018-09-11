@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -27,6 +27,7 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDeb
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /*
 namespace ProblemPattern {
@@ -803,7 +804,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+	public terminateTask(execution: vscode.TaskExecution): Thenable<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
@@ -860,22 +861,32 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $provideTasks(handle: number): TPromise<tasks.TaskSet> {
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSet> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<tasks.TaskSet>(new Error('no handler found'));
 		}
-		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
+		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
+			let sanitized: vscode.Task[] = [];
+			for (let task of value) {
+				if (task.definition && validTypes[task.definition.type] === true) {
+					sanitized.push(task);
+				} else {
+					sanitized.push(task);
+					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+				}
+			}
 			let workspaceFolders = this._workspaceService.getWorkspaceFolders();
 			return {
-				tasks: Tasks.from(value, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
+				tasks: Tasks.from(sanitized, workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0] : undefined, handler.extension),
 				extension: handler.extension
 			};
 		});
 	}
 
-	public $resolveVariables(uri: URI, variables: string[]): any {
-		let result = Object.create(null);
+	public $resolveVariables(uriComponents: UriComponents, variables: string[]): any {
+		let uri: URI = URI.revive(uriComponents);
+		let result: { [key: string]: string; } = Object.create(null);
 		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
 		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
 		let ws: IWorkspaceFolder = {
@@ -887,7 +898,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 			}
 		};
 		for (let variable of variables) {
-			result.push(variable, resolver.resolve(ws, variable));
+			result[variable] = resolver.resolve(ws, variable);
 		}
 		return result;
 	}

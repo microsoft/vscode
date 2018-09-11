@@ -11,7 +11,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TextEditorOptions } from '../../../common/editor';
+import { TextEditorOptions } from 'vs/workbench/common/editor';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class CodeEditorService extends CodeEditorServiceImpl {

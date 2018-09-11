@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
-import Uri from 'vs/base/common/uri';
+import { URI as Uri } from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
@@ -61,13 +61,13 @@ export class TerminalLinkHandler {
 	private _hoverDisposables: IDisposable[] = [];
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
+	private _initialCwd: string;
 
 	private _localLinkPattern: RegExp;
 
 	constructor(
 		private _xterm: any,
 		private _platform: platform.Platform,
-		private _initialCwd: string,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -82,6 +82,10 @@ export class TerminalLinkHandler {
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
 		this._widgetManager = widgetManager;
+	}
+
+	public set initialCwd(initialCwd: string) {
+		this._initialCwd = initialCwd;
 	}
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
@@ -121,6 +125,7 @@ export class TerminalLinkHandler {
 	}
 
 	public dispose(): void {
+		this._xterm = null;
 		this._hoverDisposables = dispose(this._hoverDisposables);
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
@@ -146,10 +151,6 @@ export class TerminalLinkHandler {
 
 	private _handleLocalLink(link: string): TPromise<any> {
 		return this._resolvePath(link).then(resolvedLink => {
-			if (!resolvedLink) {
-				return void 0;
-			}
-
 			const normalizedPath = path.normalize(path.resolve(resolvedLink));
 			const normalizedUrl = this.extractLinkUrl(normalizedPath);
 			const resource = Uri.file(normalizedUrl);
@@ -172,7 +173,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		let uri = Uri.parse(url);
+		const uri = Uri.parse(url);
 		this._openerService.open(uri);
 	}
 

@@ -3,77 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.editor-instance#workbench\.editor\.settings2:focus {
+	outline: none;
+}
+
 .settings-editor {
-	padding-top: 11px;
+	padding: 11px 24px 0px;
+	max-width: 1000px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-left: 15px;
-	padding-right: 5px;
-	max-width: 800px;
 	box-sizing: border-box;
 	margin: auto;
-}
-
-.settings-editor > .settings-header > .settings-preview-header {
-	margin-bottom: 5px;
-}
-
-.settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
-	opacity: .7;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
-	display: inline;
-}
-
-.settings-editor > .settings-header > .settings-advanced-customization {
-	opacity: .7;
-	margin-top: 10px;
-}
-
-.settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
-	text-align: right;
-	text-transform: uppercase;
-	background: rgba(136, 136, 136, 0.3);
-	border-radius: 2px;
-	font-size: 0.8em;
-	padding: 0 3px;
-	margin-right: 7px;
+	overflow: hidden;
+	padding-top: 3px;
 }
 
 .settings-editor > .settings-header > .search-container {
 	position: relative;
 }
 
-.settings-editor > .settings-header .search-container > .settings-search-input {
-	vertical-align: middle;
+.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
+	border: 1px solid #ddd;
 }
 
-.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox {
-	height: 30px;
-	width: 100%;
-}
-
-.settings-editor > .settings-header .search-container > .settings-search-input > .monaco-inputbox .input {
-	font-size: 14px;
-	padding-left: 10px;
+.settings-editor > .settings-header > .search-container > .settings-count-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	position: absolute;
+	right: 10px;
+	top: 0;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 2px;
-	height: 30px;
+	height: 32px;
 	display: flex;
+	border-bottom: solid 1px;
+	margin-top: 10px;
 }
 
-.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item:not(:first-child) .action-label {
-	margin-left: 14px;
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
+	opacity: 0.9;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
+	opacity: 1;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
+	font-weight: 500;
+	opacity: 1;
+}
+
+.vs .settings-editor > .settings-header > .settings-header-controls {
+	border-color: #cccccc;
+}
+
+.vs-dark .settings-editor > .settings-header > .settings-header-controls {
+	border-color: #3c3c3c;
+}
+
+.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	margin-right: 0px;
 }
 
 .settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
@@ -83,79 +77,220 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right {
 	margin-left: auto;
-	padding-top: 3px;
+	padding-top: 4px;
 	display: flex;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
-	flex-shrink: 0;
+.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .toolbar-toggle-more {
+	display: block;
+	width: 22px;
+	height: 22px;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .configured-only-label {
-	white-space: nowrap;
-	margin-right: 10px;
-	margin-left: 2px;
-	opacity: 0.7;
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
-	max-width: 800px;
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: none;
+	font-size: 13px;
+
+	padding-bottom: 7px;
+	padding-top: 7px;
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.settings-editor > .settings-body {
+	display: flex;
 	margin: auto;
+	max-width: 1000px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element .shadow.top-left-corner {
-	left: calc((100% - 800px)/2);
+.settings-editor > .settings-body > .no-results {
+	margin-top: 20px;
+	display: none;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element .shadow {
-	left: calc((100% - 794px)/2);
-	width: 800px;
+.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
+	width: calc(100% - 11px);
+	margin-left: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
-	outline: none !important;
+.settings-editor.no-toc-search > .settings-body > .settings-tree-container .setting-measure-container,
+.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
+	width: calc(100% - 33px);
+	margin-left: 0px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
+	/** 11px for scrollbar + 208px for TOC margin */
+	width: calc(100% - 219px);
+	margin-left: 188px;
+	padding-left: 20px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
+	/* 20 from monaco-tree-wrapper + 20 from monaco-tree-row */
+	padding-left: 40px;
+	width: calc(100% - 241px);
+	border: 1px solid transparent;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-rows {
+	width: calc(100% - 20px);
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-row > .content::before {
+	/* Hide twisties */
+	display: none !important;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
+	position: absolute;
+	left: -23px;
+	top: 11px;
+	bottom: 0px;
+	width: 26px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container:hover > .monaco-toolbar {
+	display: flex;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar {
+	display: flex;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more {
+	display: block;
+	width: 22px;
+	height: 22px;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 16px;
+}
+
+.vs .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .settings-editor > .settings-body .settings-tree-container .monaco-toolbar .toolbar-toggle-more {
+	background-image: url('configure-inverse.svg');
+}
+
+.settings-editor > .settings-body .settings-toc-container {
+	position: absolute;
+	width: 160px;
+	margin-top: 16px;
+	padding-left: 5px;
+}
+
+.settings-editor.no-toc-search > .settings-body .settings-toc-container,
+.settings-editor.narrow > .settings-body .settings-toc-container {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element > .shadow {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .content {
+	display: flex;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 22px;
+	opacity: 0.9;
+	flex-shrink: 1;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	display: none;
+	line-height: 22px;
+	opacity: 0.7;
+	margin-left: 3px;
+}
+
+.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	display: block;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children > .content::before {
+	opacity: 0.9;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.has-children.selected > .content::before {
+	opacity: 1;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry.no-results {
+	opacity: 0.5;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row.selected .settings-toc-entry {
+	font-weight: bold;
+	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
+	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
+	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item {
+.settings-editor > .settings-body > .settings-tree-container .monaco-tree-row {
+	overflow: visible; /* so validation messages dont get clipped */
 	cursor: default;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item {
+	padding-top: 12px;
+	padding-bottom: 18px;
+	box-sizing: border-box;
 	white-space: normal;
-	display: flex;
 	height: 100%;
-	min-height: 75px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(:focus) .setting-item.focused.odd:not(.selected):not(:hover),
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {
-	background-color: rgba(130, 130, 130, 0.04);
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-left {
-	flex: 1;
-	padding-top: 3px;
-	padding-bottom: 12px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-right {
-	min-width: 180px;
-	margin: 21px 10px 0px 5px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
-	line-height: initial;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
-	font-style: italic;
-	opacity: 0.8;
-	margin-right: 7px;
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-modified-indicator {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured > .setting-item-modified-indicator {
+	display: block;
+	content: ' ';
+	position: absolute;
+	width: 6px;
+	border-left-width: 2px;
+	border-left-style: solid;
+	left: 0px;
+	top: 15px;
+	bottom: 16px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool.is-configured > .setting-item-modified-indicator {
+	bottom: 23px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-overrides {
@@ -167,106 +302,193 @@
 	margin-right: 7px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-cat-label-container {
+	float: left;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	font-weight: bold;
+	font-weight: 600;
+	user-select: text;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	opacity: 0.7;
+	opacity: 0.9;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
-	opacity: 0.7;
 	margin-top: 3px;
-	height: 36px;
-	overflow: hidden;
-	white-space: pre-wrap;
+	user-select: text;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
-	padding-left: 15px;
-	opacity: 0;
-	max-width: 800px;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-deprecation-message {
+	position: absolute;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
-	height: initial;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:hover,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:active {
-	margin: auto;
-	text-align: left;
-	text-decoration: underline;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button + .setting-reset-button.monaco-button {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-validation-message {
 	display: none;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-validation-message {
+	display: block;
+	position: absolute;
+	padding: 5px;
+	box-sizing: border-box;
+	margin-top: -1px;
+	z-index: 1;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-validation-message {
+	width: 500px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-validation-message {
+	width: 200px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number input[type=number]::-webkit-inner-spin-button {
+	/* Hide arrow button that shows in type=number fields */
+	-webkit-appearance: none !important;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown * {
+	margin: 0px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+	text-decoration: underline;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a:hover {
+	text-decoration: underline;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
+	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
+	position: absolute;
+	visibility: hidden;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container .setting-item-description.measure-bool-description {
+	/* Allocate space for the checkbox control */
+	margin-left: 27px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription {
+	display: none;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-enumDescription,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-enumDescription {
+	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
+	display: flex;
+	cursor: pointer;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	margin-right: 9px;
+	margin-left: 0px;
+	margin-top: 4px;
+	padding: 0px;
+	background-size: 16px !important;
+}
+
+.vs .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
+	background: url('check.svg') center center no-repeat;
+}
+
+.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked,
+.hc-black .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox.checked {
+	background: url('check-inverse.svg') center center no-repeat;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
+	margin-top: 9px;
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-number .setting-item-value > .setting-item-control {
+	min-width: 200px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
+	width: 500px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {
+	min-width: initial;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control > select {
+	width: 320px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:hover,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:active {
+	text-align: left;
+	text-decoration: underline;
+	padding-left: 0px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .monaco-select-box {
-	width: 100%;
+	width: initial;
 	font: inherit;
 	height: 26px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {
-	text-align: left;
-	display: block;
-	visibility: hidden;
-
-	padding-top: 0px; /* So focus outline doesn't overlap the control above */
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-value > .setting-reset-button.monaco-button {
-	visibility: visible;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .expand-indicator {
-	visibility: hidden;
-	position: absolute;
-	bottom: -2px;
-	width: calc(100% - 190px);
-	text-align: center;
-	opacity: .5;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable .expand-indicator {
-	visibility: visible;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .all-settings {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions {
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .all-settings .all-settings-button {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-new-extensions .settings-new-extensions-button {
 	margin: auto;
+	width: initial;
+	padding: 4px 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .all-settings .all-settings-button .monaco-button {
-	padding-left: 10px;
-	padding-right: 10px;
+.settings-editor > .settings-body > .settings-tree-container .group-title,
+.settings-editor > .settings-body > .settings-tree-container .setting-item {
+	padding-left: 9px;
+	padding-right: 9px;
 }
 
-/*
-	Ensure the is-configured indicators can appear outside of the list items themselves:
-	- Disable overflow: hidden on the listrow
-	- Allocate some space with a margin on the list-row
-	- Make up for that space with a negative margin on the settings-body
-
-	This is risky, consider a different approach
-*/
-.settings-editor .settings-tree-container .setting-item {
-	overflow: visible;
+.settings-editor > .settings-body > .settings-tree-container .group-title {
+	cursor: default;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	padding: 5px 0px;
-	font-size: 13px;
+	font-weight: 600;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
+	padding-top: 23px;
+	font-size: 24px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
+	padding-top: 32px;
+	font-size: 20px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
+	padding-top: 7px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

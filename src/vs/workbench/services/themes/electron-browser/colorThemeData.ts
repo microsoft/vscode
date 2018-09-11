@@ -13,14 +13,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
-
-import * as pfs from 'vs/base/node/pfs';
-
+import * as resources from 'vs/base/common/resources';
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { WorkbenchThemeService, IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
+import { URI } from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
@@ -44,7 +44,7 @@ export class ColorThemeData implements IColorTheme {
 	settingsId: string;
 	description?: string;
 	isLoaded: boolean;
-	path?: string;
+	location?: URI;
 	extensionData: ExtensionData;
 
 	get tokenColors(): ITokenColorizationRule[] {
@@ -136,10 +136,10 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
-	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
+	public ensureLoaded(fileService: IFileService): TPromise<void> {
 		if (!this.isLoaded) {
-			if (this.path) {
-				return _loadColorThemeFromFile(this.path, this.themeTokenColors, this.colorMap).then(_ => {
+			if (this.location) {
+				return _loadColorTheme(fileService, this.location, this.themeTokenColors, this.colorMap).then(_ => {
 					this.isLoaded = true;
 					this.sanitizeTokenColors();
 				});
@@ -189,9 +189,12 @@ export class ColorThemeData implements IColorTheme {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
+	get baseTheme(): string {
+		return this.id.split(' ')[0];
+	}
+
 	get type(): ThemeType {
-		let baseTheme = this.id.split(' ')[0];
-		switch (baseTheme) {
+		switch (this.baseTheme) {
 			case VS_LIGHT_THEME: return 'light';
 			case VS_HC_THEME: return 'hc';
 			default: return 'dark';
@@ -244,7 +247,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 	}
 
-	static fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
+	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
 		let baseTheme: string = theme['uiTheme'] || 'vs-dark';
 
 		let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
@@ -253,7 +256,7 @@ export class ColorThemeData implements IColorTheme {
 		themeData.label = theme.label || Paths.basename(theme.path);
 		themeData.settingsId = theme.id || themeData.label;
 		themeData.description = theme.description;
-		themeData.path = normalizedAbsolutePath;
+		themeData.location = colorThemeLocation;
 		themeData.extensionData = extensionData;
 		themeData.isLoaded = false;
 		return themeData;
@@ -270,17 +273,17 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	if (Paths.extname(themePath) === '.json') {
-		return pfs.readFile(themePath).then(content => {
+function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+	if (Paths.extname(themeLocation.path) === '.json') {
+		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
-			let contentValue = Json.parse(content.toString(), errors);
+			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			}
 			let includeCompletes = TPromise.as(null);
 			if (contentValue.include) {
-				includeCompletes = _loadColorThemeFromFile(Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorTheme(fileService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), resultRules, resultColors);
 			}
 			return includeCompletes.then(_ => {
 				if (Array.isArray(contentValue.settings)) {
@@ -290,7 +293,7 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 				let colors = contentValue.colors;
 				if (colors) {
 					if (typeof colors !== 'object') {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themePath)));
+						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themeLocation.toString())));
 					}
 					// new JSON color themes format
 					for (let colorId in colors) {
@@ -306,16 +309,16 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 						resultRules.push(...tokenColors);
 						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokensFromFile(Paths.join(Paths.dirname(themePath), tokenColors), resultRules, {});
+						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
 					} else {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themePath)));
+						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
 				}
 				return null;
 			});
 		});
 	} else {
-		return _loadSyntaxTokensFromFile(themePath, resultRules, resultColors);
+		return _loadSyntaxTokens(fileService, themeLocation, resultRules, resultColors);
 	}
 }
 
@@ -324,11 +327,11 @@ function getPListParser() {
 	return pListParser || import('fast-plist');
 }
 
-function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	return pfs.readFile(themePath).then(content => {
+function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 		return getPListParser().then(parser => {
 			try {
-				let contentValue = parser.parse(content.toString());
+				let contentValue = parser.parse(content.value.toString());
 				let settings: ITokenColorizationRule[] = contentValue.settings;
 				if (!Array.isArray(settings)) {
 					return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
@@ -340,7 +343,7 @@ function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColoriz
 			}
 		});
 	}, error => {
-		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themePath, error.message)));
+		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation.toString(), error.message)));
 	});
 }
 

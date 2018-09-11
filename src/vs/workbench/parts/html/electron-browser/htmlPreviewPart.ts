@@ -8,8 +8,8 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
-import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { EditorOptions, EditorInput, EditorViewStateMemento } from 'vs/workbench/common/editor';
+import { Disposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
+import { EditorOptions, EditorInput, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
@@ -19,7 +19,6 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Scope } from 'vs/workbench/common/memento';
 import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
@@ -43,13 +42,13 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 	private _modelRef: IReference<ITextEditorModel>;
 	public get model(): ITextModel { return this._modelRef && this._modelRef.object.textEditorModel; }
-	private _modelChangeSubscription = EmptyDisposable;
-	private _themeChangeSubscription = EmptyDisposable;
+	private _modelChangeSubscription = Disposable.None;
+	private _themeChangeSubscription = Disposable.None;
 
 	private _content: HTMLElement;
 	private _scrollYPercentage: number = 0;
 
-	private editorViewStateMemento: EditorViewStateMemento<HtmlPreviewEditorViewState>;
+	private editorMemento: IEditorMemento<HtmlPreviewEditorViewState>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -60,11 +59,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IStorageService readonly _storageService: IStorageService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService readonly editorGroupService: IEditorGroupsService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<HtmlPreviewEditorViewState>(editorGroupService, this.getMemento(_storageService, Scope.WORKSPACE), this.viewStateStorageKey);
+		this.editorMemento = this.getEditorMemento<HtmlPreviewEditorViewState>(_storageService, editorGroupService, this.viewStateStorageKey);
 	}
 
 	dispose(): void {
@@ -96,8 +95,6 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 
 			this._webview = this._instantiationService.createInstance(WebviewElement,
 				this._partService.getContainer(Parts.EDITOR_PART),
-				this.contextKey,
-				this.findInputFocusContextKey,
 				{
 					...webviewOptions,
 					useSameOriginForRoot: true
@@ -247,18 +244,10 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	}
 
 	private saveHTMLPreviewViewState(input: HtmlInput, editorViewState: HtmlPreviewEditorViewState): void {
-		this.editorViewStateMemento.saveState(this.group, input, editorViewState);
+		this.editorMemento.saveState(this.group, input, editorViewState);
 	}
 
 	private loadHTMLPreviewViewState(input: HtmlInput): HtmlPreviewEditorViewState {
-		return this.editorViewStateMemento.loadState(this.group, input);
-	}
-
-	protected saveMemento(): void {
-
-		// ensure to first save our view state memento
-		this.editorViewStateMemento.save();
-
-		super.saveMemento();
+		return this.editorMemento.loadState(this.group, input);
 	}
 }

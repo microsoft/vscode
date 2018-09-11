@@ -8,7 +8,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-JSON.tmLanguage JSON.tmLanguage ./syntaxes/JSON.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
     "languages": [
@@ -58,14 +58,14 @@
       },
       {
         "language": "jsonc",
-        "scopeName": "source.json",
-        "path": "./syntaxes/JSON.tmLanguage.json"
+        "scopeName": "source.json.comments",
+        "path": "./syntaxes/JSONC.tmLanguage.json"
       }
     ],
     "jsonValidation": [
       {
         "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-04/schema#"
+        "url": "http://json-schema.org/draft-07/schema#"
       }
     ]
   }

@@ -10,13 +10,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IRequestOptions, IRequestContext } from 'vs/base/node/request';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IRequestService = createDecorator<IRequestService>('requestService2');
 
 export interface IRequestService {
 	_serviceBrand: any;
 
-	request(options: IRequestOptions): TPromise<IRequestContext>;
+	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext>;
 }
 
 export interface IHTTPConfiguration {
@@ -37,12 +38,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.proxy': {
 				type: 'string',
 				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
-				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables")
+				description: localize('proxy', "The proxy setting to use. If not set will be taken from the http_proxy and https_proxy environment variables.")
 			},
 			'http.proxyStrictSSL': {
 				type: 'boolean',
 				default: true,
-				description: localize('strictSSL', "Whether the proxy server certificate should be verified against the list of supplied CAs.")
+				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs.")
 			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],

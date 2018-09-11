@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/parts/terminal/node/terminalEnvironment';
-import Uri from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ITerminalChildProcess, IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
+import { ITerminalChildProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/node/terminalProcessExtHostProxy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { Schemas } from 'vs/base/common/network';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -50,13 +50,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 
 	constructor(
-		private _terminalId: number,
-		private _configHelper: ITerminalConfigHelper,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		private readonly _terminalId: number,
+		private readonly _configHelper: ITerminalConfigHelper,
 		@IHistoryService private readonly _historyService: IHistoryService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
 		this.ptyProcessReady = new TPromise<void>(c => {
 			this.onProcessReady(() => {
@@ -66,15 +66,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		});
 	}
 
-	public dispose(): void {
+	public dispose(immediate?: boolean): void {
 		if (this._process) {
-			if (this._process.connected) {
-				// If the process was still connected this dispose came from
-				// within VS Code, not the process, so mark the process as
-				// killed by the user.
-				this.processState = ProcessState.KILLED_BY_USER;
-				this._process.send({ event: 'shutdown' });
-			}
+			// If the process was still connected this dispose came from
+			// within VS Code, not the process, so mark the process as
+			// killed by the user.
+			this.processState = ProcessState.KILLED_BY_USER;
+			this._process.shutdown(immediate);
 			this._process = null;
 		}
 		this._disposables.forEach(d => d.dispose());
@@ -94,12 +92,11 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 		if (extensionHostOwned) {
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
 		} else {
-			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
 			if (!shellLaunchConfig.executable) {
 				this._configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
 
-			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+			const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 			this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 
 			// Resolve env vars from config and shell
@@ -109,23 +106,41 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 			const envFromShell = terminalEnvironment.resolveConfigurationVariables(this._configurationResolverService, { ...shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 			shellLaunchConfig.env = envFromShell;
 
-			// Merge process env with the env from config
-			const parentEnv = { ...process.env };
-			terminalEnvironment.mergeEnvironments(parentEnv, envFromConfig);
+			// Merge process env with the env from config and from shellLaunchConfig
+			const env = { ...process.env };
+			terminalEnvironment.mergeEnvironments(env, envFromConfig);
+			terminalEnvironment.mergeEnvironments(env, shellLaunchConfig.env);
 
-			// Continue env initialization, merging in the env from the launch
-			// config and adding keys that are needed to create the process
-			const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, this.initialCwd, locale, cols, rows);
-			const cwd = Uri.parse(require.toUrl('../node')).fsPath;
-			const options = { env, cwd };
-			this._logService.debug(`Terminal process launching`, options);
+			// Sanitize the environment, removing any undesirable VS Code and Electron environment
+			// variables
+			terminalEnvironment.sanitizeEnvironment(env);
 
-			this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], options);
+			// Adding other env keys necessary to create the process
+			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
+			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+
+			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
+			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);
 		}
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.on('message', message => this._onMessage(message));
-		this._process.on('exit', exitCode => this._onExit(exitCode));
+		this._process.onProcessData(data => {
+			this._onProcessData.fire(data);
+		});
+
+		this._process.onProcessIdReady(pid => {
+			this.shellProcessId = pid;
+			this._onProcessReady.fire();
+
+			// Send any queued data that's waiting
+			if (this._preLaunchInputQueue.length > 0) {
+				this._process.input(this._preLaunchInputQueue.join(''));
+				this._preLaunchInputQueue.length = 0;
+			}
+		});
+
+		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		this._process.onProcessExit(exitCode => this._onExit(exitCode));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.LAUNCHING) {
@@ -135,54 +150,30 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 	}
 
 	public setDimensions(cols: number, rows: number): void {
-		if (this._process && this._process.connected) {
-			// The child process could aready be terminated
-			try {
-				this._process.send({ event: 'resize', cols, rows });
-			} catch (error) {
-				// We tried to write to a closed pipe / channel.
-				if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-					throw (error);
-				}
+		if (!this._process) {
+			return;
+		}
+
+		// The child process could already be terminated
+		try {
+			this._process.resize(cols, rows);
+		} catch (error) {
+			// We tried to write to a closed pipe / channel.
+			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
+				throw (error);
 			}
 		}
 	}
 
 	public write(data: string): void {
 		if (this.shellProcessId) {
-			// Send data if the pty is ready
-			this._process.send({
-				event: 'input',
-				data
-			});
+			if (this._process) {
+				// Send data if the pty is ready
+				this._process.input(data);
+			}
 		} else {
 			// If the pty is not ready, queue the data received to send later
 			this._preLaunchInputQueue.push(data);
-		}
-	}
-
-	private _onMessage(message: IMessageFromTerminalProcess): void {
-		this._logService.trace(`terminalProcessManager#_onMessage (shellProcessId: ${this.shellProcessId}`, message);
-		switch (message.type) {
-			case 'data':
-				this._onProcessData.fire(<string>message.content);
-				break;
-			case 'pid':
-				this.shellProcessId = <number>message.content;
-				this._onProcessReady.fire();
-
-				// Send any queued data that's waiting
-				if (this._preLaunchInputQueue.length > 0) {
-					this._process.send({
-						event: 'input',
-						data: this._preLaunchInputQueue.join('')
-					});
-					this._preLaunchInputQueue.length = 0;
-				}
-				break;
-			case 'title':
-				this._onProcessTitle.fire(<string>message.content);
-				break;
 		}
 	}
 

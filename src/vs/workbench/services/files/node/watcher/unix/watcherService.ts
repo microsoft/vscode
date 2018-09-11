@@ -5,18 +5,18 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/node/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import uri from 'vs/base/common/uri';
 import { toFileChangesEvent, IRawFileChange } from 'vs/workbench/services/files/node/watcher/common';
 import { IWatcherChannel, WatcherChannelClient } from 'vs/workbench/services/files/node/watcher/unix/watcherIpc';
 import { FileChangesEvent, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
+import { filterEvent } from 'vs/base/common/event';
+import { IWatchError } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher {
 	private static readonly MAX_RESTARTS = 5;
@@ -42,9 +42,9 @@ export class FileWatcher {
 		const args = ['--type=watcherService'];
 
 		const client = new Client(
-			uri.parse(require.toUrl('bootstrap')).fsPath,
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
-				serverName: 'Watcher',
+				serverName: 'File Watcher (chokidar)',
 				args,
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/unix/watcherApp',
@@ -55,20 +55,7 @@ export class FileWatcher {
 		);
 		this.toDispose.push(client);
 
-		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
-		this.service = new WatcherChannelClient(channel);
-
-		const options = {
-			verboseLogging: this.verboseLogging
-		};
-
-		this.service.initialize(options).then(null, err => {
-			if (!this.isDisposed && !isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
-			}
-			return void 0;
-		}, (events: IRawFileChange[]) => this.onRawFileEvents(events)).done(() => {
-
+		client.onDidProcessExit(() => {
 			// our watcher app should never be completed because it keeps on watching. being in here indicates
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
@@ -80,11 +67,19 @@ export class FileWatcher {
 					this.errorLogger('[FileWatcher] failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
 			}
-		}, error => {
-			if (!this.isDisposed) {
-				this.errorLogger(error);
-			}
-		});
+		}, null, this.toDispose);
+
+		const channel = getNextTickChannel(client.getChannel<IWatcherChannel>('watcher'));
+		this.service = new WatcherChannelClient(channel);
+
+		const options = { verboseLogging: this.verboseLogging };
+		const onWatchEvent = filterEvent(this.service.watch(options), () => !this.isDisposed);
+
+		const onError = filterEvent<any, IWatchError>(onWatchEvent, (e): e is IWatchError => typeof e.message === 'string');
+		onError(err => this.errorLogger(err.message), null, this.toDispose);
+
+		const onFileChanges = filterEvent<any, IRawFileChange[]>(onWatchEvent, (e): e is IRawFileChange[] => Array.isArray(e) && e.length > 0);
+		onFileChanges(e => this.onFileChanges(toFileChangesEvent(e)), null, this.toDispose);
 
 		// Start watching
 		this.updateFolders();
@@ -121,17 +116,6 @@ export class FileWatcher {
 				recursive: false
 			};
 		}));
-	}
-
-	private onRawFileEvents(events: IRawFileChange[]): void {
-		if (this.isDisposed) {
-			return;
-		}
-
-		// Emit through event emitter
-		if (events.length > 0) {
-			this.onFileChanges(toFileChangesEvent(events));
-		}
 	}
 
 	private dispose(): void {

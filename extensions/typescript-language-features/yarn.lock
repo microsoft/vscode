@@ -6,9 +6,9 @@
   version "8.0.33"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.33.tgz#1126e94374014e54478092830704f6ea89df04cd"
 
-"@types/semver@5.4.0":
-  version "5.4.0"
-  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.4.0.tgz#f3658535af7f1f502acd6da7daf405ffeb1f7ee4"
+"@types/semver@^5.5.0":
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.5.0.tgz#146c2a29ee7d3bae4bf2fcb274636e264c813c45"
 
 ajv@^5.1.0:
   version "5.5.2"
@@ -835,6 +835,10 @@ json-stringify-safe@~5.0.1:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/json-stringify-safe/-/json-stringify-safe-5.0.1.tgz#1296a2d58fd45f19a0f6ce01d65701e2c735b6eb"
 
+jsonc-parser@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.0.1.tgz#9d23cd2709714fff508a1a6679d82135bee1ae60"
+
 jsonify@~0.0.0:
   version "0.0.0"
   resolved "https://registry.yarnpkg.com/jsonify/-/jsonify-0.0.0.tgz#2c74b6ee41d93ca51b7b5aaee8f503631d252a73"
@@ -1270,9 +1274,9 @@ safe-buffer@^5.0.1, safe-buffer@^5.1.1, safe-buffer@~5.1.0, safe-buffer@~5.1.1:
   version "5.1.2"
   resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.1.2.tgz#991ec69d296e0313747d59bdfd2b745c35f8828d"
 
-semver@4.3.6:
-  version "4.3.6"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-4.3.6.tgz#300bc6e0e86374f7ba61068b5b1ecd57fc6532da"
+semver@5.5.1:
+  version "5.5.1"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.1.tgz#7dfdd8814bdb7cabc7be0fb1d734cfb66c940477"
 
 semver@^5.3.0, semver@^5.4.1:
   version "5.5.0"
@@ -1542,15 +1546,15 @@ vinyl@^2.0.1, vinyl@^2.0.2:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vscode-extension-telemetry@0.0.17:
-  version "0.0.17"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.17.tgz#15123e7edb34e7b9724b6056f54a869bbb922cb7"
+vscode-extension-telemetry@0.0.18:
+  version "0.0.18"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.18.tgz#602ba20d8c71453aa34533a291e7638f6e5c0327"
   dependencies:
     applicationinsights "1.0.1"
 
-vscode-nls@^3.2.1:
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.1.tgz#b1f3e04e8a94a715d5a7bcbc8339c51e6d74ca51"
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
 
 vscode@^1.1.10:
   version "1.1.17"

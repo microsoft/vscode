@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
-import API from '../utils/api';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
@@ -33,82 +31,63 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 	public constructor(
-		private readonly client: ITypeScriptServiceClient) { }
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
-	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<any> { // todo@joh `any[]` temporary hack to make typescript happy...
-		const filepath = this.client.toPath(resource.uri);
-		if (!filepath) {
-			return [];
+	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
+		const file = this.client.toPath(resource.uri);
+		if (!file) {
+			return undefined;
 		}
-		const args: Proto.FileRequestArgs = {
-			file: filepath
-		};
 
+		let tree: Proto.NavigationTree;
 		try {
-			if (this.client.apiVersion.gte(API.v206)) {
-				const response = await this.client.execute('navtree', args, token);
-				if (response.body) {
-					// The root represents the file. Ignore this when showing in the UI
-					const tree = response.body;
-					if (tree.childItems) {
-						const result = new Array<vscode.SymbolInformation2>();
-						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
-						return result;
-					}
-				}
-			} else {
-				const response = await this.client.execute('navbar', args, token);
-				if (response.body) {
-					const result = new Array<vscode.SymbolInformation>();
-					const foldingMap: ObjectMap<vscode.SymbolInformation> = Object.create(null);
-					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as vscode.SymbolInformation[], item));
-					return result;
-				}
+			const args: Proto.FileRequestArgs = { file };
+			const { body } = await this.client.execute('navtree', args, token);
+			if (!body) {
+				return undefined;
 			}
-			return [];
-		} catch (e) {
-			return [];
+			tree = body;
+		} catch {
+			return undefined;
 		}
+
+		if (tree && tree.childItems) {
+			// The root represents the file. Ignore this when showing in the UI
+			const result: vscode.DocumentSymbol[] = [];
+			tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
+			return result;
+		}
+
+		return undefined;
 	}
 
-	private static convertNavBar(resource: vscode.Uri, indent: number, foldingMap: ObjectMap<vscode.SymbolInformation>, bucket: vscode.SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
-		const realIndent = indent + item.indent;
-		const key = `${realIndent}|${item.text}`;
-		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item)) {
-			const result = new vscode.SymbolInformation(item.text,
-				getSymbolKind(item.kind),
-				containerLabel ? containerLabel : '',
-				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
-			foldingMap[key] = result;
-			bucket.push(result);
-		}
-		if (item.childItems && item.childItems.length > 0) {
-			for (const child of item.childItems) {
-				TypeScriptDocumentSymbolProvider.convertNavBar(resource, realIndent + 1, foldingMap, bucket, child, item.text);
-			}
-		}
-	}
-
-	private static convertNavTree(resource: vscode.Uri, bucket: vscode.SymbolInformation[], item: Proto.NavigationTree): boolean {
-		const symbolInfo = new vscode.SymbolInformation2(
-			item.text,
-			getSymbolKind(item.kind),
-			'', // no container name
-			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
-		);
-
+	private static convertNavTree(resource: vscode.Uri, bucket: vscode.DocumentSymbol[], item: Proto.NavigationTree): boolean {
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
 
-		if (item.childItems) {
-			for (const child of item.childItems) {
-				const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, symbolInfo.children, child);
-				shouldInclude = shouldInclude || includedChild;
+		const children = new Set(item.childItems || []);
+		for (const span of item.spans) {
+			const range = typeConverters.Range.fromTextSpan(span);
+			const symbolInfo = new vscode.DocumentSymbol(
+				item.text,
+				'',
+				getSymbolKind(item.kind),
+				range,
+				range);
+
+			for (const child of children) {
+				if (child.spans.some(span => !!range.intersection(typeConverters.Range.fromTextSpan(span)))) {
+					const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, symbolInfo.children, child);
+					shouldInclude = shouldInclude || includedChild;
+					children.delete(child);
+				}
+			}
+
+			if (shouldInclude) {
+				bucket.push(symbolInfo);
 			}
 		}
 
-		if (shouldInclude) {
-			bucket.push(symbolInfo);
-		}
 		return shouldInclude;
 	}
 

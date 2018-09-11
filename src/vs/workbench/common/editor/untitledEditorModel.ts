@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -23,19 +22,20 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 export class UntitledEditorModel extends BaseTextEditorModel implements IEncodingSupport {
 
-	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
+	static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
-	private toDispose: IDisposable[];
+	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
+
+	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());
+	get onDidChangeDirty(): Event<void> { return this._onDidChangeDirty.event; }
+
+	private readonly _onDidChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
+	get onDidChangeEncoding(): Event<void> { return this._onDidChangeEncoding.event; }
 
 	private dirty: boolean;
-	private readonly _onDidChangeContent: Emitter<void>;
-	private readonly _onDidChangeDirty: Emitter<void>;
-	private readonly _onDidChangeEncoding: Emitter<void>;
-
 	private versionId: number;
-
 	private contentChangeEventScheduler: RunOnceScheduler;
-
 	private configuredEncoding: string;
 
 	constructor(
@@ -53,33 +53,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		this.dirty = false;
 		this.versionId = 0;
-		this.toDispose = [];
 
-		this._onDidChangeContent = new Emitter<void>();
-		this.toDispose.push(this._onDidChangeContent);
-
-		this._onDidChangeDirty = new Emitter<void>();
-		this.toDispose.push(this._onDidChangeDirty);
-
-		this._onDidChangeEncoding = new Emitter<void>();
-		this.toDispose.push(this._onDidChangeEncoding);
-
-		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
-		this.toDispose.push(this.contentChangeEventScheduler);
+		this.contentChangeEventScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY));
 
 		this.registerListeners();
-	}
-
-	public get onDidChangeContent(): Event<void> {
-		return this._onDidChangeContent.event;
-	}
-
-	public get onDidChangeDirty(): Event<void> {
-		return this._onDidChangeDirty.event;
-	}
-
-	public get onDidChangeEncoding(): Event<void> {
-		return this._onDidChangeEncoding.event;
 	}
 
 	protected getOrCreateMode(modeService: IModeService, modeId: string, firstLineText?: string): TPromise<IMode> {
@@ -93,7 +70,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private registerListeners(): void {
 
 		// Config Changes
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {
@@ -108,11 +85,11 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 	}
 
-	public getVersionId(): number {
+	getVersionId(): number {
 		return this.versionId;
 	}
 
-	public getModeId(): string {
+	getModeId(): string {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getLanguageIdentifier().language;
 		}
@@ -120,11 +97,11 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		return null;
 	}
 
-	public getEncoding(): string {
+	getEncoding(): string {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
 
-	public setEncoding(encoding: string): void {
+	setEncoding(encoding: string): void {
 		const oldEncoding = this.getEncoding();
 		this.preferredEncoding = encoding;
 
@@ -134,7 +111,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 	}
 
-	public isDirty(): boolean {
+	isDirty(): boolean {
 		return this.dirty;
 	}
 
@@ -147,18 +124,18 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this._onDidChangeDirty.fire();
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public revert(): void {
+	revert(): void {
 		this.setDirty(false);
 
 		// Handle content change event buffered
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public load(): TPromise<UntitledEditorModel> {
+	load(): TPromise<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
@@ -185,10 +162,10 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
 				// Listen to content changes
-				this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+				this._register(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
 				// Listen to mode changes
-				this.toDispose.push(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
+				this._register(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 				return model;
 			});
@@ -228,9 +205,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public dispose(): void {
-		super.dispose();
-
-		this.toDispose = dispose(this.toDispose);
+	isReadonly(): boolean {
+		return false;
 	}
 }

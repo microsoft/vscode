@@ -18,7 +18,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-export enum UnloadReason {
+export const enum UnloadReason {
 	CLOSE = 1,
 	QUIT = 2,
 	RELOAD = 3,
@@ -129,15 +129,15 @@ export class LifecycleService implements ILifecycleService {
 		}
 	}
 
-	public get wasRestarted(): boolean {
+	get wasRestarted(): boolean {
 		return this._wasRestarted;
 	}
 
-	public get isQuitRequested(): boolean {
+	get isQuitRequested(): boolean {
 		return !!this.quitRequested;
 	}
 
-	public ready(): void {
+	ready(): void {
 		this.registerListeners();
 	}
 
@@ -178,7 +178,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public registerWindow(window: ICodeWindow): void {
+	registerWindow(window: ICodeWindow): void {
 
 		// track window count
 		this.windowCounter++;
@@ -199,7 +199,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(window, UnloadReason.CLOSE).done(veto => {
+			this.unload(window, UnloadReason.CLOSE).then(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
 
@@ -232,7 +232,7 @@ export class LifecycleService implements ILifecycleService {
 		});
 	}
 
-	public unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
+	unload(window: ICodeWindow, reason: UnloadReason): TPromise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (window.readyState !== ReadyState.READY) {
@@ -326,7 +326,7 @@ export class LifecycleService implements ILifecycleService {
 	 * A promise that completes to indicate if the quit request has been veto'd
 	 * by the user or not.
 	 */
-	public quit(fromUpdate?: boolean): TPromise<boolean /* veto */> {
+	quit(fromUpdate?: boolean): TPromise<boolean /* veto */> {
 		this.logService.trace('Lifecycle#quit()');
 
 		if (!this.pendingQuitPromise) {
@@ -362,13 +362,13 @@ export class LifecycleService implements ILifecycleService {
 		return this.pendingQuitPromise;
 	}
 
-	public kill(code?: number): void {
+	kill(code?: number): void {
 		this.logService.trace('Lifecycle#kill()');
 
 		app.exit(code);
 	}
 
-	public relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
+	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
 		this.logService.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);

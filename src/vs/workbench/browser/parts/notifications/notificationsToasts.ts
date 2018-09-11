@@ -80,7 +80,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -185,7 +185,7 @@ export class NotificationsToasts extends Themable {
 			let timeoutHandle: number;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
-					const showsProgress = item.progress && !item.progress.state.done;
+					const showsProgress = item.hasProgress() && !item.progress.state.done;
 					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast && !showsProgress) {
 						this.removeToast(item);
 					} else {
@@ -265,7 +265,7 @@ export class NotificationsToasts extends Themable {
 		this.notificationsToastsVisibleContextKey.set(false);
 	}
 
-	public hide(): void {
+	hide(): void {
 		const focusGroup = isAncestor(document.activeElement, this.notificationsToastsContainer);
 
 		this.removeToasts();
@@ -275,7 +275,7 @@ export class NotificationsToasts extends Themable {
 		}
 	}
 
-	public focus(): boolean {
+	focus(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		if (toasts.length > 0) {
 			toasts[0].list.focusFirst();
@@ -286,7 +286,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusNext(): boolean {
+	focusNext(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		for (let i = 0; i < toasts.length; i++) {
 			const toast = toasts[i];
@@ -305,7 +305,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusPrevious(): boolean {
+	focusPrevious(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		for (let i = 0; i < toasts.length; i++) {
 			const toast = toasts[i];
@@ -324,7 +324,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusFirst(): boolean {
+	focusFirst(): boolean {
 		const toast = this.getToasts(ToastVisibility.VISIBLE)[0];
 		if (toast) {
 			toast.list.focusFirst();
@@ -335,7 +335,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusLast(): boolean {
+	focusLast(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		if (toasts.length > 0) {
 			toasts[toasts.length - 1].list.focusFirst();
@@ -346,7 +346,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public update(isCenterVisible: boolean): void {
+	update(isCenterVisible: boolean): void {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;
 
@@ -391,7 +391,7 @@ export class NotificationsToasts extends Themable {
 		return notificationToasts.reverse(); // from newest to oldest
 	}
 
-	public layout(dimension: Dimension): void {
+	layout(dimension: Dimension): void {
 		this.workbenchDimensions = dimension;
 
 		const maxDimensions = this.computeMaxDimensions();

@@ -10,27 +10,6 @@ import { MarkdownPreviewManager } from '../features/previewManager';
 import { TelemetryReporter } from '../telemetryReporter';
 import { PreviewSettings } from '../features/preview';
 
-
-function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
-	const active = vscode.window.activeTextEditor;
-	if (!active) {
-		return vscode.ViewColumn.One;
-	}
-
-	if (!sideBySide) {
-		return active.viewColumn;
-	}
-
-	switch (active.viewColumn) {
-		case vscode.ViewColumn.One:
-			return vscode.ViewColumn.Two;
-		case vscode.ViewColumn.Two:
-			return vscode.ViewColumn.Three;
-	}
-
-	return active.viewColumn;
-}
-
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
 	readonly locked?: boolean;
@@ -59,9 +38,10 @@ async function showPreview(
 		return;
 	}
 
+	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
 	webviewManager.preview(resource, {
-		resourceColumn: (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One,
-		previewColumn: getViewColumn(!!previewSettings.sideBySide) || vscode.ViewColumn.Active,
+		resourceColumn: resourceColumn,
+		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
 		locked: !!previewSettings.locked
 	});
 

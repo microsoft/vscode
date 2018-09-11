@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export enum ScanError {
+export const enum ScanError {
 	None,
 	UnexpectedEndOfComment,
 	UnexpectedEndOfString,
@@ -14,7 +14,7 @@ export enum ScanError {
 	InvalidCharacter
 }
 
-export enum SyntaxKind {
+export const enum SyntaxKind {
 	Unknown = 0,
 	OpenBraceToken,
 	CloseBraceToken,
@@ -407,6 +407,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 			case CharacterCodes.doubleQuote:
 			case CharacterCodes.colon:
 			case CharacterCodes.comma:
+			case CharacterCodes.slash:
 				return false;
 		}
 		return true;
@@ -590,7 +591,7 @@ export interface ParseError {
 	error: ParseErrorCode;
 }
 
-export enum ParseErrorCode {
+export const enum ParseErrorCode {
 	InvalidSymbol,
 	InvalidNumberFormat,
 	PropertyNameExpected,
@@ -628,7 +629,7 @@ export type JSONPath = Segment[];
 
 export interface ParseOptions {
 	disallowComments?: boolean;
-	allowTrailingComma?: boolean;
+	disallowTrailingComma?: boolean;
 }
 
 /**
@@ -817,7 +818,7 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 		onError = toOneArgVisit(visitor.onError);
 
 	let disallowComments = options && options.disallowComments;
-	let allowTrailingComma = options && options.allowTrailingComma;
+	let disallowTrailingComma = options && options.disallowTrailingComma;
 	function scanNext(): SyntaxKind {
 		while (true) {
 			let token = _scanner.scan();
@@ -929,7 +930,7 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 				}
 				onSeparator(',');
 				scanNext(); // consume comma
-				if (_scanner.getToken() === SyntaxKind.CloseBraceToken && allowTrailingComma) {
+				if (_scanner.getToken() === SyntaxKind.CloseBraceToken && !disallowTrailingComma) {
 					break;
 				}
 			} else if (needsComma) {
@@ -961,7 +962,7 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 				}
 				onSeparator(',');
 				scanNext(); // consume comma
-				if (_scanner.getToken() === SyntaxKind.CloseBracketToken && allowTrailingComma) {
+				if (_scanner.getToken() === SyntaxKind.CloseBracketToken && !disallowTrailingComma) {
 					break;
 				}
 			} else if (needsComma) {

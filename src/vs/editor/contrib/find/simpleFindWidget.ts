@@ -12,13 +12,10 @@ import * as dom from 'vs/base/browser/dom';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
-import { ContextScopedFindInput, showDeprecatedWarning } from 'vs/platform/widget/browser/input';
+import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -37,10 +34,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -139,6 +133,10 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getValue();
 	}
 
+	public get focusTracker(): dom.IFocusTracker {
+		return this._findInputFocusTracker;
+	}
+
 	public updateTheme(theme: ITheme): void {
 		const inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
@@ -146,10 +144,13 @@ export abstract class SimpleFindWidget extends Widget {
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
 		};
 		this._findInput.style(inputStyles);
@@ -160,6 +161,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
+			this._domNode = undefined;
 		}
 	}
 
@@ -202,19 +204,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	protected _updateHistory() {
-		if (this.inputValue) {
-			this._findInput.inputBox.addToHistory(this._findInput.getValue());
-		}
-	}
-
-	public showNextFindTerm() {
-		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
-		this._findInput.inputBox.showNextValue();
-	}
-
-	public showPreviousFindTerm() {
-		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
-		this._findInput.inputBox.showPreviousValue();
+		this._findInput.inputBox.addToHistory();
 	}
 }
 

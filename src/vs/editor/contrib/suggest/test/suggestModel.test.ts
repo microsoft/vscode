@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,13 +30,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createMockEditor(model: TextModel): TestCodeEditor {
-	return createTestCodeEditor({
+	let editor = createTestCodeEditor({
 		model: model,
 		serviceCollection: new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, NullStorageService]
-		)
+		),
 	});
+	editor.registerAndInstantiateContribution(SnippetController2);
+	return editor;
 }
 
 suite('SuggestModel - Context', function () {

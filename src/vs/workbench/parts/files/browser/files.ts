@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { toResource } from 'vs/workbench/common/editor';
@@ -52,7 +52,7 @@ export function getMultiSelectedResources(resource: URI | object, listService: I
 			const mainUriStr = URI.isUri(resource) ? resource.toString() : focus instanceof ExplorerItem ? focus.resource.toString() : undefined;
 			// If the resource is passed it has to be a part of the returned context.
 			// We only respect the selection if it contains the focused element.
-			if (selection.some(s => s.toString() === mainUriStr)) {
+			if (selection.some(s => URI.isUri(s) && s.toString() === mainUriStr)) {
 				return selection;
 			}
 		}
