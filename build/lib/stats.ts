@@ -117,8 +117,8 @@ export function submitAllStats(productJson: any, commit: string): Promise<void> 
 
 		/* __GDPR__
 			"monacoworkbench/packagemetrics" : {
-				"commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-				"size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				"commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 			}
 		*/
