@@ -191,7 +191,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		readable.on('data', (data: Buffer) => this.handleData(data));
 
 		readable.on('close', () => {
-			this._onError.fire(new Error('readable.close event'));
+			this._onError.fire(new Error('read error'));
 		});
 		readable.on('error', (error) => {
 			this._onError.fire(error);
