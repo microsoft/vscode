@@ -46,6 +46,8 @@ suite('ParameterHintsModel', () => {
 	});
 
 	test('Provider should get trigger character on type', (done) => {
+		const triggerChar = '(';
+
 		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(textModel);
 
@@ -53,20 +55,22 @@ suite('ParameterHintsModel', () => {
 		disposables.push(new ParameterHintsModel(editor));
 
 		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = ['('];
+			signatureHelpTriggerCharacters = [triggerChar];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
-				assert.strictEqual(context.triggerCharacter, '(');
+				assert.strictEqual(context.triggerCharacter, triggerChar);
 				done();
 				return undefined;
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: '(' });
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 	});
 
 	test('Provider should be retriggered if already active', (done) => {
+		const triggerChar = '(';
+
 		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(textModel);
 
@@ -75,29 +79,30 @@ suite('ParameterHintsModel', () => {
 
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = ['('];
+			signatureHelpTriggerCharacters = [triggerChar];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
-					assert.strictEqual(context.triggerCharacter, '(');
+					assert.strictEqual(context.triggerCharacter, triggerChar);
 					// Retrigger
-					editor.trigger('keyboard', Handler.Type, { text: '(' });
+					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
 					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.Retrigger);
-					assert.strictEqual(context.triggerCharacter, '(');
+					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
 				}
 				return emptySigHelpResult;
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: '(' });
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 	});
 
 	test('Provider should not be retriggered if previous help is canceled first', (done) => {
+		const triggerChar = '(';
 		const textModel = TextModel.createFromString('', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(textModel);
 
@@ -107,28 +112,28 @@ suite('ParameterHintsModel', () => {
 
 		let invokeCount = 0;
 		disposables.push(modes.SignatureHelpProviderRegistry.register({ scheme: 'test' }, new class implements modes.SignatureHelpProvider {
-			signatureHelpTriggerCharacters = ['('];
+			signatureHelpTriggerCharacters = [triggerChar];
 
 			provideSignatureHelp(_model: ITextModel, _position: Position, _token: CancellationToken, context: modes.SignatureHelpContext): modes.SignatureHelp | Thenable<modes.SignatureHelp> {
 				++invokeCount;
 				if (invokeCount === 1) {
 					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
-					assert.strictEqual(context.triggerCharacter, '(');
+					assert.strictEqual(context.triggerCharacter, triggerChar);
 
 					// Cancel and retrigger
 					hintModel.cancel();
-					editor.trigger('keyboard', Handler.Type, { text: '(' });
+					editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 				} else {
 					assert.strictEqual(invokeCount, 2);
 					assert.strictEqual(context.triggerReason, modes.SignatureHelpTriggerReason.TriggerCharacter);
-					assert.strictEqual(context.triggerCharacter, '(');
+					assert.strictEqual(context.triggerCharacter, triggerChar);
 					done();
 				}
 				return emptySigHelpResult;
 			}
 		}));
 
-		editor.trigger('keyboard', Handler.Type, { text: '(' });
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 	});
 
 	test('Provider should get last trigger character when triggered multiple times and only be invoked once', (done) => {
