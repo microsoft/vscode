@@ -157,7 +157,7 @@ export class InstantiationService implements IInstantiationService {
 			for (let dependency of dependencies) {
 
 				let instanceOrDesc = this._services.get(dependency.id);
-				if (!instanceOrDesc) {
+				if (!instanceOrDesc && !dependency.optional) {
 					console.warn(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`);
 				}
 

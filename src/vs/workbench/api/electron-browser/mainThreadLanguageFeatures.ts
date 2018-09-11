@@ -402,6 +402,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
 			afterText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText),
+			oneLineAboveText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText),
 			action: onEnterRule.action
 		};
 	}

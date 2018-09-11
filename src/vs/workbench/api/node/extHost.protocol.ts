@@ -226,6 +226,7 @@ export interface ISerializedIndentationRule {
 export interface ISerializedOnEnterRule {
 	beforeText: ISerializedRegExp;
 	afterText?: ISerializedRegExp;
+	oneLineAboveText?: ISerializedRegExp;
 	action: EnterAction;
 }
 export interface ISerializedLanguageConfiguration {
