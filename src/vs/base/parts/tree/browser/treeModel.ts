@@ -516,7 +516,7 @@ export class Item {
 					}));
 				} else {
 					return WinJS.Promise.join(this.mapEachChild((child) => {
-						if (child.needsChildrenRefresh) {
+						if (child.isExpanded() && child.needsChildrenRefresh) {
 							return child.doRefresh(recursive, true);
 						} else {
 							child.updateVisibility();
