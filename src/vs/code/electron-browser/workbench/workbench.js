@@ -71,19 +71,21 @@ function showPartsSplash(configuration) {
 		data = void 0;
 	}
 
+	// minimal color configuration (works with or without persisted data)
+	const baseTheme = data ? data.baseTheme : configuration.highContrast ? 'hc-black' : 'vs-dark';
+	const shellBackground = data ? data.colorInfo.editorBackground : configuration.highContrast ? '#000000' : '#1E1E1E';
+	const shellForeground = data ? data.colorInfo.foreground : configuration.highContrast ? '#FFFFFF' : '#CCCCCC';
 	const style = document.createElement('style');
 	document.head.appendChild(style);
+	document.body.className = `monaco-shell ${baseTheme}`;
+	style.innerHTML = `.monaco-shell { background-color: ${shellBackground}; color: ${shellForeground}; }`;
 
-	if (data) {
-		const { layoutInfo, colorInfo, baseTheme } = data;
 
-		// set the theme base id used by images and some styles
-		document.body.className = `monaco-shell ${baseTheme}`;
-		// stylesheet that defines foreground and background color
-		style.innerHTML = `.monaco-shell { background-color: ${colorInfo.editorBackground}; color: ${colorInfo.foreground}; }`;
-
+	if (data && data.layoutInfo) {
+		// restore parts if possible (we might not always store layout info)
+		const { id, layoutInfo, colorInfo } = data;
 		const splash = document.createElement('div');
-		splash.id = data.id;
+		splash.id = id;
 
 		// ensure there is enough space
 		layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
@@ -105,9 +107,6 @@ function showPartsSplash(configuration) {
 			`;
 		}
 		document.body.appendChild(splash);
-	} else {
-		document.body.className = `monaco-shell ${configuration.highContrast ? 'hc-black' : 'vs-dark'}`;
-		style.innerHTML = `.monaco-shell { background-color: ${configuration.highContrast ? '#000000' : '#1E1E1E'}; color: ${configuration.highContrast ? '#FFFFFF' : '#CCCCCC'}; }`;
 	}
 
 	perf.mark('didShowPartsSplash');
