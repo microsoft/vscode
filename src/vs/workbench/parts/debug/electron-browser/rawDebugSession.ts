@@ -10,15 +10,14 @@ import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 
+/**
+ * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
+ */
 export class RawDebugSession {
 
-	private debugAdapter: IDebugAdapter;
-	private cachedInitDebugAdapterP: TPromise<void>;
 	private allThreadsContinued: boolean;
 	private _readyForBreakpoints: boolean;
 	private _capabilities: DebugProtocol.Capabilities;
@@ -30,7 +29,7 @@ export class RawDebugSession {
 
 	// telemetry
 	private startTime: number;
-	private emittedStopped: boolean;
+	private didReceiveStoppedEvent: boolean;
 
 	// DAP events
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
@@ -49,18 +48,16 @@ export class RawDebugSession {
 	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
 
 	constructor(
-		private debugServerPort: number,
-		private _debugger: IDebugger,
-		public customTelemetryService: ITelemetryService,
-		private root: IWorkspaceFolder,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IOutputService private outputService: IOutputService
+		private debugAdapter: IDebugAdapter,
+		dbgr: IDebugger,
+		private telemetryService: ITelemetryService,
+		public customTelemetryService: ITelemetryService
 	) {
+		this._capabilities = Object.create(null);
 		this._readyForBreakpoints = false;
 		this.inShutdown = false;
 		this.firedAdapterExitEvent = false;
-
-		this.emittedStopped = false;
+		this.didReceiveStoppedEvent = false;
 
 		this.allThreadsContinued = true;
 
@@ -77,6 +74,66 @@ export class RawDebugSession {
 		this._onDidEvent = new Emitter<DebugProtocol.Event>();
 
 		this._onDidExitAdapter = new Emitter<AdapterEndEvent>();
+
+		this.debugAdapter.onError(err => {
+			this.shutdown(err);
+		});
+
+		this.debugAdapter.onExit(code => {
+			if (code !== 0) {
+				this.shutdown(new Error(`exit code: ${code}`));
+			} else {
+				// normal exit
+				this.shutdown();
+			}
+		});
+
+		this.debugAdapter.onEvent(event => {
+			switch (event.event) {
+				case 'initialized':
+					this._readyForBreakpoints = true;
+					this._onDidInitialize.fire(event);
+					break;
+				case 'loadedSource':
+					this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
+					break;
+				case 'capabilities':
+					if (event.body) {
+						const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+						this.mergeCapabilities(capabilites);
+					}
+					break;
+				case 'stopped':
+					this.didReceiveStoppedEvent = true;		// telemetry: remember that debugger stopped successfully
+					this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
+					break;
+				case 'continued':
+					this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued === false ? false : true;
+					this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
+					break;
+				case 'thread':
+					this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
+					break;
+				case 'output':
+					this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
+					break;
+				case 'breakpoint':
+					this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
+					break;
+				case 'terminated':
+					this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
+					break;
+				case 'exit':
+					this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
+					break;
+				default:
+					this._onDidCustomEvent.fire(event);
+					break;
+			}
+			this._onDidEvent.fire(event);
+		});
+
+		this.debugAdapter.onRequest(request => this.dispatchRequest(request, dbgr));
 	}
 
 	public get onDidExitAdapter(): Event<AdapterEndEvent> {
@@ -84,7 +141,7 @@ export class RawDebugSession {
 	}
 
 	public get capabilities(): DebugProtocol.Capabilities {
-		return this._capabilities || {};
+		return this._capabilities;
 	}
 
 	/**
@@ -141,8 +198,22 @@ export class RawDebugSession {
 		return this._onDidEvent.event;
 	}
 
-	//---- DAP requests
+	//---- DebugAdapter lifecycle
 
+	/**
+	 * Starts the underlying debug adapter and tracks the session time for telemetry.
+	 */
+	public start(): TPromise<void> {
+		return this.debugAdapter.startSession().then(() => {
+			this.startTime = new Date().getTime();
+		}, err => {
+			return TPromise.wrapError(err);
+		});
+	}
+
+	/**
+	 * Send client capabilities to the debug adapter and receive DA capabilities in return.
+	 */
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
 		return this.send('initialize', args).then((response: DebugProtocol.InitializeResponse) => {
 			this.mergeCapabilities(response.body);
@@ -150,11 +221,34 @@ export class RawDebugSession {
 		});
 	}
 
+	/**
+	 * Terminate the debuggee and shutdown the adapter
+	 */
+	public disconnect(restart = false): TPromise<any> {
+		return this.shutdown(undefined, restart);
+	}
+
+	//---- DAP requests
+
 	public launchOrAttach(config: IConfig): TPromise<DebugProtocol.Response> {
 		return this.send(config.request, config).then(response => {
 			this.mergeCapabilities(response.body);
 			return response;
 		});
+	}
+
+	/**
+	 * Try killing the debuggee softly...
+	 */
+	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
+		if (this.capabilities.supportsTerminateRequest) {
+			if (!this.terminated) {
+				this.terminated = true;
+				return this.send('terminate', { restart });
+			}
+			return this.disconnect(restart);
+		}
+		return TPromise.wrapError(new Error('terminated not supported'));
 	}
 
 	public restart(): TPromise<DebugProtocol.RestartResponse> {
@@ -200,18 +294,27 @@ export class RawDebugSession {
 	}
 
 	public terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse> {
-		return this.send('terminateThreads', args);
+		if (this.capabilities.supportsTerminateThreadsRequest) {
+			return this.send('terminateThreads', args);
+		}
+		return TPromise.wrapError(new Error('terminateThreads not supported'));
 	}
 
 	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
-		return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
+		if (this.capabilities.supportsSetVariable) {
+			return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
+		}
+		return TPromise.wrapError(new Error('setVariable not supported'));
 	}
 
 	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
-		return this.send('restartFrame', args).then(response => {
-			this.fireSimulatedContinuedEvent(threadId);
-			return response;
-		});
+		if (this.capabilities.supportsRestartFrame) {
+			return this.send('restartFrame', args).then(response => {
+				this.fireSimulatedContinuedEvent(threadId);
+				return response;
+			});
+		}
+		return TPromise.wrapError(new Error('restartFrame not supported'));
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
@@ -219,27 +322,6 @@ export class RawDebugSession {
 			return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 		}
 		return TPromise.wrapError(new Error('completions not supported'));
-	}
-
-	/**
-	 * Try terminate the debuggee softly
-	 */
-	public terminate(restart = false): TPromise<DebugProtocol.TerminateResponse> {
-		if (this.capabilities.supportsTerminateRequest) {
-			if (!this.terminated) {
-				this.terminated = true;
-				return this.send('terminate', { restart });
-			}
-			return this.disconnect(restart);
-		}
-		return TPromise.wrapError(new Error('terminated not supported'));
-	}
-
-	/**
-	 * Terminate the debuggee
-	 */
-	public disconnect(restart = false): TPromise<any> {
-		return this.shutdown(undefined, restart);
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
@@ -258,7 +340,10 @@ export class RawDebugSession {
 	}
 
 	public configurationDone(): TPromise<DebugProtocol.ConfigurationDoneResponse> {
-		return this.send('configurationDone', null);
+		if (this.capabilities.supportsConfigurationDoneRequest) {
+			return this.send('configurationDone', null);
+		}
+		return TPromise.wrapError(new Error('configurationDone not supported'));
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
@@ -266,7 +351,10 @@ export class RawDebugSession {
 	}
 
 	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
-		return this.send<DebugProtocol.ExceptionInfoResponse>('exceptionInfo', args);
+		if (this.capabilities.supportsExceptionInfoRequest) {
+			return this.send<DebugProtocol.ExceptionInfoResponse>('exceptionInfo', args);
+		}
+		return TPromise.wrapError(new Error('exceptionInfo not supported'));
 	}
 
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
@@ -297,21 +385,27 @@ export class RawDebugSession {
 	}
 
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
-		return this.send('stepBack', args).then(response => {
-			if (response.body === undefined) {
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
-			return response;
-		});
+		if (this.capabilities.supportsStepBack) {
+			return this.send('stepBack', args).then(response => {
+				if (response.body === undefined) {	// TODO@AW why this check?
+					this.fireSimulatedContinuedEvent(args.threadId);
+				}
+				return response;
+			});
+		}
+		return TPromise.wrapError(new Error('stepBack not supported'));
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
-		return this.send('reverseContinue', args).then(response => {
-			if (response.body === undefined) {
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
-			return response;
-		});
+		if (this.capabilities.supportsStepBack) {
+			return this.send('reverseContinue', args).then(response => {
+				if (response.body === undefined) {	// TODO@AW why this check?
+					this.fireSimulatedContinuedEvent(args.threadId);
+				}
+				return response;
+			});
+		}
+		return TPromise.wrapError(new Error('reverseContinue not supported'));
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
@@ -320,42 +414,6 @@ export class RawDebugSession {
 
 	//---- private
 
-	private startAdapter(): TPromise<void> {
-
-		if (!this.cachedInitDebugAdapterP) {
-
-			const startSessionP = this._debugger.createDebugAdapter(this.root, this.outputService, this.debugServerPort).then(debugAdapter => {
-
-				this.debugAdapter = debugAdapter;
-
-				this.debugAdapter.onError(err => {
-					this.shutdown(err);
-				});
-
-				this.debugAdapter.onExit(code => {
-					if (code !== 0) {
-						this.shutdown(new Error(`exit code: ${code}`));
-					} else {
-						// normal exit
-						this.shutdown();
-					}
-				});
-
-				this.debugAdapter.onEvent(event => this.onDapEvent(event));
-				this.debugAdapter.onRequest(request => this.dispatchRequest(request));
-
-				return this.debugAdapter.startSession();
-			});
-
-			this.cachedInitDebugAdapterP = startSessionP.then(() => {
-				this.startTime = new Date().getTime();
-			}, err => {
-				return TPromise.wrapError(err);
-			});
-		}
-
-		return this.cachedInitDebugAdapterP;
-	}
 
 	private shutdown(error?: Error, restart = false): TPromise<any> {
 		if (!this.inShutdown) {
@@ -393,7 +451,7 @@ export class RawDebugSession {
 			this.firedAdapterExitEvent = true;
 
 			const e: AdapterEndEvent = {
-				emittedStopped: this.emittedStopped,
+				emittedStopped: this.didReceiveStoppedEvent,
 				sessionLengthInSeconds: (new Date().getTime() - this.startTime) / 1000
 			};
 			if (error) {
@@ -403,53 +461,7 @@ export class RawDebugSession {
 		}
 	}
 
-	private onDapEvent(event: DebugProtocol.Event): void {
-
-		switch (event.event) {
-			case 'initialized':
-				this._readyForBreakpoints = true;
-				this._onDidInitialize.fire(event);
-				break;
-			case 'loadedSource':
-				this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
-				break;
-			case 'capabilities':
-				if (event.body) {
-					const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-					this.mergeCapabilities(capabilites);
-				}
-				break;
-			case 'stopped':
-				this.emittedStopped = true;
-				this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
-				break;
-			case 'continued':
-				this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued === false ? false : true;
-				this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
-				break;
-			case 'thread':
-				this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
-				break;
-			case 'output':
-				this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
-				break;
-			case 'breakpoint':
-				this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
-				break;
-			case 'terminated':
-				this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
-				break;
-			case 'exit':
-				this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
-				break;
-			default:
-				this._onDidCustomEvent.fire(event);
-				break;
-		}
-		this._onDidEvent.fire(event);
-	}
-
-	private dispatchRequest(request: DebugProtocol.Request): void {
+	private dispatchRequest(request: DebugProtocol.Request, dbgr: IDebugger): void {
 
 		const response: DebugProtocol.Response = {
 			type: 'response',
@@ -463,7 +475,7 @@ export class RawDebugSession {
 
 		switch (request.command) {
 			case 'runInTerminal':
-				this._debugger.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
+				dbgr.runInTerminal(<DebugProtocol.RunInTerminalRequestArguments>request.arguments).then(_ => {
 					response.body = {};
 					safeSendResponse(response);
 				}, err => {
@@ -496,19 +508,15 @@ export class RawDebugSession {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): TPromise<R> {
-
-		return this.startAdapter().then(() => {
-
-			return new TPromise<R>((completeDispatch, errorDispatch) => {
-				this.debugAdapter.sendRequest(command, args, (response: R) => {
-					if (response.success) {
-						completeDispatch(response);
-					} else {
-						errorDispatch(response);
-					}
-				}, timeout);
-			}).then(response => response, err => TPromise.wrapError(this.handleErrorResponse(err)));
-		});
+		return new TPromise<R>((completeDispatch, errorDispatch) => {
+			this.debugAdapter.sendRequest(command, args, (response: R) => {
+				if (response.success) {
+					completeDispatch(response);
+				} else {
+					errorDispatch(response);
+				}
+			}, timeout);
+		}).then(response => response, err => TPromise.wrapError(this.handleErrorResponse(err)));
 	}
 
 	private handleErrorResponse(errorResponse: DebugProtocol.Response): Error {
