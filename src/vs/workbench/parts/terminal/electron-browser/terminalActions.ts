@@ -1205,7 +1205,7 @@ export class ToggleRegexCommand extends ToggleFindOptionCommand {
 	}
 }
 
-export class ToggleWholeWordCommand extends Action {
+export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
 	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD, "Toggle find using whole word");
 
@@ -1214,7 +1214,7 @@ export class ToggleWholeWordCommand extends Action {
 	}
 }
 
-export class ToggleCaseSensitiveCommand extends Action {
+export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
 	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE, "Toggle find using case sensitive");
 

@@ -544,13 +544,16 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPrevious
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleEscapeSequenceLoggingAction, ToggleEscapeSequenceLoggingAction.ID, ToggleEscapeSequenceLoggingAction.LABEL), 'Terminal: Toggle Escape Sequence Logging', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexCommand, ToggleRegexCommand.ID, ToggleRegexCommand.LABEL, {
-	primary: KeyMod.Alt | KeyCode.KEY_R
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED), 'Terminal: Toggle find by regex');
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
-	primary: KeyMod.Alt | KeyCode.KEY_W
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED), 'Terminal: Toggle find whole word');
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
-	primary: KeyMod.Alt | KeyCode.KEY_C
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED), 'Terminal: Toggle find match case');
 const sendSequenceTerminalCommand = new SendSequenceTerminalCommand({
 	id: SendSequenceTerminalCommand.ID,
