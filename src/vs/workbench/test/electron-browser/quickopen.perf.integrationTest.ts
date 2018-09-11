@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -87,7 +88,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 		function measure() {
 			const handler = descriptor.instantiate(instantiationService);
 			handler.onOpen();
-			return handler.getResults('a').then(result => {
+			return handler.getResults('a', CancellationToken.None).then(result => {
 				const uncachedEvent = popEvent();
 				assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 				assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
@@ -96,7 +97,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 				}
 				return uncachedEvent;
 			}).then(uncachedEvent => {
-				return handler.getResults('ab').then(result => {
+				return handler.getResults('ab', CancellationToken.None).then(result => {
 					const cachedEvent = popEvent();
 					assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 					assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');

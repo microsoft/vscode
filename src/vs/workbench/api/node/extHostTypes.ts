@@ -1064,6 +1064,12 @@ export class SignatureHelp {
 	}
 }
 
+export enum SignatureHelpTriggerReason {
+	Invoke = 1,
+	TriggerCharacter = 2,
+	Retrigger = 3,
+}
+
 export enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
@@ -1114,6 +1120,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
+	commitCharacters: string[];
 	textEdit: TextEdit;
 	additionalTextEdits: TextEdit[];
 	command: vscode.Command;

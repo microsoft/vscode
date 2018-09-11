@@ -14,6 +14,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class AddConfigEntry extends Model.QuickOpenEntry {
 
@@ -76,6 +77,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.launch';
+
 	private autoFocusIndex: number;
 
 	constructor(
@@ -91,7 +93,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
-	public getResults(input: string): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
 		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();

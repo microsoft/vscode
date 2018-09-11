@@ -41,6 +41,17 @@ suite('Async', () => {
 		return result;
 	});
 
+	test('Cancel callback behaviour', async function () {
+		let withCancelCallback = new TPromise(() => { }, () => { });
+		let withoutCancelCallback = new TPromise(() => { });
+
+		withCancelCallback.cancel();
+		withoutCancelCallback.cancel();
+
+		await withCancelCallback.then(undefined, err => { assert.ok(isPromiseCanceledError(err)); });
+		await withoutCancelCallback.then(undefined, err => { assert.ok(isPromiseCanceledError(err)); });
+	});
+
 	// Cancelling a sync cancelable promise will fire the cancelled token.
 	// Also, every `then` callback runs in another execution frame.
 	test('CancelablePromise execution order (sync)', function () {

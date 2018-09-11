@@ -373,6 +373,13 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.nameSuggestions%",
+          "scope": "resource",
+          "deprecationMessage": "%javascript.nameSuggestions.deprecationMessage%"
+        },
+        "javascript.suggest.names": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -397,12 +404,38 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.quickSuggestionsForPaths%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.quickSuggestionsForPaths.deprecationMessage%"
+        },
+        "javascript.suggest.paths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.paths%",
+          "scope": "resource"
+        },
+        "typescript.suggest.paths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.paths%",
           "scope": "resource"
         },
         "typescript.autoImportSuggestions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoImportSuggestions.enabled%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.autoImportSuggestions.enabled.deprecationMessage%"
+        },
+        "javascript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "typescript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -529,6 +562,18 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
         }
       }
     },

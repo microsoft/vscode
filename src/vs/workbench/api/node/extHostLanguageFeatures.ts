@@ -714,12 +714,12 @@ class SignatureHelpAdapter {
 		private readonly _provider: vscode.SignatureHelpProvider
 	) { }
 
-	provideSignatureHelp(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
+	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
+		return asThenable(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
 			if (value) {
 				return typeConvert.SignatureHelp.from(value);
 			}
@@ -1144,8 +1144,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
-		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, token));
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp> {
+		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token));
 	}
 
 	// --- links

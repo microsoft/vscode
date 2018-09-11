@@ -245,4 +245,3 @@ export class WebviewEditor extends BaseWebviewEditor {
 		this._webviewFocusTrackerDisposables.push(this._webview.onDidFocus(() => this._onDidFocusWebview.fire()));
 	}
 }
-

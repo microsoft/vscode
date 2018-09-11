@@ -19,6 +19,7 @@ import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
 
@@ -42,7 +43,7 @@ export class QuickOpenHandler {
 	 * As such, returning the same model instance across multiple searches will yield best
 	 * results in terms of performance when many items are shown.
 	 */
-	getResults(searchValue: string): TPromise<IModel<any>> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
 		return TPromise.as(null);
 	}
 

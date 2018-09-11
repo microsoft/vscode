@@ -6,10 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { always } from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ITestChannel, TestServiceClient } from './testService';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
@@ -34,28 +32,12 @@ suite('IPC, Child Process', () => {
 		return always(result, () => client.dispose());
 	});
 
-	test('cancellation', () => {
-		const client = createClient();
-		const channel = client.getChannel<ITestChannel>('test');
-		const service = new TestServiceClient(channel);
-		const res = service.cancelMe();
-
-		setTimeout(() => res.cancel(), 50);
-
-		const result = res.then(
-			() => assert.fail('Unexpected'),
-			err => assert.ok(err && isPromiseCanceledError(err))
-		);
-
-		return always(result, () => client.dispose());
-	});
-
 	test('events', () => {
 		const client = createClient();
 		const channel = client.getChannel<ITestChannel>('test');
 		const service = new TestServiceClient(channel);
 
-		const event = new TPromise((c, e) => {
+		const event = new Promise((c, e) => {
 			service.onMarco(({ answer }) => {
 				try {
 					assert.equal(answer, 'polo');
@@ -67,7 +49,7 @@ suite('IPC, Child Process', () => {
 		});
 
 		const request = service.marco();
-		const result = TPromise.join<any>([request, event]);
+		const result = Promise.all([request, event]);
 
 		return always(result, () => client.dispose());
 	});

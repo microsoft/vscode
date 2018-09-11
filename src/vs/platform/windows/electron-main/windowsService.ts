@@ -35,14 +35,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	private _activeWindowId: number | undefined;
 
 	readonly onWindowOpen: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowFocus: Event<number> = anyEvent(
 		mapEvent(filterEvent(mapEvent(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), w => !!w), w => w.id),
 		filterEvent(fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
 	);
-
-	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 
 	readonly onRecentlyOpenedChange: Event<void> = this.historyService.onRecentlyOpenedChange;
 

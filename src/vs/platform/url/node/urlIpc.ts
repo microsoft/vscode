@@ -13,8 +13,8 @@ import { Event } from 'vs/base/common/event';
 import { IURLService, IURLHandler } from 'vs/platform/url/common/url';
 
 export interface IURLServiceChannel extends IChannel {
-	call(command: 'open', url: string): TPromise<boolean>;
-	call(command: string, arg?: any): TPromise<any>;
+	call(command: 'open', url: string): Thenable<boolean>;
+	call(command: string, arg?: any): Thenable<any>;
 }
 
 export class URLServiceChannel implements IURLServiceChannel {
@@ -25,7 +25,7 @@ export class URLServiceChannel implements IURLServiceChannel {
 		throw new Error('No events');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'open': return this.service.open(URI.revive(arg));
 		}
@@ -40,7 +40,7 @@ export class URLServiceChannelClient implements IURLService {
 	constructor(private channel: IChannel) { }
 
 	open(url: URI): TPromise<boolean> {
-		return this.channel.call('open', url.toJSON());
+		return TPromise.wrap(this.channel.call('open', url.toJSON()));
 	}
 
 	registerHandler(handler: IURLHandler): IDisposable {
@@ -49,8 +49,8 @@ export class URLServiceChannelClient implements IURLService {
 }
 
 export interface IURLHandlerChannel extends IChannel {
-	call(command: 'handleURL', arg: any): TPromise<boolean>;
-	call(command: string, arg?: any): TPromise<any>;
+	call(command: 'handleURL', arg: any): Thenable<boolean>;
+	call(command: string, arg?: any): Thenable<any>;
 }
 
 export class URLHandlerChannel implements IURLHandlerChannel {
@@ -61,7 +61,7 @@ export class URLHandlerChannel implements IURLHandlerChannel {
 		throw new Error('No events');
 	}
 
-	call(command: string, arg?: any): TPromise<any> {
+	call(command: string, arg?: any): Thenable<any> {
 		switch (command) {
 			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
 		}
@@ -74,6 +74,6 @@ export class URLHandlerChannelClient implements IURLHandler {
 	constructor(private channel: IChannel) { }
 
 	handleURL(uri: URI): TPromise<boolean> {
-		return this.channel.call('handleURL', uri.toJSON());
+		return TPromise.wrap(this.channel.call('handleURL', uri.toJSON()));
 	}
 }

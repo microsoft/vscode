@@ -27,92 +27,92 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 class SymbolEntry extends EditorQuickOpenEntry {
-
-	private _bearingResolve: Thenable<this>;
+	private bearingResolve: Thenable<this>;
 
 	constructor(
-		private _bearing: IWorkspaceSymbol,
-		private _provider: IWorkspaceSymbolProvider,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		private bearing: IWorkspaceSymbol,
+		private provider: IWorkspaceSymbolProvider,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@ILabelService private _labelService: ILabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super(editorService);
 	}
 
-	public getLabel(): string {
-		return this._bearing.name;
+	getLabel(): string {
+		return this.bearing.name;
 	}
 
-	public getAriaLabel(): string {
+	getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, symbols picker", this.getLabel());
 	}
 
-	public getDescription(): string {
-		const containerName = this._bearing.containerName;
-		if (this._bearing.location.uri) {
+	getDescription(): string {
+		const containerName = this.bearing.containerName;
+		if (this.bearing.location.uri) {
 			if (containerName) {
-				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
-			} else {
-				return this._labelService.getUriLabel(this._bearing.location.uri, true);
+				return `${containerName} — ${basename(this.bearing.location.uri.fsPath)}`;
 			}
+
+			return this.labelService.getUriLabel(this.bearing.location.uri, true);
 		}
+
 		return containerName;
 	}
 
-	public getIcon(): string {
-		return symbolKindToCssClass(this._bearing.kind);
+	getIcon(): string {
+		return symbolKindToCssClass(this.bearing.kind);
 	}
 
-	public getResource(): URI {
-		return this._bearing.location.uri;
+	getResource(): URI {
+		return this.bearing.location.uri;
 	}
 
-	public run(mode: Mode, context: IEntryRunContext): boolean {
+	run(mode: Mode, context: IEntryRunContext): boolean {
 
 		// resolve this type bearing if neccessary
-		if (!this._bearingResolve
-			&& typeof this._provider.resolveWorkspaceSymbol === 'function'
-			&& !this._bearing.location.range
+		if (!this.bearingResolve
+			&& typeof this.provider.resolveWorkspaceSymbol === 'function'
+			&& !this.bearing.location.range
 		) {
+			this.bearingResolve = Promise.resolve(this.provider.resolveWorkspaceSymbol(this.bearing, CancellationToken.None)).then(result => {
+				this.bearing = result || this.bearing;
 
-			this._bearingResolve = Promise.resolve(this._provider.resolveWorkspaceSymbol(this._bearing, CancellationToken.None)).then(result => {
-				this._bearing = result || this._bearing;
 				return this;
 			}, onUnexpectedError);
 		}
 
-		TPromise.as(this._bearingResolve)
-			.then(_ => super.run(mode, context))
-			.then(undefined, onUnexpectedError);
+		TPromise.as(this.bearingResolve)
+			.then(() => super.run(mode, context))
+			.then(void 0, onUnexpectedError);
 
 		// hide if OPEN
 		return mode === Mode.OPEN;
 	}
 
-	public getInput(): IResourceInput | EditorInput {
-		let input: IResourceInput = {
-			resource: this._bearing.location.uri,
+	getInput(): IResourceInput | EditorInput {
+		const input: IResourceInput = {
+			resource: this.bearing.location.uri,
 			options: {
-				pinned: !this._configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
 		};
 
-		if (this._bearing.location.range) {
-			input.options.selection = Range.collapseToStart(this._bearing.location.range);
+		if (this.bearing.location.range) {
+			input.options.selection = Range.collapseToStart(this.bearing.location.range);
 		}
 
 		return input;
 	}
 
-	public static compare(elementA: SymbolEntry, elementB: SymbolEntry, searchValue: string): number {
+	static compare(elementA: SymbolEntry, elementB: SymbolEntry, searchValue: string): number {
 
 		// Sort by Type if name is identical
 		const elementAName = elementA.getLabel().toLowerCase();
 		const elementBName = elementB.getLabel().toLowerCase();
 		if (elementAName === elementBName) {
-			let elementAType = symbolKindToCssClass(elementA._bearing.kind);
-			let elementBType = symbolKindToCssClass(elementB._bearing.kind);
+			let elementAType = symbolKindToCssClass(elementA.bearing.kind);
+			let elementBType = symbolKindToCssClass(elementB.bearing.kind);
 			return elementAType.localeCompare(elementBType);
 		}
 
@@ -128,7 +128,7 @@ export interface IOpenSymbolOptions {
 
 export class OpenSymbolHandler extends QuickOpenHandler {
 
-	public static readonly ID = 'workbench.picker.symbols';
+	static readonly ID = 'workbench.picker.symbols';
 
 	private static readonly SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
@@ -142,15 +142,15 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		this.options = Object.create(null);
 	}
 
-	public setOptions(options: IOpenSymbolOptions) {
+	setOptions(options: IOpenSymbolOptions) {
 		this.options = options;
 	}
 
-	public canRun(): boolean | string {
+	canRun(): boolean | string {
 		return true;
 	}
 
-	public getResults(searchValue: string, token: CancellationToken = CancellationToken.None): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
 		let promise: TPromise<QuickOpenEntry[]>;
@@ -169,8 +169,12 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		return promise.then(e => new QuickOpenModel(e));
 	}
 
-	private doGetResults(searchValue: string, token?: CancellationToken): TPromise<SymbolEntry[]> {
+	private doGetResults(searchValue: string, token: CancellationToken): TPromise<SymbolEntry[]> {
 		return getWorkspaceSymbols(searchValue, token).then(tuples => {
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
 			const result: SymbolEntry[] = [];
 			for (let tuple of tuples) {
 				const [provider, bearings] = tuple;
@@ -201,18 +205,18 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		}
 	}
 
-	public getGroupLabel(): string {
+	getGroupLabel(): string {
 		return nls.localize('symbols', "symbol results");
 	}
 
-	public getEmptyLabel(searchString: string): string {
+	getEmptyLabel(searchString: string): string {
 		if (searchString.length > 0) {
 			return nls.localize('noSymbolsMatching', "No symbols matching");
 		}
 		return nls.localize('noSymbolsWithoutInput', "Type to search for symbols");
 	}
 
-	public getAutoFocus(searchValue: string): IAutoFocus {
+	getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: true,
 			autoFocusPrefixMatch: searchValue.trim()

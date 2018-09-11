@@ -42,12 +42,10 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	public provideTextContent(resource: uri): TPromise<ITextModel> {
 
 		let session: IDebugSession;
-		let sourceRef: number;
 
 		if (resource.query) {
 			const data = Source.getEncodedDebugData(resource);
 			session = this.debugService.getModel().getSessions().filter(p => p.getId() === data.sessionId).pop();
-			sourceRef = data.sourceReference;
 		}
 
 		if (!session) {
@@ -58,39 +56,21 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		if (!session) {
 			return TPromise.wrapError<ITextModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
-		const source = session.getSourceForUri(resource);
-		let rawSource: DebugProtocol.Source;
-		if (source) {
-			rawSource = source.raw;
-			if (!sourceRef) {
-				sourceRef = source.reference;
-			}
-		} else {
-			// create a Source
-			rawSource = {
-				path: resource.with({ scheme: '', query: '' }).toString(true),	// Remove debug: scheme
-				sourceReference: sourceRef
-			};
-		}
-
 		const createErrModel = (message: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
 			const modePromise = this.modeService.getOrCreateMode(MIME_TEXT);
-			const model = this.modelService.createModel(message, modePromise, resource);
-
-			return model;
+			return this.modelService.createModel(message, modePromise, resource);
 		};
 
-		return session.raw.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
+		return session.loadSource(resource).then(response => {
 			if (!response) {
 				return createErrModel(localize('canNotResolveSource', "Could not resolve resource {0}, no response from debug extension.", resource.toString()));
 			}
 
 			const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
-			const model = this.modelService.createModel(response.body.content, modePromise, resource);
+			return this.modelService.createModel(response.body.content, modePromise, resource);
 
-			return model;
 		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
 	}
 }

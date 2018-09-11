@@ -189,10 +189,12 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleWholeWords(): void {
 		this._state.change({ wholeWord: !this._state.wholeWord }, false);
+		this.highlightFindOptions();
 	}
 
 	public toggleRegex(): void {
 		this._state.change({ isRegex: !this._state.isRegex }, false);
+		this.highlightFindOptions();
 	}
 
 	public toggleSearchScope(): void {

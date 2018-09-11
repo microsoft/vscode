@@ -38,6 +38,14 @@ export function createBreadcrumbsPicker(instantiationService: IInstantiationServ
 	return instantiationService.createInstance(ctor, parent);
 }
 
+interface ILayoutInfo {
+	// height: number;
+	width: number;
+	arrowSize: number;
+	arrowOffset: number;
+	inputHeight: number;
+}
+
 export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new Array<IDisposable>();
@@ -46,6 +54,7 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
+	private _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
 	readonly onDidPickElement: Event<{ target: any, payload: any }> = this._onDidPickElement.event;
@@ -111,12 +120,14 @@ export abstract class BreadcrumbsPicker {
 			}
 		}));
 		this._disposables.push(this._tree.onDidStartFiltering(() => {
-			let totalHeight = Number(this._domNode.style.height.slice(0, -2));
-			let treeHeight = Number(this._treeContainer.style.height.slice(0, -2));
-
-			this._domNode.style.height = `${totalHeight + 36}px`;
-			this._treeContainer.style.height = `${treeHeight + 36}px`;
-			this._tree.layout();
+			this._layoutInfo.inputHeight = 36;
+			this._layout();
+		}));
+		this._disposables.push(this._tree.onDidExpandItem(() => {
+			this._layout();
+		}));
+		this._disposables.push(this._tree.onDidCollapseItem(() => {
+			this._layout();
 		}));
 
 		// tree icon theme specials
@@ -143,13 +154,8 @@ export abstract class BreadcrumbsPicker {
 		let actualInput = this._getInput(input);
 		this._tree.setInput(actualInput).then(() => {
 
-			// adjust height based on the number of elements, also ensure that there is an
-			// odd number of element for the case in which the tree scrolls - that ensures
-			// elements are revealed without a cuttoff
-			let count = 0;
-			let nav = this._tree.getNavigator(undefined, false);
-			while (nav.next() && count < 15) { count += 1; }
-			this._layout(2 * arrowSize + (count * 22), width, arrowSize, arrowOffset);
+			this._layoutInfo = { width, arrowSize, arrowOffset, inputHeight: 0 };
+			this._layout();
 
 			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
@@ -168,18 +174,24 @@ export abstract class BreadcrumbsPicker {
 		}, onUnexpectedError);
 	}
 
-	private _layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
+	private _layout(info: ILayoutInfo = this._layoutInfo): void {
 
-		let treeHeight = height - 2 * arrowSize;
-		let totalHeight = treeHeight + 2 + arrowSize;
+		let count = 0;
+		let nav = this._tree.getNavigator(undefined, false);
+		while (nav.next() && count < 13) { count += 1; }
+
+		let treeHeight = count * 22;
+		let totalHeight = treeHeight + 2 + info.arrowSize;
 
 		this._domNode.style.height = `${totalHeight}px`;
-		this._domNode.style.width = `${width}px`;
-		this._arrow.style.borderWidth = `${arrowSize}px`;
-		this._arrow.style.marginLeft = `${arrowOffset}px`;
+		this._domNode.style.width = `${info.width}px`;
+		this._arrow.style.borderWidth = `${info.arrowSize}px`;
+		this._arrow.style.marginLeft = `${info.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
-		this._treeContainer.style.width = `${width}px`;
+		this._treeContainer.style.width = `${info.width}px`;
 		this._tree.layout();
+		this._layoutInfo = info;
+
 	}
 
 	protected abstract _getInput(input: BreadcrumbElement): any;

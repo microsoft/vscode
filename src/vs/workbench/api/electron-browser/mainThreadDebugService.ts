@@ -220,7 +220,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Thenable<any> {
 		const session = this.debugService.getSession(sessionId);
 		if (session) {
-			return session.raw.custom(request, args).then(response => {
+			return session.customRequest(request, args).then(response => {
 				if (response && response.success) {
 					return response.body;
 				} else {

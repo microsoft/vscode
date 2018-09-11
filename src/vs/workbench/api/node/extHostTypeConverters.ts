@@ -530,6 +530,7 @@ export namespace Suggest {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
+		result.commitCharacters = suggestion.commitCharacters;
 
 		// 'overwrite[Before|After]'-logic
 		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;

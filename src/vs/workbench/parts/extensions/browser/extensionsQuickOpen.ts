@@ -12,6 +12,7 @@ import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/co
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class SimpleEntry extends QuickOpenEntry {
 
@@ -46,7 +47,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string): TPromise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): TPromise<IModel<any>> {
 		const label = nls.localize('manage', "Press Enter to manage your extensions.");
 		const action = () => {
 			this.viewletService.openViewlet(VIEWLET_ID, true)
@@ -82,7 +83,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string): TPromise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): TPromise<IModel<any>> {
 		if (/\./.test(text)) {
 			return this.galleryService.query({ names: [text], pageSize: 1 })
 				.then(galleryResult => {
