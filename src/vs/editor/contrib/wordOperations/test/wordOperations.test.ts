@@ -44,16 +44,16 @@ suite('WordOperations', () => {
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
 	}
-	function moveWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
 	}
-	function moveWordStartLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+	function cursorWordStartLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordStartLeftSelect : _cursorWordStartLeft);
 	}
-	function moveWordEndLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+	function cursorWordEndLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordEndLeftSelect : _cursorWordEndLeft);
 	}
-	function moveWordRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
+	function cursorWordRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordRightSelect : _cursorWordRight);
 	}
 	function moveWordEndRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
@@ -81,7 +81,7 @@ suite('WordOperations', () => {
 		runEditorCommand(editor, _deleteWordEndRight);
 	}
 
-	test('move word left', () => {
+	test('cursorWordLeft - simple', () => {
 		const EXPECTED = [
 			'|    \t|My |First |Line\t ',
 			'|\t|My |Second |Line',
@@ -93,7 +93,7 @@ suite('WordOperations', () => {
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1000, 1000),
-			ed => moveWordLeft(ed),
+			ed => cursorWordLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -101,7 +101,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('move word left selection', () => {
+	test('cursorWordLeft - with selection', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -110,18 +110,18 @@ suite('WordOperations', () => {
 			'1',
 		], {}, (editor, _) => {
 			editor.setPosition(new Position(5, 2));
-			moveWordLeft(editor, true);
+			cursorWordLeft(editor, true);
 			assert.deepEqual(editor.getSelection(), new Selection(5, 2, 5, 1));
 		});
 	});
 
-	test('issue #832: moveWordLeft', () => {
+	test('cursorWordLeft - issue #832', () => {
 		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5-|3 |+ |7 |*/  '].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1000, 1000),
-			ed => moveWordLeft(ed),
+			ed => cursorWordLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -129,13 +129,15 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('moveWordStartLeft', () => {
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5-|3 |+ |7 |*/  '].join('\n');
+	test('cursorWordLeft - issue #48046: Word selection doesn\'t work as usual', () => {
+		const EXPECTED = [
+			'|deep.|object.|property',
+		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
-			new Position(1000, 1000),
-			ed => moveWordStartLeft(ed),
+			new Position(1, 21),
+			ed => cursorWordLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -143,13 +145,43 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('moveWordEndLeft', () => {
+	test('cursorWordStartLeft', () => {
+		// This is the behaviour observed in Visual Studio, please do not touch test
+		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/|  '].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordStartLeft(ed),
+			ed => ed.getPosition(),
+			ed => ed.getPosition().equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordStartLeft - issue #51119: regression makes VS compatibility impossible', () => {
+		// This is the behaviour observed in Visual Studio, please do not touch test
+		const EXPECTED = ['|this|.|is|.|a|.|test'].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1000, 1000),
+			ed => cursorWordStartLeft(ed),
+			ed => ed.getPosition(),
+			ed => ed.getPosition().equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('cursorWordEndLeft', () => {
 		const EXPECTED = ['|   /*| Just| some|   more|   text| a|+=| 3| +|5|-|3| +| 7| */|  '].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1000, 1000),
-			ed => moveWordEndLeft(ed),
+			ed => cursorWordEndLeft(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 1))
 		);
@@ -157,7 +189,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('move word right', () => {
+	test('cursorWordRight - simple', () => {
 		const EXPECTED = [
 			'    \tMy| First| Line|\t |',
 			'\tMy| Second| Line|',
@@ -169,7 +201,7 @@ suite('WordOperations', () => {
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordRight(ed),
+			ed => cursorWordRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(5, 2))
 		);
@@ -177,7 +209,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('move word right selection', () => {
+	test('cursorWordRight - selection', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -186,12 +218,12 @@ suite('WordOperations', () => {
 			'1',
 		], {}, (editor, _) => {
 			editor.setPosition(new Position(1, 1));
-			moveWordRight(editor, true);
+			cursorWordRight(editor, true);
 			assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 8));
 		});
 	});
 
-	test('issue #832: moveWordRight', () => {
+	test('cursorWordRight - issue #832', () => {
 		const EXPECTED = [
 			'   /*| Just| some|   more|   text| a|+=| 3| +5|-3| +| 7| */|  |',
 		].join('\n');
@@ -199,7 +231,7 @@ suite('WordOperations', () => {
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordRight(ed),
+			ed => cursorWordRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 50))
 		);
@@ -207,7 +239,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #41199: moveWordRight', () => {
+	test('cursorWordRight - issue #41199', () => {
 		const EXPECTED = [
 			'console|.log|(err|)|',
 		].join('\n');
@@ -215,25 +247,9 @@ suite('WordOperations', () => {
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordRight(ed),
+			ed => cursorWordRight(ed),
 			ed => ed.getPosition(),
 			ed => ed.getPosition().equals(new Position(1, 17))
-		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
-	});
-
-	test('issue #48046: Word selection doesn\'t work as usual', () => {
-		const EXPECTED = [
-			'|deep.|object.|property',
-		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
-			text,
-			new Position(1, 21),
-			ed => moveWordLeft(ed),
-			ed => ed.getPosition(),
-			ed => ed.getPosition().equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
@@ -256,6 +272,7 @@ suite('WordOperations', () => {
 	});
 
 	test('moveWordStartRight', () => {
+		// This is the behaviour observed in Visual Studio, please do not touch test
 		const EXPECTED = [
 			'   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  |',
 		].join('\n');
@@ -271,7 +288,22 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('delete word left for non-empty selection', () => {
+	test('issue #51119: cursorWordStartRight regression makes VS compatibility impossible', () => {
+		// This is the behaviour observed in Visual Studio, please do not touch test
+		const EXPECTED = ['this|.|is|.|a|.|test|'].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => moveWordStartRight(ed),
+			ed => ed.getPosition(),
+			ed => ed.getPosition().equals(new Position(1, 15))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('deleteWordLeft for non-empty selection', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -287,7 +319,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word left for cursor at beginning of document', () => {
+	test('deleteWordLeft for cursor at beginning of document', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -303,7 +335,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word left for cursor at end of whitespace', () => {
+	test('deleteWordLeft for cursor at end of whitespace', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -319,7 +351,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word left for cursor just behind a word', () => {
+	test('deleteWordLeft for cursor just behind a word', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -335,7 +367,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word left for cursor inside of a word', () => {
+	test('deleteWordLeft for cursor inside of a word', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -351,7 +383,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word right for non-empty selection', () => {
+	test('deleteWordRight for non-empty selection', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -367,7 +399,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word right for cursor at end of document', () => {
+	test('deleteWordRight for cursor at end of document', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -383,7 +415,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word right for cursor at beggining of whitespace', () => {
+	test('deleteWordRight for cursor at beggining of whitespace', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -399,7 +431,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word right for cursor just before a word', () => {
+	test('deleteWordRight for cursor just before a word', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -415,7 +447,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('delete word right for cursor inside of a word', () => {
+	test('deleteWordRight for cursor inside of a word', () => {
 		withTestCodeEditor([
 			'    \tMy First Line\t ',
 			'\tMy Second Line',
@@ -431,7 +463,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('issue #832: deleteWordLeft', () => {
+	test('deleteWordLeft - issue #832', () => {
 		const EXPECTED = [
 			'|   |/* |Just |some |text |a|+= |3 |+|5 |*/|  ',
 		].join('\n');
@@ -479,7 +511,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #24947', () => {
+	test('deleteWordLeft - issue #24947', () => {
 		withTestCodeEditor([
 			'{',
 			'}'
@@ -508,7 +540,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('issue #832: deleteWordRight', () => {
+	test('deleteWordRight - issue #832', () => {
 		const EXPECTED = '   |/*| Just| some| text| a|+=| 3| +|5|-|3| */|  |';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
@@ -522,7 +554,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #3882: deleteWordRight', () => {
+	test('deleteWordRight - issue #3882', () => {
 		withTestCodeEditor([
 			'public void Add( int x,',
 			'                 int y )'
@@ -533,7 +565,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('issue #3882: deleteWordStartRight', () => {
+	test('deleteWordStartRight - issue #3882', () => {
 		withTestCodeEditor([
 			'public void Add( int x,',
 			'                 int y )'
@@ -544,7 +576,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('issue #3882: deleteWordEndRight', () => {
+	test('deleteWordEndRight - issue #3882', () => {
 		withTestCodeEditor([
 			'public void Add( int x,',
 			'                 int y )'
@@ -583,7 +615,7 @@ suite('WordOperations', () => {
 		assert.deepEqual(actual, EXPECTED);
 	});
 
-	test('issue #3882 (1): Ctrl+Delete removing entire line when used at the end of line', () => {
+	test('deleteWordRight - issue #3882 (1): Ctrl+Delete removing entire line when used at the end of line', () => {
 		withTestCodeEditor([
 			'A line with text.',
 			'   And another one'
@@ -594,7 +626,7 @@ suite('WordOperations', () => {
 		});
 	});
 
-	test('issue #3882 (2): Ctrl+Delete removing entire line when used at the end of line', () => {
+	test('deleteWordLeft - issue #3882 (2): Ctrl+Delete removing entire line when used at the end of line', () => {
 		withTestCodeEditor([
 			'A line with text.',
 			'   And another one'

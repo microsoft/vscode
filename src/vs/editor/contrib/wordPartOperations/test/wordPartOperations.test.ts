@@ -52,7 +52,7 @@ suite('WordPartOperations', () => {
 	});
 
 	test('issue #53899: move word part left whitespace', () => {
-		const EXPECTED = '|myvar| |=| |\'|demonstration|     |of| |selection| |with| |space\'';
+		const EXPECTED = '|myvar| |=| |\'|demonstration|     |of| |selection| |with| |space|\'';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -66,7 +66,7 @@ suite('WordPartOperations', () => {
 	});
 
 	test('issue #53899: move word part left underscores', () => {
-		const EXPECTED = '|myvar| |=| |\'|demonstration|_____of| |selection| |with| |space\'';
+		const EXPECTED = '|myvar| |=| |\'|demonstration|_____of| |selection| |with| |space|\'';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
