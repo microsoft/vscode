@@ -51,7 +51,7 @@
           ],
           "scope": "resource",
           "default": "wbr",
-          "description": "%html.format.unformatted.desc%"
+          "markdownDescription": "%html.format.unformatted.desc%"
         },
         "html.format.contentUnformatted": {
           "type": [
@@ -60,13 +60,13 @@
           ],
           "scope": "resource",
           "default": "pre,code,textarea",
-          "description": "%html.format.contentUnformatted.desc%"
+          "markdownDescription": "%html.format.contentUnformatted.desc%"
         },
         "html.format.indentInnerHtml": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.format.indentInnerHtml.desc%"
+          "markdownDescription": "%html.format.indentInnerHtml.desc%"
         },
         "html.format.preserveNewLines": {
           "type": "boolean",
@@ -81,13 +81,13 @@
           ],
           "scope": "resource",
           "default": null,
-          "description": "%html.format.maxPreserveNewLines.desc%"
+          "markdownDescription": "%html.format.maxPreserveNewLines.desc%"
         },
         "html.format.indentHandlebars": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.format.indentHandlebars.desc%"
+          "markdownDescription": "%html.format.indentHandlebars.desc%"
         },
         "html.format.endWithNewline": {
           "type": "boolean",
@@ -102,7 +102,7 @@
           ],
           "scope": "resource",
           "default": "head, body, /html",
-          "description": "%html.format.extraLiners.desc%"
+          "markdownDescription": "%html.format.extraLiners.desc%"
         },
         "html.format.wrapAttributes": {
           "type": "string",
