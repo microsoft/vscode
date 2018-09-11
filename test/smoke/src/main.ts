@@ -51,7 +51,6 @@ const opts = minimist(args, {
 	}
 });
 
-const workspaceFilePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
@@ -141,37 +140,6 @@ if (process.env.VSCODE_DEV === '1') {
 	quality = Quality.Stable;
 }
 
-function toUri(path: string): string {
-	if (process.platform === 'win32') {
-		return `${path.replace(/\\/g, '/')}`;
-	}
-
-	return `${path}`;
-}
-
-async function createWorkspaceFile(): Promise<void> {
-	if (fs.existsSync(workspaceFilePath)) {
-		return;
-	}
-
-	console.log('*** Creating workspace file...');
-	const workspace = {
-		folders: [
-			{
-				path: toUri(path.join(workspacePath, 'public'))
-			},
-			{
-				path: toUri(path.join(workspacePath, 'routes'))
-			},
-			{
-				path: toUri(path.join(workspacePath, 'views'))
-			}
-		]
-	};
-
-	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
-}
-
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		console.log('*** Copying test project repository:', opts['test-repo']);
@@ -198,7 +166,6 @@ async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
-	await createWorkspaceFile();
 	await setupRepository();
 
 	console.log('*** Smoketest setup done!\n');
@@ -224,7 +191,6 @@ function createApp(quality: Quality): Application {
 		workspacePath,
 		userDataDir,
 		extensionsPath,
-		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger: new MultiLogger(loggers),
 		verbose: opts.verbose,

@@ -17,7 +17,6 @@ export const enum Quality {
 export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
 	workspacePath: string;
-	workspaceFilePath: string;
 	waitTime: number;
 }
 
@@ -54,10 +53,6 @@ export class Application {
 
 	get userDataPath(): string {
 		return this.options.userDataDir;
-	}
-
-	get workspaceFilePath(): string {
-		return this.options.workspaceFilePath;
 	}
 
 	async start(): Promise<any> {
