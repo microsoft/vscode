@@ -352,7 +352,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
-					darkColor: overviewRulerColor,
 					position: OverviewRulerLane.Right
 				}
 			}

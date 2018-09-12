@@ -433,7 +433,6 @@ class WordHighlighter {
 		className: 'wordHighlightStrong',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerWordHighlightStrongForeground),
-			darkColor: themeColorFromId(overviewRulerWordHighlightStrongForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -443,7 +442,6 @@ class WordHighlighter {
 		className: 'selectionHighlight',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -453,7 +451,6 @@ class WordHighlighter {
 		className: 'wordHighlight',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerWordHighlightForeground),
-			darkColor: themeColorFromId(overviewRulerWordHighlightForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

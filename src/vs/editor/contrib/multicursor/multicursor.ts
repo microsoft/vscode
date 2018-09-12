@@ -897,7 +897,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		className: 'selectionHighlight',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

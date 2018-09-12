@@ -1407,7 +1407,7 @@ class OverviewRulerDecorations {
 function resolveColor(opts: ModelDecorationOverviewRulerOptions, theme: ITheme): string {
 	if (!opts._resolvedColor) {
 		const themeType = theme.type;
-		const color = (themeType === 'dark' ? opts.darkColor : themeType === 'light' ? opts.color : opts.hcColor);
+		const color = (themeType === 'light' ? opts.color : opts.darkColor);
 		opts._resolvedColor = resolveRulerColor(color, theme);
 	}
 	return opts._resolvedColor;

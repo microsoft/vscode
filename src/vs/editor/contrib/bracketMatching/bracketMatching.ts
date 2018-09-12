@@ -234,7 +234,6 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		className: 'bracket-match',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerBracketMatchForeground),
-			darkColor: themeColorFromId(overviewRulerBracketMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

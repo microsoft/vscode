@@ -2783,30 +2783,28 @@ function cleanClassName(className: string): string {
 export class ModelDecorationOverviewRulerOptions implements model.IModelDecorationOverviewRulerOptions {
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
-	readonly hcColor: string | ThemeColor;
 	readonly position: model.OverviewRulerLane;
 	_resolvedColor: string;
 
 	constructor(options: model.IModelDecorationOverviewRulerOptions) {
 		this.color = strings.empty;
 		this.darkColor = strings.empty;
-		this.hcColor = strings.empty;
 		this.position = model.OverviewRulerLane.Center;
 		this._resolvedColor = null;
 
 		if (options && options.color) {
 			this.color = options.color;
+			if (typeof options.color !== 'string') {
+				this.darkColor = options.color;
+			}
 		}
 		if (options && options.darkColor) {
 			this.darkColor = options.darkColor;
-			this.hcColor = options.darkColor;
 		}
-		if (options && options.hcColor) {
-			this.hcColor = options.hcColor;
-		}
-		if (options && options.hasOwnProperty('position')) {
+		if (options && typeof options.position === 'number') {
 			this.position = options.position;
 		}
+		// console.log(this);
 	}
 }
 

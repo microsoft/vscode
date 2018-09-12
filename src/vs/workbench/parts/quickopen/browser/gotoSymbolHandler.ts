@@ -531,7 +531,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					options: {
 						overviewRuler: {
 							color: themeColorFromId(overviewRulerRangeHighlight),
-							darkColor: themeColorFromId(overviewRulerRangeHighlight),
 							position: OverviewRulerLane.Full
 						}
 					}

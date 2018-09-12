@@ -808,7 +808,6 @@ class DirtyDiffDecorator {
 		if (options.overview) {
 			decorationOptions.overviewRuler = {
 				color: themeColorFromId(foregroundColor),
-				darkColor: themeColorFromId(foregroundColor),
 				position: OverviewRulerLane.Left
 			};
 		}
