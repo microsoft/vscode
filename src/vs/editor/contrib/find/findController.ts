@@ -61,6 +61,7 @@ export interface IFindStartOptions {
 	seedSearchStringFromGlobalClipboard: boolean;
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
+	updateSearchScope: boolean;
 }
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
@@ -117,6 +118,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 					seedSearchStringFromGlobalClipboard: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
+					updateSearchScope: false
 				});
 			}
 		}));
@@ -263,6 +265,9 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			stateChanges.isReplaceRevealed = false;
 		}
 
+		if (opts.updateSearchScope) {
+			stateChanges.searchScope = this._editor.getSelection();
+		}
 
 		this._state.change(stateChanges, false);
 
@@ -358,6 +363,11 @@ export class FindController extends CommonFindController implements IFindControl
 			this._createFindWidget();
 		}
 
+		if (!this._widget.getPosition() && this._editor.getConfiguration().contribInfo.find.autoFindInSelection) {
+			// not visible yet so we need to set search scope if `editor.find.autoFindInSelection` is `true`
+			opts.updateSearchScope = true;
+		}
+
 		super._start(opts);
 
 		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
@@ -414,7 +424,8 @@ export class StartFindAction extends EditorAction {
 				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.globalFindClipboard,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
-				shouldAnimate: true
+				shouldAnimate: true,
+				updateSearchScope: false
 			});
 		}
 	}
@@ -447,7 +458,8 @@ export class StartFindWithSelectionAction extends EditorAction {
 				seedSearchStringFromSelection: true,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
-				shouldAnimate: true
+				shouldAnimate: true,
+				updateSearchScope: false
 			});
 
 			controller.setGlobalBufferTerm(controller.getState().searchString);
@@ -463,7 +475,8 @@ export abstract class MatchFindAction extends EditorAction {
 				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true
+				shouldAnimate: true,
+				updateSearchScope: false
 			});
 			this._run(controller);
 		}
@@ -532,7 +545,8 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: true
+				shouldAnimate: true,
+				updateSearchScope: false
 			});
 			this._run(controller);
 		}
@@ -627,7 +641,8 @@ export class StartFindReplaceAction extends EditorAction {
 				seedSearchStringFromSelection: seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
-				shouldAnimate: true
+				shouldAnimate: true,
+				updateSearchScope: false
 			});
 		}
 	}

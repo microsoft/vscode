@@ -261,7 +261,8 @@ suite('FindController', () => {
 				seedSearchStringFromSelection: false,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false
+				shouldAnimate: false,
+				updateSearchScope: false
 			});
 
 			assert.equal(findController.getState().searchScope, null);
@@ -466,6 +467,29 @@ suite('FindController query options persistence', () => {
 			assert.equal(queryState['editor.isRegex'], true);
 
 			findController.dispose();
+		});
+	});
+
+	test('issue #27083: Update search scope once find widget becomes visible', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 1, 2, 1));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, new Selection(1, 1, 2, 1));
 		});
 	});
 });
