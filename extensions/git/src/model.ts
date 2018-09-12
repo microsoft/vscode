@@ -242,20 +242,28 @@ export class Model {
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
-		const detectSubmodules = workspace
+		const shouldDetectSubmodules = workspace
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<boolean>('detectSubmodules') as boolean;
+
 		const submodulesLimit = workspace
 			.getConfiguration('git', Uri.file(repository.root))
 			.get<number>('detectSubmodulesLimit') as number;
 
 		const checkForSubmodules = () => {
-			if (detectSubmodules && repository.submodules.length > submodulesLimit) {
+			if (!shouldDetectSubmodules) {
+				return;
+			}
+
+			if (repository.submodules.length > submodulesLimit) {
 				window.showWarningMessage(localize('too many submodules', "The '{0}' repository has {1} submodules which won't be opened automatically. You can still open each one individually by opening a file within.", path.basename(repository.root), repository.submodules.length));
 				statusListener.dispose();
 			}
 
-			this.scanSubmodules(repository, submodulesLimit);
+			repository.submodules
+				.slice(0, submodulesLimit)
+				.map(r => path.join(repository.root, r.path))
+				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 		};
 
 		const statusListener = repository.onDidRunGitStatus(checkForSubmodules);
@@ -275,21 +283,6 @@ export class Model {
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
 		this._onDidOpenRepository.fire(repository);
-	}
-
-	private scanSubmodules(repository: Repository, limit: number): void {
-		const shouldScanSubmodules = workspace
-			.getConfiguration('git', Uri.file(repository.root))
-			.get<boolean>('detectSubmodules') === true;
-
-		if (!shouldScanSubmodules) {
-			return;
-		}
-
-		repository.submodules
-			.slice(0, limit)
-			.map(r => path.join(repository.root, r.path))
-			.forEach(p => this.eventuallyScanPossibleGitRepository(p));
 	}
 
 	close(repository: Repository): void {
