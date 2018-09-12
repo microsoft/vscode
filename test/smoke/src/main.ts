@@ -11,9 +11,9 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
-import { Application, Quality } from './application';
+import { Application, Quality, ApplicationOptions } from './application';
 
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+// import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
@@ -27,6 +27,7 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
+import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
@@ -171,7 +172,7 @@ async function setup(): Promise<void> {
 	console.log('*** Smoketest setup done!\n');
 }
 
-function createApp(quality: Quality): Application {
+function createOptions(): ApplicationOptions {
 	const loggers: Logger[] = [];
 
 	if (opts.verbose) {
@@ -184,8 +185,7 @@ function createApp(quality: Quality): Application {
 		loggers.push(new FileLogger(opts.log));
 		log = 'trace';
 	}
-
-	return new Application({
+	return {
 		quality,
 		codePath: opts.build,
 		workspacePath,
@@ -194,14 +194,16 @@ function createApp(quality: Quality): Application {
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger: new MultiLogger(loggers),
 		verbose: opts.verbose,
-		log
-	});
+		log,
+		screenshotsPath
+	};
 }
 
 before(async function () {
 	// allow two minutes for setup
 	this.timeout(2 * 60 * 1000);
 	await setup();
+	this.defaultOptions = createOptions();
 });
 
 after(async function () {
@@ -216,13 +218,13 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-describe('Data Migration', () => {
-	setupDataMigrationTests(userDataDir, createApp);
-});
+// describe('Data Migration', () => {
+// 	setupDataMigrationTests(userDataDir, createApp);
+// });
 
-describe('Test', () => {
+describe('Running Code', () => {
 	before(async function () {
-		const app = createApp(quality);
+		const app = new Application(this.defaultOptions);
 		await app!.start();
 		this.app = app;
 	});
@@ -236,19 +238,10 @@ describe('Test', () => {
 			if (this.currentTest.state !== 'failed') {
 				return;
 			}
-
 			const app = this.app as Application;
-			const raw = await app.capturePage();
-			const buffer = Buffer.from(raw, 'base64');
-
 			const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-			const screenshotPath = path.join(screenshotsPath, `${name}.png`);
 
-			if (opts.log) {
-				app.logger.log('*** Screenshot recorded:', screenshotPath);
-			}
-
-			fs.writeFileSync(screenshotPath, buffer);
+			await app.captureScreenshot(name);
 		});
 	}
 
@@ -275,3 +268,5 @@ describe('Test', () => {
 	setupDataMultirootTests();
 	setupDataLocalizationTests();
 });
+
+setupLaunchTests();

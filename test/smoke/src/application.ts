@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { Workbench } from './areas/workbench/workbench';
 import { Code, spawn, SpawnOptions } from './vscode/code';
 import { Logger } from './logger';
@@ -17,6 +19,7 @@ export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
 	workspacePath: string;
 	waitTime: number;
+	screenshotsPath: string | null;
 }
 
 export class Application {
@@ -71,7 +74,7 @@ export class Application {
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
 		this._workspacePathOrFolder = workspaceOrFolder;
-		await this.startApplication(workspaceOrFolder, extraArgs);
+		await this.startApplication(extraArgs);
 		await this.checkWindowReady();
 	}
 
@@ -91,14 +94,22 @@ export class Application {
 		}
 	}
 
-	async capturePage(): Promise<string> {
-		return this.code.capturePage();
+	async captureScreenshot(name: string): Promise<void> {
+		if (this.options.screenshotsPath) {
+			const raw = await this.code.capturePage();
+			const buffer = Buffer.from(raw, 'base64');
+			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
+			if (this.options.log) {
+				this.logger.log('*** Screenshot recorded:', screenshotPath);
+			}
+			fs.writeFileSync(screenshotPath, buffer);
+		}
 	}
 
-	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
+	private async startApplication(extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
 			codePath: this.options.codePath,
-			workspacePath: workspaceOrFolder,
+			workspacePath: this.workspacePathOrFolder,
 			userDataDir: this.options.userDataDir,
 			extensionsPath: this.options.extensionsPath,
 			logger: this.options.logger,
