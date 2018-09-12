@@ -631,7 +631,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		// Expand and go past FileMatch nodes
-		if (!(next instanceof Match)) {
+		while (!(next instanceof Match)) {
 			if (!this.tree.isExpanded(next)) {
 				this.tree.expand(next);
 			}
