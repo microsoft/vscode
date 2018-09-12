@@ -1,0 +1,1434 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <?include $(sys.CURRENTDIR)Includes\codeVariables.wxi ?>
+
+  <Product Id="$(var.ProductId)" Name="$(var.ProductNameWithVersion)" Language="$(var.ProductLanguage)" Version="$(var.ProductVersion)" Manufacturer="$(var.ProductManufacturerLong)" UpgradeCode="$(var.ProductUpgradeCode)">
+    <Package Description="!(loc.PackageDescription)" Manufacturer="$(var.ProductManufacturerLong)" InstallerVersion="200" Compressed="yes" />
+    <Media Id="1" Cabinet="Data1.cab" EmbedCab="yes" CompressionLevel="high" />
+    <Property Id="ARPHELPLINK" Value="!(loc.ProductHelpLink)" />
+    <Property Id="ARPURLINFOABOUT" Value="!(loc.ProductUrlInfoAbout)" />
+    <Property Id="ARPURLUPDATEINFO" Value="!(loc.ProductUrlUpdateInfo)" />
+    <Property Id="ALLUSERS" Value="1" />
+    <Property Id="ARPPRODUCTICON" Value="code.ico" />
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[APPLICATIONFOLDER]" After="CostFinalize" />
+    <!-- <Icon Id="code.ico" SourceFile="$(var.ReproDir)\resources\win32\code.ico" /> -->
+    <Icon Id="code.ico" SourceFile="$(var.SetupResourcesDir)\code.ico" />
+
+    <!-- Windows 7 or later is required. -->
+    <Condition Message="!(loc.OSVersionRequired)"><![CDATA[Installed OR VersionNT >= 601]]></Condition>
+
+    <Upgrade Id="$(var.ProductUpgradeCode)">
+      <UpgradeVersion OnlyDetect="yes" Minimum="$(var.ProductVersion)" Property="NEWPRODUCTFOUND" IncludeMinimum="no" />
+      <UpgradeVersion Minimum="$(var.RTMProductVersion)" IncludeMinimum="yes" Maximum="$(var.ProductVersion)" Property="UPGRADEFOUND" IncludeMaximum="no" MigrateFeatures="yes" />
+    </Upgrade>
+    <CustomAction Id="PreventDowngrading" Error="!(loc.NewerVersionInstalled)" />
+
+    <InstallExecuteSequence>
+      <Custom Action="PreventDowngrading" After="FindRelatedProducts">NEWPRODUCTFOUND</Custom>
+      <!--
+        In general it seems very hard to track what files may have changed
+        between code versions. As files are crawled with heat and GUIDs
+        are automatically generated some MSI "optimization" features are not
+        available. But no real problem, it only takes some more seconds to
+        upgrade between versions.
+
+        What need to be done is scheduling a full uninstall before a re-install.
+        Therefore the benefit of file installation deltas usable with
+        After="InstallFinalize" cannot used.
+
+        Normally only changed files are installed and outdated files are purged
+        on InstallFinalize what can speed up the setup file copy process.
+      -->
+      <RemoveExistingProducts After="InstallInitialize" />
+    </InstallExecuteSequence>
+    <InstallUISequence>
+      <Custom Action="PreventDowngrading" After="FindRelatedProducts">NEWPRODUCTFOUND</Custom>
+    </InstallUISequence>
+
+    <!--
+      RemoveFolderEx requires that we "remember" the path for uninstall.
+      This workaround is only required for the uninstall.
+    -->
+    <Property Id="APPLICATIONFOLDER">
+      <RegistrySearch Id="APPLICATIONFOLDER_REGSEARCH" Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)" Name="Path" Type="raw" Win64="$(var.Win64)" />
+    </Property>
+
+    <!-- Define the directory structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="$(var.ProgramFilesFolder)">
+        <Directory Id="APPLICATIONFOLDER" Name="$(var.AppFolderName)">
+          <Component Id="CleanupMainApplicationFolder" Guid="*">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)" Name="Path" Type="string" Value="[APPLICATIONFOLDER]" KeyPath="yes" />
+            <!-- We need to use APPLICATIONFOLDER variable here or RemoveFolderEx will not remove on "install". -->
+            <util:RemoveFolderEx On="uninstall" Property="APPLICATIONFOLDER" />
+          </Component>
+
+          <Component Id="AddFileTypeAssociationASCX" Guid="C81496CA-9F8C-4C54-84DF-79373CB0A390">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="ascx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).ascx" Description="ASCX" Icon="CODE_FILE.ICO">
+              <Extension Id="ascx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationASP" Guid="4776BA1D-A3E5-45A7-B794-5E0E446BD5E0">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="asp" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).asp" Description="ASP" Icon="CODE_FILE.ICO">
+              <Extension Id="asp">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationASPX" Guid="1F4F0046-60C7-4280-ACC4-248D97B1D731">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="aspx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).aspx" Description="ASPX" Icon="CODE_FILE.ICO">
+              <Extension Id="aspx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationBASH" Guid="BAB4425E-57BC-425B-9C30-46A2FD4491D1">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="bash" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).bash" Description="Bash" Icon="CODE_FILE.ICO">
+              <Extension Id="bash">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationBASHLOGIN" Guid="7025510E-E0D0-4004-8E76-E7CCBFDFB46F">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="bash_login" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).bash_login" Description="Bash Login" Icon="CODE_FILE.ICO">
+              <Extension Id="bash_login">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationBASHLOGOUT" Guid="D48679A2-9D71-4D93-87E8-7E3D2470507D">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="bash_logout" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).bash_logout" Description="Bash Logout" Icon="CODE_FILE.ICO">
+              <Extension Id="bash_logout">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationBASHPROFILE" Guid="33E89E3D-0D76-400B-8C5A-5AD6BA48E38A">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="bash_profile" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).bash_profile" Description="Bash Profile" Icon="CODE_FILE.ICO">
+              <Extension Id="bash_profile">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationBASHRC" Guid="6B04B2A7-AFBC-4FDA-B9DD-BA3D5E469A40">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="bashrc" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).bashrc" Description="Bash RC" Icon="CODE_FILE.ICO">
+              <Extension Id="bashrc">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationBOWERRC" Guid="8F51CF9D-3050-4AAC-89E9-87FFCB20F306">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="bowerrc" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).bowerrc" Description="Bower RC" Icon="CODE_FILE.ICO">
+              <Extension Id="bowerrc">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationC" Guid="4E1B5157-8D22-463C-884F-F0EC1F6BC17B">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="c" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).c" Description="C" Icon="CODE_FILE.ICO">
+              <Extension Id="c">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCC" Guid="2D38F6D1-ED21-4F48-AC15-04AB724887B6">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cc" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cc" Description="C++" Icon="CODE_FILE.ICO">
+              <Extension Id="cc">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCLJ" Guid="F66BAB3D-429A-4BE2-9EED-A39143B3F31F">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="clj" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).clj" Description="Clojure" Icon="CODE_FILE.ICO">
+              <Extension Id="clj">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCLJS" Guid="55B49C2A-3885-4743-AE56-95ADC4D1AC1F">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cljs" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cljs" Description="ClojureScript" Icon="CODE_FILE.ICO">
+              <Extension Id="cljs">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCLJX" Guid="0DBE4BED-89CB-4E5F-A3F3-3BA7A30BF701">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cljx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cljx" Description="CLJX" Icon="CODE_FILE.ICO">
+              <Extension Id="cljx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCLOJURE" Guid="49DDEEC1-6D74-4B54-ADC3-D889FF8A8BBB">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="clojure" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).clojure" Description="Clojure" Icon="CODE_FILE.ICO">
+              <Extension Id="clojure">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCODEWORKSPACE" Guid="804B860E-8DDB-483C-90E9-1836B3D66BEF">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="code-workspace" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).code-workspace" Description="Code Workspace" Icon="CODE_FILE.ICO">
+              <Extension Id="code-workspace">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCOFFEE" Guid="36A14BE3-B6EA-419C-BCD1-855728353331">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="coffee" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).coffee" Description="CoffeeScript" Icon="CODE_FILE.ICO">
+              <Extension Id="coffee">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCONFIG" Guid="42CFDC98-9F06-440C-86FC-250E2AA298B9">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="config" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).config" Description="Configuration" Icon="CODE_FILE.ICO">
+              <Extension Id="config">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCPP" Guid="37805F30-6A06-4D0A-BEE4-C3CE21068009">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cpp" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cpp" Description="C++" Icon="CODE_FILE.ICO">
+              <Extension Id="cpp">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCS" Guid="F82F6697-57AC-47BD-BC5B-F17E2249FC50">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cs" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cs" Description="C#" Icon="CODE_FILE.ICO">
+              <Extension Id="cs">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCSHTML" Guid="FC5B1912-7A19-4D94-9083-64E6ABDCBCE5">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cshtml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cshtml" Description="CSHTML" Icon="CODE_FILE.ICO">
+              <Extension Id="cshtml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCSPROJ" Guid="4FFBB1D3-70A5-4277-A531-C58ACEC8F494">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="csproj" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).csproj" Description="C# Project" Icon="CODE_FILE.ICO">
+              <Extension Id="csproj">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCSS" Guid="A45C20E2-0CB7-468A-BFE6-2C63EF88969E">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="css" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).css" Description="CSS" Icon="CODE_FILE.ICO">
+              <Extension Id="css">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCSX" Guid="22EB60BA-ADCA-48EF-9DD1-DCDDC30AA808">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="csx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).csx" Description="C# Script" Icon="CODE_FILE.ICO">
+              <Extension Id="csx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCTP" Guid="473C6903-0937-46D7-8648-7BFA8D7E6852">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="ctp" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).ctp" Description="CakePHP Template" Icon="CODE_FILE.ICO">
+              <Extension Id="ctp">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationCXX" Guid="1DC0553A-C8B8-4261-BB3A-3EFCB58AFC78">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="cxx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).cxx" Description="C++" Icon="CODE_FILE.ICO">
+              <Extension Id="cxx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationDOCKERFILE" Guid="40072249-01F2-4F5C-B060-A26E88939C07">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="dockerfile" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).dockerfile" Description="Dockerfile" Icon="CODE_FILE.ICO">
+              <Extension Id="dockerfile">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationDOT" Guid="B8C2B4B8-A1C5-482A-AA49-F05118875B75">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="dot" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).dot" Description="Dot" Icon="CODE_FILE.ICO">
+              <Extension Id="dot">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationDTD" Guid="A7CA0834-C58C-4E4B-8D83-38427574F5A5">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="dtd" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).dtd" Description="Document Type Definition" Icon="CODE_FILE.ICO">
+              <Extension Id="dtd">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationEDITORCONFIG" Guid="7FDA5A66-F2BB-43BF-BADD-33BDDFDD96A8">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="editorconfig" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).editorconfig" Description="Editor Config" Icon="CODE_FILE.ICO">
+              <Extension Id="editorconfig">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationEDN" Guid="F2E27707-789D-4FFC-9EEC-945685C42652">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="edn" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).edn" Description="Extensible Data Notation" Icon="CODE_FILE.ICO">
+              <Extension Id="edn">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationEYAML" Guid="3D8475E0-0985-4CD2-A6E2-FE782D19073E">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="eyaml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).eyaml" Description="Hiera Eyaml" Icon="CODE_FILE.ICO">
+              <Extension Id="eyaml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationEYML" Guid="917B533B-FBF5-42EC-95D4-5EFB877BC3F9">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="eyml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).eyml" Description="Hiera Eyaml" Icon="CODE_FILE.ICO">
+              <Extension Id="eyml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationFS" Guid="CBF222F7-A5ED-42C3-AC68-FDEB37EAC25A">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="fs" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).fs" Description="F#" Icon="CODE_FILE.ICO">
+              <Extension Id="fs">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationFSI" Guid="38B1C85F-CB43-48C9-A4E9-1445D4E32DFA">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="fsi" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).fsi" Description="F# Signature" Icon="CODE_FILE.ICO">
+              <Extension Id="fsi">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationFSSCRIPT" Guid="B735F8EF-95CA-40F9-99F5-75A23B151676">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="fsscript" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).fsscript" Description="F# Script" Icon="CODE_FILE.ICO">
+              <Extension Id="fsscript">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationFSX" Guid="DF73F4D2-F960-46D5-A123-0AF3844E8D87">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="fsx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).fsx" Description="F# Script" Icon="CODE_FILE.ICO">
+              <Extension Id="fsx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationGEMSPEC" Guid="F0F87C8F-E4C8-4A4B-B44A-B196CDC5541A">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="gemspec" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).gemspec" Description="Gemspec" Icon="CODE_FILE.ICO">
+              <Extension Id="gemspec">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationGITATTRIBUTES" Guid="7CC51568-1EF4-4B4C-B5A2-112A4D19DC3C">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="gitattributes" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).gitattributes" Description="Git Attributes" Icon="CODE_FILE.ICO">
+              <Extension Id="gitattributes">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationGITCONFIG" Guid="80D83DBC-D225-4198-8AB7-C949F907EFBF">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="gitconfig" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).gitconfig" Description="Git Config" Icon="CODE_FILE.ICO">
+              <Extension Id="gitconfig">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationGITIGNORE" Guid="47E8BAB4-FA09-48F4-A592-E489FD0B2EAD">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="gitignore" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).gitignore" Description="Git Ignore" Icon="CODE_FILE.ICO">
+              <Extension Id="gitignore">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationGO" Guid="6F9AD674-02A4-4B04-90C7-51D73FAE1890">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="go" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).go" Description="Go" Icon="CODE_FILE.ICO">
+              <Extension Id="go">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationH" Guid="409E67FD-4E3D-4B84-B6F0-F4F181FC1934">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="h" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).h" Description="C Header" Icon="CODE_FILE.ICO">
+              <Extension Id="h">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHANDLEBARS" Guid="E1D2E7C7-3985-4DEA-BA1A-EDAEBE6D9274">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="handlebars" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).handlebars" Description="Handlebars" Icon="CODE_FILE.ICO">
+              <Extension Id="handlebars">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHBS" Guid="A0847250-24BF-4D60-9D00-F8B1BE2EBE85">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="hbs" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).hbs" Description="Handlebars" Icon="CODE_FILE.ICO">
+              <Extension Id="hbs">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHH" Guid="01EC3BA1-F172-482F-ACF5-EB905D5AC01B">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="hh" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).hh" Description="C++ Header" Icon="CODE_FILE.ICO">
+              <Extension Id="hh">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHPP" Guid="62C5B05C-BAF8-4AC4-913B-7F579B742977">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="hpp" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).hpp" Description="C++ Header" Icon="CODE_FILE.ICO">
+              <Extension Id="hpp">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHTM" Guid="704F9778-E50F-4DB9-A7CB-23171F74F02B">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="htm" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).htm" Description="HTML" Icon="CODE_FILE.ICO">
+              <Extension Id="htm">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHTML" Guid="49FC1F09-7861-455D-AEA8-7B712EC28923">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="html" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).html" Description="HTML" Icon="CODE_FILE.ICO">
+              <Extension Id="html">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationHXX" Guid="CF407366-B61D-4157-B5FC-3A2771F10225">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="hxx" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).hxx" Description="C++ Header" Icon="CODE_FILE.ICO">
+              <Extension Id="hxx">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationINI" Guid="7DB723AC-8371-40EE-A922-164A0C276761">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="ini" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).ini" Description="INI" Icon="CODE_FILE.ICO">
+              <Extension Id="ini">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJADE" Guid="5A96835F-2AED-402B-B3A3-541746889384">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="jade" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).jade" Description="Jade" Icon="CODE_FILE.ICO">
+              <Extension Id="jade">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJAV" Guid="FDA4470F-CABA-4B7C-A556-350E580D7D2C">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="jav" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).jav" Description="Java" Icon="CODE_FILE.ICO">
+              <Extension Id="jav">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJAVA" Guid="FADDD0C3-A91C-4232-8C96-97F3933EC477">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="java" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).java" Description="Java" Icon="CODE_FILE.ICO">
+              <Extension Id="java">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJS" Guid="7C126CC6-F965-4D65-9EE9-0B9C76E4E89A">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="js" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).js" Description="JavaScript" Icon="CODE_FILE.ICO">
+              <Extension Id="js">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJSCSRC" Guid="5460B0FA-9F3D-4666-A069-36EB351F438F">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="jscsrc" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).jscsrc" Description="JSCS RC" Icon="CODE_FILE.ICO">
+              <Extension Id="jscsrc">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJSHINTRC" Guid="B5AEEB20-5A05-444D-B6D1-C0A8A28D2CD4">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="jshintrc" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).jshintrc" Description="JSHint RC" Icon="CODE_FILE.ICO">
+              <Extension Id="jshintrc">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJSHTM" Guid="148D02EC-259C-4DD8-B066-EE034A6D32BF">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="jshtm" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).jshtm" Description="JavaScript HTML Template" Icon="CODE_FILE.ICO">
+              <Extension Id="jshtm">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJSON" Guid="0F88F7D4-8AA8-4530-875F-90F0B5B416B9">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="json" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).json" Description="JSON" Icon="CODE_FILE.ICO">
+              <Extension Id="json">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationJSP" Guid="697CBB01-2F32-4B9C-981E-DD497C3E575C">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="jsp" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).jsp" Description="Java Server Pages" Icon="CODE_FILE.ICO">
+              <Extension Id="jsp">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationLESS" Guid="B52F05EF-C65F-426E-A638-2EBB75851270">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="less" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).less" Description="LESS" Icon="CODE_FILE.ICO">
+              <Extension Id="less">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationLUA" Guid="CBCF919B-5D83-46F4-B62E-042BBE94B1DA">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="lua" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).lua" Description="Lua" Icon="CODE_FILE.ICO">
+              <Extension Id="lua">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationM" Guid="6F196166-9636-4548-A7CD-E7E468F321D2">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="m" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).m" Description="Objective C" Icon="CODE_FILE.ICO">
+              <Extension Id="m">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMAKEFILE" Guid="18AB8E83-235D-4A49-8C2C-FF365BE59CC9">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="makefile" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).makefile" Description="Makefile" Icon="CODE_FILE.ICO">
+              <Extension Id="makefile">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMARKDOWN" Guid="88926966-917C-4367-9AD7-40356B3D2225">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="markdown" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).markdown" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="markdown">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMD" Guid="49A08957-06D7-4A96-8DA7-EB78A484992B">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="md" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).md" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="md">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMDOC" Guid="013518F8-8C7C-41D1-A33A-FDC6224C7FC2">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mdoc" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mdoc" Description="MDoc" Icon="CODE_FILE.ICO">
+              <Extension Id="mdoc">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMDOWN" Guid="846E77C8-77B7-4AC6-A192-0D5D7B0CFFC5">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mdown" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mdown" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="mdown">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMDTEXT" Guid="B7C23030-7BBD-49DB-B2CD-AA0AAA564516">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mdtext" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mdtext" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="mdtext">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMDTXT" Guid="BC110E05-2CD8-4FCA-8100-16591F0B917D">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mdtxt" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mdtxt" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="mdtxt">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMDWN" Guid="05BFD645-A086-409D-A2EF-6937E2E51BED">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mdwn" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mdwn" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="mdwn">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMKD" Guid="55503594-63DD-4D6F-AACB-5910E8896830">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mkd" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mkd" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="mkd">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMKDN" Guid="A36E20D3-CD92-44CF-A2D4-225A15E09235">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mkdn" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mkdn" Description="Markdown" Icon="CODE_FILE.ICO">
+              <Extension Id="mkdn">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationML" Guid="1A12356D-159D-4881-8042-55D9CCB1C10D">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="ml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).ml" Description="OCaml" Icon="CODE_FILE.ICO">
+              <Extension Id="ml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationMLI" Guid="DD4A6B28-5244-4597-856E-38C264DDA4FC">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="mli" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).mli" Description="OCaml" Icon="CODE_FILE.ICO">
+              <Extension Id="mli">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationNPMIGNORE" Guid="35F1D005-44D2-42A2-BBAB-6F0DF9DD2CE3">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="npmignore" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).npmignore" Description="NPM Ignore" Icon="CODE_FILE.ICO">
+              <Extension Id="npmignore">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPHP" Guid="F439AD4F-14F9-450B-A1DF-7D6EE339A03D">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="php" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).php" Description="PHP" Icon="CODE_FILE.ICO">
+              <Extension Id="php">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPHTML" Guid="90AB1D02-CE26-42C3-A39E-FE6E4C4A1E10">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="phtml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).phtml" Description="PHP HTML" Icon="CODE_FILE.ICO">
+              <Extension Id="phtml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPL" Guid="AE18A42E-4F32-4ACF-A524-3DAF88B39175">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="pl" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).pl" Description="Perl" Icon="CODE_FILE.ICO">
+              <Extension Id="pl">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPL6" Guid="1CBD0C16-FA96-44CE-ABC8-71C12A81FE39">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="pl6" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).pl6" Description="Perl 6" Icon="CODE_FILE.ICO">
+              <Extension Id="pl6">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPM" Guid="5D9AD201-8257-402C-9630-BF415394B4B3">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="pm" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).pm" Description="Perl Module" Icon="CODE_FILE.ICO">
+              <Extension Id="pm">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPM6" Guid="1AF1C883-1F01-4D0F-B57C-5D386FC9766B">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="pm6" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).pm6" Description="Perl 6 Module" Icon="CODE_FILE.ICO">
+              <Extension Id="pm6">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPOD" Guid="D9737BCC-4698-498D-9163-603FFC799352">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="pod" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).pod" Description="Perl POD" Icon="CODE_FILE.ICO">
+              <Extension Id="pod">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPP" Guid="6DE611DC-12B9-4B84-8878-618194E992CC">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="pp" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).pp" Description="Perl" Icon="CODE_FILE.ICO">
+              <Extension Id="pp">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPROFILE" Guid="C86E9B56-7403-4495-AA19-A3C96718C04E">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="profile" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).profile" Description="Profile" Icon="CODE_FILE.ICO">
+              <Extension Id="profile">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPROPERTIES" Guid="A4C72D6B-329C-415E-A2A7-C839EED79D1C">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="properties" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).properties" Description="Properties" Icon="CODE_FILE.ICO">
+              <Extension Id="properties">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPS1" Guid="B7CDEA41-0911-43E0-9786-2E40EEEBA385">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="ps1" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).ps1" Description="PowerShell" Icon="CODE_FILE.ICO">
+              <Extension Id="ps1">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPSD1" Guid="4CF9CA09-DEF7-4012-87A6-614FE9F9241E">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="psd1" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).psd1" Description="PowerShell" Icon="CODE_FILE.ICO">
+              <Extension Id="psd1">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPSGI" Guid="5B626BF9-E2B3-49D5-AA35-14069C26D1D6">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="psgi" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).psgi" Description="Perl CGI" Icon="CODE_FILE.ICO">
+              <Extension Id="psgi">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPSM1" Guid="F7A5DADC-D96A-4081-8E98-67656BCF2806">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="psm1" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).psm1" Description="PowerShell Module" Icon="CODE_FILE.ICO">
+              <Extension Id="psm1">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationPY" Guid="2F707399-97A3-4B0A-9EF8-8409E94744AE">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="py" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).py" Description="Python" Icon="CODE_FILE.ICO">
+              <Extension Id="py">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationR" Guid="89874E57-4075-461E-8079-BDE1B5589417">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="r" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).r" Description="R" Icon="CODE_FILE.ICO">
+              <Extension Id="r">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationRB" Guid="88042CF5-FF5F-4D61-82B2-0491FBA1E12A">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="rb" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).rb" Description="Ruby" Icon="CODE_FILE.ICO">
+              <Extension Id="rb">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationRHISTORY" Guid="0E62ED75-6901-49D2-8875-E0E2EB6BE97E">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="rhistory" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).rhistory" Description="R History" Icon="CODE_FILE.ICO">
+              <Extension Id="rhistory">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationRPROFILE" Guid="A19EF367-9457-43BA-8F35-B703F76B8484">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="rhistory" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).rprofile" Description="R Profile" Icon="CODE_FILE.ICO">
+              <Extension Id="rprofile">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationRS" Guid="03DB3E46-9CEE-4F86-B4DC-C92A85B9F8EC">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="rs" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).rs" Description="Rust" Icon="CODE_FILE.ICO">
+              <Extension Id="rs">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationRT" Guid="13772A9E-BDD5-4B63-A0FA-79F70455627F">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="rt" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).rt" Description="Rich Text" Icon="CODE_FILE.ICO">
+              <Extension Id="rt">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationSCSS" Guid="8E39E8A4-3F5F-485D-8B5B-F4E4EEDCD194">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="scss" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).scss" Description="Sass" Icon="CODE_FILE.ICO">
+              <Extension Id="scss">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationSH" Guid="1DEFB390-78D6-4F18-A8FA-549FF8B1B85B">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="sh" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).sh" Description="SH" Icon="CODE_FILE.ICO">
+              <Extension Id="sh">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationSHTML" Guid="70D59781-AD45-4B07-A645-2F3F4DB4CD60">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="shtml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).shtml" Description="SHTML" Icon="CODE_FILE.ICO">
+              <Extension Id="shtml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationSQL" Guid="A15D23CD-003E-4852-AF0E-C1047442CFD6">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="sql" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).sql" Description="SQL" Icon="CODE_FILE.ICO">
+              <Extension Id="sql">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationSVG" Guid="DFAB73BC-D8A5-4D66-87D5-91BB2873451E">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="svg" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).svg" Description="SVG" Icon="CODE_FILE.ICO">
+              <Extension Id="svg">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationSVGZ" Guid="368C2963-9E82-4FCE-A35C-DC90B5491BF9">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="svgz" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).svgz" Description="SVGZ" Icon="CODE_FILE.ICO">
+              <Extension Id="svgz">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationT" Guid="D8065140-F75E-406A-9580-CE72E1719E77">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="t" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).t" Description="Perl" Icon="CODE_FILE.ICO">
+              <Extension Id="t">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationTEX" Guid="32591F31-F670-4193-8F1B-24B650AB87A6">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="tex" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).tex" Description="LaTeX" Icon="CODE_FILE.ICO">
+              <Extension Id="tex">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationTS" Guid="356FD07B-B869-49D4-9F57-4253168C4459">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="ts" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).ts" Description="TypeScript" Icon="CODE_FILE.ICO">
+              <Extension Id="ts">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationTXT" Guid="6099873C-1CAE-489A-A9E4-3C6BA4C11584">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="txt" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).txt" Description="Text" Icon="CODE_FILE.ICO">
+              <Extension Id="txt">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationVB" Guid="CDEAC643-1E5B-43AA-858F-C230AAABAF50">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="vb" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).vb" Description="Visual Basic" Icon="CODE_FILE.ICO">
+              <Extension Id="vb">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationWXI" Guid="E2092642-76B1-4F94-A3AC-CD610432B4D7">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="wxi" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).wxi" Description="WiX Include" Icon="CODE_FILE.ICO">
+              <Extension Id="wxi">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationWXL" Guid="08A19F16-714E-4AB2-9F2F-5BBB165BEA5C">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="wxl" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).wxl" Description="WiX Localization" Icon="CODE_FILE.ICO">
+              <Extension Id="wxl">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationWXS" Guid="122922C5-76D2-4529-BF8A-605CDF774FDE">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="wxs" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).wxs" Description="WiX" Icon="CODE_FILE.ICO">
+              <Extension Id="wxs">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationXAML" Guid="84DDD0C0-A531-4CDF-B1F6-18F4A69A9C42">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="xaml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).xaml" Description="XAML" Icon="CODE_FILE.ICO">
+              <Extension Id="xaml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationXML" Guid="E52573F5-9983-4E22-AB10-71823C3E96B6">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="xml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).xml" Description="XML" Icon="CODE_FILE.ICO">
+              <Extension Id="xml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationYAML" Guid="E5B65D81-A9A2-4188-A966-269AF709D763">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="yaml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).yaml" Description="Yaml" Icon="CODE_FILE.ICO">
+              <Extension Id="yaml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationYML" Guid="8CBE4F5C-538C-42C7-9CF9-539E7EF4E175">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="yml" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).yml" Description="Yaml" Icon="CODE_FILE.ICO">
+              <Extension Id="yml">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationZSH" Guid="503D5E58-10E4-47FA-B43B-789048179383">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components\FileTypeAssociations" Name="zsh" Type="integer" Value="1" />
+            <ProgId Id="$(var.AppCodeName).zsh" Description="ZSH" Icon="CODE_FILE.ICO">
+              <Extension Id="zsh">
+                <Verb Id="open" Command="&amp;Open" Argument="&quot;%1&quot;" TargetFile="CODE.EXE" />
+              </Extension>
+            </ProgId>
+          </Component>
+          <Component Id="AddFileTypeAssociationVSCodeSourceFile" Guid="*">
+            <RegistryValue Root="HKCR" Key="VSCodeSourceFile" Value="Visual Studio Code" Type="string" Action="write" />
+            <RegistryValue Root="HKCR" Key="VSCodeSourceFile\DefaultIcon" Value="[#CODE_FILE.ICO]" Type="string" Action="write" />
+            <RegistryValue Root="HKCR" Key="VSCodeSourceFile\shell\open\command" Value="&quot;[APPLICATIONFOLDER]Code.exe&quot; &quot;%1&quot;" Type="string" Action="write" />
+          </Component>
+          <Component Id="AddFileTypeAssociationApplicationsCode" Guid="*">
+            <RegistryValue Root="HKCR" Key="Applications\Code.exe\DefaultIcon" Value="[#CODE_FILE.ICO]" Type="string" Action="write" />
+            <RegistryValue Root="HKCR" Key="Applications\Code.exe\shell\open\command" Value="&quot;[APPLICATIONFOLDER]Code.exe&quot; &quot;%1&quot;" Type="string" Action="write" />
+          </Component>
+
+          <Component Id="AddContextMenuFiles" Guid="*">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\*\shell\$(var.AppCodeName)" Value="Open with Code" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\*\shell\$(var.AppCodeName)" Name="Icon" Value="[APPLICATIONFOLDER]Code.exe" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\*\shell\$(var.AppCodeName)\command" Value="&quot;[APPLICATIONFOLDER]Code.exe&quot; &quot;%1&quot;" Type="string" Action="write" />
+          </Component>
+
+          <Component Id="AddContextMenuFolders" Guid="*">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\directory\shell\$(var.AppCodeName)" Value="Open with Code" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\directory\shell\$(var.AppCodeName)" Name="Icon" Value="[APPLICATIONFOLDER]Code.exe" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\directory\shell\$(var.AppCodeName)\command" Value="&quot;[APPLICATIONFOLDER]Code.exe&quot; &quot;%V&quot;" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\directory\background\shell\$(var.AppCodeName)" Value="Open with Code" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\directory\background\shell\$(var.AppCodeName)" Name="Icon" Value="[APPLICATIONFOLDER]Code.exe" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\directory\background\shell\$(var.AppCodeName)\command" Value="&quot;[APPLICATIONFOLDER]Code.exe&quot; &quot;%V&quot;" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\Drive\shell\$(var.AppCodeName)" Value="Open with Code" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\Drive\shell\$(var.AppCodeName)" Name="Icon" Value="[APPLICATIONFOLDER]Code.exe" Type="string" Action="write" />
+            <RegistryValue Root="HKLM" Key="SOFTWARE\Classes\Drive\shell\$(var.AppCodeName)\command" Value="&quot;[APPLICATIONFOLDER]Code.exe&quot; &quot;%V&quot;" Type="string" Action="write" />
+          </Component>
+
+          <Component Id="AddToEnvironmentPath" Guid="{A75E4C99-6713-45B9-8EC2-B9391592984C}">
+            <RegistryValue Root="HKLM" Key="SOFTWARE\$(var.ProductManufacturerShort)\$(var.AppName)\Components" Name="EnvironmentPath" Type="integer" Value="1" />
+            <Environment Id="PATH" Name="PATH" Value="[APPLICATIONFOLDER]bin" Permanent="yes" Part="last" Action="set" System="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="CodeProgramMenuFolder" Name="$(var.AppName)">
+          <Component Id="StartMenuShortcut" Guid="*">
+            <Shortcut Id="CodeStartMenuShortcut" Advertise="no" Name="$(var.AppName)" Directory="CodeProgramMenuFolder" Target="[APPLICATIONFOLDER]Code.exe" WorkingDirectory="APPLICATIONFOLDER" />
+            <RemoveFolder Id="CodeProgramMenuFolder" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\$(var.ProductManufacturerShort)\$(var.AppName)\Components" Name="StartMenuShortcutInstalled" Type="integer" Value="1" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="DesktopFolder">
+        <Component Id="DesktopShortcut" Guid="*">
+          <Shortcut Id="CodeDesktopShortcut" Advertise="no" Name="$(var.AppName)" Directory="DesktopFolder" Target="[APPLICATIONFOLDER]Code.exe" WorkingDirectory="APPLICATIONFOLDER" />
+          <RegistryValue Root="HKCU" Key="Software\$(var.ProductManufacturerShort)\$(var.AppName)\Components" Name="DesktopShortcutInstalled" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+
+    <!-- List of features to install -->
+    <Feature Id="MainApplication" ConfigurableDirectory="APPLICATIONFOLDER" Level="1" Title="$(var.AppName)" Absent="disallow" Display="expand" AllowAdvertise="no" InstallDefault="local">
+      <ComponentRef Id="CleanupMainApplicationFolder" />
+      <ComponentGroupRef Id="AppFiles" />
+
+      <Feature Id="FeatureStartmenuShortcut" Title="!(loc.FeatureStartMenuShortcutTitle)" Description="!(loc.FeatureStartMenuShortcutDescription)" Level="1" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+        <ComponentRef Id="StartMenuShortcut" />
+      </Feature>
+      <Feature Id="FeatureDesktopShortcut" Title="!(loc.FeatureDesktopShortcutTitle)" Description="!(loc.FeatureDesktopShortcutDescription)" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+        <ComponentRef Id="DesktopShortcut" />
+      </Feature>
+      <Feature Id="FeatureFileTypeAssociations" Title="!(loc.FeatureFileTypeAssociationsTitle)" Description="!(loc.FeatureFileTypeAssociationsDescription)" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+        <ComponentRef Id="AddFileTypeAssociationVSCodeSourceFile" />
+        <ComponentRef Id="AddFileTypeAssociationApplicationsCode" />
+     
+         <Feature Id="FeatureFileTypeAssocASCX" Title=".ascx" Description="ASCX" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationASCX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocASP" Title=".asp" Description="ASP" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationASP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocASPX" Title=".aspx" Description="ASPX" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationASPX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocBASH" Title=".bash" Description="Bash" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationBASH" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocBASHLOGIN" Title=".bash_login" Description="Bash Login" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationBASHLOGIN" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocBASHLOGOUT" Title=".bash_logout" Description="Bash Logout" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationBASHLOGOUT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocBASHPROFILE" Title=".bash_profile" Description="Bash Profile" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationBASHPROFILE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocBASHRC" Title=".bashrc" Description="Bash RC" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationBASHRC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocBOWERRC" Title=".bowerrc" Description="Bower RC" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationBOWERRC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocC" Title=".c" Description="C" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCC" Title=".cc" Description="C++" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCLJ" Title=".clj" Description="Clojure" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCLJ" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCLJS" Title=".cljs" Description="ClojureScript" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCLJS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCLJX" Title=".cljx" Description="CLJX" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCLJX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCLOJURE" Title=".clojure" Description="Clojure" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCLOJURE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCODEWORKSPACE" Title=".code-workspace" Description="Code Workspace" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCODEWORKSPACE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCOFFEE" Title=".coffee" Description="CoffeeScript" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCOFFEE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCONFIG" Title=".config" Description="Configuration" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCONFIG" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCPP" Title=".cpp" Description="C++" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCPP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCS" Title=".cs" Description="C#" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCSHTML" Title=".cshtml" Description="CSHTML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCSHTML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCSPROJ" Title=".csproj" Description="C# Project" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCSPROJ" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCSS" Title=".css" Description="CSS" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCSS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCSX" Title=".csx" Description="C# Script" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCSX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCTP" Title=".ctp" Description="CakePHP Template" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCTP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocCXX" Title=".cxx" Description="C++" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationCXX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocDOCKERFILE" Title=".dockerfile" Description="Dockerfile" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationDOCKERFILE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocDOT" Title=".dot" Description="Dot" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationDOT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocDTD" Title=".dtd" Description="Document Type Definition" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationDTD" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocEDITORCONFIG" Title=".editorconfig" Description="Editor Config" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationEDITORCONFIG" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocEDN" Title=".edn" Description="Extensible Data Notation" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationEDN" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocEYAML" Title=".eyaml" Description="Hiera Eyaml" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationEYAML" />
+        </Feature>
+        <Feature Id="FeatureFileTypeAssocEYML" Title=".eyml" Description="Hiera Eyaml" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationEYML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocFS" Title=".fs" Description="F#" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationFS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocFSI" Title=".fsi" Description="F# Signature" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationFSI" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocFSSCRIPT" Title=".fsscript" Description="F# Script" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationFSSCRIPT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocFSX" Title=".fsx" Description="F# Script" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationFSX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocGEMSPEC" Title=".gemspec" Description="Gemspec" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationGEMSPEC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocGITATTRIBUTES" Title=".gitattributes" Description="Git Attributes" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationGITATTRIBUTES" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocGITCONFIG" Title=".gitconfig" Description="Git Config" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationGITCONFIG" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocGITIGNORE" Title=".gitignore" Description="Git Ignore" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationGITIGNORE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocGO" Title=".go" Description="Go" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationGO" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocH" Title=".h" Description="C Header" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationH" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHANDLEBARS" Title=".handlebars" Description="Handlebars" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHANDLEBARS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHBS" Title=".hbs" Description="Handlebars" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHBS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHH" Title=".hh" Description="C++ Header" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHH" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHPP" Title=".hpp" Description="C++ Header" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHPP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHTM" Title=".htm" Description="HTML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHTM" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHTML" Title=".html" Description="HTML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHTML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocHXX" Title=".hxx" Description="C++ Header" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationHXX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocINI" Title=".ini" Description="INI" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationINI" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJADE" Title=".jade" Description="Jade" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJADE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJAV" Title=".jav" Description="Java" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJAV" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJAVA" Title=".java" Description="Java" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJAVA" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJS" Title=".js" Description="JavaScript" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJSCSRC" Title=".jscsrc" Description="JSCS RC" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJSCSRC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJSHINTRC" Title=".jshintrc" Description="JSHint RC" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJSHINTRC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJSHTM" Title=".jshtm" Description="JavaScript HTML Template" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJSHTM" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocJSON" Title=".json" Description="JSON" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJSON" />
+        </Feature>
+        <Feature Id="FeatureFileTypeAssocJSP" Title=".jsp" Description="Java Server Pages" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationJSP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocLESS" Title=".less" Description="LESS" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationLESS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocLUA" Title=".lua" Description="Lua" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationLUA" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocM" Title=".m" Description="Objective C" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationM" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMAKEFILE" Title=".makefile" Description="Makefile" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMAKEFILE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMARKDOWN" Title=".markdown" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMARKDOWN" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMD" Title=".md" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMD" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMDOC" Title=".mdoc" Description="MDoc" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMDOC" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMDOWN" Title=".mdown" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMDOWN" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMDTEXT" Title=".mdtext" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMDTEXT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMDTXT" Title=".mdtxt" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMDTXT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMDWN" Title=".mdwn" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMDWN" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMKD" Title=".mkd" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMKD" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMKDN" Title=".mkdn" Description="Markdown" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMKDN" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocML" Title=".ml" Description="OCaml" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocMLI" Title=".mli" Description="OCaml" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationMLI" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocNPMIGNORE" Title=".npmignore" Description="NPM Ignore" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationNPMIGNORE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPHP" Title=".php" Description="PHP" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPHP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPHTML" Title=".phtml" Description="PHP HTML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPHTML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPL" Title=".pl" Description="Perl" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPL" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPL6" Title=".pl6" Description="Perl 6" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPL6" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPM" Title=".pm" Description="Perl Module" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPM" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPM6" Title=".pm6" Description="Perl 6 Module" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPM6" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPOD" Title=".pod" Description="Perl POD" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPOD" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPP" Title=".pp" Description="Perl" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPP" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPROFILE" Title=".profile" Description="Profile" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPROFILE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPROPERTIES" Title=".properties" Description="Properties" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPROPERTIES" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPS1" Title=".ps1" Description="PowerShell" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPS1" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPSD1" Title=".psd1" Description="PowerShell" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPSD1" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPSGI" Title=".psgi" Description="Perl CGI" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPSGI" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPSM1" Title=".psm1" Description="PowerShell Module" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPSM1" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocPY" Title=".py" Description="Python" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationPY" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocR" Title=".r" Description="R" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationR" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocRB" Title=".rb" Description="Ruby" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationRB" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocRHISTORY" Title=".rhistory" Description="R History" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationRHISTORY" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocRPROFILE" Title=".rprofile" Description="R Profile" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationRPROFILE" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocRS" Title=".rs" Description="Rust" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationRS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocRT" Title=".rt" Description="Rich Text" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationRT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocSCSS" Title=".scss" Description="Sass" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationSCSS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocSH" Title=".sh" Description="SH" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationSH" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocSHTML" Title=".shtml" Description="SHTML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationSHTML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocSQL" Title=".sql" Description="SQL" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationSQL" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocSVG" Title=".svg" Description="SVG" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationSVG" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocSVGZ" Title=".svgz" Description="SVGZ" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationSVGZ" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocT" Title=".t" Description="Perl" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocTEX" Title=".tex" Description="LaTeX" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationTEX" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocTS" Title=".ts" Description="TypeScript" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationTS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocTXT" Title=".txt" Description="Text" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationTXT" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocVB" Title=".vb" Description="Visual Basic" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationVB" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocWXI" Title=".wxi" Description="WiX Include" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationWXI" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocWXL" Title=".wxl" Description="WiX Localization" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationWXL" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocWXS" Title=".wxs" Description="WiX" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationWXS" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocXAML" Title=".xaml" Description="XAML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationXAML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocXML" Title=".xml" Description="XML" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationXML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocYAML" Title=".yaml" Description="Yaml" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationYAML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocYML" Title=".yml" Description="Yaml" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationYML" />
+        </Feature>
+         <Feature Id="FeatureFileTypeAssocZSH" Title=".zsh" Description="ZSH" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+          <ComponentRef Id="AddFileTypeAssociationZSH" />
+        </Feature>
+      </Feature>
+      <Feature Id="FeatureAddContextMenuFiles" Title="!(loc.FeatureAddContextMenuFilesTitle)" Description="!(loc.FeatureAddContextMenuFilesDescription)" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+        <ComponentRef Id="AddContextMenuFiles" />
+      </Feature>
+      <Feature Id="FeatureAddContextMenuFolders" Title="!(loc.FeatureAddContextMenuFoldersTitle)" Description="!(loc.FeatureAddContextMenuFoldersDescription)" Level="2" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+        <ComponentRef Id="AddContextMenuFolders" />
+      </Feature>
+      <Feature Id="FeatureEnvironment" Title="!(loc.FeatureEnvironmentTitle)" Description="!(loc.FeatureEnvironmentDescription)" Level="1" Absent="allow" AllowAdvertise="no" InstallDefault="followParent">
+        <ComponentRef Id="AddToEnvironmentPath" />
+      </Feature>
+    </Feature>
+
+    <!-- Path to license file will be overriden via light.exe in other languages than "en-us". -->
+    <!-- <WixVariable Id="WixUILicenseRtf" Overridable="yes" Value="$(var.SetupResourcesDir)\licenses\license.$(var.Culture).rtf" /> -->
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.SetupResourcesDir)\wix-banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.SetupResourcesDir)\wix-dialog.bmp" />
+    <UI>
+      <UIRef Id="WixUI_FeatureTree" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="!(loc.LaunchApplication)" />
+    <Property Id="WixShellExecTarget" Value="[#CODE.EXE]" />
+    <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
+  </Product>
+</Wix>
