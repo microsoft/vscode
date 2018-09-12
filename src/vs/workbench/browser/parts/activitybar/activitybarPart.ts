@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import { IThemeService, registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND, ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -202,8 +202,8 @@ export class ActivitybarPart extends Part {
 
 	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
 		return <ICompositeBarColors>{
-			backgroundColor: theme.defines(ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND).transparent(0.6),
-			activeBackgroundColor: theme.defines(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND),
+			backgroundColor: theme.defines(ACTIVITY_BAR_INACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND).transparent(0.6),
+			activeBackgroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND)

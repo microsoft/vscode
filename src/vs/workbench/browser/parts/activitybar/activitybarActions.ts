@@ -24,7 +24,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
-import { ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -193,7 +193,7 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	const activeBackgroundColor = theme.defines(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND);
+	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activeBackgroundColor) {
 		collector.addRule(`
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
