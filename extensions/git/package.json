@@ -1074,6 +1074,12 @@
           "scope": "resource",
           "default": false,
           "description": "%config.rebaseWhenSync%"
+        },
+        "git.fetchOnPull": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.fetchOnPull%"
         }
       }
     },

@@ -92,6 +92,7 @@
 	"config.showProgress": "Controls whether git actions should show progress.",
 	"config.rebaseWhenSync": "Use rebase instead of merge when running the sync command.",
 	"config.confirmEmptyCommits": "Always confirm the creation of empty commits.",
+	"config.fetchOnPull": "Fetch all branches when pulling or just the current one.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",

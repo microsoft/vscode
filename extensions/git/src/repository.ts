@@ -914,7 +914,14 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const fetchOnPull = config.get<boolean>('fetchOnPull');
+
+		if (fetchOnPull) {
+			await this.run(Operation.Pull, () => this.repository.pull(true));
+		} else {
+			await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
+		}
 	}
 
 	@throttle
@@ -927,11 +934,25 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const fetchOnPull = config.get<boolean>('fetchOnPull');
+
+		if (fetchOnPull) {
+			await this.run(Operation.Pull, () => this.repository.pull(false));
+		} else {
+			await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
+		}
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const fetchOnPull = config.get<boolean>('fetchOnPull');
+
+		if (fetchOnPull) {
+			await this.run(Operation.Pull, () => this.repository.pull(rebase));
+		} else {
+			await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+		}
 	}
 
 	@throttle
@@ -977,7 +998,14 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull(rebase, remoteName, pullBranch);
+			const config = workspace.getConfiguration('git', Uri.file(this.root));
+			const fetchOnPull = config.get<boolean>('fetchOnPull');
+
+			if (fetchOnPull) {
+				await this.repository.pull(rebase);
+			} else {
+				await this.repository.pull(rebase, remoteName, pullBranch);
+			}
 
 			const remote = this.remotes.find(r => r.name === remoteName);
 
