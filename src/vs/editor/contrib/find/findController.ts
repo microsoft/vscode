@@ -27,6 +27,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 
+const SEARCH_STRING_MAX_LENGTH = 524288;
+
 export function getSelectionSearchString(editor: ICodeEditor): string {
 	let selection = editor.getSelection();
 
@@ -38,7 +40,9 @@ export function getSelectionSearchString(editor: ICodeEditor): string {
 				return wordAtPosition.word;
 			}
 		} else {
-			return editor.getModel().getValueInRange(selection);
+			if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
+				return editor.getModel().getValueInRange(selection);
+			}
 		}
 	}
 
