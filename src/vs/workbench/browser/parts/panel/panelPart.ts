@@ -94,12 +94,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.partService.setPanelHidden(true),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: {
-				backgroundColor: PANEL_BACKGROUND,
-				badgeBackground,
-				badgeForeground,
-				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
-			}
+			colors: theme => ({
+				backgroundColor: theme.getColor(PANEL_BACKGROUND),
+				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
+			})
 		}));
 
 		for (const panel of this.getPanels()) {

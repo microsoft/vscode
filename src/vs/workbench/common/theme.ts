@@ -296,12 +296,23 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	hc: contrastBorder
 }, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
 	light: Color.white.transparent(0.12),
 	hc: Color.white.transparent(0.12),
 }, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The color should have transparency so that the activity bar entries can still shine through. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND = registerColor('activityBarItem.inactiveForeground', {
+	dark: Color.white.transparent(0.6),
+	light: Color.white.transparent(0.6),
+	hc: Color.white
+}, nls.localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND = registerColor('activityBarItem.activeForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('activityBarActiveForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
 	dark: '#007ACC',

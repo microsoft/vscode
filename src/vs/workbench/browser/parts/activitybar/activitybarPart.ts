@@ -19,8 +19,8 @@ import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/s
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND, ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -30,7 +30,7 @@ import { Color } from 'vs/base/common/color';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 
 interface IPlaceholderComposite {
@@ -43,12 +43,6 @@ export class ActivitybarPart extends Part {
 	private static readonly ACTION_HEIGHT = 50;
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
 	private static readonly PLACEHOLDER_VIEWLETS = 'workbench.activity.placeholderViewlets';
-	private static readonly COLORS = {
-		backgroundColor: ACTIVITY_BAR_FOREGROUND,
-		badgeBackground: ACTIVITY_BAR_BADGE_BACKGROUND,
-		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
-		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
-	};
 
 	private dimension: Dimension;
 
@@ -83,7 +77,7 @@ export class ActivitybarPart extends Part {
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			compositeSize: 50,
-			colors: ActivitybarPart.COLORS,
+			colors: theme => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));
 
@@ -206,6 +200,16 @@ export class ActivitybarPart extends Part {
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : null;
 	}
 
+	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
+		return <ICompositeBarColors>{
+			backgroundColor: theme.defines(ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_ITEM_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND).transparent(0.6),
+			activeBackgroundColor: theme.defines(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND),
+			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND)
+		};
+	}
+
 	private createGlobalActivityActionBar(container: HTMLElement): void {
 		const activityRegistry = Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions);
 		const descriptors = activityRegistry.getActivities();
@@ -214,7 +218,7 @@ export class ActivitybarPart extends Part {
 			.map(a => new GlobalActivityAction(a));
 
 		this.globalActionBar = this._register(new ActionBar(container, {
-			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, ActivitybarPart.COLORS),
+			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a, theme => this.getActivitybarItemColors(theme)),
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: nls.localize('globalActions', "Global Actions"),
 			animated: false

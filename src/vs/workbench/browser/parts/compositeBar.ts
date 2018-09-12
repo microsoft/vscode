@@ -22,12 +22,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface ICompositeBarOptions {
 	icon: boolean;
 	storageId: string;
 	orientation: ActionsOrientation;
-	colors: ICompositeBarColors;
+	colors: (theme: ITheme) => ICompositeBarColors;
 	compositeSize: number;
 	overflowActionSize: number;
 	getActivityAction: (compositeId: string) => ActivityAction;

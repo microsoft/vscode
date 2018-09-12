@@ -22,6 +22,7 @@ import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DragAndDropObserver, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { Color } from 'vs/base/common/color';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -112,15 +113,16 @@ export class ActivityAction extends Action {
 }
 
 export interface ICompositeBarColors {
-	backgroundColor: string;
-	badgeBackground: string;
-	badgeForeground: string;
-	dragAndDropBackground: string;
+	backgroundColor: Color;
+	activeBackgroundColor: Color;
+	badgeBackground: Color;
+	badgeForeground: Color;
+	dragAndDropBackground: Color;
 }
 
 export interface IActivityActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
-	colors: ICompositeBarColors;
+	colors: (theme: ITheme) => ICompositeBarColors;
 }
 
 export class ActivityActionItem extends BaseActionItem {
@@ -151,18 +153,17 @@ export class ActivityActionItem extends BaseActionItem {
 
 	protected updateStyles(): void {
 		const theme = this.themeService.getTheme();
-
+		const colors = this.options.colors(theme);
 		// Label
 		if (this.label && this.options.icon) {
-			const background = theme.getColor(this.options.colors.backgroundColor);
-
+			const background = this._action.checked ? colors.activeBackgroundColor : colors.backgroundColor;
 			this.label.style.backgroundColor = background ? background.toString() : null;
 		}
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeForeground = theme.getColor(this.options.colors.badgeForeground);
-			const badgeBackground = theme.getColor(this.options.colors.badgeBackground);
+			const badgeForeground = colors.badgeForeground;
+			const badgeBackground = colors.badgeBackground;
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : null;
@@ -345,7 +346,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getActiveCompositeId: () => string,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
-		colors: ICompositeBarColors,
+		colors: (theme: ITheme) => ICompositeBarColors,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -429,7 +430,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		private compositeActivityAction: ActivityAction,
 		private toggleCompositePinnedAction: Action,
 		private contextMenuActionsProvider: () => Action[],
-		colors: ICompositeBarColors,
+		colors: (theme: ITheme) => ICompositeBarColors,
 		icon: boolean,
 		private compositeBar: ICompositeBar,
 		@IContextMenuService private contextMenuService: IContextMenuService,
@@ -551,7 +552,7 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
 		const theme = this.themeService.getTheme();
-		const dragBackground = theme.getColor(this.options.colors.dragAndDropBackground);
+		const dragBackground = this.options.colors(theme).dragAndDropBackground;
 
 		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
 	}
@@ -607,6 +608,7 @@ export class CompositeActionItem extends ActivityActionItem {
 			dom.removeClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', this.container.title);
 		}
+		this.updateStyles();
 	}
 
 	protected updateEnabled(): void {

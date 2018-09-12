@@ -24,6 +24,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
+import { ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -110,7 +111,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 	constructor(
 		action: GlobalActivityAction,
-		colors: ICompositeBarColors,
+		colors: (theme: ITheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
@@ -172,12 +173,10 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
 		DOM.createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
-		this.enabled = false;
 	}
 
 	setActivity(activity: IActivity): void {
 		this.activity = activity;
-		this.enabled = true;
 	}
 }
 
@@ -185,17 +184,25 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 
 	constructor(id: string, compositeBar: ICompositeBar) {
 		super({ id, name: id, cssClass: void 0 }, compositeBar);
-
-		this.enabled = false;
 	}
 
 	setActivity(activity: IActivity): void {
 		this.label = activity.name;
-		this.enabled = true;
 	}
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	const activeBackgroundColor = theme.defines(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_ITEM_ACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND);
+	if (activeBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+				background-color: ${activeBackgroundColor} !important;
+			}
+		`);
+	}
 
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
@@ -208,7 +215,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				left: 9px;
 				height: 32px;
 				width: 32px;
-				opacity: 0.6;
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
@@ -220,12 +226,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline: 1px dashed;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
-				opacity: 1;
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
@@ -247,21 +247,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked .action-label,
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-					opacity: 1;
-				}
-
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
-					opacity: 0.6;
-				}
-
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
-					border-left-color: ${focusBorderColor};
-				}
-			`);
+					.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+						border-left-color: ${focusBorderColor};
+					}
+				`);
 		}
 	}
 });
