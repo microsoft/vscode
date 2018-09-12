@@ -793,7 +793,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts.position;
+			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
 				continue;
 			}
@@ -1356,7 +1356,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts.position;
+			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
 				continue;
 			}

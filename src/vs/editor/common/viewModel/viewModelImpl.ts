@@ -539,7 +539,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			opts._resolvedColor = null;
+			if (opts) {
+				opts._resolvedColor = null;
+			}
 		}
 	}
 
