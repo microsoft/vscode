@@ -198,7 +198,7 @@ export class IntervalNode implements IModelDecoration {
 			|| className === ClassName.EditorInfoDecoration
 		));
 		_setNodeStickiness(this, <number>this.options.stickiness);
-		setNodeIsInOverviewRuler(this, this.options.overviewRuler.color ? true : false);
+		setNodeIsInOverviewRuler(this, (this.options.overviewRuler && this.options.overviewRuler.color) ? true : false);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {

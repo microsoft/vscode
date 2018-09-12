@@ -40,12 +40,7 @@ export interface IModelDecorationOverviewRulerOptions {
 	 * CSS color to render in the overview ruler.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	darkColor: string | ThemeColor;
-	/**
-	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
-	 */
-	hcColor?: string | ThemeColor;
+	darkColor?: string | ThemeColor;
 	/**
 	 * The position in the overview ruler.
 	 */

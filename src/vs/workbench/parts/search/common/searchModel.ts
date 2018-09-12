@@ -116,7 +116,6 @@ export class FileMatch extends Disposable {
 		className: 'currentFindMatch',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -126,7 +125,6 @@ export class FileMatch extends Disposable {
 		className: 'findMatch',
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

@@ -262,7 +262,6 @@ export class GotoLineHandler extends QuickOpenHandler {
 					options: {
 						overviewRuler: {
 							color: themeColorFromId(overviewRulerRangeHighlight),
-							darkColor: themeColorFromId(overviewRulerRangeHighlight),
 							position: OverviewRulerLane.Full
 						}
 					}
