@@ -394,20 +394,6 @@ export class SettingsRenderer implements ITreeRenderer {
 			this.instantiationService.createInstance(CopySettingAsJSONAction),
 		];
 
-		const p = _measureContainer.parentElement;
-		// const extraLabelsContainer: HTMLElement = document.querySelector('.settings-aria-extra-labels');
-		// const e = document.getElementById('settings_aria_extra_labels');
-		const labelDiv = DOM.append(p, $('.settings-aria-extra-label'));
-		labelDiv.id = 'settings_aria_more_actions_shortcut_label';
-		const toggleMenuKeybinding = this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		let settingsMoreActionsLabel = localize('settingsContextMenuAriaShortcut', "More Actions... ");
-		if (toggleMenuKeybinding) {
-			settingsMoreActionsLabel += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
-			labelDiv.setAttribute('aria-label', settingsMoreActionsLabel);
-
-		}
-
-
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
@@ -838,12 +824,10 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
-		console.warn('start c ' + common.labelElement.getAttribute('aria-label1'));
 		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
 			hasDetails: true
 		});
 
-		console.warn('en c');
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
 			selectBackground: settingsSelectBackground,
@@ -1169,7 +1153,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			}));
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
+		// Use ',.' as reader pause
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
 		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
 
 		template.selectBox.setAriaLabel(label);
@@ -1182,7 +1167,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (template.controlElement.firstElementChild) {
 			// SelectBox needs to have treeitem changed to combobox to read correctly within tree
 			template.controlElement.firstElementChild.setAttribute('role', 'combobox');
-			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description');
+			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
@@ -1190,7 +1175,10 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText; template.onChange = null;
+
+		// Use ',.' as reader pause
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
+		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
@@ -1208,7 +1196,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.id = baseId + '_setting_item';
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description');
+		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1216,7 +1204,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + modifiedText; const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
+		// Use ',.' as reader pause
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number,. ' + modifiedText; const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
