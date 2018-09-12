@@ -395,6 +395,7 @@ export interface CommitOptions {
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
+	empty?: boolean;
 }
 
 export interface GitResourceGroup extends SourceControlResourceGroup {

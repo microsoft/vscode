@@ -191,6 +191,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitEmpty",
+        "title": "%command.commitEmpty%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
         "category": "Git"
@@ -418,6 +423,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.commitEmpty",
+          "when": "config.git.allowcommitEmptys && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.commitStaged",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -596,6 +605,11 @@
         },
         {
           "command": "git.commitStaged",
+          "group": "3_commit",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.commitEmpty",
           "group": "3_commit",
           "when": "scmProvider == git"
         },
@@ -989,6 +1003,12 @@
           "type": "boolean",
           "scope": "resource",
           "description": "%config.enableCommitSigning%",
+          "default": false
+        },
+        "git.allowEmptyCommits": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.allowEmptyCommits%",
           "default": false
         },
         "git.decorations.enabled": {

@@ -1086,10 +1086,13 @@ export class CommandCenter {
 		}
 
 		if (
+			(
 			// no changes
 			(noStagedChanges && noUnstagedChanges)
 			// or no staged changes and not `all`
 			|| (!opts.all && noStagedChanges)
+		)
+			&& !opts.empty
 		) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
@@ -1132,6 +1135,11 @@ export class CommandCenter {
 		if (message && didCommit) {
 			repository.inputBox.value = await repository.getCommitTemplate();
 		}
+	}
+
+	@command('git.commitEmpty', { repository: true})
+	async commit(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { empty: true });
 	}
 
 	@command('git.commit', { repository: true })
