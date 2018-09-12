@@ -221,8 +221,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.layoutTrees(dimension);
 
-		let innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
-		let monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
+		const innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
+		const monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
@@ -293,7 +293,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
-		let searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+		const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
@@ -792,7 +792,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// Warn for settings not included in layout
 		if (settingsResult.leftoverSettings.size && !this.hasWarnedMissingSettings) {
-			let settingKeyList = [];
+			const settingKeyList = [];
 			settingsResult.leftoverSettings.forEach(s => {
 				settingKeyList.push(s.key);
 			});
@@ -985,9 +985,9 @@ export class SettingsEditor2 extends BaseEditor {
 		const fullResult: ISearchResult = {
 			filterMatches: []
 		};
-		for (let g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
-			for (let sect of g.sections) {
-				for (let setting of sect.settings) {
+		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
+			for (const sect of g.sections) {
+				for (const setting of sect.settings) {
 					fullResult.filterMatches.push({ setting, matches: [], score: 0 });
 				}
 			}
