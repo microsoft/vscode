@@ -1082,6 +1082,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const excludePattern = this.inputPatternExcludes.getValue();
 		const includePattern = this.inputPatternIncludes.getValue();
 
+		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).
+		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
+		// https://github.com/Microsoft/vscode/issues/58374
+		const totalChars = content.isRegExp ? 10000 :
+			this.isWide ? 250 :
+				75;
+
 		const options: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
@@ -1092,7 +1099,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			previewOptions: {
 				leadingChars: 20,
 				maxLines: 1,
-				totalChars: this.isWide ? 250 : 75
+				totalChars
 			}
 		};
 		const folderResources = this.contextService.getWorkspace().folders;
