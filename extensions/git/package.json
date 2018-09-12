@@ -1052,11 +1052,11 @@
           "default": true,
           "scope": "resource"
         },
-        "git.syncRebase": {
+        "git.rebaseWhenSync": {
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%config.syncRebase%"
+          "description": "%config.rebaseWhenSync%"
         }
       }
     },

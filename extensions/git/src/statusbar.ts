@@ -100,18 +100,14 @@ class SyncStatusBar {
 
 		if (HEAD && HEAD.name && HEAD.commit) {
 			if (HEAD.upstream) {
-				const config = workspace.getConfiguration('git');
-				const gitSyncRebase = config.get<string>('syncRebase');
-
 				if (HEAD.ahead || HEAD.behind) {
 					text += this.repository.syncLabel;
 				}
 
-				if (gitSyncRebase) {
-					command = 'git.syncRebase';
-				} else {
-					command = 'git.sync';
-				}
+				const config = workspace.getConfiguration('git');
+				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
 				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';
