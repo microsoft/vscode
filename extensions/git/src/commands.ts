@@ -6,8 +6,8 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
+import { Git, CommitOptions } from './git';
+import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
@@ -1087,11 +1087,11 @@ export class CommandCenter {
 
 		if (
 			(
-			// no changes
-			(noStagedChanges && noUnstagedChanges)
-			// or no staged changes and not `all`
-			|| (!opts.all && noStagedChanges)
-		)
+				// no changes
+				(noStagedChanges && noUnstagedChanges)
+				// or no staged changes and not `all`
+				|| (!opts.all && noStagedChanges)
+			)
 			&& !opts.empty
 		) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
@@ -1135,11 +1135,6 @@ export class CommandCenter {
 		if (message && didCommit) {
 			repository.inputBox.value = await repository.getCommitTemplate();
 		}
-	}
-
-	@command('git.commitEmpty', { repository: true})
-	async commit(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { empty: true });
 	}
 
 	@command('git.commit', { repository: true })
@@ -1188,6 +1183,28 @@ export class CommandCenter {
 	@command('git.commitAllAmend', { repository: true })
 	async commitAllAmend(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
+	}
+
+	@command('git.commitEmpty', { repository: true })
+	async commitEmpty(repository: Repository): Promise<void> {
+		const root = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', root);
+		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
+
+		if (shouldPrompt) {
+			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const yes = localize('yes', "Yes");
+			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+			if (pick === neverAgain) {
+				await config.update('confirmEmptyCommits', false, true);
+			} else if (pick !== yes) {
+				return;
+			}
+		}
+
+		await this.commitWithAnyInput(repository, { empty: true });
 	}
 
 	@command('git.undoCommit', { repository: true })

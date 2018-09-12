@@ -423,10 +423,6 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.commitEmpty",
-          "when": "config.git.allowcommitEmptys && gitOpenRepositoryCount != 0"
-        },
-        {
           "command": "git.commitStaged",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -605,11 +601,6 @@
         },
         {
           "command": "git.commitStaged",
-          "group": "3_commit",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.commitEmpty",
           "group": "3_commit",
           "when": "scmProvider == git"
         },
@@ -1005,11 +996,11 @@
           "description": "%config.enableCommitSigning%",
           "default": false
         },
-        "git.allowEmptyCommits": {
+        "git.confirmEmptyCommits": {
           "type": "boolean",
           "scope": "resource",
-          "description": "%config.allowEmptyCommits%",
-          "default": false
+          "description": "%config.confirmEmptyCommits%",
+          "default": true
         },
         "git.decorations.enabled": {
           "type": "boolean",
