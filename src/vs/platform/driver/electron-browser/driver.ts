@@ -230,6 +230,7 @@ export async function registerWindowDriver(
 	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
+	await windowDriverRegistry.registerWindowDriver(windowId);
 	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
 	// if (options.verbose) {
