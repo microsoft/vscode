@@ -922,6 +922,11 @@
             "usesOnlineServices"
           ]
         },
+        "git.autoFetchPeriod": {
+          "type": "number",
+          "default": 180,
+          "description": "%config.autoFetchPeriod%"
+        },
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",
