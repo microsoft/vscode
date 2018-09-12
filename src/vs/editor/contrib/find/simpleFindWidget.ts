@@ -134,7 +134,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public get focusTracker(): dom.IFocusTracker {
-		return this._findInputFocusTracker;
+		return this._focusTracker;
 	}
 
 	public updateTheme(theme: ITheme): void {
