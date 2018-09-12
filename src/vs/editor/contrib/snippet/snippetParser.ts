@@ -314,19 +314,31 @@ export class Transform extends Marker {
 
 	resolve(value: string): string {
 		const _this = this;
-		return value.replace(this.regexp, function () {
-			let ret = '';
-			for (const marker of _this._children) {
-				if (marker instanceof FormatString) {
-					let value = arguments.length - 2 > marker.index ? <string>arguments[marker.index] : '';
-					value = marker.resolve(value);
-					ret += value;
-				} else {
-					ret += marker.toString();
-				}
-			}
-			return ret;
+		let didMatch = false;
+		let ret = value.replace(this.regexp, function () {
+			didMatch = true;
+			return _this._replace(Array.prototype.slice.call(arguments, 0, -2));
 		});
+		// when the regex didn't match and when the transform has
+		// else branches, then run those
+		if (!didMatch && this._children.some(child => child instanceof FormatString && Boolean(child.elseValue))) {
+			ret = this._replace([]);
+		}
+		return ret;
+	}
+
+	private _replace(groups: string[]): string {
+		let ret = '';
+		for (const marker of this._children) {
+			if (marker instanceof FormatString) {
+				let value = groups[marker.index] || '';
+				value = marker.resolve(value);
+				ret += value;
+			} else {
+				ret += marker.toString();
+			}
+		}
+		return ret;
 	}
 
 	toString(): string {
