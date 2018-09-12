@@ -192,6 +192,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const isWordWrapMinified = this.contextKeyService.createKey(isWordWrapMinifiedKey, this._isWordWrapMinified(configuration));
 		const isDominatedByLongLines = this.contextKeyService.createKey(isDominatedByLongLinesKey, this._isDominatedByLongLines(configuration));
 		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, this._inDiffEditor(configuration));
+		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (!e.wrappingInfo) {
@@ -201,9 +202,17 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			isWordWrapMinified.set(this._isWordWrapMinified(configuration));
 			isDominatedByLongLines.set(this._isDominatedByLongLines(configuration));
 			inDiffEditor.set(this._inDiffEditor(configuration));
+			if (!currentlyApplyingEditorConfig) {
+				// I am not the cause of the word wrap getting changed
+				ensureWordWrapSettings();
+			}
 		}));
 
 		this._register(editor.onDidChangeModel((e) => {
+			ensureWordWrapSettings();
+		}));
+
+		const ensureWordWrapSettings = () => {
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
@@ -223,8 +232,13 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			const desiredState = readWordWrapState(newModel, this.configurationService, this.codeEditorService);
 
 			// Apply the state
-			applyWordWrapState(editor, desiredState);
-		}));
+			try {
+				currentlyApplyingEditorConfig = true;
+				applyWordWrapState(editor, desiredState);
+			} finally {
+				currentlyApplyingEditorConfig = false;
+			}
+		};
 	}
 
 	private _isWordWrapMinified(config: InternalEditorOptions): boolean {
