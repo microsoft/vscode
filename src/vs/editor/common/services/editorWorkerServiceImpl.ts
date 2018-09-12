@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IntervalTimer, ShallowCancelThenPromise } from 'vs/base/common/async';
+import { IntervalTimer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -321,7 +321,7 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 
 	public getProxyObject(): TPromise<T> {
-		return new ShallowCancelThenPromise(this._proxyObj);
+		return this._proxyObj;
 	}
 }
 
@@ -356,11 +356,11 @@ export class EditorWorkerClient extends Disposable {
 	}
 
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
-		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
+		return this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();
-		}));
+		});
 	}
 
 	private _getOrCreateModelManager(proxy: EditorSimpleWorkerImpl): EditorModelManager {

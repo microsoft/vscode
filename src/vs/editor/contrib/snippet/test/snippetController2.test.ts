@@ -12,6 +12,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { Handler } from 'vs/editor/common/editorCommon';
 
 suite('SnippetController2', function () {
 
@@ -316,5 +317,50 @@ suite('SnippetController2', function () {
 
 		ctrl.next();
 		assertContextKeys(contextKeys, true, true, true);
+	});
+
+	test('Placeholders order #58267', function () {
+
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		ctrl.insert('\\pth{$1}$0');
+
+		assertSelections(editor, new Selection(1, 6, 1, 6));
+		assertContextKeys(contextKeys, true, false, true);
+
+		ctrl.insert('\\itv{${1:left}}{${2:right}}{${3:left_value}}{${4:right_value}}$0');
+		assertSelections(editor, new Selection(1, 11, 1, 15));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 17, 1, 22));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 24, 1, 34));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 36, 1, 47));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 48, 1, 48));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 49, 1, 49));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Must tab through deleted tab stops in snippets #31619', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		ctrl.insert('foo${1:a${2:bar}baz}end$0');
+		assertSelections(editor, new Selection(1, 4, 1, 11));
+
+		editor.trigger('test', Handler.Cut, null);
+		assertSelections(editor, new Selection(1, 4, 1, 4));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7));
+		assertContextKeys(contextKeys, false, false, false);
 	});
 });

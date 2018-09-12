@@ -1362,16 +1362,16 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.ui) {
 			// TODO
 			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
-			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : undefined;
+			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : null;
 			this.ui.inputBox.style(theme);
 			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-			this.ui.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : undefined;
+			this.ui.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : null;
 			const sideBarForeground = theme.getColor(SIDE_BAR_FOREGROUND);
-			this.ui.container.style.color = sideBarForeground ? sideBarForeground.toString() : undefined;
+			this.ui.container.style.color = sideBarForeground ? sideBarForeground.toString() : null;
 			const contrastBorderColor = theme.getColor(contrastBorder);
-			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : undefined;
+			this.ui.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : null;
 			const widgetShadowColor = theme.getColor(widgetShadow);
-			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : undefined;
+			this.ui.container.style.boxShadow = widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null;
 		}
 	}
 

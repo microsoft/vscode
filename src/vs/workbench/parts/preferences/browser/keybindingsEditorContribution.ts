@@ -240,6 +240,11 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				usLabel = resolvedKeybinding.getUSLabel();
 			}
 			if (!resolvedKeybinding.isWYSIWYG()) {
+				const uiLabel = resolvedKeybinding.getLabel();
+				if (value.value.toLowerCase() === uiLabel.toLowerCase()) {
+					// coincidentally, this is actually WYSIWYG
+					return null;
+				}
 				return this._createDecoration(false, resolvedKeybinding.getLabel(), usLabel, model, value);
 			}
 			if (/abnt_|oem_/.test(value.value)) {
@@ -347,7 +352,6 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 				hoverMessage: msg,
 				overviewRuler: {
 					color: overviewRulerColor,
-					darkColor: overviewRulerColor,
 					position: OverviewRulerLane.Right
 				}
 			}

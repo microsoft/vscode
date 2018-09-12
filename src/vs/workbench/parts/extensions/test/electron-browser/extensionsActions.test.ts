@@ -223,6 +223,20 @@ suite('ExtensionsActions Test', () => {
 			});
 	});
 
+	test('Test Uninstall action when state is installing and is user extension', () => {
+		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
+		const local = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+			.then(extensions => {
+				const gallery = aGalleryExtension('a');
+				installEvent.fire({ identifier: gallery.identifier, gallery });
+				testObject.extension = extensions[0];
+				assert.ok(!testObject.enabled);
+			});
+	});
+
 	test('Test Uninstall action after extension is installed', () => {
 		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
 		const gallery = aGalleryExtension('a');
@@ -300,6 +314,22 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = paged.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 
+				assert.ok(!testObject.enabled);
+				assert.equal('Installing', testObject.label);
+				assert.equal('extension-action install installing', testObject.class);
+			});
+	});
+
+	test('Test CombinedInstallAction when state is installing during update', () => {
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const local = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+			.then(extensions => {
+				testObject.extension = extensions[0];
+				const gallery = aGalleryExtension('a');
+				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
 				assert.equal('Installing', testObject.label);
 				assert.equal('extension-action install installing', testObject.class);

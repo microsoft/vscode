@@ -7,7 +7,6 @@
 import * as path from 'path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
@@ -82,30 +81,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
 		if (provider) {
-			return new Promise((c, e) => {
-				this._fileSearchManager.fileSearch(query, provider, batch => {
-					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}, token).then(c, err => {
-					if (!isPromiseCanceledError(err)) {
-						e(err);
-					}
-				});
-			});
+			return this._fileSearchManager.fileSearch(query, provider, batch => {
+				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+			}, token);
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
-			const searchP = this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+			return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
 				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-			}).then(null, err => {
-				if (!isPromiseCanceledError(err)) {
-					throw err;
-				}
-
-				return null;
-			});
-
-			token.onCancellationRequested(() => searchP.cancel());
-
-			return searchP;
+			}, token);
 		}
 	}
 

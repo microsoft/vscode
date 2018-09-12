@@ -305,7 +305,10 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+			this.processReady.then(() => {
+				this._linkHandler.initialCwd = this._processManager.initialCwd;
+			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
 

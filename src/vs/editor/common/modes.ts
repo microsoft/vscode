@@ -447,6 +447,18 @@ export interface SignatureHelp {
 	 */
 	activeParameter: number;
 }
+
+export enum SignatureHelpTriggerReason {
+	Invoke = 1,
+	TriggerCharacter = 2,
+	Retrigger = 3,
+}
+
+export interface SignatureHelpContext {
+	triggerReason: SignatureHelpTriggerReason;
+	triggerCharacter?: string;
+}
+
 /**
  * The signature help provider interface defines the contract between extensions and
  * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -458,7 +470,7 @@ export interface SignatureHelpProvider {
 	/**
 	 * Provide help for the signature at the given position and document.
 	 */
-	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SignatureHelp>;
+	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 }
 
 /**
@@ -926,17 +938,19 @@ export interface ResourceTextEdit {
 
 export interface WorkspaceEdit {
 	edits: Array<ResourceTextEdit | ResourceFileEdit>;
-	rejectReason?: string; // TODO@joh, move to rename
 }
 
+export interface Rejection {
+	rejectReason?: string;
+}
 export interface RenameLocation {
 	range: IRange;
 	text: string;
 }
 
 export interface RenameProvider {
-	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
-	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
+	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
 

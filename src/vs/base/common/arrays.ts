@@ -27,6 +27,14 @@ export function tail2<T>(arr: T[]): [T[], T] {
 }
 
 export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+	if (one === other) {
+		return true;
+	}
+
+	if (!one || !other) {
+		return false;
+	}
+
 	if (one.length !== other.length) {
 		return false;
 	}

@@ -297,6 +297,7 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.tasks.showTasks',
 				'workbench.action.tasks.terminate',
 				'workbench.action.tasks.test',
+				'workbench.action.toggleFullScreen',
 				'workbench.action.terminal.focusAtIndex1',
 				'workbench.action.terminal.focusAtIndex2',
 				'workbench.action.terminal.focusAtIndex3',

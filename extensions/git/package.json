@@ -191,6 +191,11 @@
         "category": "Git"
       },
       {
+        "command": "git.commitEmpty",
+        "title": "%command.commitEmpty%",
+        "category": "Git"
+      },
+      {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
         "category": "Git"
@@ -253,6 +258,11 @@
       {
         "command": "git.fetch",
         "title": "%command.fetch%",
+        "category": "Git"
+      },
+      {
+        "command": "git.fetchAll",
+        "title": "%command.fetchAll%",
         "category": "Git"
       },
       {
@@ -487,6 +497,10 @@
         },
         {
           "command": "git.fetch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.fetchAll",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -996,6 +1010,12 @@
           "description": "%config.enableCommitSigning%",
           "default": false
         },
+        "git.confirmEmptyCommits": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.confirmEmptyCommits%",
+          "default": true
+        },
         "git.decorations.enabled": {
           "type": "boolean",
           "default": true,
@@ -1039,6 +1059,12 @@
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
         },
+        "git.alwaysShowStagedChangesResourceGroup": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.alwaysShowStagedChangesResourceGroup%"
+        },
         "git.alwaysSignOff": {
           "type": "boolean",
           "scope": "resource",
@@ -1050,6 +1076,24 @@
           "default": [],
           "scope": "window",
           "description": "%config.ignoredRepositories%"
+        },
+        "git.showProgress": {
+          "type": "boolean",
+          "description": "%config.showProgress%",
+          "default": true,
+          "scope": "resource"
+        },
+        "git.rebaseWhenSync": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.rebaseWhenSync%"
+        },
+        "git.fetchOnPull": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.fetchOnPull%"
         }
       }
     },

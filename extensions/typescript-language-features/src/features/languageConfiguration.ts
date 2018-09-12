@@ -31,6 +31,7 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 		}, {
 			// e.g.  * ...|
 			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
+			oneLineAboveText: /^(\s*(\/\*\*|\*)).*/,
 			action: { indentAction: vscode.IndentAction.None, appendText: '* ' }
 		}, {
 			// e.g.  */|

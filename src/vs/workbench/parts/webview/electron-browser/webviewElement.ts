@@ -7,7 +7,6 @@ import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,8 +36,6 @@ export class WebviewElement extends Disposable {
 
 	constructor(
 		private readonly _styleElement: Element,
-		private readonly _contextKey: IContextKey<boolean>,
-		private readonly _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -168,16 +165,6 @@ export class WebviewElement extends Disposable {
 					return;
 			}
 		}));
-		this._register(addDisposableListener(this._webview, 'focus', () => {
-			if (this._contextKey) {
-				this._contextKey.set(true);
-			}
-		}));
-		this._register(addDisposableListener(this._webview, 'blur', () => {
-			if (this._contextKey) {
-				this._contextKey.reset();
-			}
-		}));
 		this._register(addDisposableListener(this._webview, 'devtools-opened', () => {
 			this._send('devtools-opened');
 		}));
@@ -193,19 +180,7 @@ export class WebviewElement extends Disposable {
 		parent.appendChild(this._webview);
 	}
 
-	public notifyFindWidgetFocusChanged(isFocused: boolean) {
-		this._contextKey.set(isFocused || document.activeElement === this._webview);
-	}
-
-	public notifyFindWidgetInputFocusChanged(isFocused: boolean) {
-		this._findInputContextKey.set(isFocused);
-	}
-
 	dispose(): void {
-		if (this._contextKey) {
-			this._contextKey.reset();
-		}
-
 		if (this._webview) {
 			this._webview.guestinstance = 'none';
 

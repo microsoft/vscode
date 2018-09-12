@@ -377,7 +377,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	static readonly ID = 'workbench.picker.commands';
 
-	private lastSearchValue: string;
 	private commandHistoryEnabled: boolean;
 	private commandsHistory: CommandsHistory;
 
@@ -411,7 +410,9 @@ export class CommandsHandler extends QuickOpenHandler {
 			}
 
 			searchValue = searchValue.trim();
-			this.lastSearchValue = searchValue;
+
+			// Remember as last command palette input
+			lastCommandPaletteInput = searchValue;
 
 			// Editor Actions
 			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
@@ -512,9 +513,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	private onBeforeRunCommand(commandId: string): void {
 
-		// Remember as last command palette input
-		lastCommandPaletteInput = this.lastSearchValue;
-
 		// Remember in commands history
 		this.commandsHistory.push(commandId);
 	}
@@ -571,12 +569,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
-	}
-
-	onClose(canceled: boolean): void {
-		if (canceled) {
-			lastCommandPaletteInput = void 0; // clear last input when user canceled quick open
-		}
 	}
 }
 

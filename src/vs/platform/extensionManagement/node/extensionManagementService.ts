@@ -885,7 +885,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private toNonCancellablePromise<T>(promise: TPromise<T>): TPromise<T> {
-		return new TPromise((c, e) => promise.then(result => c(result), error => e(error)), () => this.logService.debug('Request Cancelled'));
+		return new TPromise((c, e) => promise.then(result => c(result), error => e(error)));
 	}
 
 	private reportTelemetry(eventName: string, extensionData: any, duration: number, error?: Error): void {
