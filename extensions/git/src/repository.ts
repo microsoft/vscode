@@ -289,6 +289,7 @@ export const enum Operation {
 	SetBranchUpstream = 'SetBranchUpstream',
 	HashObject = 'HashObject',
 	Checkout = 'Checkout',
+	CheckoutTracking = 'CheckoutTracking',
 	Reset = 'Reset',
 	Remote = 'Remote',
 	Fetch = 'Fetch',
@@ -866,6 +867,10 @@ export class Repository implements Disposable {
 
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
+	}
+
+	async checkoutTracking(treeish: string): Promise<void> {
+		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { track: true }));
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
