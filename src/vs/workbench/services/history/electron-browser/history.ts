@@ -342,13 +342,22 @@ export class HistoryService extends Disposable implements IHistoryService {
 	clear(): void {
 		this.ensureHistoryLoaded();
 
+		// Navigation (next, previous)
 		this.index = -1;
 		this.lastIndex = -1;
 		this.stack.splice(0);
-		this.history = [];
+
+		// Closed files
 		this.recentlyClosedFiles = [];
 
+		// History
+		this.clearRecentlyOpened();
+
 		this.updateContextKeys();
+	}
+
+	clearRecentlyOpened(): void {
+		this.history = [];
 	}
 
 	private updateContextKeys(): void {

@@ -52,6 +52,11 @@ export interface IHistoryService {
 	clear(): void;
 
 	/**
+	 * Clear list of recently opened editors.
+	 */
+	clearRecentlyOpened(): void;
+
+	/**
 	 * Get the entire history of opened editors.
 	 */
 	getHistory(): (IEditorInput | IResourceInput)[];
