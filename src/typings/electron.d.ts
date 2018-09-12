@@ -1,4 +1,4 @@
-// Type definitions for Electron 3.0.0-beta.10
+// Type definitions for Electron 3.0.0-beta.11
 // Project: http://electronjs.org/
 // Definitions by: The Electron Team <https://github.com/electron/electron>
 // Definitions: https://github.com/electron/electron-typescript-definitions
@@ -9169,7 +9169,7 @@ declare namespace NodeJS {
 		// addListener(event: 'loaded', listener: Function): this;
 		// removeListener(event: 'loaded', listener: Function): this;
 		// ### END VSCODE MODIFICATION ###
-		
+
 		/**
 		 * Causes the main thread of the current process crash.
 		 */
