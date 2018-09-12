@@ -811,7 +811,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, modelStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
+			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
+			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
 		}
 
 		let result: IModelDecoration[] = [];
