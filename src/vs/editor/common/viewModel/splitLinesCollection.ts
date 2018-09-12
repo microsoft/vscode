@@ -12,8 +12,7 @@ import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from '
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 export class OutputPosition {
@@ -797,7 +796,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			if (lane === 0) {
 				continue;
 			}
-			const color = resolveColor(opts, theme);
+			const color = opts.getColor(theme);
 			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
 			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
 
@@ -1360,7 +1359,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 			if (lane === 0) {
 				continue;
 			}
-			const color = resolveColor(opts, theme);
+			const color = opts.getColor(theme);
 			const viewStartLineNumber = decoration.range.startLineNumber;
 			const viewEndLineNumber = decoration.range.endLineNumber;
 
@@ -1401,25 +1400,4 @@ class OverviewRulerDecorations {
 			this.result[color] = [lane, startLineNumber, endLineNumber];
 		}
 	}
-}
-
-
-function resolveColor(opts: ModelDecorationOverviewRulerOptions, theme: ITheme): string {
-	if (!opts._resolvedColor) {
-		const themeType = theme.type;
-		const color = (themeType === 'light' ? opts.color : opts.darkColor);
-		opts._resolvedColor = resolveRulerColor(color, theme);
-	}
-	return opts._resolvedColor;
-}
-
-function resolveRulerColor(color: string | ThemeColor, theme: ITheme): string {
-	if (typeof color === 'string') {
-		return color;
-	}
-	let c = color ? theme.getColor(color.id) : null;
-	if (!c) {
-		c = Color.transparent;
-	}
-	return c.toString();
 }

@@ -540,7 +540,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
 			if (opts) {
-				opts._resolvedColor = null;
+				opts.invalidateCachedColor();
 			}
 		}
 	}

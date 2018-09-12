@@ -16,7 +16,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { IntervalNode, IntervalTree, recomputeMaxEnd, getNodeIsInOverviewRuler } from 'vs/editor/common/model/intervalTree';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -2784,7 +2784,7 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
 	readonly position: model.OverviewRulerLane;
-	_resolvedColor: string;
+	private _resolvedColor: string;
 
 	constructor(options: model.IModelDecorationOverviewRulerOptions) {
 		this.color = strings.empty;
@@ -2804,7 +2804,29 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 		if (options && typeof options.position === 'number') {
 			this.position = options.position;
 		}
-		// console.log(this);
+	}
+
+	public getColor(theme: ITheme): string {
+		if (!this._resolvedColor) {
+			const color = (theme.type === 'light' ? this.color : this.darkColor);
+			this._resolvedColor = this._resolveColor(color, theme);
+		}
+		return this._resolvedColor;
+	}
+
+	public invalidateCachedColor(): void {
+		this._resolvedColor = null;
+	}
+
+	private _resolveColor(color: string | ThemeColor, theme: ITheme): string {
+		if (typeof color === 'string') {
+			return color;
+		}
+		let c = color ? theme.getColor(color.id) : null;
+		if (!c) {
+			return strings.empty;
+		}
+		return c.toString();
 	}
 }
 
