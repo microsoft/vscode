@@ -913,8 +913,12 @@ export class Repository {
 		await this.run(['update-index', '--cacheinfo', mode, hash, path]);
 	}
 
-	async checkout(treeish: string, paths: string[]): Promise<void> {
+	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['checkout', '-q'];
+
+		if (opts.track) {
+			args.push('--track');
+		}
 
 		if (treeish) {
 			args.push(treeish);

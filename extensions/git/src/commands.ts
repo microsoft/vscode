@@ -24,14 +24,13 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	protected get treeish(): string | undefined { return this.ref.name; }
 	get label(): string { return this.ref.name || this.shortCommit; }
 	get description(): string { return this.shortCommit; }
 
 	constructor(protected ref: Ref) { }
 
 	async run(repository: Repository): Promise<void> {
-		const ref = this.treeish;
+		const ref = this.ref.name;
 
 		if (!ref) {
 			return;
@@ -54,13 +53,12 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	protected get treeish(): string | undefined {
+	async run(repository: Repository): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
 
-		const match = /^[^/]+\/(.*)$/.exec(this.ref.name);
-		return match ? match[1] : this.ref.name;
+		await repository.checkoutTracking(this.ref.name);
 	}
 }
 

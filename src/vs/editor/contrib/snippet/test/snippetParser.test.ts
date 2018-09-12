@@ -353,6 +353,12 @@ suite('SnippetParser', () => {
 		assertText('${1||}', '${1||}');
 	});
 
+	test('Backslash character escape in choice tabstop doesn\'t work #58494', function () {
+
+		const { placeholders } = new SnippetParser().parse('${1|\\,,},$,\\|,\\\\|}');
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+	});
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
