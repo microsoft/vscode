@@ -87,6 +87,7 @@
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
 	"config.ignoredRepositories": "List of git repositories to ignore.",
+	"config.showProgress": "Controls whether git actions should show progress.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",

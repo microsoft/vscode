@@ -1045,6 +1045,12 @@
           "default": [],
           "scope": "window",
           "description": "%config.ignoredRepositories%"
+        },
+        "git.showProgress": {
+          "type": "boolean",
+          "description": "%config.showProgress%",
+          "default": true,
+          "scope": "resource"
         }
       }
     },

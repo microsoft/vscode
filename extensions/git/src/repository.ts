@@ -407,11 +407,32 @@ export interface OperationResult {
 
 class ProgressManager {
 
+	private enabled = false;
 	private disposable: IDisposable = EmptyDisposable;
 
-	constructor(repository: Repository) {
-		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
-		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
+	constructor(private repository: Repository) {
+		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
+		onDidChange(_ => this.updateEnablement());
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+
+		if (config.get<boolean>('showProgress')) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		if (this.enabled) {
+			return;
+		}
+
+		const start = onceEvent(filterEvent(this.repository.onDidChangeOperations, () => this.repository.operations.shouldShowProgress()));
+		const end = onceEvent(filterEvent(debounceEvent(this.repository.onDidChangeOperations, 300), () => !this.repository.operations.shouldShowProgress()));
 
 		const setup = () => {
 			this.disposable = start(() => {
@@ -421,10 +442,21 @@ class ProgressManager {
 		};
 
 		setup();
+		this.enabled = true;
+	}
+
+	private disable(): void {
+		if (!this.enabled) {
+			return;
+		}
+
+		this.disposable.dispose();
+		this.disposable = EmptyDisposable;
+		this.enabled = false;
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disable();
 	}
 }
 
