@@ -371,7 +371,7 @@ export class CodeMenu {
 
 		const autoSaveEnabled = [AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => this.currentAutoSaveSetting === s);
 
-		const autoSave = this.createMenuItem(this.mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), 'workbench.action.toggleAutoSave', this.windowsMainService.getWindowCount() > 0, autoSaveEnabled);
+		const autoSave = this.createMenuItem(this.mnemonicLabel(nls.localize('miAutoSave', "A&&uto Save")), 'workbench.action.toggleAutoSave', this.windowsMainService.getWindowCount() > 0, autoSaveEnabled);
 
 		const preferences = this.getPreferencesMenu();
 
@@ -906,7 +906,7 @@ export class CodeMenu {
 		const restart = this.createMenuItem(nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"), 'workbench.action.debug.restart');
 
 		const openConfigurations = this.createMenuItem(nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations"), 'workbench.action.debug.configure');
-		const addConfiguration = this.createMenuItem(nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "Add Configuration..."), 'debug.addConfiguration');
+		const addConfiguration = this.createMenuItem(nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "A&&dd Configuration..."), 'debug.addConfiguration');
 
 		const stepOver = this.createMenuItem(nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"), 'workbench.action.debug.stepOver');
 		const stepInto = this.createMenuItem(nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"), 'workbench.action.debug.stepInto');
@@ -920,7 +920,7 @@ export class CodeMenu {
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint..."), 'workbench.debug.viewlet.action.addFunctionBreakpointAction'));
 		breakpointsMenu.append(this.createMenuItem(nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint..."), 'editor.debug.action.toggleLogPoint'));
 		const newBreakpoints = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint")), submenu: breakpointsMenu });
-		const enableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Enable All Breakpoints"), 'workbench.debug.viewlet.action.enableAllBreakpoints');
+		const enableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Enable All Breakpoints"), 'workbench.debug.viewlet.action.enableAllBreakpoints');
 		const disableAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints"), 'workbench.debug.viewlet.action.disableAllBreakpoints');
 		const removeAllBreakpoints = this.createMenuItem(nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints"), 'workbench.debug.viewlet.action.removeAllBreakpoints');
 
@@ -1098,7 +1098,7 @@ export class CodeMenu {
 
 			case StateType.Idle:
 				return [new MenuItem({
-					label: nls.localize('miCheckForUpdates', "Check for Updates..."), click: () => setTimeout(() => {
+					label: nls.localize('miCheckForUpdates', "Check for &&Updates..."), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 
 						const focusedWindow = this.windowsMainService.getFocusedWindow();
@@ -1112,7 +1112,7 @@ export class CodeMenu {
 
 			case StateType.AvailableForDownload:
 				return [new MenuItem({
-					label: nls.localize('miDownloadUpdate', "Download Available Update"), click: () => {
+					label: nls.localize('miDownloadUpdate', "D&&ownload Available Update"), click: () => {
 						this.updateService.downloadUpdate();
 					}
 				})];
@@ -1122,7 +1122,7 @@ export class CodeMenu {
 
 			case StateType.Downloaded:
 				return [new MenuItem({
-					label: nls.localize('miInstallUpdate', "Install Update..."), click: () => {
+					label: nls.localize('miInstallUpdate', "Install &&Update..."), click: () => {
 						this.reportMenuActionTelemetry('InstallUpdate');
 						this.updateService.applyUpdate();
 					}
@@ -1133,7 +1133,7 @@ export class CodeMenu {
 
 			case StateType.Ready:
 				return [new MenuItem({
-					label: nls.localize('miRestartToUpdate', "Restart to Update..."), click: () => {
+					label: nls.localize('miRestartToUpdate', "Restart to &&Update..."), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
 						this.updateService.quitAndInstall();
 					}

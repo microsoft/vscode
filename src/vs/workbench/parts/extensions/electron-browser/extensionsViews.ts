@@ -109,12 +109,15 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		const model = await this.query(query).catch(e => {
+		return await this.query(query).then(model => {
+			this.setModel(model);
+			return model;
+		}).catch(e => {
 			console.warn('Error querying extensions gallery', e);
-			return new PagedModel([]);
+			const model = new PagedModel([]);
+			this.setModel(model, true);
+			return model;
 		});
-		this.setModel(model);
-		return model;
 	}
 
 	select(): void {
@@ -528,7 +531,7 @@ export class ExtensionsListView extends ViewletPanel {
 		});
 	}
 
-	private setModel(model: IPagedModel<IExtension>) {
+	private setModel(model: IPagedModel<IExtension>, isGalleryError?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
 			this.list.scrollTop = 0;
@@ -539,7 +542,7 @@ export class ExtensionsListView extends ViewletPanel {
 			this.badge.setCount(count);
 
 			if (count === 0 && this.isVisible()) {
-				this.messageBox.textContent = localize('no extensions found', "No extensions found.");
+				this.messageBox.textContent = isGalleryError ? localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.") : localize('no extensions found', "No extensions found.");
 			} else {
 				this.messageBox.textContent = '';
 			}

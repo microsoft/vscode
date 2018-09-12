@@ -12,9 +12,9 @@ import Severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 
 export interface IDialogChannel extends IChannel {
-	call(command: 'show'): TPromise<number>;
-	call(command: 'confirm'): TPromise<IConfirmationResult>;
-	call(command: string, arg?: any): TPromise<any>;
+	call(command: 'show'): Thenable<number>;
+	call(command: 'confirm'): Thenable<IConfirmationResult>;
+	call(command: string, arg?: any): Thenable<any>;
 }
 
 export class DialogChannel implements IDialogChannel {
@@ -25,7 +25,7 @@ export class DialogChannel implements IDialogChannel {
 		throw new Error('No event found');
 	}
 
-	call(command: string, args?: any[]): TPromise<any> {
+	call(command: string, args?: any[]): Thenable<any> {
 		switch (command) {
 			case 'show': return this.dialogService.show(args[0], args[1], args[2]);
 			case 'confirm': return this.dialogService.confirm(args[0]);
@@ -41,10 +41,10 @@ export class DialogChannelClient implements IDialogService {
 	constructor(private channel: IDialogChannel) { }
 
 	show(severity: Severity, message: string, options: string[]): TPromise<number> {
-		return this.channel.call('show', [severity, message, options]);
+		return TPromise.wrap(this.channel.call('show', [severity, message, options]));
 	}
 
 	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return this.channel.call('confirm', [confirmation]);
+		return TPromise.wrap(this.channel.call('confirm', [confirmation]));
 	}
 }

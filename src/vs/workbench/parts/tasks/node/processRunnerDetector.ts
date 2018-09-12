@@ -39,7 +39,7 @@ interface TaskInfos {
 
 interface TaskDetectorMatcher {
 	init(): void;
-	match(tasks: string[], line: string);
+	match(tasks: string[], line: string): void;
 }
 
 interface DetectorConfig {
@@ -57,7 +57,7 @@ class RegexpTaskMatcher implements TaskDetectorMatcher {
 	init() {
 	}
 
-	match(tasks: string[], line: string) {
+	match(tasks: string[], line: string): void {
 		let matches = this.regexp.exec(line);
 		if (matches && matches.length > 0) {
 			tasks.push(matches[1]);
@@ -76,7 +76,7 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 		this.descriptionOffset = null;
 	}
 
-	match(tasks: string[], line: string) {
+	match(tasks: string[], line: string): void {
 		// grunt lists tasks as follows (description is wrapped into a new line if too long):
 		// ...
 		// Available tasks
@@ -276,10 +276,7 @@ export class ProcessRunnerDetector {
 				return;
 			}
 			let line = Strings.removeAnsiEscapeCodes(progress.line);
-			let matches = matcher.match(tasks, line);
-			if (matches && matches.length > 0) {
-				tasks.push(matches[1]);
-			}
+			matcher.match(tasks, line);
 		};
 
 		return process.start(onProgress).then((success) => {

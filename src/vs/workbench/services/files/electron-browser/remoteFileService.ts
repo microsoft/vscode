@@ -472,12 +472,12 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileWriteOptions): TPromise<IFileStat> {
+	private _writeFile(provider: IFileSystemProvider, resource: URI, snapshot: ITextSnapshot, preferredEncoding: string, options: FileWriteOptions): Promise<IFileStat> {
 		const readable = createReadableOfSnapshot(snapshot);
 		const encoding = this.encoding.getWriteEncoding(resource, preferredEncoding);
 		const encoder = encodeStream(encoding);
 		const target = createWritableOfProvider(provider, resource, options);
-		return new TPromise<IFileStat>((resolve, reject) => {
+		return new Promise<IFileStat>((resolve, reject) => {
 			readable.pipe(encoder).pipe(target);
 			target.once('error', err => reject(err));
 			target.once('finish', _ => resolve(void 0));
@@ -486,8 +486,8 @@ export class RemoteFileService extends FileService {
 		});
 	}
 
-	private static _asContent(content: IStreamContent): TPromise<IContent> {
-		return new TPromise<IContent>((resolve, reject) => {
+	private static _asContent(content: IStreamContent): Promise<IContent> {
+		return new Promise<IContent>((resolve, reject) => {
 			let result: IContent = {
 				value: '',
 				encoding: content.encoding,

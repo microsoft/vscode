@@ -185,16 +185,12 @@ export class ExpressionContainer implements IExpressionContainer {
 	}
 
 	private fetchVariables(start: number, count: number, filter: 'indexed' | 'named'): TPromise<Variable[]> {
-		return this.session.raw ? this.session.raw.variables({
-			variablesReference: this.reference,
-			start,
-			count,
-			filter
-		}).then(response => {
-			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && isString(v.name)), v => v.name).map(
-				v => new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type)
-			) : [];
-		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]) : TPromise.as([]);
+		return this.session.variables(this.reference, filter, start, count).then(response => {
+			return response && response.body && response.body.variables
+				? distinct(response.body.variables.filter(v => !!v && isString(v.name)), v => v.name).map(
+					v => new Variable(this.session, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type))
+				: [];
+		}, (e: Error) => [new Variable(this.session, this, 0, e.message, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]);
 	}
 
 	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
@@ -240,11 +236,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 
 		this.session = session;
-		return session.raw.evaluate({
-			expression: this.name,
-			frameId: stackFrame ? stackFrame.frameId : undefined,
-			context
-		}).then(response => {
+		return session.evaluate(this.name, stackFrame ? stackFrame.frameId : undefined, context).then(response => {
 			this.available = !!(response && response.body);
 			if (response && response.body) {
 				this.value = response.body.result;
@@ -289,11 +281,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	}
 
 	public setVariable(value: string): TPromise<any> {
-		return this.session.raw.setVariable({
-			name: this.name,
-			value,
-			variablesReference: (<ExpressionContainer>this.parent).reference
-		}).then(response => {
+		return this.session.setVariable((<ExpressionContainer>this.parent).reference, name, value).then(response => {
 			if (response && response.body) {
 				this.value = response.body.value;
 				this.type = response.body.type || this.type;
@@ -349,7 +337,7 @@ export class StackFrame implements IStackFrame {
 
 	public getScopes(): TPromise<IScope[]> {
 		if (!this.scopes) {
-			this.scopes = this.thread.session.raw.scopes({ frameId: this.frameId }).then(response => {
+			this.scopes = this.thread.session.scopes(this.frameId).then(response => {
 				return response && response.body && response.body.scopes ?
 					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
 						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : null)) : [];
@@ -390,7 +378,7 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public restart(): TPromise<any> {
-		return this.thread.session.raw.restartFrame({ frameId: this.frameId }, this.thread.threadId);
+		return this.thread.session.restartFrame(this.frameId, this.thread.threadId);
 	}
 
 	public toString(): string {
@@ -458,7 +446,7 @@ export class Thread implements IThread {
 	}
 
 	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
-		return this.session.raw.stackTrace({ threadId: this.threadId, startFrame, levels }).then(response => {
+		return this.session.stackTrace(this.threadId, startFrame, levels).then(response => {
 			if (!response || !response.body) {
 				return [];
 			}
@@ -491,60 +479,47 @@ export class Thread implements IThread {
 	 */
 	public get exceptionInfo(): TPromise<IExceptionInfo> {
 		if (this.stoppedDetails && this.stoppedDetails.reason === 'exception') {
-			if (!this.session.capabilities.supportsExceptionInfoRequest) {
-				return TPromise.as({
-					description: this.stoppedDetails.text,
-					breakMode: null
-				});
+			if (this.session.capabilities.supportsExceptionInfoRequest) {
+				return this.session.exceptionInfo(this.threadId);
 			}
-
-			return this.session.raw.exceptionInfo({ threadId: this.threadId }).then(exception => {
-				if (!exception) {
-					return null;
-				}
-
-				return {
-					id: exception.body.exceptionId,
-					description: exception.body.description,
-					breakMode: exception.body.breakMode,
-					details: exception.body.details
-				};
+			return TPromise.as({
+				description: this.stoppedDetails.text,
+				breakMode: null
 			});
 		}
-
 		return TPromise.as(null);
 	}
 
 	public next(): TPromise<any> {
-		return this.session.raw.next({ threadId: this.threadId });
+		return this.session.next(this.threadId);
 	}
 
 	public stepIn(): TPromise<any> {
-		return this.session.raw.stepIn({ threadId: this.threadId });
+		return this.session.stepIn(this.threadId);
 	}
 
 	public stepOut(): TPromise<any> {
-		return this.session.raw.stepOut({ threadId: this.threadId });
+		return this.session.stepOut(this.threadId);
 	}
 
 	public stepBack(): TPromise<any> {
-		return this.session.raw.stepBack({ threadId: this.threadId });
+		return this.session.stepBack(this.threadId);
 	}
 
 	public continue(): TPromise<any> {
-		return this.session.raw.continue({ threadId: this.threadId });
+		return this.session.continue(this.threadId);
 	}
 
 	public pause(): TPromise<any> {
-		return this.session.raw.pause({ threadId: this.threadId });
+		return this.session.pause(this.threadId);
 	}
 
 	public terminate(): TPromise<any> {
-		return this.session.raw.terminateThreads({ threadIds: [this.threadId] });
+		return this.session.terminateThreads([this.threadId]);
 	}
 
 	public reverseContinue(): TPromise<any> {
-		return this.session.raw.reverseContinue({ threadId: this.threadId });
+		return this.session.reverseContinue(this.threadId);
 	}
 }
 

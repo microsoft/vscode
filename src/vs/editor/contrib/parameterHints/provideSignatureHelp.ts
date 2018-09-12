@@ -8,7 +8,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
+import * as modes from 'vs/editor/common/modes';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -17,13 +17,14 @@ export const Context = {
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(model: ITextModel, position: Position, token: CancellationToken): Promise<SignatureHelp> {
+export function provideSignatureHelp(model: ITextModel, position: Position, context: modes.SignatureHelpContext, token: CancellationToken): Promise<modes.SignatureHelp> {
 
-	const supports = SignatureHelpProviderRegistry.ordered(model);
+	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
 
 	return first2(supports.map(support => () => {
-		return Promise.resolve(support.provideSignatureHelp(model, position, token)).catch(onUnexpectedExternalError);
+		return Promise.resolve(support.provideSignatureHelp(model, position, token, context)).catch(onUnexpectedExternalError);
 	}));
 }
 
-registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) => provideSignatureHelp(model, position, CancellationToken.None));
+registerDefaultLanguageCommand('_executeSignatureHelpProvider', (model, position) =>
+	provideSignatureHelp(model, position, { triggerReason: modes.SignatureHelpTriggerReason.Invoke }, CancellationToken.None));

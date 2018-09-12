@@ -37,8 +37,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
-	private static readonly FILE_SEARCH_DELAY = 200;
-	private static readonly SYMBOL_SEARCH_DELAY = 500; // go easier on those symbols!
+	private static readonly TYPING_SEARCH_DELAY = 200; // This delay accommodates for the user typing a word and then stops typing to start searching
 
 	private static readonly MAX_DISPLAYED_RESULTS = 512;
 
@@ -57,7 +56,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		this.scorerCache = Object.create(null);
-		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.FILE_SEARCH_DELAY);
+		this.searchDelayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.TYPING_SEARCH_DELAY);
 
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
@@ -103,7 +102,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// The throttler needs a factory for its promises
-		const promiseFactory = () => {
+		const resultsPromise = () => {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
@@ -155,7 +154,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		};
 
 		// Trigger through delayer to prevent accumulation while the user is typing (except when expecting results to come from cache)
-		return this.hasShortResponseTime() ? promiseFactory() : this.searchDelayer.trigger(promiseFactory, this.includeSymbols ? OpenAnythingHandler.SYMBOL_SEARCH_DELAY : OpenAnythingHandler.FILE_SEARCH_DELAY);
+		return this.hasShortResponseTime() ? resultsPromise() : this.searchDelayer.trigger(resultsPromise, OpenAnythingHandler.TYPING_SEARCH_DELAY);
 	}
 
 	hasShortResponseTime(): boolean {

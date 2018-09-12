@@ -204,6 +204,11 @@ export class UninstallAction extends Action {
 			return;
 		}
 
+		if (state !== ExtensionState.Installed) {
+			this.enabled = false;
+			return;
+		}
+
 		if (installedExtensions[0].type !== LocalExtensionType.User) {
 			this.enabled = false;
 			return;
@@ -254,16 +259,6 @@ export class CombinedInstallAction extends Action {
 		if (!this.extension || this.extension.type === LocalExtensionType.System) {
 			this.enabled = false;
 			this.class = CombinedInstallAction.NoExtensionClass;
-		} else if (this.installAction.enabled) {
-			this.enabled = true;
-			this.label = this.installAction.label;
-			this.class = this.installAction.class;
-			this.tooltip = this.installAction.tooltip;
-		} else if (this.uninstallAction.enabled) {
-			this.enabled = true;
-			this.label = this.uninstallAction.label;
-			this.class = this.uninstallAction.class;
-			this.tooltip = this.uninstallAction.tooltip;
 		} else if (this.extension.state === ExtensionState.Installing) {
 			this.enabled = false;
 			this.label = this.installAction.label;
@@ -271,6 +266,16 @@ export class CombinedInstallAction extends Action {
 			this.tooltip = this.installAction.tooltip;
 		} else if (this.extension.state === ExtensionState.Uninstalling) {
 			this.enabled = false;
+			this.label = this.uninstallAction.label;
+			this.class = this.uninstallAction.class;
+			this.tooltip = this.uninstallAction.tooltip;
+		} else if (this.installAction.enabled) {
+			this.enabled = true;
+			this.label = this.installAction.label;
+			this.class = this.installAction.class;
+			this.tooltip = this.installAction.tooltip;
+		} else if (this.uninstallAction.enabled) {
+			this.enabled = true;
 			this.label = this.uninstallAction.label;
 			this.class = this.uninstallAction.class;
 			this.tooltip = this.uninstallAction.tooltip;

@@ -6,8 +6,8 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
+import { Git, CommitOptions } from './git';
+import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
@@ -24,14 +24,13 @@ const localize = nls.loadMessageBundle();
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	protected get treeish(): string | undefined { return this.ref.name; }
 	get label(): string { return this.ref.name || this.shortCommit; }
 	get description(): string { return this.shortCommit; }
 
 	constructor(protected ref: Ref) { }
 
 	async run(repository: Repository): Promise<void> {
-		const ref = this.treeish;
+		const ref = this.ref.name;
 
 		if (!ref) {
 			return;
@@ -54,13 +53,12 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	protected get treeish(): string | undefined {
+	async run(repository: Repository): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
 
-		const match = /^[^/]+\/(.*)$/.exec(this.ref.name);
-		return match ? match[1] : this.ref.name;
+		await repository.checkoutTracking(this.ref.name);
 	}
 }
 
@@ -572,13 +570,19 @@ export class CommandCenter {
 				viewColumn: ViewColumn.Active
 			};
 
+			const document = await workspace.openTextDocument(uri);
+
 			// Check if active text editor has same path as other editor. we cannot compare via
 			// URI.toString() here because the schemas can be different. Instead we just go by path.
 			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
+				// preserve not only selection but also visible range
 				opts.selection = activeTextEditor.selection;
+				const previousVisibleRanges = activeTextEditor.visibleRanges;
+				const editor = await window.showTextDocument(document, opts);
+				editor.revealRange(previousVisibleRanges[0]);
+			} else {
+				await window.showTextDocument(document, opts);
 			}
-
-			await commands.executeCommand<void>('vscode.open', uri, opts);
 		}
 	}
 
@@ -917,10 +921,20 @@ export class CommandCenter {
 				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
-				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				if (scmResources[0].type === Status.DELETED) {
+					yes = localize('restore file', "Restore file");
+					message = localize('confirm restore', "Are you sure you want to restore {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				} else {
+					message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				}
 			}
 		} else {
-			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", scmResources.length);
+			if (scmResources.every(resource => resource.type === Status.DELETED)) {
+				yes = localize('restore files', "Restore files");
+				message = localize('confirm restore multiple', "Are you sure you want to restore {0} files?", scmResources.length);
+			} else {
+				message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", scmResources.length);
+			}
 
 			if (untrackedCount > 0) {
 				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
@@ -1072,10 +1086,13 @@ export class CommandCenter {
 		}
 
 		if (
-			// no changes
-			(noStagedChanges && noUnstagedChanges)
-			// or no staged changes and not `all`
-			|| (!opts.all && noStagedChanges)
+			(
+				// no changes
+				(noStagedChanges && noUnstagedChanges)
+				// or no staged changes and not `all`
+				|| (!opts.all && noStagedChanges)
+			)
+			&& !opts.empty
 		) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
@@ -1166,6 +1183,28 @@ export class CommandCenter {
 	@command('git.commitAllAmend', { repository: true })
 	async commitAllAmend(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
+	}
+
+	@command('git.commitEmpty', { repository: true })
+	async commitEmpty(repository: Repository): Promise<void> {
+		const root = Uri.file(repository.root);
+		const config = workspace.getConfiguration('git', root);
+		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
+
+		if (shouldPrompt) {
+			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
+			const yes = localize('yes', "Yes");
+			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+			if (pick === neverAgain) {
+				await config.update('confirmEmptyCommits', false, true);
+			} else if (pick !== yes) {
+				return;
+			}
+		}
+
+		await this.commitWithAnyInput(repository, { empty: true });
 	}
 
 	@command('git.undoCommit', { repository: true })
@@ -1356,6 +1395,16 @@ export class CommandCenter {
 		}
 
 		await repository.fetchDefault();
+	}
+
+	@command('git.fetchAll', { repository: true })
+	async fetchAll(repository: Repository): Promise<void> {
+		if (repository.remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
+			return;
+		}
+
+		await repository.fetchAll();
 	}
 
 	@command('git.pullFrom', { repository: true })

@@ -116,7 +116,7 @@ export class ApiRepository implements Repository {
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		throw new Error('Method not implemented.');
+		return this._repository.getMergeBase(ref1, ref2);
 	}
 
 	status(): Promise<void> {

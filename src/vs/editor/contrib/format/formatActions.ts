@@ -285,6 +285,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 			FormattingEdit.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
+			editor.revealPositionInCenterIfOutsideViewport(editor.getPosition(), editorCommon.ScrollType.Immediate);
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
 				this._notifyNoProviderError(notificationService, editor.getModel().getLanguageIdentifier().language);

@@ -125,9 +125,7 @@ export function setFullscreen(fullscreen: boolean): void {
 export function isFullscreen(): boolean {
 	return WindowManager.INSTANCE.isFullscreen();
 }
-export function onDidChangeFullscreen(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
-}
+export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
 export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
 	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);

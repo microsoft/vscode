@@ -39,7 +39,7 @@ export function createBreadcrumbsPicker(instantiationService: IInstantiationServ
 }
 
 interface ILayoutInfo {
-	// height: number;
+	maxHeight: number;
 	width: number;
 	arrowSize: number;
 	arrowOffset: number;
@@ -150,11 +150,11 @@ export abstract class BreadcrumbsPicker {
 		this._focus.dispose();
 	}
 
-	setInput(input: any, height: number, width: number, arrowSize: number, arrowOffset: number): void {
+	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
 		let actualInput = this._getInput(input);
 		this._tree.setInput(actualInput).then(() => {
 
-			this._layoutInfo = { width, arrowSize, arrowOffset, inputHeight: 0 };
+			this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
 			this._layout();
 
 			// use proper selection, reveal
@@ -180,8 +180,9 @@ export abstract class BreadcrumbsPicker {
 		let nav = this._tree.getNavigator(undefined, false);
 		while (nav.next() && count < 13) { count += 1; }
 
-		let treeHeight = count * 22;
-		let totalHeight = treeHeight + 2 + info.arrowSize;
+		let headerHeight = 2 * info.arrowSize;
+		let treeHeight = Math.min(info.maxHeight - headerHeight, count * 22);
+		let totalHeight = treeHeight + headerHeight;
 
 		this._domNode.style.height = `${totalHeight}px`;
 		this._domNode.style.width = `${info.width}px`;

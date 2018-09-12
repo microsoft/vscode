@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
@@ -24,7 +23,6 @@ import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/action
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { forEach } from 'vs/base/common/collections';
 import { mergeSort } from 'vs/base/common/arrays';
-
 
 class Info {
 
@@ -158,7 +156,7 @@ export class ShowStartupPerformance extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Promise<boolean> {
 
 		// Show dev tools
 		this.windowService.openDevTools();
@@ -217,7 +215,7 @@ export class ShowStartupPerformance extends Action {
 			console.groupEnd();
 		});
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -238,7 +236,7 @@ export class ReportPerformanceIssueAction extends Action {
 		super(id, label);
 	}
 
-	run(appendix?: string): TPromise<boolean> {
+	run(appendix?: string): Promise<boolean> {
 		Promise.all([
 			this.timerService.startupMetrics,
 			this.integrityService.isPure()
@@ -248,7 +246,7 @@ export class ReportPerformanceIssueAction extends Action {
 			window.open(issueUrl);
 		});
 
-		return TPromise.wrap(true);
+		return Promise.resolve(true);
 	}
 
 	private generatePerformanceIssueUrl(metrics: IStartupMetrics, baseUrl: string, name: string, version: string, _commit: string, _date: string, isPure: boolean, appendix?: string): string {
