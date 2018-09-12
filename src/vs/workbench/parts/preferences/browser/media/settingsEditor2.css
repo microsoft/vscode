@@ -491,19 +491,6 @@
 	padding-top: 7px;
 }
 
-.settings-editor > .settings-body .settings-feedback-button {
-	color: rgb(255, 255, 255);
-	background-color: rgb(14, 99, 156);
-	position: absolute;
-	bottom: 0;
-	right: 0;
-	width: initial;
-	margin-right: 15px;
-	margin-bottom: 15px;
-	padding: 10px;
-	border-radius: 5px;
-}
-
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
 	display: block;
 }
