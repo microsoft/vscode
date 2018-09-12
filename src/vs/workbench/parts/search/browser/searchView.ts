@@ -8,7 +8,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
@@ -264,11 +263,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this.inputPatternIncludes.setValue(patternIncludes);
 
-		this.inputPatternIncludes.on(FindInput.OPTION_CHANGE, (e) => {
-			this.onQueryChanged(false);
-		});
-
-		this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true, true));
+		this.inputPatternIncludes.onSubmit(() => this.onQueryChanged(true));
 		this.inputPatternIncludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
@@ -284,13 +279,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.inputPatternExcludes.setValue(patternExclusions);
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
 
-		this.inputPatternExcludes
-			.on(FindInput.OPTION_CHANGE, (e) => {
-				this.onQueryChanged(false);
-			});
-
-		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
-		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true, true));
+		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
+		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
 		this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 
@@ -356,9 +346,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			this.searchWidget.toggleReplace(true);
 		}
 
-		this._register(this.searchWidget.onSearchSubmit((refresh) => this.onQueryChanged(refresh)));
+		this._register(this.searchWidget.onSearchSubmit(() => this.onQueryChanged()));
 		this._register(this.searchWidget.onSearchCancel(() => this.cancelSearch()));
-		this._register(this.searchWidget.searchInput.onDidOptionChange((viaKeyboard) => this.onQueryChanged(true, viaKeyboard)));
+		this._register(this.searchWidget.searchInput.onDidOptionChange((viaKeyboard) => this.onQueryChanged(viaKeyboard)));
 
 		this._register(this.searchWidget.onReplaceToggled(() => this.onReplaceToggled()));
 		this._register(this.searchWidget.onReplaceStateChange((state) => {
@@ -949,17 +939,17 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	public toggleCaseSensitive(): void {
 		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
-		this.onQueryChanged(true, true);
+		this.onQueryChanged(true);
 	}
 
 	public toggleWholeWords(): void {
 		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
-		this.onQueryChanged(true, true);
+		this.onQueryChanged(true);
 	}
 
 	public toggleRegex(): void {
 		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
-		this.onQueryChanged(true, true);
+		this.onQueryChanged(true);
 	}
 
 	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
@@ -1042,7 +1032,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searchWidget.focus(false);
 	}
 
-	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
+	public onQueryChanged(preserveFocus?: boolean): void {
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1050,10 +1040,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const excludePatternText = this.inputPatternExcludes.getValue().trim();
 		const includePatternText = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-
-		if (!rerunQuery) {
-			return;
-		}
 
 		if (contentPattern.length === 0) {
 			return;
@@ -1241,7 +1227,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					const searchAgainLink = dom.append(p, $('a.pointer.prominent', undefined, nls.localize('rerunSearch.message', "Search again")));
 					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
-						this.onQueryChanged(true);
+						this.onQueryChanged();
 					}));
 				} else if (hasIncludes || hasExcludes) {
 					const searchAgainLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
@@ -1251,7 +1237,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 						this.inputPatternExcludes.setValue('');
 						this.inputPatternIncludes.setValue('');
 
-						this.onQueryChanged(true);
+						this.onQueryChanged();
 					}));
 				} else {
 					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
