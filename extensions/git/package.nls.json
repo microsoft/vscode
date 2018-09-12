@@ -85,7 +85,7 @@
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"colors.added": "Color for added resources.",
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
-	"config.showStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
+	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
 	"config.alwaysSignOff": "Controls the signoff flag for all commits.",
 	"config.ignoredRepositories": "List of git repositories to ignore.",
 	"config.showProgress": "Controls whether git actions should show progress.",

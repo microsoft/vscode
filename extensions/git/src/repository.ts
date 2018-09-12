@@ -589,7 +589,8 @@ export class Repository implements Disposable {
 		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		this._sourceControl = scm.createSourceControl('git', 'Git', Uri.file(repository.root));
+		const root = Uri.file(repository.root);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
@@ -600,9 +601,14 @@ export class Repository implements Disposable {
 		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
 
-		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showStagedChangesResourceGroup'));
-		onConfigListener(this.showStagedChangesResourceGroup, this, this.disposables);
-		this.showStagedChangesResourceGroup();
+		const updateIndexGroupVisibility = () => {
+			const config = workspace.getConfiguration('git', root);
+			this.indexGroup.hideWhenEmpty = !config.get<boolean>('alwaysShowStagedChangesResourceGroup');
+		};
+
+		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.alwaysShowStagedChangesResourceGroup', root));
+		onConfigListener(updateIndexGroupVisibility, this, this.disposables);
+		updateIndexGroupVisibility();
 
 		this.mergeGroup.hideWhenEmpty = true;
 
@@ -713,12 +719,6 @@ export class Repository implements Disposable {
 
 	setConfig(key: string, value: string): Promise<string> {
 		return this.run(Operation.Config, () => this.repository.config('local', key, value));
-	}
-
-	private showStagedChangesResourceGroup(): void {
-		const config = workspace.getConfiguration('git');
-		const gitShowStagedChangesResourceGroup = config.get<string>('showStagedChangesResourceGroup');
-		this.indexGroup.hideWhenEmpty = !gitShowStagedChangesResourceGroup;
 	}
 
 	@throttle
