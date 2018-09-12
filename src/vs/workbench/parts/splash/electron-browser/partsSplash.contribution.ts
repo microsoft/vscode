@@ -102,6 +102,11 @@ class PartsSplash {
 		if (element) {
 			element.remove();
 		}
+		// remove initial colors
+		let defaultStyles = document.head.getElementsByClassName('initialShellColors');
+		if (defaultStyles.length) {
+			document.head.removeChild(defaultStyles[0]);
+		}
 	}
 }
 

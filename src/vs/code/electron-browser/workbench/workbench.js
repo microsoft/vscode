@@ -81,6 +81,7 @@ function showPartsSplash(configuration) {
 	const shellBackground = data ? data.colorInfo.editorBackground : configuration.highContrast ? '#000000' : '#1E1E1E';
 	const shellForeground = data ? data.colorInfo.foreground : configuration.highContrast ? '#FFFFFF' : '#CCCCCC';
 	const style = document.createElement('style');
+	style.className = 'initialShellColors';
 	document.head.appendChild(style);
 	document.body.className = `monaco-shell ${baseTheme}`;
 	style.innerHTML = `.monaco-shell { background-color: ${shellBackground}; color: ${shellForeground}; }`;
