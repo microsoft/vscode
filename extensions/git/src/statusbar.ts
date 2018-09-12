@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Disposable, Command, EventEmitter, Event, workspace } from 'vscode';
+import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
@@ -104,7 +104,7 @@ class SyncStatusBar {
 					text += this.repository.syncLabel;
 				}
 
-				const config = workspace.getConfiguration('git');
+				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
 
 				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
