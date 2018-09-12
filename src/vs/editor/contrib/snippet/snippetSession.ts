@@ -220,9 +220,11 @@ export class OneSnippet {
 				// Massage placeholder-indicies of the nested snippet to be
 				// sorted right after the insertion point. This ensures we move
 				// through the placeholders in the correct order
+				const indexLastPlaceholder = nested._snippet.placeholderInfo.last.index;
+
 				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
 					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + ((nested._snippet.placeholderInfo.last.index + 1) / this._nestingLevel);
+						nestedPlaceholder.index = placeholder.index + ((indexLastPlaceholder + 1) / this._nestingLevel);
 					} else {
 						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
 					}
