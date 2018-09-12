@@ -4814,7 +4814,10 @@ declare module 'vscode' {
 		executable?: string;
 
 		/**
-		 * The arguments to be passed to the shell executable used to run the task.
+		 * The arguments to be passed to the shell executable used to run the task. Most shells
+		 * require special arguments to execute a command. For  example `bash` requires the `-c`
+		 * argument to execute a command, `PowerShell` requires `-Command` and `cmd` requires both
+		 * `/d` and `/c`.
 		 */
 		shellArgs?: string[];
 
