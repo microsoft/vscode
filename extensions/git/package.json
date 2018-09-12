@@ -261,6 +261,11 @@
         "category": "Git"
       },
       {
+        "command": "git.fetchAll",
+        "title": "%command.fetchAll%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -492,6 +497,10 @@
         },
         {
           "command": "git.fetch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.fetchAll",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {

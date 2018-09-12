@@ -900,8 +900,13 @@ export class Repository implements Disposable {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
+	@throttle
+	async fetchAll(): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
+	}
+
 	async fetch(remote?: string, ref?: string): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch());
+		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref }));
 	}
 
 	@throttle

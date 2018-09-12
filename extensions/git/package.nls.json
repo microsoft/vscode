@@ -36,6 +36,7 @@
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
 	"command.fetch": "Fetch",
+	"command.fetchAll": "Fetch From All Remotes",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.pullFrom": "Pull from...",
