@@ -41,11 +41,11 @@ import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree,
 import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 const $ = DOM.$;
 
 export class SettingsEditor2 extends BaseEditor {
@@ -76,6 +76,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
+
+	private settingsAriaExtraLabelsContainer: HTMLElement;
 
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
@@ -112,7 +114,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -148,6 +151,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this._searchResultModel = value;
 
 		DOM.toggleClass(this.rootElement, 'search-mode', !!this._searchResultModel);
+	}
+
+	private get currentSettingsContextMenuKeyBindingLabel() {
+		return this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU).getLabel();
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -236,6 +243,16 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	focusSettings(): void {
+		// Update ARIA global labels
+		const labelElement = this.settingsAriaExtraLabelsContainer.querySelector('#settings_aria_more_actions_shortcut_label');
+		if (labelElement) {
+			const settingsContextMenuShortcut = this.currentSettingsContextMenuKeyBindingLabel;
+			if (settingsContextMenuShortcut) {
+				const settingsMoreActionsLabel = localize('settingsContextMenuAriaShortcut', "For more actions, Press ");
+				labelElement.setAttribute('aria-label', settingsMoreActionsLabel + settingsContextMenuShortcut);
+			}
+		}
+
 		const firstFocusable = this.settingsTree.getHTMLElement().querySelector(SettingsRenderer.CONTROL_SELECTOR);
 		if (firstFocusable) {
 			(<HTMLElement>firstFocusable).focus();
@@ -502,6 +519,14 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
+
+		// Add  ARIA extra labels div
+		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
+		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
+		// Add global labels here
+		const labelDiv = DOM.append(this.settingsAriaExtraLabelsContainer, $('.settings-aria-extra-label'));
+		labelDiv.id = 'settings_aria_more_actions_shortcut_label';
+		labelDiv.setAttribute('aria-label', '');
 
 		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));

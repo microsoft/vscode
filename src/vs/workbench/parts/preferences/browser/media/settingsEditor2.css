@@ -503,3 +503,7 @@
 	padding: 10px;
 	border-radius: 5px;
 }
+
+.settings-editor.search-mode > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-count {
+	display: block;
+}
