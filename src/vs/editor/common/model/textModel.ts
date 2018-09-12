@@ -2787,29 +2787,19 @@ export class ModelDecorationOverviewRulerOptions implements model.IModelDecorati
 	private _resolvedColor: string;
 
 	constructor(options: model.IModelDecorationOverviewRulerOptions) {
-		this.color = strings.empty;
-		this.darkColor = strings.empty;
-		this.position = model.OverviewRulerLane.Center;
+		this.color = options.color || strings.empty;
+		this.darkColor = options.darkColor || strings.empty;
+		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 		this._resolvedColor = null;
-
-		if (options && options.color) {
-			this.color = options.color;
-			if (typeof options.color !== 'string') {
-				this.darkColor = options.color;
-			}
-		}
-		if (options && options.darkColor) {
-			this.darkColor = options.darkColor;
-		}
-		if (options && typeof options.position === 'number') {
-			this.position = options.position;
-		}
 	}
 
 	public getColor(theme: ITheme): string {
 		if (!this._resolvedColor) {
-			const color = (theme.type === 'light' ? this.color : this.darkColor);
-			this._resolvedColor = this._resolveColor(color, theme);
+			if (theme.type !== 'light' && this.darkColor) {
+				this._resolvedColor = this._resolveColor(this.darkColor, theme);
+			} else {
+				this._resolvedColor = this._resolveColor(this.color, theme);
+			}
 		}
 		return this._resolvedColor;
 	}
