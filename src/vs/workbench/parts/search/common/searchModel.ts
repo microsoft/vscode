@@ -27,6 +27,8 @@ import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 
 export class Match {
 
+	private static readonly MAX_PREVIEW_CHARS = 250;
+
 	private _id: string;
 	private _range: Range;
 	private _previewText: string;
@@ -66,9 +68,14 @@ export class Match {
 	}
 
 	public preview(): { before: string; inside: string; after: string; } {
-		const before = this._previewText.substring(0, this._rangeInPreviewText.startColumn - 1),
+		let before = this._previewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
 			after = this._previewText.substring(this._rangeInPreviewText.endColumn - 1);
+
+		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
+		inside = inside.substr(0, charsRemaining);
+		charsRemaining -= inside.length;
+		after = after.substr(0, charsRemaining);
 
 		return {
 			before,
