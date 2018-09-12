@@ -1034,6 +1034,12 @@
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
         },
+        "git.showStagedChangesResourceGroup": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.showStagedChangesResourceGroup%"
+        },
         "git.alwaysSignOff": {
           "type": "boolean",
           "scope": "resource",

@@ -600,8 +600,11 @@ export class Repository implements Disposable {
 		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
 
+		const onConfigListener = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showStagedChangesResourceGroup'));
+		onConfigListener(this.showStagedChangesResourceGroup, this, this.disposables);
+		this.showStagedChangesResourceGroup();
+
 		this.mergeGroup.hideWhenEmpty = true;
-		this.indexGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
@@ -710,6 +713,12 @@ export class Repository implements Disposable {
 
 	setConfig(key: string, value: string): Promise<string> {
 		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+	}
+
+	private showStagedChangesResourceGroup(): void {
+		const config = workspace.getConfiguration('git');
+		const gitShowStagedChangesResourceGroup = config.get<string>('showStagedChangesResourceGroup');
+		this.indexGroup.hideWhenEmpty = !gitShowStagedChangesResourceGroup;
 	}
 
 	@throttle
