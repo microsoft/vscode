@@ -102,7 +102,7 @@ export class Menu extends ActionBar {
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OUT, e => {
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
