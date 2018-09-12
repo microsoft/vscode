@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Disposable, Command, EventEmitter, Event } from 'vscode';
+import { Disposable, Command, EventEmitter, Event, workspace } from 'vscode';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
@@ -100,10 +100,18 @@ class SyncStatusBar {
 
 		if (HEAD && HEAD.name && HEAD.commit) {
 			if (HEAD.upstream) {
+				const config = workspace.getConfiguration('git');
+				const gitSyncRebase = config.get<string>('syncRebase');
+
 				if (HEAD.ahead || HEAD.behind) {
 					text += this.repository.syncLabel;
 				}
-				command = 'git.sync';
+
+				if (gitSyncRebase) {
+					command = 'git.syncRebase';
+				} else {
+					command = 'git.sync';
+				}
 				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';

@@ -1051,6 +1051,12 @@
           "description": "%config.showProgress%",
           "default": true,
           "scope": "resource"
+        },
+        "git.syncRebase": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.syncRebase%"
         }
       }
     },
