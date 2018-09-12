@@ -550,6 +550,32 @@ suite('Editor Model - TextModel', () => {
 		]);
 	});
 
+	test('issue #55818: Broken indentation detection', () => {
+		assertGuess(true, 2, [
+			'',
+			'/* REQUIRE */',
+			'',
+			'const foo = require ( \'foo\' ),',
+			'      bar = require ( \'bar\' );',
+			'',
+			'/* MY FN */',
+			'',
+			'function myFn () {',
+			'',
+			'  const asd = 1,',
+			'        dsa = 2;',
+			'',
+			'  return bar ( foo ( asd ) );',
+			'',
+			'}',
+			'',
+			'/* EXPORT */',
+			'',
+			'module.exports = myFn;',
+			'',
+		]);
+	});
+
 	test('validatePosition', () => {
 
 		let m = TextModel.createFromString('line one\nline two');
