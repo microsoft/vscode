@@ -99,6 +99,7 @@ export class ContextView extends Disposable {
 
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
+	private static readonly ANCHOR_RADIUS = 2;
 
 	private container: HTMLElement;
 	private view: HTMLElement;
@@ -229,9 +230,9 @@ export class ContextView extends Disposable {
 		let horizontalAnchor: ILayoutAnchor;
 
 		if (anchorAlignment === AnchorAlignment.LEFT) {
-			horizontalAnchor = { offset: around.left, size: 0, position: LayoutAnchorPosition.Before };
+			horizontalAnchor = { offset: around.left - ContextView.ANCHOR_RADIUS, size: 2 * ContextView.ANCHOR_RADIUS, position: LayoutAnchorPosition.Before };
 		} else {
-			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
+			horizontalAnchor = { offset: around.left + around.width + ContextView.ANCHOR_RADIUS, size: ContextView.ANCHOR_RADIUS, position: LayoutAnchorPosition.After };
 		}
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
