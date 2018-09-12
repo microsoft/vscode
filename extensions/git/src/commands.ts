@@ -921,10 +921,20 @@ export class CommandCenter {
 				message = localize('confirm delete', "Are you sure you want to DELETE {0}?", path.basename(scmResources[0].resourceUri.fsPath));
 				yes = localize('delete file', "Delete file");
 			} else {
-				message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				if (scmResources[0].type === Status.DELETED) {
+					yes = localize('restore file', "Restore file");
+					message = localize('confirm restore', "Are you sure you want to restore {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				} else {
+					message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+				}
 			}
 		} else {
-			message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", scmResources.length);
+			if (scmResources.every(resource => resource.type === Status.DELETED)) {
+				yes = localize('restore files', "Restore files");
+				message = localize('confirm restore multiple', "Are you sure you want to restore {0} files?", scmResources.length);
+			} else {
+				message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", scmResources.length);
+			}
 
 			if (untrackedCount > 0) {
 				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!", untrackedCount)}`;
