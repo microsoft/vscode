@@ -106,18 +106,21 @@ export class OneSnippet {
 			}
 		}
 
+		let skipThisPlaceholder = false;
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
+			skipThisPlaceholder = true;
 
 		} else if (fwd === false && this._placeholderGroupsIdx > 0) {
 			this._placeholderGroupsIdx -= 1;
+			skipThisPlaceholder = true;
 
 		} else {
 			// the selection of the current placeholder might
 			// not acurate any more -> simply restore it
 		}
 
-		return this._editor.getModel().changeDecorations(accessor => {
+		const newSelections = this._editor.getModel().changeDecorations(accessor => {
 
 			const activePlaceholders = new Set<Placeholder>();
 
@@ -131,6 +134,11 @@ export class OneSnippet {
 				const id = this._placeholderDecorations.get(placeholder);
 				const range = this._editor.getModel().getDecorationRange(id);
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+
+				// consider to skip this placeholder index when the decoration
+				// range is empty but when the placeholder wasn't. that's a strong
+				// hint that the placeholder has been deleted. (all placeholder must match this)
+				skipThisPlaceholder = skipThisPlaceholder && (range.isEmpty() && placeholder.toString().length > 0);
 
 				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 				activePlaceholders.add(placeholder);
@@ -152,6 +160,8 @@ export class OneSnippet {
 
 			return selections;
 		});
+
+		return !skipThisPlaceholder ? newSelections : this.move(fwd);
 	}
 
 	get isAtFirstPlaceholder() {

@@ -12,6 +12,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { Handler } from 'vs/editor/common/editorCommon';
 
 suite('SnippetController2', function () {
 
@@ -345,6 +346,21 @@ suite('SnippetController2', function () {
 
 		ctrl.next();
 		assertSelections(editor, new Selection(1, 49, 1, 49));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Must tab through deleted tab stops in snippets #31619', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		ctrl.insert('foo${1:a${2:bar}baz}end$0');
+		assertSelections(editor, new Selection(1, 4, 1, 11));
+
+		editor.trigger('test', Handler.Cut, null);
+		assertSelections(editor, new Selection(1, 4, 1, 4));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7));
 		assertContextKeys(contextKeys, false, false, false);
 	});
 });
