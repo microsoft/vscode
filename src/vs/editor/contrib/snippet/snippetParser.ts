@@ -796,9 +796,10 @@ export class SnippetParser {
 			}
 			let value: string;
 			if (value = this._accept(TokenType.Backslash, true)) {
-				// \, or \|
+				// \, \|, or \\
 				value = this._accept(TokenType.Comma, true)
 					|| this._accept(TokenType.Pipe, true)
+					|| this._accept(TokenType.Backslash, true)
 					|| value;
 			} else {
 				value = this._accept(undefined, true);
