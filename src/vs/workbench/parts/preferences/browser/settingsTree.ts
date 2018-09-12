@@ -393,6 +393,21 @@ export class SettingsRenderer implements ITreeRenderer {
 			this.instantiationService.createInstance(CopySettingIdAction),
 			this.instantiationService.createInstance(CopySettingAsJSONAction),
 		];
+
+		const p = _measureContainer.parentElement;
+		// const extraLabelsContainer: HTMLElement = document.querySelector('.settings-aria-extra-labels');
+		// const e = document.getElementById('settings_aria_extra_labels');
+		const labelDiv = DOM.append(p, $('.settings-aria-extra-label'));
+		labelDiv.id = 'settings_aria_more_actions_shortcut_label';
+		const toggleMenuKeybinding = this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
+		let settingsMoreActionsLabel = localize('settingsContextMenuAriaShortcut', "More Actions... ");
+		if (toggleMenuKeybinding) {
+			settingsMoreActionsLabel += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
+			labelDiv.setAttribute('aria-label', settingsMoreActionsLabel);
+
+		}
+
+
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
@@ -823,10 +838,12 @@ export class SettingsRenderer implements ITreeRenderer {
 	private renderSettingEnumTemplate(tree: ITree, container: HTMLElement): ISettingEnumItemTemplate {
 		const common = this.renderCommonTemplate(tree, container, 'enum');
 
+		console.warn('start c ' + common.labelElement.getAttribute('aria-label1'));
 		const selectBox = new SelectBox([], undefined, this.contextViewService, undefined, {
 			hasDetails: true
 		});
 
+		console.warn('en c');
 		common.toDispose.push(selectBox);
 		common.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService, {
 			selectBackground: settingsSelectBackground,
@@ -1223,7 +1240,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.id = baseId + '_setting_item';
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description');
+		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 
 		renderValidations(dataElement, template, true, label);
 	}

@@ -77,6 +77,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
 
+	private settingsAriaExtraLabelsContainer: HTMLElement;
+
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
@@ -502,6 +504,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
+
+		// CDL extra labels div
+		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
+		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
 
 		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
