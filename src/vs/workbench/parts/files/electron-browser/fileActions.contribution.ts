@@ -126,7 +126,8 @@ const copyRelativePathCommand = {
 
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
-appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, copyRelativePathCommand);
+appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource);
+appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource);
 appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
 function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, alt?: { id: string, title: string }): void {
@@ -427,7 +428,13 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '5_cutcopypaste',
 	order: 30,
 	command: copyPathCommand,
-	alt: copyRelativePathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '5_cutcopypaste',
+	order: 30,
+	command: copyRelativePathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
