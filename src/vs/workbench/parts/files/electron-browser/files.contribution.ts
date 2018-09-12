@@ -248,6 +248,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.enableTrash': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('useTrash', "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.")
+		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,

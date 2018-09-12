@@ -25,6 +25,7 @@ import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/pro
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class Recording {
 
@@ -233,7 +234,8 @@ export class BulkEdit {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILabelService private readonly _uriLabelServie: ILabelService
+		@ILabelService private readonly _uriLabelServie: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -316,7 +318,7 @@ export class BulkEdit {
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
 				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
-					await this._textFileService.delete(edit.oldUri, { useTrash: true, recursive: options.recursive });
+					await this._textFileService.delete(edit.oldUri, { useTrash: this._configurationService.getValue<boolean>('files.enableTrash'), recursive: options.recursive });
 				}
 
 			} else if (edit.newUri && !edit.oldUri) {
@@ -369,7 +371,8 @@ export class BulkEditService implements IBulkEditService {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
 	}
@@ -400,7 +403,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
 		bulkEdit.add(edits);
 
 		return TPromise.wrap(bulkEdit.perform().then(() => {

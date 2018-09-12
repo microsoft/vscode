@@ -64,7 +64,7 @@ const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ContextKeyExpr.has('config.files.enableTrash')),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -76,10 +76,21 @@ const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ContextKeyExpr.has('config.files.enableTrash')),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
+	},
+	handler: deleteFileHandler
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: DELETE_FILE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ContextKeyExpr.not('config.files.enableTrash')),
+	primary: KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace
 	},
 	handler: deleteFileHandler
 });
@@ -474,7 +485,18 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		title: nls.localize('deleteFile', "Delete Permanently"),
 		precondition: ExplorerResourceNotReadonlyContext
 	},
-	when: ExplorerRootContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ContextKeyExpr.has('config.files.enableTrash'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '7_modification',
+	order: 20,
+	command: {
+		id: DELETE_FILE_ID,
+		title: nls.localize('deleteFile', "Delete Permanently"),
+		precondition: ExplorerResourceNotReadonlyContext
+	},
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ContextKeyExpr.not('config.files.enableTrash'))
 });
 
 // Empty Editor Group Context Menu
