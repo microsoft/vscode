@@ -694,7 +694,7 @@ export class SettingsEditor2 extends BaseEditor {
 		};
 
 		/* __GDPR__
-			"settingsEditor.settingModified2" : {
+			"settingsEditor.settingModified<NUMBER>" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -1018,7 +1018,7 @@ export class SettingsEditor2 extends BaseEditor {
 		};
 
 		/* __GDPR__
-			"settingsEditor.filter2" : {
+			"settingsEditor.filter<NUMBER>" : {
 				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
