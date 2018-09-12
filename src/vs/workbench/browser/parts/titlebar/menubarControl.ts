@@ -787,13 +787,12 @@ export class MenubarControl extends Disposable {
 
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_UP, (e) => {
 					if (!this.ignoreNextMouseUp) {
-						this.onMenuTriggered(menuIndex, true);
+						if (this.isFocused) {
+							this.onMenuTriggered(menuIndex, true);
+						}
 					} else {
 						this.ignoreNextMouseUp = false;
 					}
-
-					e.preventDefault();
-					e.stopPropagation();
 				}));
 
 				this._register(DOM.addDisposableListener(this.customMenus[menuIndex].buttonElement, DOM.EventType.MOUSE_ENTER, () => {
