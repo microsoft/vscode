@@ -27,7 +27,7 @@ export interface IPanelStyles {
 	dropBackground?: Color;
 	headerForeground?: Color;
 	headerBackground?: Color;
-	headerHighContrastBorder?: Color;
+	headerBorder?: Color;
 }
 
 /**
@@ -218,7 +218,7 @@ export abstract class Panel implements IView {
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
 		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerHighContrastBorder ? `1px solid ${this.styles.headerHighContrastBorder}` : null;
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
 		this._dropBackground = this.styles.dropBackground;
 	}
 
