@@ -29,6 +29,9 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	private readonly _onDiffEditorRemove: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
 	public readonly onDiffEditorRemove: Event<IDiffEditor> = this._onDiffEditorRemove.event;
 
+	private readonly _onDidChangeTransientModelProperty: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
+	public readonly onDidChangeTransientModelProperty: Event<ITextModel> = this._onDidChangeTransientModelProperty.event;
+
 
 	private _codeEditors: { [editorId: string]: ICodeEditor; };
 	private _diffEditors: { [editorId: string]: IDiffEditor; };
@@ -107,6 +110,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 
 		w.set(key, value);
+		this._onDidChangeTransientModelProperty.fire(model);
 	}
 
 	public getTransientModelProperty(model: ITextModel, key: string): any {

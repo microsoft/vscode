@@ -114,23 +114,6 @@ function toggleWordWrap(editor: ICodeEditor, state: IWordWrapState): IWordWrapSt
 	};
 }
 
-function applyWordWrapState(editor: ICodeEditor, state: IWordWrapState): void {
-	if (state.transientState) {
-		// toggle is on
-		editor.updateOptions({
-			wordWrap: state.transientState.forceWordWrap,
-			wordWrapMinified: state.transientState.forceWordWrapMinified
-		});
-		return;
-	}
-
-	// toggle is off
-	editor.updateOptions({
-		wordWrap: state.configuredWordWrap,
-		wordWrapMinified: state.configuredWordWrapMinified
-	});
-}
-
 const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
 class ToggleWordWrapAction extends EditorAction {
 
@@ -170,9 +153,8 @@ class ToggleWordWrapAction extends EditorAction {
 		// Compute the new state
 		const newState = toggleWordWrap(editor, currentState);
 		// Write the new state
+		// (this will cause an event and the controller will apply the state)
 		writeTransientState(model, newState.transientState, codeEditorService);
-		// Apply the new state
-		applyWordWrapState(editor, newState);
 	}
 }
 
@@ -212,6 +194,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			ensureWordWrapSettings();
 		}));
 
+		this._register(codeEditorService.onDidChangeTransientModelProperty(() => {
+			ensureWordWrapSettings();
+		}));
+
 		const ensureWordWrapSettings = () => {
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
@@ -234,11 +220,28 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			// Apply the state
 			try {
 				currentlyApplyingEditorConfig = true;
-				applyWordWrapState(editor, desiredState);
+				this._applyWordWrapState(desiredState);
 			} finally {
 				currentlyApplyingEditorConfig = false;
 			}
 		};
+	}
+
+	private _applyWordWrapState(state: IWordWrapState): void {
+		if (state.transientState) {
+			// toggle is on
+			this.editor.updateOptions({
+				wordWrap: state.transientState.forceWordWrap,
+				wordWrapMinified: state.transientState.forceWordWrapMinified
+			});
+			return;
+		}
+
+		// toggle is off
+		this.editor.updateOptions({
+			wordWrap: state.configuredWordWrap,
+			wordWrapMinified: state.configuredWordWrapMinified
+		});
 	}
 
 	private _isWordWrapMinified(config: InternalEditorOptions): boolean {
