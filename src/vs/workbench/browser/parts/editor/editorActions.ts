@@ -1148,13 +1148,16 @@ export class ClearRecentFilesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private windowsService: IWindowsService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<any> {
 		this.windowsService.clearRecentlyOpened();
+
+		this.historyService.clear();
 
 		return TPromise.as(false);
 	}
