@@ -209,7 +209,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		} else {
 			let selection = this._editor.getSelection();
 			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+				selection = selection.setEndPosition(selection.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
 			}
 			if (!selection.isEmpty()) {
 				this._state.change({ searchScope: selection }, true);
