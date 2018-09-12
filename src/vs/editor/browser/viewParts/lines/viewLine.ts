@@ -576,20 +576,16 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 
 		// WebKit is buggy and returns an expanded range (to contain words in some cases)
 		// The last client rect is enlarged (I think)
-
-		// This is an attempt to patch things up
-		// Find position of previous column
-		let beforeEndPixelOffset = this._readPixelOffset(endColumn - 1, context);
-		// Find position of last column
-		let endPixelOffset = this._readPixelOffset(endColumn, context);
-
-		if (beforeEndPixelOffset !== -1 && endPixelOffset !== -1) {
-			let isLTR = (beforeEndPixelOffset <= endPixelOffset);
-			let lastRange = output[output.length - 1];
-
-			if (isLTR && lastRange.left < endPixelOffset) {
-				// Trim down the width of the last visible range to not go after the last column's position
-				lastRange.width = endPixelOffset - lastRange.left;
+		if (!this.input.containsRTL) {
+			// This is an attempt to patch things up
+			// Find position of last column
+			let endPixelOffset = this._readPixelOffset(endColumn, context);
+			if (endPixelOffset !== -1) {
+				let lastRange = output[output.length - 1];
+				if (lastRange.left < endPixelOffset) {
+					// Trim down the width of the last visible range to not go after the last column's position
+					lastRange.width = endPixelOffset - lastRange.left;
+				}
 			}
 		}
 
