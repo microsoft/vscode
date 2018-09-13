@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git, CommitOptions } from './git';
+import { Git, CommitOptions, Stash } from './git';
 import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -1701,22 +1701,14 @@ export class CommandCenter {
 
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
-		const stashes = await repository.getStashes();
-
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
-			return;
-		}
-
-		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
 		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const stash = await this.pickStash(repository, placeHolder);
 
-		if (!choice) {
+		if (!stash) {
 			return;
 		}
 
-		await repository.popStash(choice.id);
+		await repository.popStash(stash.index);
 	}
 
 	@command('git.stashPopLatest', { repository: true })
@@ -1724,11 +1716,48 @@ export class CommandCenter {
 		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
 			return;
 		}
 
 		await repository.popStash();
+	}
+
+	@command('git.stashApply', { repository: true })
+	async stashApply(repository: Repository): Promise<void> {
+		const placeHolder = localize('pick stash to apply', "Pick a stash to apply");
+		const stash = await this.pickStash(repository, placeHolder);
+
+		if (!stash) {
+			return;
+		}
+
+		await repository.applyStash(stash.index);
+	}
+
+	@command('git.stashApplyLatest', { repository: true })
+	async stashApplyLatest(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		await repository.applyStash();
+	}
+
+	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
+		const result = await window.showQuickPick(picks, { placeHolder });
+		return result && result.stash;
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
