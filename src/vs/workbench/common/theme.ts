@@ -449,6 +449,12 @@ export const MENU_SELECTION_BORDER = registerColor('menu.selectionBorder', {
 	hc: null
 }, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
 
+export const MENUBAR_SEPARATOR_BACKGROUND = registerColor('menu.separatorBackground', {
+	dark: '#BBBBBB',
+	light: '#888888',
+	hc: contrastBorder
+}, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
+
 // < --- Notifications --- >
 
 export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationCenter.border', {
