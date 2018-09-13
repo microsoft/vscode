@@ -75,17 +75,13 @@ ms@2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
 
-request-light@^0.2.3:
-  version "0.2.3"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.3.tgz#a18635ec6dd92f8705c019c42ef645f684d94f7e"
+request-light@^0.2.4:
+  version "0.2.4"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.4.tgz#3cea29c126682e6bcadf7915353322eeba01a755"
   dependencies:
     http-proxy-agent "^2.1.0"
     https-proxy-agent "^2.2.1"
-    vscode-nls "^3.2.2"
-
-vscode-nls@^3.2.2:
-  version "3.2.5"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.5.tgz#25520c1955108036dec607c85e00a522f247f1a4"
+    vscode-nls "^4.0.0"
 
 vscode-nls@^4.0.0:
   version "4.0.0"
