@@ -55,7 +55,8 @@ if (typeof global.require !== 'undefined' && typeof global.require.config === 'f
 			'jsonc-parser',
 			'jsonc-parser/main',
 			'vscode-uri',
-			'vscode-uri/index'
+			'vscode-uri/index',
+			'vs/basic-languages/typescript/typescript'
 		]
 	});
 }
