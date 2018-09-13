@@ -464,7 +464,7 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		let path: string | undefined;
+		let repositoryPath: string | undefined;
 
 		if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
 			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
@@ -475,10 +475,10 @@ export class CommandCenter {
 				return;
 			}
 
-			path = item.folder.uri.fsPath;
+			repositoryPath = item.folder.uri.fsPath;
 		}
 
-		if (!path) {
+		if (!repositoryPath) {
 			const homeUri = Uri.file(os.homedir());
 			const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
 				? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
@@ -507,11 +507,32 @@ export class CommandCenter {
 				}
 			}
 
-			path = uri.fsPath;
+			repositoryPath = uri.fsPath;
 		}
 
-		await this.git.init(path);
-		await this.model.openRepository(path);
+		await this.git.init(repositoryPath);
+
+		const choices = [];
+		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
+		const open = localize('openrepo', "Open Repository");
+		choices.push(open);
+
+		const addToWorkspace = localize('add', "Add to Workspace");
+		if (workspace.workspaceFolders) {
+			message = localize('proposeopen2 init', "Would you like to open the initialized repository, or add it to the current workspace?");
+			choices.push(addToWorkspace);
+		}
+
+		const result = await window.showInformationMessage(message, ...choices);
+		const uri = Uri.file(repositoryPath);
+
+		if (result === open) {
+			commands.executeCommand('vscode.openFolder', uri);
+		} else if (result === addToWorkspace) {
+			workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+		} else {
+			await this.model.openRepository(repositoryPath);
+		}
 	}
 
 	@command('git.openRepository', { repository: false })
