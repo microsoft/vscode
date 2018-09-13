@@ -936,14 +936,14 @@
             "usesOnlineServices"
           ]
         },
-        "git.createBranchNameConvention.regexp": {
+        "git.branchValidationRegex": {
           "type": "string",
-          "description": "%config.createBranchNameConvention.regexp%",
+          "description": "%config.branchValidationRegex%",
           "default": ""
         },
-        "git.createBranchWhitespaceChar": {
+        "git.branchWhitespaceChar": {
           "type": "string",
-          "description": "%config.createBranchWhitespaceChar%",
+          "description": "%config.branchWhitespaceChar%",
           "default": "-"
         },
         "git.confirmSync": {
