@@ -28,7 +28,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { Snippet, SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
@@ -124,9 +123,8 @@ class SnippetsService implements ISnippetsService {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IModeService private readonly _modeService: IModeService,
 		@ILogService private readonly _logService: ILogService,
-		@IExtensionService extensionService: IExtensionService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IFileService private readonly _fileService: IFileService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		this._initExtensionSnippets();
 		this._initPromise = Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => this._initUserSnippets()));
