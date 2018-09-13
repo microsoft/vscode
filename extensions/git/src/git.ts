@@ -631,6 +631,11 @@ export interface CommitOptions {
 	empty?: boolean;
 }
 
+export enum ForcePushMode {
+	Force,
+	ForceWithLease,
+}
+
 export class Repository {
 
 	constructor(
