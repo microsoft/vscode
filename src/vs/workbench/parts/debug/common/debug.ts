@@ -132,7 +132,7 @@ export class AdapterEndEvent {
 }
 
 export interface LoadedSourceEvent {
-	reason: string;
+	reason: 'new' | 'changed' | 'removed';
 	source: Source;
 }
 
