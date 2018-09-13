@@ -202,11 +202,12 @@ export class ActivitybarPart extends Part {
 
 	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
 		return <ICompositeBarColors>{
-			backgroundColor: theme.defines(ACTIVITY_BAR_INACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND).transparent(0.6),
-			activeBackgroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
+			activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
+			inactiveForegroundColor: theme.defines(ACTIVITY_BAR_INACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND).transparent(0.6),
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
-			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND)
+			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND),
+			backgroundColor: null, activeBorderBottomColor: null,
 		};
 	}
 

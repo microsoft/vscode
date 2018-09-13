@@ -114,7 +114,9 @@ export class ActivityAction extends Action {
 
 export interface ICompositeBarColors {
 	backgroundColor: Color;
-	activeBackgroundColor: Color;
+	activeBorderBottomColor: Color;
+	activeForegroundColor: Color;
+	inactiveForegroundColor: Color;
 	badgeBackground: Color;
 	badgeForeground: Color;
 	dragAndDropBackground: Color;
@@ -154,10 +156,17 @@ export class ActivityActionItem extends BaseActionItem {
 	protected updateStyles(): void {
 		const theme = this.themeService.getTheme();
 		const colors = this.options.colors(theme);
-		// Label
-		if (this.label && this.options.icon) {
-			const background = this._action.checked ? colors.activeBackgroundColor : colors.backgroundColor;
+
+		if (this.options.icon) {
+			const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
+			this.label.style.backgroundColor = foreground ? foreground.toString() : null;
+		} else if (this.label) {
+			const background = colors.backgroundColor;
+			const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
+			const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 			this.label.style.backgroundColor = background ? background.toString() : null;
+			this.label.style.color = foreground ? foreground.toString() : null;
+			this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
 		}
 
 		// Badge

@@ -193,13 +193,13 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	const activeBackgroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-	if (activeBackgroundColor) {
+	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+	if (activeForegroundColor) {
 		collector.addRule(`
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-				background-color: ${activeBackgroundColor} !important;
+				background-color: ${activeForegroundColor} !important;
 			}
 		`);
 	}
