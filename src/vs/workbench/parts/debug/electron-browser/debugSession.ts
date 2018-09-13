@@ -18,7 +18,6 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -27,6 +26,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
 
 export class DebugSession implements IDebugSession {
 
@@ -51,10 +51,10 @@ export class DebugSession implements IDebugSession {
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
 		private model: Model,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@INotificationService private notificationService: INotificationService,
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
+		@IOutputService private outputService: IOutputService,
 	) {
 		this.id = generateUuid();
 		this.state = State.Initializing;
@@ -127,25 +127,31 @@ export class DebugSession implements IDebugSession {
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
 
-			this._raw = this.instantiationService.createInstance(RawDebugSession, this._configuration.resolved.debugServer, dbgr, customTelemetryService, this.root);
+			return dbgr.createDebugAdapter(this.root, this.outputService, this._configuration.resolved.debugServer).then(debugAdapter => {
 
-			this.registerListeners();
+				this._raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService);
 
-			return this._raw.initialize({
-				clientID: 'vscode',
-				clientName: product.nameLong,
-				adapterID: this.configuration.type,
-				pathFormat: 'path',
-				linesStartAt1: true,
-				columnsStartAt1: true,
-				supportsVariableType: true, // #8858
-				supportsVariablePaging: true, // #9537
-				supportsRunInTerminalRequest: true, // #10574
-				locale: platform.locale
-			}).then(response => {
-				this.model.addSession(this);
-				this.state = State.Running;
-				this.model.setExceptionBreakpoints(this._raw.capabilities.exceptionBreakpointFilters);
+				return this._raw.start().then(() => {
+
+					this.registerListeners();
+
+					return this._raw.initialize({
+						clientID: 'vscode',
+						clientName: product.nameLong,
+						adapterID: this.configuration.type,
+						pathFormat: 'path',
+						linesStartAt1: true,
+						columnsStartAt1: true,
+						supportsVariableType: true, // #8858
+						supportsVariablePaging: true, // #9537
+						supportsRunInTerminalRequest: true, // #10574
+						locale: platform.locale
+					}).then(response => {
+						this.model.addSession(this);
+						this.state = State.Running;
+						this.model.setExceptionBreakpoints(this._raw.capabilities.exceptionBreakpointFilters);
+					});
+				});
 			});
 		});
 	}

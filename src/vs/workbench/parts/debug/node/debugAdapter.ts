@@ -191,7 +191,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		readable.on('data', (data: Buffer) => this.handleData(data));
 
 		readable.on('close', () => {
-			this._onError.fire(new Error('readable.close event'));
+			this._onError.fire(new Error('read error'));
 		});
 		readable.on('error', (error) => {
 			this._onError.fire(error);
@@ -325,8 +325,9 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 			if (this.adapterExecutable.command === 'node') {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
+					const isElectron = process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron'];
 					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {
-						execArgv: ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'],
+						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
 					});
 					if (!child.pid) {

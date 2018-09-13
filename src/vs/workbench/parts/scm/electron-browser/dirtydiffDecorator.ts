@@ -277,8 +277,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
+		const actionRunner = new DiffActionRunner();
+
+		// close widget on successful action
+		actionRunner.onDidRun(e => {
+			if (!(e.action instanceof UIEditorAction) && !e.error) {
+				this.dispose();
+			}
+		});
+
 		return {
-			actionRunner: new DiffActionRunner(),
+			actionRunner,
 			actionItemProvider: action => this.getActionItem(action),
 			orientation: ActionsOrientation.HORIZONTAL_REVERSE
 		};
@@ -808,7 +817,6 @@ class DirtyDiffDecorator {
 		if (options.overview) {
 			decorationOptions.overviewRuler = {
 				color: themeColorFromId(foregroundColor),
-				darkColor: themeColorFromId(foregroundColor),
 				position: OverviewRulerLane.Left
 			};
 		}

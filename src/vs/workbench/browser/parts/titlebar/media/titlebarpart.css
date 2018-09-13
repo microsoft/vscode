@@ -51,6 +51,11 @@
 	overflow: visible;
 }
 
+.monaco-workbench.windows > .part.titlebar > .window-title,
+.monaco-workbench.linux > .part.titlebar > .window-title {
+	cursor: default;
+}
+
 .monaco-workbench.linux > .part.titlebar > .window-title {
 	font-size: inherit;
 }

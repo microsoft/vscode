@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
-import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser/lib/main';
+import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
 
 const localize = nls.loadMessageBundle();
 

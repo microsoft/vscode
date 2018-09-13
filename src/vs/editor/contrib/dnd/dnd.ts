@@ -20,6 +20,7 @@ import { DragAndDropCommand } from 'vs/editor/contrib/dnd/dragAndDropCommand';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -38,6 +39,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
+	private _mouseDownInfo: IEditorMouseEvent;
 	private _modiferPressed: boolean;
 	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
@@ -57,6 +59,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook.push(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
+		this._mouseDownInfo = null;
 		this._modiferPressed = false;
 		this._dragSelection = null;
 	}
@@ -102,10 +105,12 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		this._mouseDown = true;
+		this._mouseDownInfo = mouseEvent;
 	}
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
 		this._mouseDown = false;
+		this._mouseDownInfo = null;
 		// Whenever users release the mouse, the drag and drop operation should finish and the cursor should revert to text.
 		this._editor.updateOptions({
 			mouseStyle: 'text'
@@ -113,6 +118,19 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
+		if (!this._mouseDownInfo) {
+			return;
+		}
+
+		if (this._mouseDownInfo.target.type === MouseTargetType.CONTENT_EMPTY) {
+			const epsilon = this._editor.getConfiguration().fontInfo.typicalHalfwidthCharacterWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.target.detail;
+			if (!data || data.isAfterLines || typeof data.horizontalDistanceToText !== 'number' || data.horizontalDistanceToText >= epsilon) {
+				this._mouseDownInfo = null; // clear the mousedown info then we can early exit for this drag listener.
+				return;
+			}
+		}
+
 		let target = mouseEvent.target;
 
 		if (this._dragSelection === null) {

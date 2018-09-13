@@ -41,11 +41,11 @@ import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree,
 import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 const $ = DOM.$;
 
 export class SettingsEditor2 extends BaseEditor {
@@ -76,6 +76,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
+
+	private settingsAriaExtraLabelsContainer: HTMLElement;
 
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
@@ -112,7 +114,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageService private storageService: IStorageService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -148,6 +151,10 @@ export class SettingsEditor2 extends BaseEditor {
 		this._searchResultModel = value;
 
 		DOM.toggleClass(this.rootElement, 'search-mode', !!this._searchResultModel);
+	}
+
+	private get currentSettingsContextMenuKeyBindingLabel() {
+		return this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU).getLabel();
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -214,8 +221,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.layoutTrees(dimension);
 
-		let innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
-		let monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
+		const innerWidth = dimension.width - 24 * 2; // 24px padding on left and right
+		const monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
 		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
@@ -236,6 +243,16 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	focusSettings(): void {
+		// Update ARIA global labels
+		const labelElement = this.settingsAriaExtraLabelsContainer.querySelector('#settings_aria_more_actions_shortcut_label');
+		if (labelElement) {
+			const settingsContextMenuShortcut = this.currentSettingsContextMenuKeyBindingLabel;
+			if (settingsContextMenuShortcut) {
+				const settingsMoreActionsLabel = localize('settingsContextMenuAriaShortcut', "For more actions, Press ");
+				labelElement.setAttribute('aria-label', settingsMoreActionsLabel + settingsContextMenuShortcut);
+			}
+		}
+
 		const firstFocusable = this.settingsTree.getHTMLElement().querySelector(SettingsRenderer.CONTROL_SELECTOR);
 		if (firstFocusable) {
 			(<HTMLElement>firstFocusable).focus();
@@ -276,7 +293,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
-		let searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+		const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
@@ -503,6 +520,14 @@ export class SettingsEditor2 extends BaseEditor {
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
+		// Add  ARIA extra labels div
+		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
+		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
+		// Add global labels here
+		const labelDiv = DOM.append(this.settingsAriaExtraLabelsContainer, $('.settings-aria-extra-label'));
+		labelDiv.id = 'settings_aria_more_actions_shortcut_label';
+		labelDiv.setAttribute('aria-label', '');
+
 		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(this.settingsTreeRenderer.onDidOpenSettings(settingKey => {
@@ -694,7 +719,7 @@ export class SettingsEditor2 extends BaseEditor {
 		};
 
 		/* __GDPR__
-			"settingsEditor.settingModified2" : {
+			"settingsEditor.settingModified<NUMBER>" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -767,7 +792,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		// Warn for settings not included in layout
 		if (settingsResult.leftoverSettings.size && !this.hasWarnedMissingSettings) {
-			let settingKeyList = [];
+			const settingKeyList = [];
 			settingsResult.leftoverSettings.forEach(s => {
 				settingKeyList.push(s.key);
 			});
@@ -960,9 +985,9 @@ export class SettingsEditor2 extends BaseEditor {
 		const fullResult: ISearchResult = {
 			filterMatches: []
 		};
-		for (let g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
-			for (let sect of g.sections) {
-				for (let setting of sect.settings) {
+		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
+			for (const sect of g.sections) {
+				for (const setting of sect.settings) {
 					fullResult.filterMatches.push({ setting, matches: [], score: 0 });
 				}
 			}
@@ -1018,7 +1043,7 @@ export class SettingsEditor2 extends BaseEditor {
 		};
 
 		/* __GDPR__
-			"settingsEditor.filter2" : {
+			"settingsEditor.filter<NUMBER>" : {
 				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

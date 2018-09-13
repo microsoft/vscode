@@ -202,7 +202,7 @@ export class RefreshAction extends Action {
 	public run(): TPromise<void> {
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		if (searchView) {
-			searchView.onQueryChanged(true);
+			searchView.onQueryChanged();
 		}
 		return TPromise.as(null);
 	}

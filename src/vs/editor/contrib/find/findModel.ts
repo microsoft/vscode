@@ -179,8 +179,12 @@ export class FindModelBoundToEditorModel {
 		}
 		if (findScope !== null) {
 			if (findScope.startLineNumber !== findScope.endLineNumber) {
-				// multiline find scope => expand to line starts / ends
-				findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
+				if (findScope.endColumn === 1) {
+					findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber - 1));
+				} else {
+					// multiline find scope => expand to line starts / ends
+					findScope = new Range(findScope.startLineNumber, 1, findScope.endLineNumber, this._editor.getModel().getLineMaxColumn(findScope.endLineNumber));
+				}
 			}
 		}
 

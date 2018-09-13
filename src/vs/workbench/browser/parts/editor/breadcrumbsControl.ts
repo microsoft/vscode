@@ -341,13 +341,17 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
-				let pickerHeight = Math.min(330, window.innerHeight * 0.4);
+				let maxHeight = Math.min(window.innerHeight * .7, 300);
+
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
 				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
 				let y = data.top + data.height - pickerArrowSize;
+				if (y + maxHeight >= window.innerHeight) {
+					maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
+				}
 				let x = data.left;
 				if (x + pickerWidth >= maxInnerWidth) {
 					x = maxInnerWidth - pickerWidth;
@@ -362,7 +366,7 @@ export class BreadcrumbsControl {
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
-				picker.setInput(element, pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
+				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };
 			},
 			onHide: (data) => {

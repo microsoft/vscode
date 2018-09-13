@@ -353,6 +353,12 @@ suite('SnippetParser', () => {
 		assertText('${1||}', '${1||}');
 	});
 
+	test('Backslash character escape in choice tabstop doesn\'t work #58494', function () {
+
+		const { placeholders } = new SnippetParser().parse('${1|\\,,},$,\\|,\\\\|}');
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+	});
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
@@ -665,6 +671,11 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+	});
+
+	test('Snippet variable transformation doesn\'t work if regex is complicated and snippet body contains \'$$\' #55627', function () {
+		const snippet = new SnippetParser().parse('const fileName = "${TM_FILENAME/(.*)\\..+$/$1/}"');
+		assert.equal(snippet.toTextmateString(), 'const fileName = "${TM_FILENAME/(.*)\\..+$/${1}/}"');
 	});
 
 	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {

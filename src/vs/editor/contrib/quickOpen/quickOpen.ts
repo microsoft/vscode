@@ -31,6 +31,9 @@ export function getDocumentSymbols(model: ITextModel, flat: boolean, token: Canc
 
 	return Promise.all(promises).then(() => {
 		let flatEntries: DocumentSymbol[] = [];
+		if (token.isCancellationRequested) {
+			return flatEntries;
+		}
 		if (flat) {
 			flatten(flatEntries, roots, '');
 		} else {

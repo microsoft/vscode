@@ -784,7 +784,7 @@ export class IssueReporter extends Disposable {
 			url = baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 		}
 
-		shell.openExternal(url);
+		ipcRenderer.send('vscode:openExternal', url);
 		return true;
 	}
 

@@ -266,8 +266,8 @@ export class CodeApplication {
 			return true;
 		}
 
-		const srcUri: any = URI.parse(source.toLowerCase()).fsPath;
-		const rootUri = URI.file(this.environmentService.appRoot.toLowerCase()).fsPath;
+		const srcUri: any = URI.parse(source).fsPath.toLowerCase();
+		const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
 		return srcUri.startsWith(rootUri + nativeSep);
 	}
 

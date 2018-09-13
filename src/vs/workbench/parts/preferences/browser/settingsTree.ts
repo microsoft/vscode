@@ -158,9 +158,9 @@ function settingMatches(s: ISetting, pattern: string): boolean {
 function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 	const result: Set<ISetting> = new Set();
 
-	for (let group of settingsGroups) {
-		for (let section of group.sections) {
-			for (let s of section.settings) {
+	for (const group of settingsGroups) {
+		for (const section of group.sections) {
+			for (const s of section.settings) {
 				if (!s.overrides || !s.overrides.length) {
 					result.add(s);
 				}
@@ -393,6 +393,7 @@ export class SettingsRenderer implements ITreeRenderer {
 			this.instantiationService.createInstance(CopySettingIdAction),
 			this.instantiationService.createInstance(CopySettingAsJSONAction),
 		];
+
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
@@ -876,7 +877,7 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		common.toDispose.push(excludeWidget.onDidChangeExclude(e => {
 			if (template.context) {
-				let newValue = { ...template.context.scopeValue };
+				const newValue = { ...template.context.scopeValue };
 
 				// first delete the existing entry, if present
 				if (e.originalPattern) {
@@ -1051,7 +1052,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		}
 
 		if (element.overriddenScopeList.length) {
-			let otherOverridesLabel = element.isConfigured ?
+			const otherOverridesLabel = element.isConfigured ?
 				localize('alsoConfiguredIn', "Also modified in") :
 				localize('configuredIn', "Modified in");
 
@@ -1152,7 +1153,9 @@ export class SettingsRenderer implements ITreeRenderer {
 			}));
 
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText;
+
+		// Use ',.' as reader pause
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
 		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
 
 		template.selectBox.setAriaLabel(label);
@@ -1165,7 +1168,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		if (template.controlElement.firstElementChild) {
 			// SelectBox needs to have treeitem changed to combobox to read correctly within tree
 			template.controlElement.firstElementChild.setAttribute('role', 'combobox');
-			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description');
+			template.controlElement.firstElementChild.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 		}
 
 		template.enumDescriptionElement.innerHTML = '';
@@ -1173,7 +1176,10 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderText(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' ' + modifiedText; template.onChange = null;
+
+		// Use ',.' as reader pause
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ',. ' + modifiedText;
+		template.onChange = null;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => { renderValidations(dataElement, template, false, label); onChange(value); };
 
@@ -1191,7 +1197,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.id = baseId + '_setting_item';
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description');
+		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1199,7 +1205,10 @@ export class SettingsRenderer implements ITreeRenderer {
 
 	private renderNumber(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: number) => void): void {
 		const modifiedText = dataElement.isConfigured ? 'Modified' : '';
-		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number ' + modifiedText; const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
+
+		// Use ',.' as reader pause
+		const label = dataElement.displayCategory + ' ' + dataElement.displayLabel + ' number,. ' + modifiedText;
+		const numParseFn = (dataElement.valueType === 'integer' || dataElement.valueType === 'nullable-integer')
 			? parseInt : parseFloat;
 
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
@@ -1223,7 +1232,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		template.inputBox.inputElement.id = baseId + '_setting_item';
 		template.inputBox.inputElement.setAttribute('role', 'textbox');
 		template.inputBox.inputElement.setAttribute('aria-labelledby', baseId + '_setting_label');
-		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description');
+		template.inputBox.inputElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
 
 		renderValidations(dataElement, template, true, label);
 	}
@@ -1245,11 +1254,11 @@ export class SettingsRenderer implements ITreeRenderer {
 
 function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string) {
 	if (dataElement.setting.validator) {
-		let errMsg = dataElement.setting.validator(template.inputBox.value);
+		const errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
 			DOM.addClass(template.containerElement, 'invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
-			let validationError = localize('validationError', "Validation Error.");
+			const validationError = localize('validationError', "Validation Error.");
 			template.inputBox.inputElement.parentElement.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
 			return;

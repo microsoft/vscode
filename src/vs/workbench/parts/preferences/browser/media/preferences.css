@@ -88,25 +88,6 @@
 	display: none;
 }
 
-.vs .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #424242;
-	opacity: 0.75;
-}
-
-.vs-dark .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #e7e7e7;
-	opacity: 0.5;
-}
-
-.hc-black .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	color: #fff;
-}
-
-.settings-tabs-widget > .monaco-action-bar .action-item:hover .action-label,
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	opacity: 1;
-}
-
 .preferences-header > .settings-header-widget {
 	flex: 1;
 	display: flex;

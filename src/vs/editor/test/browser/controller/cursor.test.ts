@@ -25,6 +25,7 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { createTextModel, IRelaxedTextModelCreationOptions } from 'vs/editor/test/common/editorTestUtils';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 const H = Handler;
 
@@ -3517,31 +3518,7 @@ suite('Editor Controller - Indentation Rules', () => {
 						// ^.*\{[^}"']*$
 						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 					},
-					onEnterRules: [
-						{
-							// e.g. /** | */
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							afterText: /^\s*\*\/$/,
-							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-						}, {
-							// e.g. /** ...|
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							action: { indentAction: IndentAction.None, appendText: ' * ' }
-						}, {
-							// e.g.  * ...|
-							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-							action: { indentAction: IndentAction.None, appendText: '* ' }
-						}, {
-							// e.g.  */|
-							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						},
-						{
-							// e.g.  *-----*/|
-							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						}
-					]
+					onEnterRules: javascriptOnEnterRules
 				}));
 			}
 		}

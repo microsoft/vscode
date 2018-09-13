@@ -159,7 +159,8 @@ suite('Snippet Variables Resolver', function () {
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global
 		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/}', 'FARbarfoobar'); // first match
-		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match
+		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match, no else
+		// assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', ''); // no match
 
 		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
 	});
@@ -291,5 +292,15 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
+	});
+
+	test('creating snippet - format-condition doesn\'t work #53617', function () {
+
+		const snippet = new SnippetParser().parse('${TM_LINE_NUMBER/(10)/${1:?It is:It is not}/} line 10', true);
+		snippet.resolveVariables({ resolve() { return '10'; } });
+		assert.equal(snippet.toString(), 'It is line 10');
+
+		snippet.resolveVariables({ resolve() { return '11'; } });
+		assert.equal(snippet.toString(), 'It is not line 10');
 	});
 });

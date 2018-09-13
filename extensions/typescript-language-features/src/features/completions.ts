@@ -241,7 +241,8 @@ interface CompletionConfiguration {
 }
 
 namespace CompletionConfiguration {
-	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
+	export const useCodeSnippetsOnMethodSuggest = 'suggest.insertParametersForFunctionCalls';
+	export const useCodeSnippetsOnMethodSuggest_deprecated = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'suggest.names';
 	export const nameSuggestions_deprecated = 'nameSuggestions';
 	export const pathSuggestions = 'suggest.paths';
@@ -258,7 +259,7 @@ namespace CompletionConfiguration {
 		const typeScriptConfig = vscode.workspace.getConfiguration('typescript', resource);
 
 		return {
-			useCodeSnippetsOnMethodSuggest: typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, false),
+			useCodeSnippetsOnMethodSuggest: config.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest, typeScriptConfig.get<boolean>(CompletionConfiguration.useCodeSnippetsOnMethodSuggest_deprecated, false)),
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
 			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, typeScriptConfig.get<boolean>(CompletionConfiguration.autoImportSuggestions_deprecated, true)),
 			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, vscode.workspace.getConfiguration('javascript', resource).get(CompletionConfiguration.nameSuggestions_deprecated, true))
@@ -458,8 +459,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		if (position.character > 1) {
 			const preText = document.getText(new vscode.Range(
 				position.line, 0,
-				position.line, position.character - 1));
-			return preText.match(/(^|[a-z_$\(\)\[\]\{\}])\s*$/ig) !== null;
+				position.line, position.character));
+			return preText.match(/(^|[a-z_$\(\)\[\]\{\}]|[^.]\.)\s*$/ig) !== null;
 		}
 
 		return true;

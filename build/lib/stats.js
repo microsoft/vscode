@@ -110,8 +110,8 @@ function submitAllStats(productJson, commit) {
         client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
         /* __GDPR__
             "monacoworkbench/packagemetrics" : {
-                "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+                "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
                 "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
             }
         */

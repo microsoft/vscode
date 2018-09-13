@@ -145,6 +145,19 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.useCodeSnippetsOnMethodSuggest.deprecationMessage%"
+        },
+        "javascript.suggest.insertParametersForFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.insertParametersForFunctionCalls%",
+          "scope": "resource"
+        },
+        "typescript.suggest.insertParametersForFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.insertParametersForFunctionCalls%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {

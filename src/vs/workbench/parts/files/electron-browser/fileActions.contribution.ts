@@ -64,7 +64,7 @@ const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ContextKeyExpr.has('config.files.enableTrash')),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -76,10 +76,21 @@ const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ContextKeyExpr.has('config.files.enableTrash')),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
+	},
+	handler: deleteFileHandler
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: DELETE_FILE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, ContextKeyExpr.not('config.files.enableTrash')),
+	primary: KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace
 	},
 	handler: deleteFileHandler
 });
@@ -115,7 +126,8 @@ const copyRelativePathCommand = {
 
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
-appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, copyRelativePathCommand);
+appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource);
+appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource);
 appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
 function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, alt?: { id: string, title: string }): void {
@@ -416,7 +428,13 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '5_cutcopypaste',
 	order: 30,
 	command: copyPathCommand,
-	alt: copyRelativePathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '5_cutcopypaste',
+	order: 30,
+	command: copyRelativePathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
@@ -474,7 +492,18 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		title: nls.localize('deleteFile', "Delete Permanently"),
 		precondition: ExplorerResourceNotReadonlyContext
 	},
-	when: ExplorerRootContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ContextKeyExpr.has('config.files.enableTrash'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '7_modification',
+	order: 20,
+	command: {
+		id: DELETE_FILE_ID,
+		title: nls.localize('deleteFile', "Delete Permanently"),
+		precondition: ExplorerResourceNotReadonlyContext
+	},
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ContextKeyExpr.not('config.files.enableTrash'))
 });
 
 // Empty Editor Group Context Menu
@@ -524,7 +553,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '5_autosave',
 	command: {
 		id: ToggleAutoSaveAction.ID,
-		title: nls.localize('miAutoSave', "Auto Save")
+		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "A&&uto Save")
 	},
 	order: 1
 });

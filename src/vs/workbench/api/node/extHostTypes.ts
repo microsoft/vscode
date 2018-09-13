@@ -14,7 +14,7 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
 import { startsWith } from 'vs/base/common/strings';
 import { values } from 'vs/base/common/map';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, equals } from 'vs/base/common/arrays';
 
 export class Disposable {
 
@@ -771,6 +771,18 @@ export class DiagnosticRelatedInformation {
 		this.location = location;
 		this.message = message;
 	}
+
+	static isEqual(a: DiagnosticRelatedInformation, b: DiagnosticRelatedInformation): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.message === b.message
+			&& a.location.range.isEqual(b.location.range)
+			&& a.location.uri.toString() === b.location.uri.toString();
+	}
 }
 
 export class Diagnostic {
@@ -797,6 +809,23 @@ export class Diagnostic {
 			source: this.source,
 			code: this.code,
 		};
+	}
+
+	static isEqual(a: Diagnostic, b: Diagnostic): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.message === b.message
+			&& a.severity === b.severity
+			&& a.code === b.code
+			&& a.severity === b.severity
+			&& a.source === b.source
+			&& a.range.isEqual(b.range)
+			&& equals(a.tags, b.tags)
+			&& equals(a.relatedInformation, b.relatedInformation, DiagnosticRelatedInformation.isEqual);
 	}
 }
 

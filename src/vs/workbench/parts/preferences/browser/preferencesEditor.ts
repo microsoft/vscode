@@ -778,6 +778,9 @@ class SideBySidePreferencesWidget extends Widget {
 	private lastFocusedEditor: BaseEditor;
 	private splitview: SplitView;
 
+	private isVisible: boolean;
+	private group: IEditorGroup;
+
 	get minimumWidth(): number { return this.splitview.minimumSize; }
 	get maximumWidth(): number { return this.splitview.maximumSize; }
 
@@ -899,11 +902,14 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		this.isVisible = visible;
+		this.group = group;
+
 		if (this.defaultPreferencesEditor) {
-			this.defaultPreferencesEditor.setVisible(visible, group);
+			this.defaultPreferencesEditor.setVisible(this.isVisible, this.group);
 		}
 		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.setVisible(visible, group);
+			this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
 		}
 	}
 
@@ -915,6 +921,7 @@ class SideBySidePreferencesWidget extends Widget {
 		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
+		this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 		this.layout();

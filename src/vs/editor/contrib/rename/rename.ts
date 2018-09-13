@@ -18,7 +18,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation } from 'vs/editor/common/modes';
+import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation, Rejection } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
@@ -46,10 +46,10 @@ class RenameSkeleton {
 		return this._provider.length > 0;
 	}
 
-	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation> {
+	async resolveRenameLocation(token: CancellationToken): Promise<RenameLocation & Rejection> {
 
 		let [provider] = this._provider;
-		let res: RenameLocation;
+		let res: RenameLocation & Rejection;
 
 		if (provider.resolveRenameLocation) {
 			res = await provider.resolveRenameLocation(this.model, this.position, token);
@@ -68,7 +68,7 @@ class RenameSkeleton {
 		return res;
 	}
 
-	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit> {
+	async provideRenameEdits(newName: string, i: number = 0, rejects: string[] = [], token: CancellationToken): Promise<WorkspaceEdit & Rejection> {
 
 		if (i >= this._provider.length) {
 			return {
@@ -88,7 +88,7 @@ class RenameSkeleton {
 	}
 }
 
-export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit> {
+export async function rename(model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
 	return new RenameSkeleton(model, position).provideRenameEdits(newName, undefined, undefined, CancellationToken.None);
 }
 
@@ -136,7 +136,7 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 
-		let loc: RenameLocation;
+		let loc: RenameLocation & Rejection;
 		try {
 			loc = await skeleton.resolveRenameLocation(token);
 		} catch (e) {
@@ -145,6 +145,11 @@ class RenameController implements IEditorContribution {
 		}
 
 		if (!loc) {
+			return undefined;
+		}
+
+		if (loc.rejectReason) {
+			MessageController.get(this.editor).showMessage(loc.rejectReason, position);
 			return undefined;
 		}
 

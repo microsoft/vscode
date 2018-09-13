@@ -9,9 +9,9 @@ import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers'
 import { URI } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
-import { DiagnosticSeverity } from './extHostTypes';
+import { DiagnosticSeverity, Diagnostic } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
-import { mergeSort } from 'vs/base/common/arrays';
+import { mergeSort, equals } from 'vs/base/common/arrays';
 import { Event, Emitter, debounceEvent, mapEvent } from 'vs/base/common/event';
 import { keys } from 'vs/base/common/map';
 
@@ -62,8 +62,12 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 		this._checkDisposed();
 		let toSync: vscode.Uri[];
+		let hasChanged = true;
 
 		if (first instanceof URI) {
+
+			// check if this has actually changed
+			hasChanged = hasChanged && !equals(diagnostics, this.get(first), Diagnostic.isEqual);
 
 			if (!diagnostics) {
 				// remove this entry
@@ -103,6 +107,17 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			}
 		}
 
+		// send event for extensions
+		this._onDidChangeDiagnostics.fire(toSync);
+
+		// if nothing has changed then there is nothing else to do
+		// we have updated the diagnostics but we don't send a message
+		// to the renderer. tho we have still send an event for other
+		// extensions because the diagnostic might carry more information
+		// than known to us
+		if (!hasChanged) {
+			return;
+		}
 		// compute change and send to main side
 		const entries: [URI, IMarkerData[]][] = [];
 		for (let uri of toSync) {
@@ -142,7 +157,6 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			entries.push([uri, marker]);
 		}
 
-		this._onDidChangeDiagnostics.fire(toSync);
 		this._proxy.$changeMany(this._owner, entries);
 	}
 

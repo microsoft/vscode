@@ -46,7 +46,7 @@ export class SearchParams {
 				}
 
 				const nextChCode = searchString.charCodeAt(i);
-				if (nextChCode === CharCode.n || nextChCode === CharCode.r) {
+				if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
 					return true;
 				}
 			}
