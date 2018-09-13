@@ -77,7 +77,7 @@ class Main {
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			returnPromise = this.installExtension(args);
+			returnPromise = this.installExtension(args, argv['force']);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
@@ -96,7 +96,7 @@ class Main {
 		});
 	}
 
-	private installExtension(extensions: string[]): TPromise<any> {
+	private installExtension(extensions: string[], force: boolean): TPromise<any> {
 		const vsixTasks: Task[] = extensions
 			.filter(e => /\.vsix$/i.test(e))
 			.map(id => () => {
@@ -138,7 +138,7 @@ class Main {
 							}
 
 							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
-							if (installedExtension) {
+							if (installedExtension && !force) {
 								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
 								if (outdated) {
 									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
