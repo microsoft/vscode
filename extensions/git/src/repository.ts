@@ -1073,6 +1073,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Stash, () => this.repository.popStash(index));
 	}
 
+	async applyStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
+	}
+
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}

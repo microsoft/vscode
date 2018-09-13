@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git, CommitOptions } from './git';
+import { Git, CommitOptions, Stash } from './git';
 import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -1701,16 +1701,8 @@ export class CommandCenter {
 
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
-		const stashes = await repository.getStashes();
-
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
-			return;
-		}
-
-		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
 		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const choice = await this.pickStash(repository, placeHolder);
 
 		if (!choice) {
 			return;
@@ -1723,13 +1715,57 @@ export class CommandCenter {
 	async stashPopLatest(repository: Repository): Promise<void> {
 		const stashes = await repository.getStashes();
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+		if (!this.anyStashesAvailableToRestore(stashes)) {
 			return;
 		}
 
 		await repository.popStash();
 	}
+
+	@command('git.stashApply', { repository: true })
+	async stashApply(repository: Repository): Promise<void> {
+		const placeHolder = localize('pick stash to apply', "Pick a stash to apply");
+		const choice = await this.pickStash(repository, placeHolder);
+
+		if (!choice) {
+			return;
+		}
+
+		await repository.applyStash(choice.id);
+	}
+
+	@command('git.stashApplyLatest', { repository: true })
+	async stashApplyLatest(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (!this.anyStashesAvailableToRestore(stashes)) {
+			return;
+		}
+
+		await repository.applyStash();
+	}
+
+	private anyStashesAvailableToRestore(stashes: Stash[]): boolean {
+		const stashesAvailable = stashes.length > 0;
+
+		if (!stashesAvailable) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+		}
+
+		return stashesAvailable;
+	}
+
+	private async pickStash(repository: Repository, placeHolder: string) {
+		const stashes = await repository.getStashes();
+
+		if (!this.anyStashesAvailableToRestore(stashes)) {
+			return;
+		}
+
+		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
+		return await window.showQuickPick(picks, { placeHolder });
+	}
+
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {

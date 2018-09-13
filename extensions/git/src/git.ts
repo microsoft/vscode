@@ -1255,9 +1255,17 @@ export class Repository {
 	}
 
 	async popStash(index?: number): Promise<void> {
-		try {
-			const args = ['stash', 'pop'];
+		const args = ['stash', 'pop'];
+		this.popOrApplyStash(args, index);
+	}
 
+	async applyStash(index?: number): Promise<void> {
+		const args = ['stash', 'apply'];
+		this.popOrApplyStash(args, index);
+	}
+
+	private async popOrApplyStash(args: string[], index?: number): Promise<void> {
+		try {
 			if (typeof index === 'number') {
 				args.push(`stash@{${index}}`);
 			}
@@ -1273,6 +1281,7 @@ export class Repository {
 			throw err;
 		}
 	}
+
 
 	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
