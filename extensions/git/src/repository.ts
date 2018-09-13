@@ -1303,9 +1303,18 @@ export class Repository implements Disposable {
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {
 		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
+		const rebaseApplyPath = path.join(this.repository.root, '.git', 'rebase-apply');
+		const rebaseMergePath = path.join(this.repository.root, '.git', 'rebase-merge');
 
 		try {
-			const rebaseHead = await new Promise<string>((c, e) => fs.readFile(rebaseHeadPath, 'utf8', (err, result) => err ? e(err) : c(result)));
+			const [rebaseApplyExists, rebaseMergePathExists, rebaseHead] = await Promise.all([
+				new Promise<boolean>(c => fs.exists(rebaseApplyPath, c)),
+				new Promise<boolean>(c => fs.exists(rebaseMergePath, c)),
+				new Promise<string>((c, e) => fs.readFile(rebaseHeadPath, 'utf8', (err, result) => err ? e(err) : c(result)))
+			]);
+			if (!rebaseApplyExists && !rebaseMergePathExists) {
+				return undefined;
+			}
 			return await this.getCommit(rebaseHead.trim());
 		} catch (err) {
 			return undefined;
