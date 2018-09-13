@@ -998,19 +998,25 @@ export class Repository {
 			throw commitErr;
 		}
 
-		try {
-			await this.run(['config', '--get-all', 'user.name']);
-		} catch (err) {
-			err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-			throw err;
-		}
+		let userName, userEmail;
 
 		try {
-			await this.run(['config', '--get-all', 'user.email']);
-		} catch (err) {
-			err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
-			throw err;
+			const nameResult = await this.run(['config', '--get-all', 'user.name']);
+			userName = nameResult.stdout.split('\n').filter(l => !!l).pop();
+		} catch (err) { }
+
+		try {
+			const emailResult = await this.run(['config', '--get-all', 'user.email']);
+			userEmail = emailResult.stdout.split('\n').filter(l => !!l).pop();
+		} catch (err) { }
+
+		if (userName && userEmail) {
+			throw commitErr;
 		}
+
+		commitErr.gitErrorCode = !userName ? GitErrorCodes.NoUserNameConfigured : GitErrorCodes.NoUserEmailConfigured;
+		commitErr.userName = userName;
+		commitErr.userEmail = userEmail;
 
 		throw commitErr;
 	}
