@@ -240,8 +240,15 @@ function packageTask(platform, arch, opts) {
 		}
 
 		const name = product.nameShort;
+		const packageJsonUpdates = { name, version };
+
+		// for linux url handling
+		if (platform === 'linux') {
+			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+		}
+
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json({ name, version }));
+			.pipe(json(packageJsonUpdates));
 
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums };
