@@ -1214,7 +1214,7 @@
         "description": "%colors.ignored%",
         "defaults": {
           "light": "#8E8E90",
-          "dark": "#A7A8A9",
+          "dark": "#8C8C8C",
           "highContrast": "#A7A8A9"
         }
       },
