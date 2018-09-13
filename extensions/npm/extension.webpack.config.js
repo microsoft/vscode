@@ -14,10 +14,6 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/main.ts',
 	},
-	resolve: {
-		mainFields: ['module', 'main'],
-		extensions: ['.ts', '.js'] // support ts-files and js-files
-	},
 	externals: {
 		'vscode-nls': 'commonjs vscode-nls',
 	},

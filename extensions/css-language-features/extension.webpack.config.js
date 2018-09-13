@@ -16,10 +16,6 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/cssMain.ts',
 	},
-	resolve: {
-		mainFields: ['module', 'main'],
-		extensions: ['.ts', '.js'] // support ts-files and js-files
-	},
 	output: {
 		filename: 'cssMain.js',
 		path: path.join(__dirname, 'client', 'dist'),
