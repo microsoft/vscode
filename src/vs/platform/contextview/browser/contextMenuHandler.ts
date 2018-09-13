@@ -14,26 +14,30 @@ import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 
 export class ContextMenuHandler {
 
 	private contextViewService: IContextViewService;
 	private notificationService: INotificationService;
 	private telemetryService: ITelemetryService;
+	private themeService: IThemeService;
 
 	private element: HTMLElement;
 	private elementDisposable: IDisposable;
 	private menuContainerElement: HTMLElement;
 	private focusToReturn: HTMLElement;
 
-	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, notificationService: INotificationService) {
+	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, notificationService: INotificationService, themeService: IThemeService) {
 		this.setContainer(element);
 
 		this.contextViewService = contextViewService;
 		this.telemetryService = telemetryService;
 		this.notificationService = notificationService;
+		this.themeService = themeService;
 
 		this.menuContainerElement = null;
 	}
@@ -82,6 +86,8 @@ export class ContextMenuHandler {
 						actionRunner,
 						getKeyBinding: delegate.getKeyBinding
 					});
+
+					menuDisposables.push(attachMenuStyler(menu, this.themeService));
 
 					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);

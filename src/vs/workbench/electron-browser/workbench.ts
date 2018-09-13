@@ -364,7 +364,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null, this.telemetryService, this.notificationService, this.contextViewService));
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null, this.telemetryService, this.notificationService, this.contextViewService, this.themeService));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
 		}

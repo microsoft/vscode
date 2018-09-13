@@ -200,7 +200,3 @@
 .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container :focus {
 	outline: 0;
 }
-
-.hc-black .monaco-workbench .menubar .menubar-menu-items-holder.monaco-menu-container {
-	border: 2px solid #6FC3DF;
-}

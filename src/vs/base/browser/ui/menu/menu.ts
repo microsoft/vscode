@@ -11,10 +11,11 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, getClientArea, removeClasses } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, getClientArea, removeClasses, createStyleSheet } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
 export const MENU_MNEMONIC_REGEX: RegExp = /\(&{1,2}(.)\)|&{1,2}(.)/;
 export const MENU_ESCAPED_MNEMONIC_REGEX: RegExp = /(?:&amp;){1,2}(.)/;
@@ -28,6 +29,15 @@ export interface IMenuOptions {
 	enableMnemonics?: boolean;
 }
 
+export interface IMenuStyles {
+	shadowColor?: Color;
+	borderColor?: Color;
+	foregroundColor?: Color;
+	backgroundColor?: Color;
+	selectionForegroundColor?: Color;
+	selectionBackgroundColor?: Color;
+	selectionBorderColor?: Color;
+}
 
 export class SubmenuAction extends Action {
 	constructor(label: string, public entries: (SubmenuAction | IAction)[], cssClass?: string) {
@@ -43,6 +53,7 @@ interface ISubMenuData {
 export class Menu extends ActionBar {
 	private mnemonics: Map<KeyCode, Array<MenuActionItem>>;
 	private menuDisposables: IDisposable[];
+	private readonly _styleElement: HTMLStyleElement;
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
 
@@ -60,6 +71,8 @@ export class Menu extends ActionBar {
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel
 		});
+
+		this._styleElement = createStyleSheet(container);
 
 		this.actionsList.setAttribute('role', 'menu');
 
@@ -129,6 +142,76 @@ export class Menu extends ActionBar {
 		this.mnemonics = new Map<KeyCode, Array<MenuActionItem>>();
 
 		this.push(actions, { icon: true, label: true, isMenu: true });
+	}
+
+	style(style: IMenuStyles): void {
+		let content = '';
+		if (style.borderColor) {
+			content += `
+				.monaco-menu-container {
+					border: 2px solid ${style.borderColor} !important;
+				}
+			`;
+		}
+
+		if (style.foregroundColor) {
+			content += `
+				.monaco-menu .monaco-action-bar.vertical,
+				.monaco-menu .monaco-action-bar.vertical .action-item {
+					color: ${style.foregroundColor}
+				}`;
+
+			content += `
+				.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .menu-item-check,
+				.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .submenu-indicator {
+					background-color: ${style.foregroundColor};
+				}`;
+		}
+
+		if (style.backgroundColor) {
+			content += `
+			.monaco-menu .monaco-action-bar.vertical,
+			.monaco-menu .monaco-action-bar.vertical .action-item {
+				background-color: ${style.backgroundColor};
+			}`;
+		}
+
+		if (style.shadowColor) {
+			content += `
+			.monaco-menu-container {
+				box-shadow: 0 2px 4px ${style.shadowColor};
+			}`;
+		}
+
+		if (style.selectionBackgroundColor) {
+			content += `
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused {
+				background-color: ${style.selectionBackgroundColor};
+			}`;
+		}
+
+		if (style.selectionForegroundColor) {
+			content += `
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused {
+					color: ${style.selectionForegroundColor};
+				}
+
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .menu-item-check,
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .submenu-indicator {
+				background-color: ${style.selectionForegroundColor};
+			}`;
+		}
+
+		if (style.selectionBorderColor) {
+			content += `
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused {
+				border: 1px solid ${style.selectionBorderColor};
+			}`;
+		}
+
+		if (this._styleElement.innerHTML !== content) {
+			this._styleElement.innerHTML = content;
+		}
 	}
 
 	private focusItemByElement(element: HTMLElement) {

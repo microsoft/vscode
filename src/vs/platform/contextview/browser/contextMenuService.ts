@@ -10,6 +10,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 
 export class ContextMenuService implements IContextMenuService {
@@ -18,8 +19,8 @@ export class ContextMenuService implements IContextMenuService {
 	private contextMenuHandler: ContextMenuHandler;
 	private _onDidContextMenu = new Emitter<void>();
 
-	constructor(container: HTMLElement, telemetryService: ITelemetryService, notificationService: INotificationService, contextViewService: IContextViewService) {
-		this.contextMenuHandler = new ContextMenuHandler(container, contextViewService, telemetryService, notificationService);
+	constructor(container: HTMLElement, telemetryService: ITelemetryService, notificationService: INotificationService, contextViewService: IContextViewService, themeService: IThemeService) {
+		this.contextMenuHandler = new ContextMenuHandler(container, contextViewService, telemetryService, notificationService, themeService);
 	}
 
 	public dispose(): void {
