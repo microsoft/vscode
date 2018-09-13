@@ -1273,7 +1273,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.|\[|\]|$/g, '-');
 		await repository.branch(name, true);
 	}
 
