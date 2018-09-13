@@ -13,6 +13,7 @@ import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createConnection } from 'net';
 import { Event, filterEvent } from 'vs/base/common/event';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import * as nativeWatchdog from 'native-watchdog';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -123,7 +124,19 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				} catch (e) {
 					onTerminate();
 				}
-			}, 5000);
+			}, 1000);
+
+			// In certain cases, the event loop can become busy and never yield
+			// e.g. while-true or process.nextTick endless loops
+			// So also use the native node module to do it from a separate thread
+			let watchdog: typeof nativeWatchdog;
+			try {
+				watchdog = require.__$__nodeRequire('native-watchdog');
+				watchdog.start(initData.parentPid);
+			} catch (err) {
+				// no problem...
+				onUnexpectedError(err);
+			}
 
 			// Tell the outside that we are initialized
 			protocol.send(createMessageOfType(MessageType.Initialized));

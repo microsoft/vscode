@@ -38,7 +38,7 @@
     "minimist": "1.2.0",
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
-    "native-watchdog": "0.3.0",
+    "native-watchdog": "1.0.0",
     "node-pty": "0.7.7",
     "semver": "^5.5.0",
     "spdlog": "0.7.2",
