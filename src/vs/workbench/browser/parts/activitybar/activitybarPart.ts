@@ -203,7 +203,7 @@ export class ActivitybarPart extends Part {
 	private getActivitybarItemColors(theme: ITheme): ICompositeBarColors {
 		return <ICompositeBarColors>{
 			activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
-			inactiveForegroundColor: theme.defines(ACTIVITY_BAR_INACTIVE_FOREGROUND) ? theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_FOREGROUND).transparent(0.6),
+			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND),

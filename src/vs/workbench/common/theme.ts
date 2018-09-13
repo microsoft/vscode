@@ -291,8 +291,8 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 }, nls.localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
-	dark: Color.white.transparent(0.6),
-	light: Color.white.transparent(0.6),
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
 	hc: Color.white
 }, nls.localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
