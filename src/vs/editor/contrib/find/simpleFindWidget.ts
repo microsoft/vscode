@@ -35,7 +35,7 @@ export abstract class SimpleFindWidget extends Widget {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		private readonly _state: FindReplaceState,
+		private readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean
 	) {
 		super();
