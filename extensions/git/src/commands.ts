@@ -1848,6 +1848,11 @@ export class CommandCenter {
 				let message: string;
 				let type: 'error' | 'warning' = 'error';
 
+				const choices = new Map<string, () => void>();
+				const openOutputChannelChoice = localize('open git log', "Open Git Log");
+				const outputChannel = this.outputChannel as OutputChannel;
+				choices.set(openOutputChannelChoice, () => outputChannel.show());
+
 				switch (err.gitErrorCode) {
 					case GitErrorCodes.DirtyWorkTree:
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
@@ -1862,11 +1867,8 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
-						message = localize('missing user info', "Make sure that user.email and user.name are configured correctly.\n\n{0}\n{1}\n\n{2}\n{3}",
-							"current user.email: " + err.userEmail || "",
-							"current user.name: " + err.userName || "",
-							"git config --global user.email \"you@example.com\"",
-							"git config --global user.name \"Your Name\"");
+						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
+						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
@@ -1888,14 +1890,17 @@ export class CommandCenter {
 					return;
 				}
 
-				const outputChannel = this.outputChannel as OutputChannel;
-				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const choice = type === 'error'
-					? await window.showErrorMessage(message, options, openOutputChannelChoice)
-					: await window.showWarningMessage(message, options, openOutputChannelChoice);
+				const allChoices = Array.from(choices.keys());
+				const result = type === 'error'
+					? await window.showErrorMessage(message, options, ...allChoices)
+					: await window.showWarningMessage(message, options, ...allChoices);
 
-				if (choice === openOutputChannelChoice) {
-					outputChannel.show();
+				if (result) {
+					const resultFn = choices.get(result);
+
+					if (resultFn) {
+						resultFn();
+					}
 				}
 			});
 		};
