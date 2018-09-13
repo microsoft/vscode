@@ -1702,20 +1702,21 @@ export class CommandCenter {
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
 		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
-		const choice = await this.pickStash(repository, placeHolder);
+		const stash = await this.pickStash(repository, placeHolder);
 
-		if (!choice) {
+		if (!stash) {
 			return;
 		}
 
-		await repository.popStash(choice.id);
+		await repository.popStash(stash.index);
 	}
 
 	@command('git.stashPopLatest', { repository: true })
 	async stashPopLatest(repository: Repository): Promise<void> {
 		const stashes = await repository.getStashes();
 
-		if (!this.anyStashesAvailableToRestore(stashes)) {
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
 			return;
 		}
 
@@ -1725,47 +1726,39 @@ export class CommandCenter {
 	@command('git.stashApply', { repository: true })
 	async stashApply(repository: Repository): Promise<void> {
 		const placeHolder = localize('pick stash to apply', "Pick a stash to apply");
-		const choice = await this.pickStash(repository, placeHolder);
+		const stash = await this.pickStash(repository, placeHolder);
 
-		if (!choice) {
+		if (!stash) {
 			return;
 		}
 
-		await repository.applyStash(choice.id);
+		await repository.applyStash(stash.index);
 	}
 
 	@command('git.stashApplyLatest', { repository: true })
 	async stashApplyLatest(repository: Repository): Promise<void> {
 		const stashes = await repository.getStashes();
 
-		if (!this.anyStashesAvailableToRestore(stashes)) {
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
 			return;
 		}
 
 		await repository.applyStash();
 	}
 
-	private anyStashesAvailableToRestore(stashes: Stash[]): boolean {
-		const stashesAvailable = stashes.length > 0;
-
-		if (!stashesAvailable) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
-		}
-
-		return stashesAvailable;
-	}
-
-	private async pickStash(repository: Repository, placeHolder: string) {
+	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
-		if (!this.anyStashesAvailableToRestore(stashes)) {
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
 			return;
 		}
 
-		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
-		return await window.showQuickPick(picks, { placeHolder });
+		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
+		const result = await window.showQuickPick(picks, { placeHolder });
+		return result && result.stash;
 	}
-
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
