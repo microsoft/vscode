@@ -490,9 +490,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
 
-			// Give the extension host 60s, after which we will
+			// Give the extension host 10s, after which we will
 			// try to kill the process and release any resources
-			setTimeout(() => this._cleanResources(), 60 * 1000);
+			setTimeout(() => this._cleanResources(), 10 * 1000);
 
 		}, (err) => {
 

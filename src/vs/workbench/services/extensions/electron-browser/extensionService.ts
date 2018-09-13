@@ -39,12 +39,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
-import { RPCProtocol, IRPCProtocolLogger, RequestInitiator } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { RPCProtocol, IRPCProtocolLogger, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -114,6 +116,9 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionHostProcessManager extends Disposable {
 
 	public readonly onDidCrash: Event<[number, string]>;
+
+	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
+	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
@@ -187,6 +192,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
+		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
@@ -262,6 +268,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private readonly _onDidChangeExtensionsStatus: Emitter<string[]> = this._register(new Emitter<string[]>());
 	public readonly onDidChangeExtensionsStatus: Event<string[]> = this._onDidChangeExtensionsStatus.event;
 
+	private _unresponsiveNotificationHandle: INotificationHandle;
+
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
 	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
@@ -287,6 +295,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._allRequestedActivateEvents = Object.create(null);
 
 		this._onDidRegisterExtensions = new Emitter<void>();
+
+		this._unresponsiveNotificationHandle = null;
 
 		this._extensionHostProcessManagers = [];
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -375,6 +385,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => this._onResponsiveStateChanged(responsiveState));
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 	}
 
@@ -397,6 +408,49 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				run: () => this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents))
 			}]
 		);
+	}
+
+	private _onResponsiveStateChanged(state: ResponsiveState): void {
+		if (this._unresponsiveNotificationHandle) {
+			this._unresponsiveNotificationHandle.close();
+			this._unresponsiveNotificationHandle = null;
+		}
+
+		const showRunningExtensions = {
+			keepOpen: true,
+			label: nls.localize('extensionHostProcess.unresponsive.inspect', "Show running extensions"),
+			run: () => {
+				this._instantiationService.invokeFunction((accessor) => {
+					const editorService = accessor.get(IEditorService);
+					editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+					// keepOpen does not appear to work
+					setTimeout(() => {
+						this._onResponsiveStateChanged(state);
+					}, 100);
+				});
+			}
+		};
+
+		const restartExtensionHost = {
+			label: nls.localize('extensionHostProcess.unresponsive.restart', "Restart Extension Host"),
+			run: () => {
+				this.restartExtensionHost();
+			}
+		};
+
+		if (state === ResponsiveState.Unresponsive) {
+			this._unresponsiveNotificationHandle = this._notificationService.prompt(
+				Severity.Warning,
+				nls.localize('extensionHostProcess.unresponsive', "Extension Host is unresponsive."),
+				[showRunningExtensions, restartExtensionHost]
+			);
+		} else {
+			this._unresponsiveNotificationHandle = this._notificationService.prompt(
+				Severity.Info,
+				nls.localize('extensionHostProcess.responsive', "Extension Host is now responsive."),
+				[showRunningExtensions]
+			);
+		}
 	}
 
 	// ---- begin IExtensionService

@@ -38,9 +38,10 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { RuntimeExtensionsEditor, RuntimeExtensionsInput, ShowRuntimeExtensionsAction, IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/extensionProfileService';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
