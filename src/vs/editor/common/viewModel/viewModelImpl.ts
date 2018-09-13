@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -558,6 +558,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	public validateModelPosition(position: IPosition): Position {
 		return this.model.validatePosition(position);
+	}
+
+	public validateModelRange(range: IRange): Range {
+		return this.model.validateRange(range);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
