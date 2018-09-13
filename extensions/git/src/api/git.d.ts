@@ -19,6 +19,11 @@ export const enum RefType {
 	Tag
 }
 
+export enum ForcePushMode {
+	Force,
+	ForceWithLease,
+}
+
 export interface Ref {
 	readonly type: RefType;
 	readonly name?: string;
