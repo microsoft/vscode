@@ -512,6 +512,22 @@ export class CommandCenter {
 
 		await this.git.init(path);
 		await this.model.openRepository(path);
+
+		const choices = [];
+		let message = localize('proposeopeninitialisedrepo', "Would you like to add the repository folder to workspace?");
+		const open = localize('addinitrepo', "Add folder");
+		const notopen = localize('notaddinitrepo', "No, don't add");
+		choices.push(open);
+		choices.push(notopen);
+
+		const result = await window.showInformationMessage(message, ...choices);
+		const openFolder = result === open;
+
+		if(openFolder)
+		{
+			const uri = Uri.file(path);
+			workspace.updateWorkspaceFolders(workspace.workspaceFolders ? workspace.workspaceFolders.length : 0, null, { uri});
+		}
 	}
 
 	@command('git.openRepository', { repository: false })
