@@ -631,6 +631,11 @@ export interface CommitOptions {
 	empty?: boolean;
 }
 
+export enum ForcePushMode {
+	Force,
+	ForceWithLease
+}
+
 export class Repository {
 
 	constructor(
@@ -1198,8 +1203,14 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
 		const args = ['push'];
+
+		if (forcePushMode === ForcePushMode.ForceWithLease) {
+			args.push('--force-with-lease');
+		} else if (forcePushMode === ForcePushMode.Force) {
+			args.push('--force');
+		}
 
 		if (setUpstream) {
 			args.push('-u');

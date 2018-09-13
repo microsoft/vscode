@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git, CommitOptions, Stash } from './git';
+import { Git, CommitOptions, Stash, ForcePushMode } from './git';
 import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -150,6 +150,17 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	];
 
 	return { merge, resolved, unresolved };
+}
+
+enum PushType {
+	Push,
+	PushTo,
+	PushTags,
+}
+
+interface PushOptions {
+	pushType: PushType;
+	forcePush?: boolean;
 }
 
 export class CommandCenter {
@@ -1486,12 +1497,43 @@ export class CommandCenter {
 		await repository.pullWithRebase(repository.HEAD);
 	}
 
-	@command('git.push', { repository: true })
-	async push(repository: Repository): Promise<void> {
+	private async _push(repository: Repository, pushOptions: PushOptions) {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		let forcePushMode: ForcePushMode | undefined = undefined;
+
+		if (pushOptions.forcePush) {
+			if (!config.get<boolean>('allowForcePush')) {
+				await window.showErrorMessage(localize('force push not allowed', "Force push is not allowed, please enable it with the 'git.allowForcePush' setting."));
+				return;
+			}
+
+			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
+
+			if (config.get<boolean>('confirmForcePush')) {
+				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
+				const yes = localize('ok', "OK");
+				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+				if (pick === neverAgain) {
+					config.update('confirmForcePush', false, true);
+				} else if (pick !== yes) {
+					return;
+				}
+			}
+		}
+
+		if (pushOptions.pushType === PushType.PushTags) {
+			await repository.pushTags(undefined, forcePushMode);
+
+			window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 			return;
 		}
 
@@ -1500,62 +1542,65 @@ export class CommandCenter {
 			return;
 		}
 
-		try {
-			await repository.push(repository.HEAD);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
-				throw err;
-			}
+		if (pushOptions.pushType === PushType.Push) {
+			try {
+				await repository.push(repository.HEAD, forcePushMode);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
+					throw err;
+				}
 
+				const branchName = repository.HEAD.name;
+				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+				const yes = localize('ok', "OK");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+				if (pick === yes) {
+					await this.publish(repository);
+				}
+			}
+		} else {
 			const branchName = repository.HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
-			const yes = localize('ok', "OK");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
+			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+			const pick = await window.showQuickPick(picks, { placeHolder });
 
-			if (pick === yes) {
-				await this.publish(repository);
+			if (!pick) {
+				return;
 			}
+
+			await repository.pushTo(pick.label, branchName, undefined, forcePushMode);
 		}
+	}
+
+	@command('git.push', { repository: true })
+	async push(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.Push });
+	}
+
+	@command('git.pushForce', { repository: true })
+	async pushForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.Push, forcePush: true });
 	}
 
 	@command('git.pushWithTags', { repository: true })
 	async pushWithTags(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+		await this._push(repository, { pushType: PushType.PushTags });
+	}
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
-			return;
-		}
-
-		await repository.pushTags();
-
-		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
+	@command('git.pushWithTagsForce', { repository: true })
+	async pushWithTagsForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+		await this._push(repository, { pushType: PushType.PushTo });
+	}
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
-			return;
-		}
-
-		if (!repository.HEAD || !repository.HEAD.name) {
-			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
-			return;
-		}
-
-		const branchName = repository.HEAD.name;
-		const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
-		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-		const pick = await window.showQuickPick(picks, { placeHolder });
-
-		if (!pick) {
-			return;
-		}
-
-		await repository.pushTo(pick.label, branchName);
+	@command('git.pushToForce', { repository: true })
+	async pushToForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
