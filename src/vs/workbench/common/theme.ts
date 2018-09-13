@@ -453,7 +453,7 @@ export const MENUBAR_SEPARATOR_BACKGROUND = registerColor('menu.separatorBackgro
 	dark: '#BBBBBB',
 	light: '#888888',
 	hc: contrastBorder
-}, nls.localize('menuSeparatorBackground', "Color of a separator menu item in the menubar."));
+}, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
 
 // < --- Notifications --- >
 
