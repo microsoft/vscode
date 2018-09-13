@@ -9,5 +9,5 @@ NoDisplay=true
 StartupNotify=true
 StartupWMClass=@@NAME_SHORT@@
 Categories=Utility;TextEditor;Development;IDE;
-MimeType=x-scheme-handler/vscode
+MimeType=x-scheme-handler/@@URLPROTOCOL@@
 Keywords=vscode;
