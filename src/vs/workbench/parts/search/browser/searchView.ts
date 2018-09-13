@@ -1265,7 +1265,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					this.showSearchWithoutFolderMessage();
 				}
 			} else {
-				this.viewModel.searchResult.toggleHighlights(true); // show highlights
+				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
 				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
