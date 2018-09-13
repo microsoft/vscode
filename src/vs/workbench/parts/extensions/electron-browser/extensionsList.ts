@@ -49,6 +49,7 @@ const actionOptions = { icon: true, label: true };
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
+		private languagePacks: string[],
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -181,13 +182,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.ratings.style.display = '';
 		data.extension = extension;
 
-		const manifestPromise = createCancelablePromise(token => extension.getManifest(token).then(manifest => {
-			if (manifest) {
-				const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
-				if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-			}
-		}));
-		data.disposables.push(toDisposable(() => manifestPromise.cancel()));
+		if (this.languagePacks.indexOf(extension.id) > -1) {
+			const manifestPromise = createCancelablePromise(token => extension.getManifest(token).then(manifest => {
+				if (manifest) {
+					const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
+					if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
+				}
+			}));
+			data.disposables.push(toDisposable(() => manifestPromise.cancel()));
+		}
 	}
 
 	disposeElement(): void {
