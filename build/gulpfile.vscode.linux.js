@@ -35,6 +35,13 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@ICON@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
+		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.applicationName))
+			.pipe(rename('usr/share/applications/' + product.applicationName + '-url-handler.desktop'));
+
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
@@ -78,7 +85,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'));
 
-		const all = es.merge(control, postinst, postrm, prerm, desktop, appdata, icon, code);
+		const all = es.merge(control, postinst, postrm, prerm, desktop, desktopUrlHandler, appdata, icon, code);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -113,6 +120,13 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@ICON@@', product.applicationName))
 			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
 
+		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ICON@@', product.applicationName))
+			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '-url-handler.desktop'));
+
 		const appdata = gulp.src('resources/linux/code.appdata.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
@@ -142,7 +156,7 @@ function prepareRpmPackage(arch) {
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
 
-		const all = es.merge(code, desktop, appdata, icon, spec, specIcon);
+		const all = es.merge(code, desktop, desktopUrlHandler, appdata, icon, spec, specIcon);
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};
