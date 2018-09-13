@@ -53,6 +53,7 @@
 	border-bottom-width: 0;
 }
 
+/* Hide glyph decorations when inside the inline diff editor */
 .monaco-editor.modified-in-monaco-diff-editor .margin-view-overlays > div > .dirty-diff-glyph {
 	display: none;
 }
