@@ -45,6 +45,7 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class Item extends BreadcrumbsItem {
 
@@ -162,6 +163,7 @@ export class BreadcrumbsControl {
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
@@ -280,8 +282,15 @@ export class BreadcrumbsControl {
 			return;
 		}
 
-		this._editorGroup.focus();
 		const { element } = event.item as Item;
+		this._editorGroup.focus();
+
+		/* __GDPR__
+			"breadcrumbs/select" : {
+				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			}
+		*/
+		this._telemetryService.publicLog('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -315,6 +324,12 @@ export class BreadcrumbsControl {
 					}
 					this._contextViewService.hideContextView(this);
 					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
+					/* __GDPR__
+						"breadcrumbs/open" : {
+							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						}
+					*/
+					this._telemetryService.publicLog('breadcrumbs/open', { type: !data ? 'nothing' : data.target instanceof TreeElement ? 'symbol' : 'file' });
 				});
 				let focusListener = picker.onDidFocusElement(data => {
 					if (!editor || !(data.target instanceof OutlineElement)) {
