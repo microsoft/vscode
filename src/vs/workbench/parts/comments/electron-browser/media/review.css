@@ -35,7 +35,28 @@
 	display: flex;
 }
 
-.monaco-editor .review-widget .body .review-comment blockquote {
+.monaco-editor .review-widget .body .review-comment .comment-actions {
+	margin-left: auto;
+}
+
+.monaco-editor .review-widget .body .review-comment .comment-actions .action-item {
+	width: 30px;
+}
+
+.monaco-editor .review-widget .body .review-comment .comment-title {
+	display: flex;
+	width: 100%;
+}
+
+.monaco-editor .review-widget .body .review-comment .comment-title .action-label.octicon {
+	line-height: 18px;
+}
+
+.monaco-editor .review-widget .body .comment-body.hidden {
+	display: none;
+}
+
+.monaco-editor .review-widget .body .comment-body blockquote {
 	margin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
 	border-left-width: 5px;
@@ -60,6 +81,7 @@
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
 	margin-left: 20px;
 	user-select: text;
+	width: 100%;
 }
 
 .monaco-editor .review-widget .body pre {
@@ -68,7 +90,7 @@
 	white-space: pre;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents h4 {
+.monaco-editor.vs-dark .review-widget .body .comment-body h4 {
 	margin: 0;
 }
 
@@ -85,39 +107,39 @@
 	color: #e0e0e0;
 }
 
-.monaco-editor .review-widget .body p,
-.monaco-editor .review-widget .body ul {
+.monaco-editor .review-widget .body .comment-body p,
+.monaco-editor .review-widget .body .comment-body ul {
 	margin: 8px 0;
 }
 
-.monaco-editor .review-widget .body p:first-child,
-.monaco-editor .review-widget .body ul:first-child {
+.monaco-editor .review-widget .body .comment-body p:first-child,
+.monaco-editor .review-widget .body .comment-body ul:first-child {
 	margin-top: 0;
 }
 
-.monaco-editor .review-widget .body p:last-child,
-.monaco-editor .review-widget .body ul:last-child {
+.monaco-editor .review-widget .body .comment-body p:last-child,
+.monaco-editor .review-widget .body.comment-body  ul:last-child {
 	margin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body ul {
+.monaco-editor .review-widget .body .comment-body ul {
 	padding-left: 20px;
 }
 
-.monaco-editor .review-widget .body li>p {
+.monaco-editor .review-widget .body .comment-body li>p {
 	margin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body li>ul {
+.monaco-editor .review-widget .body .comment-body li>ul {
 	margin-top: 0;
 }
 
-.monaco-editor .review-widget .body code {
+.monaco-editor .review-widget .body .comment-body code {
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-editor .review-widget .body span {
+.monaco-editor .review-widget .body .comment-body span {
 	white-space: pre;
 }
 
@@ -184,8 +206,8 @@
 	outline-width: 1px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-editor {
-	display: none;
+.monaco-editor .review-widget .body .comment-form .monaco-editor,
+.monaco-editor .review-widget .body .edit-container .monaco-editor {
 	width: 100%;
 	min-height: 90px;
 	max-height: 500px;
@@ -194,15 +216,32 @@
 	padding: 6px 0 6px 12px;
 }
 
+.monaco-editor .review-widget .body .comment-form .monaco-editor,
 .monaco-editor .review-widget .body .comment-form .form-actions {
-	overflow: auto;
-	padding: 10px 0;
 	display: none;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-text-button {
+.monaco-editor .review-widget .body .comment-form .form-actions,
+.monaco-editor .review-widget .body .edit-container .form-actions {
+	overflow: auto;
+	padding: 10px 0;
+}
+
+
+.monaco-editor .review-widget .body .edit-container {
+	margin-right: 28px;
+}
+
+.monaco-editor .review-widget .body .edit-textarea {
+	height: 90px;
+	margin-bottom: 10px;
+}
+
+.monaco-editor .review-widget .body .comment-form .monaco-text-button,
+.monaco-editor .review-widget .body .edit-container .monaco-text-button {
 	width: auto;
 	padding: 4px 10px;
+	margin-left: 5px;
 	float: right;
 }
 
