@@ -270,7 +270,11 @@ function registerDiffEditorCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_DIFF_INLINE_MODE,
-			title: nls.localize('toggleInlineView', "Compare: Toggle Inline View")
+			title: {
+				value: nls.localize('toggleInlineView', "Toggle Inline View"),
+				original: 'Compare: Toggle Inline View'
+			},
+			category: nls.localize('compare', "Compare")
 		},
 		when: ContextKeyExpr.has('textCompareEditorActive')
 	});

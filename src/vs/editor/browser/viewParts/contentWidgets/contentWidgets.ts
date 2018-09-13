@@ -12,8 +12,10 @@ import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/v
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { Constants } from 'vs/editor/common/core/uint';
 
 class Coordinate {
 	_coordinateBrand: void;
@@ -113,9 +115,9 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: IPosition, preference: ContentWidgetPositionPreference[]): void {
+	public setWidgetPosition(widget: IContentWidget, position: IPosition, range: IRange, preference: ContentWidgetPositionPreference[]): void {
 		const myWidget = this._widgets[widget.getId()];
-		myWidget.setPosition(position, preference);
+		myWidget.setPosition(position, range, preference);
 
 		this.setShouldRender();
 	}
@@ -167,11 +169,13 @@ export class ViewContentWidgets extends ViewPart {
 }
 
 interface IBoxLayoutResult {
-	aboveTop: number;
 	fitsAbove: boolean;
-	belowTop: number;
+	aboveTop: number;
+	aboveLeft: number;
+
 	fitsBelow: boolean;
-	left: number;
+	belowTop: number;
+	belowLeft: number;
 }
 
 class Widget {
@@ -191,6 +195,8 @@ class Widget {
 
 	private _position: IPosition;
 	private _viewPosition: Position;
+	private _range: IRange;
+	private _viewRange: Range;
 	private _preference: ContentWidgetPositionPreference[];
 	private _cachedDomNodeClientWidth: number;
 	private _cachedDomNodeClientHeight: number;
@@ -214,7 +220,7 @@ class Widget {
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 
-		this._setPosition(null);
+		this._setPosition(null, null);
 		this._preference = null;
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
@@ -240,12 +246,14 @@ class Widget {
 	}
 
 	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): void {
-		this._setPosition(this._position);
+		this._setPosition(this._position, this._range);
 	}
 
-	private _setPosition(position: IPosition): void {
+	private _setPosition(position: IPosition, range: IRange): void {
 		this._position = position;
+		this._range = range;
 		this._viewPosition = null;
+		this._viewRange = null;
 
 		if (this._position) {
 			// Do not trust that widgets give a valid position
@@ -253,6 +261,11 @@ class Widget {
 			if (this._context.model.coordinatesConverter.modelPositionIsVisible(validModelPosition)) {
 				this._viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(validModelPosition);
 			}
+		}
+		if (this._range) {
+			// Do not trust that widgets give a valid position
+			const validModelRange = this._context.model.validateModelRange(this._range);
+			this._viewRange = this._context.model.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
 		}
 	}
 
@@ -264,14 +277,14 @@ class Widget {
 		);
 	}
 
-	public setPosition(position: IPosition, preference: ContentWidgetPositionPreference[]): void {
-		this._setPosition(position);
+	public setPosition(position: IPosition, range: IRange, preference: ContentWidgetPositionPreference[]): void {
+		this._setPosition(position, range);
 		this._preference = preference;
 		this._cachedDomNodeClientWidth = -1;
 		this._cachedDomNodeClientHeight = -1;
 	}
 
-	private _layoutBoxInViewport(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
 		// Our visible box is split horizontally by the current line => 2 boxes
 
 		// a) the box above the line
@@ -279,7 +292,7 @@ class Widget {
 		let heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		let underLineTop = topLeft.top + this._lineHeight;
+		let underLineTop = bottomLeft.top + this._lineHeight;
 		let heightUnderLine = ctx.viewportHeight - underLineTop;
 
 		let aboveTop = aboveLineTop - height;
@@ -288,39 +301,51 @@ class Widget {
 		let fitsBelow = (heightUnderLine >= height);
 
 		// And its left
-		let actualLeft = topLeft.left;
-		if (actualLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
-			actualLeft = ctx.scrollLeft + ctx.viewportWidth - width;
+		let actualAboveLeft = topLeft.left;
+		let actualBelowLeft = bottomLeft.left;
+		if (actualAboveLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
+			actualAboveLeft = ctx.scrollLeft + ctx.viewportWidth - width;
 		}
-		if (actualLeft < ctx.scrollLeft) {
-			actualLeft = ctx.scrollLeft;
+		if (actualBelowLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
+			actualBelowLeft = ctx.scrollLeft + ctx.viewportWidth - width;
+		}
+		if (actualAboveLeft < ctx.scrollLeft) {
+			actualAboveLeft = ctx.scrollLeft;
+		}
+		if (actualBelowLeft < ctx.scrollLeft) {
+			actualBelowLeft = ctx.scrollLeft;
 		}
 
 		return {
-			aboveTop: aboveTop,
 			fitsAbove: fitsAbove,
-			belowTop: belowTop,
+			aboveTop: aboveTop,
+			aboveLeft: actualAboveLeft,
+
 			fitsBelow: fitsBelow,
-			left: actualLeft
+			belowTop: belowTop,
+			belowLeft: actualBelowLeft,
 		};
 	}
 
-	private _layoutBoxInPage(topLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
-		let left0 = topLeft.left - ctx.scrollLeft;
+	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
+		let aboveLeft0 = topLeft.left - ctx.scrollLeft;
+		let belowLeft0 = bottomLeft.left - ctx.scrollLeft;
 
-		if (left0 < 0 || left0 > this._contentWidth) {
+		if (aboveLeft0 < 0 || aboveLeft0 > this._contentWidth) {
 			// Don't render if position is scrolled outside viewport
 			return null;
 		}
 
 		let aboveTop = topLeft.top - height;
-		let belowTop = topLeft.top + this._lineHeight;
-		let left = left0 + this._contentLeft;
+		let belowTop = bottomLeft.top + this._lineHeight;
+		let aboveLeft = aboveLeft0 + this._contentLeft;
+		let belowLeft = belowLeft0 + this._contentLeft;
 
 		let domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
 		let absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
 		let absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
-		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
+		let absoluteAboveLeft = domNodePosition.left + aboveLeft - dom.StandardWindow.scrollX;
+		let absoluteBelowLeft = domNodePosition.left + belowLeft - dom.StandardWindow.scrollX;
 
 		let INNER_WIDTH = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
 		let INNER_HEIGHT = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
@@ -332,24 +357,35 @@ class Widget {
 		let fitsAbove = (absoluteAboveTop >= TOP_PADDING),
 			fitsBelow = (absoluteBelowTop + height <= INNER_HEIGHT - BOTTOM_PADDING);
 
-		if (absoluteLeft + width + 20 > INNER_WIDTH) {
-			let delta = absoluteLeft - (INNER_WIDTH - width - 20);
-			absoluteLeft -= delta;
-			left -= delta;
+		if (absoluteAboveLeft + width + 20 > INNER_WIDTH) {
+			let delta = absoluteAboveLeft - (INNER_WIDTH - width - 20);
+			absoluteAboveLeft -= delta;
+			aboveLeft -= delta;
 		}
-		if (absoluteLeft < 0) {
-			let delta = absoluteLeft;
-			absoluteLeft -= delta;
-			left -= delta;
+		if (absoluteBelowLeft + width + 20 > INNER_WIDTH) {
+			let delta = absoluteBelowLeft - (INNER_WIDTH - width - 20);
+			absoluteBelowLeft -= delta;
+			belowLeft -= delta;
+		}
+		if (absoluteAboveLeft < 0) {
+			let delta = absoluteAboveLeft;
+			absoluteAboveLeft -= delta;
+			aboveLeft -= delta;
+		}
+		if (absoluteBelowLeft < 0) {
+			let delta = absoluteBelowLeft;
+			absoluteBelowLeft -= delta;
+			belowLeft -= delta;
 		}
 
 		if (this._fixedOverflowWidgets) {
 			aboveTop = absoluteAboveTop;
 			belowTop = absoluteBelowTop;
-			left = absoluteLeft;
+			aboveLeft = absoluteAboveLeft;
+			belowLeft = absoluteBelowLeft;
 		}
 
-		return { aboveTop, fitsAbove, belowTop, fitsBelow, left };
+		return { fitsAbove, aboveTop, aboveLeft, fitsBelow, belowTop, belowLeft };
 	}
 
 	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): Coordinate {
@@ -359,21 +395,52 @@ class Widget {
 	/**
 	 * Compute `this._topLeft`
 	 */
-	private _getTopLeft(ctx: RenderingContext): Coordinate {
+	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate, Coordinate] {
 		if (!this._viewPosition) {
-			return null;
+			return [null, null];
 		}
 
-		const visibleRange = ctx.visibleRangeForPosition(this._viewPosition);
-		if (!visibleRange) {
-			return null;
+		const visibleRangeForPosition = ctx.visibleRangeForPosition(this._viewPosition);
+		if (!visibleRangeForPosition) {
+			return [null, null];
 		}
 
-		const top = ctx.getVerticalOffsetForLineNumber(this._viewPosition.lineNumber) - ctx.scrollTop;
-		return new Coordinate(top, visibleRange.left);
+		const topForPosition = ctx.getVerticalOffsetForLineNumber(this._viewPosition.lineNumber) - ctx.scrollTop;
+		const topLeft = new Coordinate(topForPosition, visibleRangeForPosition.left);
+
+		let largestLineNumber = this._viewPosition.lineNumber;
+		let smallestLeft = visibleRangeForPosition.left;
+
+		if (this._viewRange) {
+			const visibleRangesForRange = ctx.linesVisibleRangesForRange(this._viewRange, false);
+			if (visibleRangesForRange && visibleRangesForRange.length > 0) {
+				for (let i = visibleRangesForRange.length - 1; i >= 0; i--) {
+					const visibleRangesForLine = visibleRangesForRange[i];
+					if (visibleRangesForLine.lineNumber >= largestLineNumber) {
+						if (visibleRangesForLine.lineNumber > largestLineNumber) {
+							largestLineNumber = visibleRangesForLine.lineNumber;
+							smallestLeft = Constants.MAX_SAFE_SMALL_INTEGER;
+						}
+						for (let j = 0, lenJ = visibleRangesForLine.ranges.length; j < lenJ; j++) {
+							const visibleRange = visibleRangesForLine.ranges[j];
+
+							if (visibleRange.left < smallestLeft) {
+								smallestLeft = visibleRange.left;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		const topForBottomLine = ctx.getVerticalOffsetForLineNumber(largestLineNumber) - ctx.scrollTop;
+		const bottomLeft = new Coordinate(topForBottomLine, smallestLeft);
+
+		return [topLeft, bottomLeft];
 	}
 
-	private _prepareRenderWidget(topLeft: Coordinate, ctx: RenderingContext): Coordinate {
+	private _prepareRenderWidget(ctx: RenderingContext): Coordinate {
+		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
 		if (!topLeft) {
 			return null;
 		}
@@ -391,9 +458,9 @@ class Widget {
 			}
 
 			if (this.allowEditorOverflow) {
-				placement = this._layoutBoxInPage(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+				placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
 			} else {
-				placement = this._layoutBoxInViewport(topLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+				placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
 			}
 		};
 
@@ -408,7 +475,7 @@ class Widget {
 						return null;
 					}
 					if (pass === 2 || placement.fitsAbove) {
-						return new Coordinate(placement.aboveTop, placement.left);
+						return new Coordinate(placement.aboveTop, placement.aboveLeft);
 					}
 				} else if (pref === ContentWidgetPositionPreference.BELOW) {
 					fetchPlacement();
@@ -417,7 +484,7 @@ class Widget {
 						return null;
 					}
 					if (pass === 2 || placement.fitsBelow) {
-						return new Coordinate(placement.belowTop, placement.left);
+						return new Coordinate(placement.belowTop, placement.belowLeft);
 					}
 				} else {
 					if (this.allowEditorOverflow) {
@@ -448,8 +515,7 @@ class Widget {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		const topLeft = this._getTopLeft(ctx);
-		this._renderData = this._prepareRenderWidget(topLeft, ctx);
+		this._renderData = this._prepareRenderWidget(ctx);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {

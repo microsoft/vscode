@@ -8,6 +8,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { toggleClass } from 'vs/base/browser/dom';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -22,6 +23,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	private _containerDomNode: HTMLElement;
 	private _domNode: HTMLElement;
 	protected _showAtPosition: Position;
+	protected _showAtRange: Range;
 	private _stoleFocus: boolean;
 	private scrollbar: DomScrollableElement;
 	private disposables: IDisposable[] = [];
@@ -72,6 +74,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this.updateMaxHeight();
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
+		this._showAtRange = null;
 	}
 
 	public getId(): string {
@@ -82,9 +85,10 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		return this._containerDomNode;
 	}
 
-	public showAt(position: Position, focus: boolean): void {
+	public showAt(position: Position, range: Range, focus: boolean): void {
 		// Position has changed
-		this._showAtPosition = new Position(position.lineNumber, position.column);
+		this._showAtPosition = position;
+		this._showAtRange = range;
 		this.isVisible = true;
 
 		this._editor.layoutContentWidget(this);
@@ -114,6 +118,7 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		if (this.isVisible) {
 			return {
 				position: this._showAtPosition,
+				range: this._showAtRange,
 				preference: [
 					editorBrowser.ContentWidgetPositionPreference.ABOVE,
 					editorBrowser.ContentWidgetPositionPreference.BELOW

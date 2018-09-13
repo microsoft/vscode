@@ -7,6 +7,8 @@
 
 'use strict';
 
+const path = require('path');
+
 const withDefaults = require('../shared.webpack.config');
 
 module.exports = withDefaults({
@@ -14,11 +16,13 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/main.ts',
 	},
+	output: {
+		filename: 'main.js',
+		path: path.join(__dirname, 'dist'),
+		libraryTarget: "commonjs",
+	},
 	resolve: {
 		mainFields: ['module', 'main'],
 		extensions: ['.ts', '.js'] // support ts-files and js-files
-	},
-	externals: {
-		'vscode-nls': 'commonjs vscode-nls',
-	},
+	}
 });

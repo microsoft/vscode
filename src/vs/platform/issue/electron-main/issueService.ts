@@ -16,6 +16,7 @@ import { PerformanceInfo, SystemInfo, IDiagnosticsService } from 'vs/platform/di
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -31,7 +32,8 @@ export class IssueService implements IIssueService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILaunchService private launchService: ILaunchService,
 		@ILogService private logService: ILogService,
-		@IDiagnosticsService private diagnosticsService: IDiagnosticsService
+		@IDiagnosticsService private diagnosticsService: IDiagnosticsService,
+		@IWindowsService private windowsService: IWindowsService
 	) { }
 
 	openReporter(data: IssueReporterData): TPromise<void> {
@@ -49,6 +51,10 @@ export class IssueService implements IIssueService {
 
 		ipcMain.on('vscode:workbenchCommand', (event, arg) => {
 			this._issueParentWindow.webContents.send('vscode:runAction', { id: arg, from: 'issueReporter' });
+		});
+
+		ipcMain.on('vscode:openExternal', (_, arg) => {
+			this.windowsService.openExternal(arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: Event) => {

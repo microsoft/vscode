@@ -301,7 +301,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		// update column from which to show
 		let renderColumn = Number.MAX_VALUE;
-		let highlightRange = messages[0].range;
+		let highlightRange = Range.lift(messages[0].range);
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
 
@@ -392,7 +392,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
 
 					this._colorPicker = widget;
-					this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+					this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
@@ -404,7 +404,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		// show
 
 		if (!containColorPicker && !isEmptyHoverContent) {
-			this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+			this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			this.updateContents(fragment);
 		}
 

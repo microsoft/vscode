@@ -153,6 +153,42 @@ suite('Encoding', () => {
 		});
 	});
 
+	test('autoGuessEncoding, restrictGuessedEncodings empty (ShiftJIS)', function () {
+		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
+		return readExactlyByFile(file, 512 * 8).then(buffer => {
+			return encoding.detectEncodingFromBuffer(buffer, true, []).then(mimes => {
+				assert.equal(mimes.encoding, 'shiftjis');
+			});
+		});
+	});
+
+	test('autoGuessEncoding, restrictGuessedEncodings (ShiftJIS)', function () {
+		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
+		return readExactlyByFile(file, 512 * 8).then(buffer => {
+			return encoding.detectEncodingFromBuffer(buffer, true, ['windows1252']).then(mimes => {
+				assert.ok(!mimes.encoding);
+			});
+		});
+	});
+
+	test('autoGuessEncoding, restrictGuessedEncodings (ShiftJIS)', function () {
+		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
+		return readExactlyByFile(file, 512 * 8).then(buffer => {
+			return encoding.detectEncodingFromBuffer(buffer, true, ['windows1252', 'shiftjis']).then(mimes => {
+				assert.equal(mimes.encoding, 'shiftjis');
+			});
+		});
+	});
+
+	test('autoGuessEncoding, restrictGuessedEncodings (CP1252)', function () {
+		const file = getPathFromAmdModule(require, './fixtures/some.cp1252.txt');
+		return readExactlyByFile(file, 512 * 8).then(buffer => {
+			return encoding.detectEncodingFromBuffer(buffer, true, ['windows1252']).then(mimes => {
+				assert.equal(mimes.encoding, 'windows1252');
+			});
+		});
+	});
+
 	async function readAndDecodeFromDisk(path, _encoding) {
 		return new Promise<string>((resolve, reject) => {
 			fs.readFile(path, (err, data) => {

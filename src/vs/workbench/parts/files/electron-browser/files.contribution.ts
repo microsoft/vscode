@@ -234,6 +234,17 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.restrictGuessedEncodings': {
+			'type': 'array',
+			'overridable': true,
+			'default': [],
+			'items': {
+				'type': 'string',
+				'enum': Object.keys(SUPPORTED_ENCODINGS)
+			},
+			'scope': ConfigurationScope.RESOURCE,
+			'description': nls.localize('restrictGuessedEncodings', "If provided, will restrict the list of encodings that can be used when guessing. If the guessed file encoding is not in the list, the default encoding will be used.")
+		},
 		'files.eol': {
 			'type': 'string',
 			'enum': [

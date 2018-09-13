@@ -23,7 +23,7 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 			__dirname: false // leave the __dirname-behaviour intact
 		},
 		resolve: {
-			mainFields: ['main'], // prefer the main-entry of package.json files
+			mainFields: ['module', 'main'],
 			extensions: ['.ts', '.js'] // support ts-files and js-files
 		},
 		module: {
