@@ -37,6 +37,7 @@ export interface IMenuStyles {
 	selectionForegroundColor?: Color;
 	selectionBackgroundColor?: Color;
 	selectionBorderColor?: Color;
+	separatorColor?: Color;
 }
 
 export class SubmenuAction extends Action {
@@ -185,7 +186,8 @@ export class Menu extends ActionBar {
 
 		if (style.selectionBackgroundColor) {
 			content += `
-			.monaco-menu .monaco-action-bar.vertical .action-item.focused {
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+			.hc-black .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 				background-color: ${style.selectionBackgroundColor};
 			}`;
 		}
@@ -204,8 +206,17 @@ export class Menu extends ActionBar {
 
 		if (style.selectionBorderColor) {
 			content += `
-			.monaco-menu .monaco-action-bar.vertical .action-item.focused {
+			.monaco-menu .monaco-action-bar.vertical .action-item.focused,
+			.hc-black	.monaco-menu .monaco-action-bar.vertical .action-item.focused {
 				border: 1px solid ${style.selectionBorderColor};
+			}`;
+		}
+
+		if (style.separatorColor) {
+			content += `
+			.monaco-menu .monaco-action-bar.vertical .action-label.separator,
+			.hc-black .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+				border-bottom: 1px solid ${style.separatorColor};
 			}`;
 		}
 
