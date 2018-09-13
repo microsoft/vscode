@@ -1261,19 +1261,32 @@ export class CommandCenter {
 		await choice.run(repository);
 	}
 
+	private removeBranchNameWhitespace(name: string) {
+		const config = workspace.getConfiguration('git');
+		return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.|\[|\]|$/g, config.createBranchWhitespaceChar);
+	}
+
 	@command('git.branch', { repository: true })
 	async branch(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const validateName = new RegExp(config.createBranchNameConvention.regexp);
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
-			ignoreFocusOut: true
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (validateName.test(this.removeBranchNameWhitespace(name))) {
+					return null;
+				}
+				return `${localize('branch name format invalid', "Have to be in the format")} : ${config.createBranchNameConvention.regexp}`;
+			}
 		});
 
 		if (!result) {
 			return;
 		}
 
-		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.|\[|\]|$/g, '-');
+		const name = this.removeBranchNameWhitespace(result);
 		await repository.branch(name, true);
 	}
 
