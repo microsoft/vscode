@@ -182,42 +182,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		const patternExclusionsHistory: string[] = history.exclude || this.viewletSettings['query.folderExclusionsHistory'] || [];
-		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		let patternIncludesHistory: string[] = history.include || this.viewletSettings['query.folderIncludesHistory'] || [];
+		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusionsHistory: string[] = history.exclude || [];
+		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const patternIncludesHistory: string[] = history.include || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
-
-		// Transition history from 1.22 combined include+exclude, to split include/exclude histories
-		const patternIncludesHistoryWithoutExcludes: string[] = [];
-		const patternExcludesHistoryFromIncludes: string[] = [];
-		patternIncludesHistory.forEach(historyEntry => {
-			const includeExclude = this.queryBuilder.parseIncludeExcludePattern(historyEntry);
-			if (includeExclude.includePattern) {
-				patternIncludesHistoryWithoutExcludes.push(includeExclude.includePattern);
-			}
-
-			if (includeExclude.excludePattern) {
-				patternExcludesHistoryFromIncludes.push(includeExclude.excludePattern);
-			}
-		});
-
-		patternIncludesHistory = patternIncludesHistoryWithoutExcludes;
-		patternExclusionsHistory.push(...patternExcludesHistoryFromIncludes);
-
-		// Split combined include/exclude to split include/exclude boxes
-		const includeExclude = this.queryBuilder.parseIncludeExcludePattern(patternIncludes);
-		patternIncludes = includeExclude.includePattern || '';
-
-		if (includeExclude.excludePattern) {
-			if (patternExclusions) {
-				patternExclusions += ', ' + includeExclude.excludePattern;
-			} else {
-				patternExclusions = includeExclude.excludePattern;
-			}
-		}
 
 		this.queryDetails = dom.append(this.searchWidgetsContainerElement, $('.query-details'));
 
@@ -1534,15 +1505,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 
-		// Deprecated, remove these memento props a couple releases after 1.25
 		const searchHistory = this.searchWidget.getSearchHistory();
 		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
 		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
-		this.viewletSettings['query.searchHistory'] = searchHistory;
-		this.viewletSettings['query.replaceHistory'] = replaceHistory;
-		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
-		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
 
 		this.searchHistoryService.save({
 			search: searchHistory,
