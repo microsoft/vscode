@@ -207,7 +207,7 @@ export class ActivitybarPart extends Part {
 			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 			dragAndDropBackground: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND),
-			backgroundColor: null, activeBorderBottomColor: null,
+			activeBorderBottomColor: null,
 		};
 	}
 

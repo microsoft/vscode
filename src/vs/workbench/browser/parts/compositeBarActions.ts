@@ -113,7 +113,6 @@ export class ActivityAction extends Action {
 }
 
 export interface ICompositeBarColors {
-	backgroundColor: Color;
 	activeBorderBottomColor: Color;
 	activeForegroundColor: Color;
 	inactiveForegroundColor: Color;
@@ -157,16 +156,16 @@ export class ActivityActionItem extends BaseActionItem {
 		const theme = this.themeService.getTheme();
 		const colors = this.options.colors(theme);
 
-		if (this.options.icon) {
-			const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
-			this.label.style.backgroundColor = foreground ? foreground.toString() : null;
-		} else if (this.label) {
-			const background = colors.backgroundColor;
-			const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
-			const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
-			this.label.style.backgroundColor = background ? background.toString() : null;
-			this.label.style.color = foreground ? foreground.toString() : null;
-			this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
+		if (this.label) {
+			if (this.options.icon) {
+				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
+				this.label.style.backgroundColor = foreground ? foreground.toString() : null;
+			} else {
+				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
+				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
+				this.label.style.color = foreground ? foreground.toString() : null;
+				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : null;
+			}
 		}
 
 		// Badge
