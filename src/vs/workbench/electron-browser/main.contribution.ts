@@ -120,7 +120,7 @@ CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccess
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceConfigFileAction.ID,
-		title: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`,
+		title: { value: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`, original: 'Workspaces: Open Workspace Configuration File' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
 });

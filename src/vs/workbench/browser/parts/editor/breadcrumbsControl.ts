@@ -434,7 +434,7 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs"),
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
 		category: localize('cmd.category', "View")
 	}
 });
@@ -469,7 +469,7 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.focusAndSelect',
-		title: localize('cmd.focus', "Focus Breadcrumbs"),
+		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
 		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
 	}
 });

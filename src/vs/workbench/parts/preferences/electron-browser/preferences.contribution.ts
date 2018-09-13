@@ -320,7 +320,7 @@ CommandsRegistry.registerCommand(OpenFolderSettingsAction.ID, serviceAccessor =>
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenFolderSettingsAction.ID,
-		title: `${category}: ${OpenFolderSettingsAction.LABEL}`,
+		title: { value: `${category}: ${OpenFolderSettingsAction.LABEL}`, original: 'Preferences: Open Folder Settings' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
 });
@@ -331,7 +331,7 @@ CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, serviceAccessor
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceSettingsAction.ID,
-		title: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`,
+		title: { value: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`, original: 'Preferences: Open Workspace Settings' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').notEqualsTo('empty')
 });
