@@ -1497,27 +1497,37 @@ export class CommandCenter {
 		await repository.pullWithRebase(repository.HEAD);
 	}
 
-	private async pushWithOptions(repository: Repository, pushOptions: PushOptions) {
+	private async _push(repository: Repository, pushOptions: PushOptions) {
 		const remotes = repository.remotes;
-		const config = workspace.getConfiguration('git');
-		const forcePushMode = pushOptions.forcePush && config.get<boolean>('useForceWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
-
-		if (pushOptions.forcePush && config.get<boolean>('dontAskForcePushConfirmation') === false) {
-			const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
-			const yes = localize('ok', "OK");
-			const dontAsk = localize('dontAsk', "OK, do not ask me again");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, dontAsk);
-
-			if (pick === dontAsk) {
-				config.update('dontAskForcePushConfirmation', true, true);
-			} else if (pick !== yes) {
-				return;
-			}
-		}
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
 			return;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		let forcePushMode: ForcePushMode | undefined = undefined;
+
+		if (pushOptions.forcePush) {
+			if (!config.get<boolean>('allowForcePush')) {
+				await window.showErrorMessage(localize('force push not allowed', "Force push is not allowed, please enable it with the 'git.allowForcePush' setting."));
+				return;
+			}
+
+			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
+
+			if (config.get<boolean>('confirmForcePush')) {
+				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
+				const yes = localize('ok', "OK");
+				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+				if (pick === neverAgain) {
+					config.update('confirmForcePush', false, true);
+				} else if (pick !== yes) {
+					return;
+				}
+			}
 		}
 
 		if (pushOptions.pushType === PushType.PushTags) {
@@ -1565,32 +1575,32 @@ export class CommandCenter {
 
 	@command('git.push', { repository: true })
 	async push(repository: Repository): Promise<void> {
-		await this.pushWithOptions(repository, { pushType: PushType.Push });
+		await this._push(repository, { pushType: PushType.Push });
 	}
 
 	@command('git.pushForce', { repository: true })
 	async pushForce(repository: Repository): Promise<void> {
-		await this.pushWithOptions(repository, { pushType: PushType.Push, forcePush: true });
+		await this._push(repository, { pushType: PushType.Push, forcePush: true });
 	}
 
 	@command('git.pushWithTags', { repository: true })
 	async pushWithTags(repository: Repository): Promise<void> {
-		await this.pushWithOptions(repository, { pushType: PushType.PushTags });
+		await this._push(repository, { pushType: PushType.PushTags });
 	}
 
 	@command('git.pushWithTagsForce', { repository: true })
 	async pushWithTagsForce(repository: Repository): Promise<void> {
-		await this.pushWithOptions(repository, { pushType: PushType.PushTags, forcePush: true });
+		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository): Promise<void> {
-		await this.pushWithOptions(repository, { pushType: PushType.PushTo });
+		await this._push(repository, { pushType: PushType.PushTo });
 	}
 
 	@command('git.pushToForce', { repository: true })
 	async pushToForce(repository: Repository): Promise<void> {
-		await this.pushWithOptions(repository, { pushType: PushType.PushTo, forcePush: true });
+		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {

@@ -1160,15 +1160,15 @@
           "default": false,
           "description": "%config.allowForcePush%"
         },
-        "git.useForceWithLease": {
+        "git.useForcePushWithLease": {
           "type": "boolean",
           "default": true,
-          "description": "%config.useForceWithLease%"
+          "description": "%config.useForcePushWithLease%"
         },
-        "git.dontAskForcePushConfirmation": {
+        "git.confirmForcePush": {
           "type": "boolean",
-          "default": false,
-          "description": "%config.dontAskForcePushConfirmation%"
+          "default": true,
+          "description": "%config.confirmForcePush%"
         }
       }
     },
