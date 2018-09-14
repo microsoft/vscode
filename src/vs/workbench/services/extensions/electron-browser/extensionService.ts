@@ -248,6 +248,16 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 		throw new Error('Extension host not running or no inspect port available');
 	}
+
+	public getInspectPort(): number {
+		if (this._extensionHostProcessWorker) {
+			let port = this._extensionHostProcessWorker.getInspectPort();
+			if (port) {
+				return port;
+			}
+		}
+		return 0;
+	}
 }
 
 schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
@@ -542,6 +552,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 		throw new Error('Extension host not running or no inspect port available');
+	}
+
+	public getInspectPort(): number {
+		if (this._extensionHostProcessManagers.length > 0) {
+			return this._extensionHostProcessManagers[0].getInspectPort();
+		}
+		return 0;
 	}
 
 	// ---- end IExtensionService

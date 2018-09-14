@@ -174,6 +174,11 @@ export interface IExtensionService {
 	startExtensionHostProfile(): TPromise<ProfileSession>;
 
 	/**
+	 * Return the inspect port or 0.
+	 */
+	getInspectPort(): number;
+
+	/**
 	 * Restarts the extension host.
 	 */
 	restartExtensionHost(): void;
