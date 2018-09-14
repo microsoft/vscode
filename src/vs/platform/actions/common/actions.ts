@@ -152,7 +152,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	getCommands(): ICommandsMap {
-		return Object.freeze(this._commands);
+		const result: ICommandsMap = Object.create(null);
+		for (const key in this._commands) {
+			result[key] = this.getCommand(key);
+		}
+		return result;
 	}
 
 	appendMenuItem({ id }: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
