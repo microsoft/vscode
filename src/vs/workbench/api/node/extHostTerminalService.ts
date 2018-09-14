@@ -77,7 +77,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
-		this._proxy.$registerOnDataListener(this._id);
+		this._idPromise.then(c => {
+			this._proxy.$registerOnDataListener(this._id);
+		});
 		return this._onData && this._onData.event;
 	}
 
