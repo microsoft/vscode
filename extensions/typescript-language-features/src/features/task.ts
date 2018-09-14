@@ -28,6 +28,16 @@ const exists = (file: string): Promise<boolean> =>
 		});
 	});
 
+const readJson = (file: string): Promise<any> =>
+	new Promise<boolean>((resolve, reject) => {
+		fs.readFile(file, 'utf8', (err, value) => {
+			if (err) {
+				reject(err);
+			} else {
+				resolve(JSON.parse(value));
+			}
+		});
+	});
 
 interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 	tsconfig: string;
@@ -182,6 +192,8 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		const tasks: vscode.Task[] = [];
 
+		const flag = Array.isArray((await readJson(project.path)).references) ? '-b' : '-p';
+
 		if (this.autoDetect === 'build' || this.autoDetect === 'on') {
 			const buildTaskidentifier: TypeScriptTaskDefinition = { type: 'typescript', tsconfig: label };
 			const buildTask = new vscode.Task(
@@ -189,7 +201,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildTscLabel', 'build - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['-p', project.path]),
+				new vscode.ShellExecution(command, [flag, project.path]),
 				'$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			buildTask.isBackground = false;
@@ -203,7 +215,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['--watch', '-p', project.path]),
+				new vscode.ShellExecution(command, [flag, project.path, '--watch']),
 				'$tsc-watch');
 			watchTask.group = vscode.TaskGroup.Build;
 			watchTask.isBackground = true;
