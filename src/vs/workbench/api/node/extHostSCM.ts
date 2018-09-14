@@ -111,6 +111,37 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	return result;
 }
 
+function compareArgs(a: any[], b: any[]): boolean {
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
+	return a.command === b.command
+		&& a.title === b.title
+		&& a.tooltip === b.tooltip
+		&& (a.arguments && b.arguments ? compareArgs(a.arguments, b.arguments) : a.arguments === b.arguments);
+}
+
+function commandListEquals(a: vscode.Command[], b: vscode.Command[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		if (!commandEquals(a[i], b[i])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 export interface IValidateInput {
 	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
 }
@@ -390,6 +421,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
+		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+			return;
+		}
+
 		this._statusBarCommands = statusBarCommands;
 
 		const internal = (statusBarCommands || []).map(c => this._commands.converter.toInternal(c));
