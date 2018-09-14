@@ -77,6 +77,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private viewModel: SearchModel;
 
 	private viewletVisible: IContextKey<boolean>;
+	private viewletFocused: IContextKey<boolean>;
 	private inputBoxFocused: IContextKey<boolean>;
 	private inputPatternIncludesFocused: IContextKey<boolean>;
 	private inputPatternExclusionsFocused: IContextKey<boolean>;
@@ -139,6 +140,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		super(VIEW_ID, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
+		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
@@ -272,6 +274,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
+
+		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
+		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
 
 		return TPromise.as(null);
 	}
