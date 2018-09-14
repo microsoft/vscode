@@ -659,11 +659,13 @@ export class TerminalInstance implements ITerminalInstance {
 			dom.toggleClass(this._wrapperElement, 'active', visible);
 		}
 		if (visible && this._xterm) {
-			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// Trigger a manual viewport refresh which will sync the viewport and scroll bar. This is
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
+			if (this._xterm._core.viewport) {
+				this._xterm._core.viewport._refresh();
+			}
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will

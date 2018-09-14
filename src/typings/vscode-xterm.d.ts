@@ -705,6 +705,10 @@ declare module 'vscode-xterm' {
 			_renderLayers: any[];
 			onIntersectionChange: any;
 		};
+
+		viewport: {
+			_refresh(): void;
+		}
 	}
 
 	interface Terminal {
