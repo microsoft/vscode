@@ -343,6 +343,11 @@ export class UpdateAction extends Action {
 			return;
 		}
 
+		if (this.extension.enablementState === EnablementState.Disabled || this.extension.enablementState === EnablementState.WorkspaceDisabled) {
+			this.enabled = false;
+			return;
+		}
+
 		const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 
@@ -789,7 +794,7 @@ export class CheckForUpdatesAction extends Action {
 	private checkUpdatesAndNotify(): void {
 		this.extensionsWorkbenchService.queryLocal().then(
 			extensions => {
-				const outdatedCount = extensions.filter(ext => ext.outdated === true).length;
+				const outdatedCount = extensions.filter(ext => ext.outdated === true && ext.enablementState !== EnablementState.Disabled && ext.enablementState !== EnablementState.WorkspaceDisabled).length;
 				let msgAvailableExtensions = localize('noUpdatesAvailable', "All Extensions are up to date.");
 				if (outdatedCount > 0) {
 					msgAvailableExtensions = outdatedCount === 1 ? localize('updateAvailable', "An Extension update is available.")
