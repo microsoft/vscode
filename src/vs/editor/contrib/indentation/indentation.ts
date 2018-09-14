@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { IEditorContribution, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
@@ -216,13 +215,13 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const quickInputService = accessor.get(IQuickInputService);
 		const modelService = accessor.get(IModelService);
 
 		let model = editor.getModel();
 		if (!model) {
-			return undefined;
+			return;
 		}
 
 		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
@@ -236,7 +235,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		// auto focus the tabSize set for the current editor
 		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
-		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
+		setTimeout(() => {
 			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
 				if (pick) {
 					model.updateOptions({
@@ -244,8 +243,8 @@ export class ChangeIndentationSizeAction extends EditorAction {
 						insertSpaces: this.insertSpaces
 					});
 				}
-			})
-		);
+			});
+		}, 50/* quick open is sensitive to being opened so soon after another */);
 	}
 }
 

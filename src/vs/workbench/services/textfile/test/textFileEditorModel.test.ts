@@ -371,7 +371,7 @@ suite('Files - TextFileEditorModel', () => {
 		let nextDone = false;
 		const res = sequentializer.setNext(() => TPromise.as(null).then(() => { nextDone = true; return null; }));
 
-		return res.done(() => {
+		return res.then(() => {
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
 		});
@@ -387,7 +387,7 @@ suite('Files - TextFileEditorModel', () => {
 		let nextDone = false;
 		const res = sequentializer.setNext(() => timeout(1).then(() => { nextDone = true; return null; }));
 
-		return res.done(() => {
+		return res.then(() => {
 			assert.ok(pendingDone);
 			assert.ok(nextDone);
 		});

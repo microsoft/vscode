@@ -35,7 +35,7 @@ export class DeleteWordPartLeft extends DeleteWordCommand {
 	}
 
 	protected _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		let r = WordPartOperations.deleteWordPartLeft(wordSeparators, model, selection, whitespaceHeuristics);
 		if (r) {
 			return r;
 		}
@@ -60,7 +60,7 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 	}
 
 	protected _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		let r = WordPartOperations.deleteWordPartRight(wordSeparators, model, selection, whitespaceHeuristics);
 		if (r) {
 			return r;
 		}
@@ -72,7 +72,7 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 
 export class WordPartLeftCommand extends MoveWordCommand {
 	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position, wordNavigationType);
+		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position);
 	}
 }
 export class CursorWordPartLeft extends WordPartLeftCommand {
@@ -115,7 +115,7 @@ CommandsRegistry.registerCommandAlias('cursorWordPartStartLeftSelect', 'cursorWo
 
 export class WordPartRightCommand extends MoveWordCommand {
 	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartRight(wordSeparators, model, position, wordNavigationType);
+		return WordPartOperations.moveWordPartRight(wordSeparators, model, position);
 	}
 }
 export class CursorWordPartRight extends WordPartRightCommand {

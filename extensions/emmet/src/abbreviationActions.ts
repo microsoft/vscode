@@ -44,7 +44,6 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const rootNode = parseDocument(editor.document, false);
 	if (individualLines) {
 		if (editor.selections.length === 1 && editor.selection.isEmpty) {
 			vscode.window.showInformationMessage('Select more than 1 line and try again.');
@@ -55,10 +54,8 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
-	if (!syntax) {
-		return;
-	}
+	const syntax = 'html';
+	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;
 	let currentValue = '';

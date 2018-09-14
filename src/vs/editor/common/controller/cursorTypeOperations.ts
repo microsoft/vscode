@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, EditOperationType, isQuote } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -437,7 +437,9 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
+		const autoCloseConfig = isQuote(ch) ? config.autoClosingQuotes : config.autoClosingBrackets;
+
+		if (autoCloseConfig === 'never' || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
@@ -511,9 +513,14 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
+		const chIsQuote = isQuote(ch);
+		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+
+		if (autoCloseConfig === 'never' || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
+
+		let shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -525,7 +532,7 @@ export class TypeOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 
 			// Do not auto-close ' or " after a word character
-			if ((ch === '\'' || ch === '"') && position.column > 1) {
+			if (chIsQuote && position.column > 1) {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const characterBeforeCode = lineText.charCodeAt(position.column - 2);
 				const characterBeforeType = wordSeparators.get(characterBeforeCode);
@@ -538,7 +545,8 @@ export class TypeOperations {
 			const characterAfter = lineText.charAt(position.column - 1);
 			if (characterAfter) {
 				let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-				if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
+
+				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
 					return false;
 				}
 			}
@@ -579,12 +587,21 @@ export class TypeOperations {
 		});
 	}
 
+	private static _shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
+		if (isQuote(ch)) {
+			return (config.autoSurround === 'quotes' || config.autoSurround === 'languageDefined');
+		} else {
+			// Character is a bracket
+			return (config.autoSurround === 'brackets' || config.autoSurround === 'languageDefined');
+		}
+	}
+
 	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.surroundingPairs.hasOwnProperty(ch)) {
+		if (!TypeOperations._shouldSurroundChar(config, ch) || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		const isTypingAQuoteCharacter = (ch === '\'' || ch === '"');
+		const isTypingAQuoteCharacter = isQuote(ch);
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -613,7 +630,7 @@ export class TypeOperations {
 
 			if (isTypingAQuoteCharacter && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
 				const selectionText = model.getValueInRange(selection);
-				if ((selectionText === '\'' || selectionText === '"')) {
+				if (isQuote(selectionText)) {
 					// Typing a quote character on top of another quote character
 					// => disable surround selection type
 					return false;
@@ -708,7 +725,7 @@ export class TypeOperations {
 	}
 
 	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[]): EditOperationResult {
-		if (!config.autoClosingBrackets) {
+		if (config.autoClosingQuotes === 'never') {
 			return null;
 		}
 
@@ -736,7 +753,7 @@ export class TypeOperations {
 			// As we are not typing in a new character, so we don't need to run `_runAutoClosingCloseCharType`
 			// Next step, let's try to check if it's an open char.
 			if (config.autoClosingPairsOpen.hasOwnProperty(ch)) {
-				if ((ch === '\'' || ch === '"') && position.column > 2) {
+				if (isQuote(ch) && position.column > 2) {
 					const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 					const characterBeforeCode = lineText.charCodeAt(position.column - 3);
 					const characterBeforeType = wordSeparators.get(characterBeforeCode);
@@ -749,7 +766,14 @@ export class TypeOperations {
 
 				if (characterAfter) {
 					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-					if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
+					let shouldAutoCloseBefore = isQuote(ch) ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
+					if (isBeforeCloseBrace) {
+						// In normal auto closing logic, we will auto close if the cursor is even before a closing brace intentionally.
+						// However for composition mode, we do nothing here as users might clear all the characters for composition and we don't want to do a unnecessary auto close.
+						// Related: microsoft/vscode#57250.
+						continue;
+					}
+					if (!shouldAutoCloseBefore(characterAfter)) {
 						continue;
 					}
 				}

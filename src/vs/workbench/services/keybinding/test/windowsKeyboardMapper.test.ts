@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { createKeybinding, KeyMod, KeyCode, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
-import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding, ScanCode } from 'vs/base/common/scanCode';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 

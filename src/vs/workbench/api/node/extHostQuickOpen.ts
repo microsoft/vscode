@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { asWinJsPromise, wireCancellationToken } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -13,8 +13,9 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { InputBox, InputBoxOptions, QuickInput, QuickInputButton, QuickPick, QuickPickItem, QuickPickOptions, WorkspaceFolder, WorkspaceFolderPickOptions } from 'vscode';
 import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenShape, TransferQuickPickItems, TransferQuickInput, TransferQuickInputButton } from './extHost.protocol';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/node/extHostTypes';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export type Item = string | QuickPickItem;
 
@@ -51,9 +52,9 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			matchOnDetail: options && options.matchOnDetail,
 			ignoreFocusLost: options && options.ignoreFocusOut,
 			canPickMany: options && options.canPickMany
-		});
+		}, token);
 
-		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
+		return TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
 			if (values.key === '0') {
 				return undefined;
 			}
@@ -104,13 +105,16 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					}
 					return undefined;
 				});
-			}, (err) => {
-				this._proxy.$setError(err);
-
-				return TPromise.wrapError(err);
 			});
+		}).then(null, err => {
+			if (isPromiseCanceledError(err)) {
+				return undefined;
+			}
+
+			this._proxy.$setError(err);
+
+			return TPromise.wrapError(err);
 		});
-		return wireCancellationToken<Item | Item[]>(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {
@@ -126,13 +130,21 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		// global validate fn used in callback below
 		this._validateInput = options && options.validateInput;
 
-		const promise = this._proxy.$input(options, typeof this._validateInput === 'function');
-		return wireCancellationToken(token, promise, true);
+		return this._proxy.$input(options, typeof this._validateInput === 'function', token)
+			.then(null, err => {
+				if (isPromiseCanceledError(err)) {
+					return undefined;
+				}
+
+				this._proxy.$setError(err);
+
+				return TPromise.wrapError(err);
+			});
 	}
 
-	$validateInput(input: string): TPromise<string> {
+	$validateInput(input: string): Thenable<string> {
 		if (this._validateInput) {
-			return asWinJsPromise(_ => this._validateInput(input));
+			return asThenable(() => this._validateInput(input));
 		}
 		return undefined;
 	}

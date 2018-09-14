@@ -6,7 +6,6 @@
 import * as vscode from 'vscode';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
-import { joinPath } from './utils';
 
 export function activate(): void {
 	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
@@ -37,7 +36,7 @@ class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSear
 
 		const results: vscode.Uri[] = [];
 		const onResult = relativePathMatch => {
-			results.push(joinPath(options.folder, relativePathMatch));
+			results.push(vscode.Uri.file(options.folder.fsPath + '/' + relativePathMatch));
 		};
 
 		return this.withEngine(engine, () => engine.provideFileSearchResults(options, { report: onResult }, token))

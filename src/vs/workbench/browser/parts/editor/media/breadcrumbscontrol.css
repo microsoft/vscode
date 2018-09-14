@@ -21,6 +21,7 @@
 
 .monaco-workbench .monaco-breadcrumbs-picker .picker-item {
 	line-height: 22px;
+	flex: 1;
 }
 
 .monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree {

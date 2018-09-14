@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export function getPathFromAmdModule(requirefn: typeof require, relativePath: string): string {
 	return URI.parse(requirefn.toUrl(relativePath)).fsPath;

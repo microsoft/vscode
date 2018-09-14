@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { exec } from 'child_process';
 import { Readable, Writable, WritableOptions } from 'stream';
-import { toWinJsPromise } from 'vs/base/common/async';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -20,6 +19,7 @@ export const UTF16le = 'utf16le';
 
 export interface IDecodeStreamOptions {
 	guessEncoding?: boolean;
+	restrictGuessedEncodings?: string[];
 	minBytesRequiredForDetection?: number;
 	overwriteEncoding?(detectedEncoding: string): string;
 }
@@ -79,7 +79,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 
 				this._decodeStreamConstruction = TPromise.as(detectEncodingFromBuffer({
 					buffer: Buffer.concat(this._buffer), bytesRead: this._bytesBuffered
-				}, options.guessEncoding)).then(detected => {
+				}, options.guessEncoding, options.restrictGuessedEncodings)).then(detected => {
 					detected.encoding = options.overwriteEncoding(detected.encoding);
 					this._decodeStream = decodeStream(detected.encoding);
 					for (const buffer of this._buffer) {
@@ -194,7 +194,7 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
  * Guesses the encoding from buffer.
  */
 export function guessEncodingByBuffer(buffer: Buffer): TPromise<string> {
-	return toWinJsPromise(import('jschardet')).then(jschardet => {
+	return TPromise.wrap(import('jschardet')).then(jschardet => {
 		jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 		const guessed = jschardet.detect(buffer);
@@ -272,13 +272,9 @@ export interface IDetectedEncodingResult {
 	seemsBinary: boolean;
 }
 
-export interface DetectEncodingOption {
-	autoGuessEncoding?: boolean;
-}
-
 export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
-export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IDetectedEncodingResult>;
-export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): TPromise<IDetectedEncodingResult> | IDetectedEncodingResult {
+export function detectEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: boolean, restrictGuessedEncodings?: string[]): TPromise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean, restrictGuessedEncodings?: string[]): TPromise<IDetectedEncodingResult> | IDetectedEncodingResult {
 
 	// Always first check for BOM to find out about encoding
 	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);
@@ -335,10 +331,17 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResul
 
 	// Auto guess encoding if configured
 	if (autoGuessEncoding && !seemsBinary && !encoding) {
-		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(encoding => {
+		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(guessedEncoding => {
+
+			// Ignore encoding if we have a list of encodings to use for guessing
+			if (guessedEncoding && restrictGuessedEncodings && restrictGuessedEncodings.length > 0 && restrictGuessedEncodings.indexOf(guessedEncoding) === -1) {
+				return { seemsBinary, encoding };
+			}
+
+			// Proceed with guessed encoding
 			return {
 				seemsBinary: false,
-				encoding
+				encoding: guessedEncoding
 			};
 		});
 	}

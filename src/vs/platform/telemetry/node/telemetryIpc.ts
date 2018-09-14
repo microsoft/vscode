@@ -16,8 +16,8 @@ export interface ITelemetryLog {
 }
 
 export interface ITelemetryAppenderChannel extends IChannel {
-	call(command: 'log', data: ITelemetryLog): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
+	call(command: 'log', data: ITelemetryLog): Thenable<void>;
+	call(command: string, arg: any): Thenable<any>;
 }
 
 export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
@@ -28,7 +28,7 @@ export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
 		throw new Error('No events');
 	}
 
-	call(command: string, { eventName, data }: ITelemetryLog): TPromise<any> {
+	call(command: string, { eventName, data }: ITelemetryLog): Thenable<any> {
 		this.appender.log(eventName, data);
 		return TPromise.as(null);
 	}
@@ -40,7 +40,7 @@ export class TelemetryAppenderClient implements ITelemetryAppender {
 
 	log(eventName: string, data?: any): any {
 		this.channel.call('log', { eventName, data })
-			.done(null, err => `Failed to log telemetry: ${console.warn(err)}`);
+			.then(null, err => `Failed to log telemetry: ${console.warn(err)}`);
 
 		return TPromise.as(null);
 	}

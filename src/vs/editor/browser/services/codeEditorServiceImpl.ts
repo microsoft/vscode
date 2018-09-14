@@ -5,7 +5,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { IDecorationRenderOptions, IThemeDecorationRenderOptions, IContentDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, DebugEvent, ISession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IRawSession, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ISuggestion } from 'vs/editor/common/modes';
 
@@ -16,15 +16,23 @@ export class MockDebugService implements IDebugService {
 
 	public _serviceBrand: any;
 
+	getSession(sessionId: string): IDebugSession {
+		return undefined;
+	}
+
 	public get state(): State {
 		return null;
 	}
 
-	public get onDidNewSession(): Event<ISession> {
+	public get onWillNewSession(): Event<IDebugSession> {
 		return null;
 	}
 
-	public get onDidEndSession(): Event<ISession> {
+	public get onDidNewSession(): Event<IDebugSession> {
+		return null;
+	}
+
+	public get onDidEndSession(): Event<IDebugSession> {
 		return null;
 	}
 
@@ -37,6 +45,10 @@ export class MockDebugService implements IDebugService {
 	}
 
 	public focusStackFrame(focusedStackFrame: IStackFrame): void {
+	}
+
+	sendAllBreakpoints(session?: IDebugSession): TPromise<any> {
+		return TPromise.as(null);
 	}
 
 	public addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): TPromise<IBreakpoint[]> {
@@ -114,12 +126,17 @@ export class MockDebugService implements IDebugService {
 	}
 }
 
-export class MockSession implements ISession {
+export class MockSession implements IDebugSession {
 
 	configuration: IConfig = { type: 'mock', request: 'launch' };
-	raw: IRawSession = new MockRawSession();
+	unresolvedConfiguration: IConfig = { type: 'mock', request: 'launch' };
 	state = State.Stopped;
 	root: IWorkspaceFolder;
+	capabilities: DebugProtocol.Capabilities = {};
+
+	getId(): string {
+		return 'mock';
+	}
 
 	getName(includeRoot: boolean): string {
 		return 'mockname';
@@ -133,7 +150,7 @@ export class MockSession implements ISession {
 		return null;
 	}
 
-	get onDidCustomEvent(): Event<DebugEvent> {
+	get onDidCustomEvent(): Event<DebugProtocol.Event> {
 		return null;
 	}
 
@@ -141,7 +158,11 @@ export class MockSession implements ISession {
 		return null;
 	}
 
-	get onDidExitAdapter(): Event<void> {
+	get onDidChangeState(): Event<State> {
+		return null;
+	}
+
+	get onDidEndAdapter(): Event<AdapterEndEvent> {
 		return null;
 	}
 
@@ -165,14 +186,91 @@ export class MockSession implements ISession {
 
 	rawUpdate(data: IRawModelUpdate): void { }
 
-	getId(): string {
-		return 'mock';
+	initialize(dbgr: IDebugger): TPromise<void> {
+		throw new Error('Method not implemented.');
+	}
+	launchOrAttach(config: IConfig): TPromise<void> {
+		throw new Error('Method not implemented.');
+	}
+	restart(): TPromise<DebugProtocol.RestartResponse> {
+		throw new Error('Method not implemented.');
+	}
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints> {
+		throw new Error('Method not implemented.');
+	}
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints> {
+		throw new Error('Method not implemented.');
+	}
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
+		throw new Error('Method not implemented.');
+	}
+	customRequest(request: string, args: any): TPromise<DebugProtocol.Response> {
+		throw new Error('Method not implemented.');
+	}
+	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse> {
+		throw new Error('Method not implemented.');
+	}
+	exceptionInfo(threadId: number): TPromise<IExceptionInfo> {
+		throw new Error('Method not implemented.');
+	}
+	scopes(frameId: number): TPromise<DebugProtocol.ScopesResponse> {
+		throw new Error('Method not implemented.');
+	}
+	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): TPromise<DebugProtocol.VariablesResponse> {
+		throw new Error('Method not implemented.');
+	}
+	evaluate(expression: string, frameId: number, context?: string): TPromise<DebugProtocol.EvaluateResponse> {
+		throw new Error('Method not implemented.');
+	}
+	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+		throw new Error('Method not implemented.');
+	}
+	next(threadId: number): TPromise<DebugProtocol.NextResponse> {
+		throw new Error('Method not implemented.');
+	}
+	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse> {
+		throw new Error('Method not implemented.');
+	}
+	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse> {
+		throw new Error('Method not implemented.');
+	}
+	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse> {
+		throw new Error('Method not implemented.');
+	}
+	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse> {
+		throw new Error('Method not implemented.');
+	}
+	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse> {
+		throw new Error('Method not implemented.');
+	}
+	pause(threadId: number): TPromise<DebugProtocol.PauseResponse> {
+		throw new Error('Method not implemented.');
+	}
+	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse> {
+		throw new Error('Method not implemented.');
+	}
+	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse> {
+		throw new Error('Method not implemented.');
+	}
+	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse> {
+		throw new Error('Method not implemented.');
+	}
+
+	terminate(restart = false): TPromise<void> {
+		throw new Error('Method not implemented.');
+	}
+	disconnect(restart = false): TPromise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	dispose(): void { }
 }
 
-export class MockRawSession implements IRawSession {
+export class MockRawSession {
+
+	capabilities: DebugProtocol.Capabilities;
+	disconnected: boolean;
+	sessionLengthInSeconds: number;
 
 	public readyForBreakpoints = true;
 	public emittedStopped = true;
@@ -203,7 +301,7 @@ export class MockRawSession implements IRawSession {
 		return TPromise.as(null);
 	}
 
-	public attach(args: DebugProtocol.AttachRequestArguments): TPromise<DebugProtocol.AttachResponse> {
+	public launchOrAttach(args: IConfig): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);
 	}
 
@@ -217,10 +315,6 @@ export class MockRawSession implements IRawSession {
 
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
 		return TPromise.as(null);
-	}
-
-	public get capabilities(): DebugProtocol.Capabilities {
-		return {};
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {

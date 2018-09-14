@@ -12,7 +12,6 @@ import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/wor
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -38,7 +37,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	constructor(
 		@IModelService private modelService: IModelService,
 		@IDebugService private debugService: IDebugService,
-		@ITextFileService private textFileService: ITextFileService
 	) {
 		this.modelDataMap = new Map<string, IDebugEditorModelData>();
 		this.toDispose = [];
@@ -277,7 +275,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private getBreakpointDecorationOptions(breakpoint: IBreakpoint): IModelDecorationOptions {
-		const { className, message } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
 		let glyphMarginHoverMessage: MarkdownString;
 
 		if (message) {

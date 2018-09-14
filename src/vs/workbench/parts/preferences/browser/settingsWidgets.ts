@@ -16,7 +16,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, textPreformatForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -32,6 +32,7 @@ export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicat
 export const settingsSelectBackground = registerColor('settings.dropdownBackground', { dark: selectBackground, light: selectBackground, hc: selectBackground }, localize('settingsDropdownBackground', "(For settings editor preview) Settings editor dropdown background."));
 export const settingsSelectForeground = registerColor('settings.dropdownForeground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, localize('settingsDropdownForeground', "(For settings editor preview) Settings editor dropdown foreground."));
 export const settingsSelectBorder = registerColor('settings.dropdownBorder', { dark: selectBorder, light: selectBorder, hc: selectBorder }, localize('settingsDropdownBorder', "(For settings editor preview) Settings editor dropdown border."));
+export const settingsSelectListBorder = registerColor('settings.dropdownListBorder', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, localize('settingsDropdownListBorder', "(For settings editor preview) Settings editor dropdown list border. This surrounds the options and separates the options from the description."));
 
 // Bool control colors
 export const settingsCheckboxBackground = registerColor('settings.checkboxBackground', { dark: selectBackground, light: selectBackground, hc: selectBackground }, localize('settingsCheckboxBackground', "(For settings editor preview) Settings editor checkbox background."));
@@ -63,6 +64,8 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (link) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a { color: ${link}; }`);
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown a > code { color: ${link}; }`);
+		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a { color: ${link}; }`);
+		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a > code { color: ${link}; }`);
 	}
 
 	const headerForegroundColor = theme.getColor(settingsHeaderForeground);
@@ -109,11 +112,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
 	if (codeTextForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code { color: ${codeTextForegroundColor} }`);
+		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code { color: ${codeTextForegroundColor} }`);
+
 	}
 
 	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);
 	if (modifiedItemIndicatorColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured::after { background-color: ${modifiedItemIndicatorColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-modified-indicator { border-color: ${modifiedItemIndicatorColor}; }`);
 	}
 });
 
@@ -398,9 +403,8 @@ export class ExcludeSettingWidget extends Disposable {
 					pattern,
 					sibling: siblingInput && siblingInput.value.trim()
 				});
-			} else {
-				this.renderList();
 			}
+			this.renderList();
 		};
 
 		const onKeydown = (e: StandardKeyboardEvent) => {

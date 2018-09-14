@@ -296,7 +296,7 @@
 		"markdown-it": "^8.4.1",
 		"markdown-it-named-headers": "0.0.4",
 		"vscode-extension-telemetry": "0.0.18",
-		"vscode-nls": "^3.2.4"
+		"vscode-nls": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/highlight.js": "9.1.10",

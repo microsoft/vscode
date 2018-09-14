@@ -11,7 +11,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
-export enum StatusbarAlignment {
+export const enum StatusbarAlignment {
 	LEFT, RIGHT
 }
 

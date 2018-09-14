@@ -14,7 +14,7 @@ import { Event } from 'vs/base/common/event';
 
 export { Orientation } from './gridview';
 
-export enum Direction {
+export const enum Direction {
 	Up,
 	Down,
 	Left,
@@ -168,7 +168,7 @@ function getGridLocation(element: HTMLElement): number[] {
 	return [...getGridLocation(ancestor), index];
 }
 
-export enum Sizing {
+export const enum Sizing {
 	Distribute = 'distribute',
 	Split = 'split'
 }

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -188,6 +188,31 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(data2.length, 1);
 		assert.equal(data2[0].message, 'warning');
 		lastEntries = undefined;
+	});
+
+	test('don\'t send message when not making a change', function () {
+
+		let changeCount = 0;
+		let eventCount = 0;
+
+		const emitter = new Emitter<any>();
+		emitter.event(_ => eventCount += 1);
+		const collection = new DiagnosticCollection('test', 'test', 100, new class extends DiagnosticsShape {
+			$changeMany() {
+				changeCount += 1;
+			}
+		}, emitter);
+
+		let uri = URI.parse('sc:hightower');
+		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
+
+		collection.set(uri, [diag]);
+		assert.equal(changeCount, 1);
+		assert.equal(eventCount, 1);
+
+		collection.set(uri, [diag]);
+		assert.equal(changeCount, 1);
+		assert.equal(eventCount, 2);
 	});
 
 	test('diagnostics collection, tuples and undefined (small array), #15585', function () {

@@ -8,6 +8,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ContextKeyExpr, IContext, ContextKeyAndExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -302,21 +303,31 @@ export class KeybindingResolver {
 	}
 
 	public static getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
-		const commands = CommandsRegistry.getCommands();
 		const unboundCommands: string[] = [];
-
-		for (let id in commands) {
-			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
-				continue;
+		const seenMap: Map<string, boolean> = new Map<string, boolean>();
+		const addCommand = id => {
+			if (seenMap.has(id)) {
+				return;
 			}
-			if (typeof commands[id].description === 'object'
-				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
-				continue;
+			seenMap.set(id);
+			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
+				return;
 			}
 			if (boundCommands.get(id) === true) {
-				continue;
+				return;
+			}
+			const command = CommandsRegistry.getCommand(id);
+			if (command && typeof command.description === 'object'
+				&& !isFalsyOrEmpty((<ICommandHandlerDescription>command.description).args)) { // command with args
+				return;
 			}
 			unboundCommands.push(id);
+		};
+		for (const id in MenuRegistry.getCommands()) {
+			addCommand(id);
+		}
+		for (const id in CommandsRegistry.getCommands()) {
+			addCommand(id);
 		}
 
 		return unboundCommands;

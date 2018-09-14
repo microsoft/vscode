@@ -6,29 +6,31 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchQuery, ISearchService, QueryType, ISearchProgressItem } from 'vs/platform/search/common/search';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFolderQuery, IPatternInfo, IQueryOptions, ISearchConfiguration, ISearchProgressItem, ISearchQuery, ISearchService, QueryType } from 'vs/platform/search/common/search';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose: IDisposable[] = [];
-	private readonly _activeSearches: { [id: number]: TPromise<URI[]> } = Object.create(null);
+	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 
 	constructor(
@@ -40,6 +42,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -49,9 +52,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	dispose(): void {
 		dispose(this._toDispose);
 
-		for (let requestId in this._activeSearches) {
-			const search = this._activeSearches[requestId];
-			search.cancel();
+		for (let requestId in this._activeCancelTokens) {
+			const tokenSource = this._activeCancelTokens[requestId];
+			tokenSource.cancel();
 		}
 	}
 
@@ -99,12 +102,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace());
+		const workspace = this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : this._contextService.getWorkspace();
+		this._proxy.$acceptWorkspaceData(workspace ? {
+			configuration: workspace.configuration,
+			folders: workspace.folders,
+			id: workspace.id,
+			name: this._labelService.getWorkspaceLabel(workspace)
+		} : null);
 	}
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
@@ -149,7 +158,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		this._searchService.extendQuery(query);
 
-		const search = this._searchService.search(query).then(result => {
+		return this._searchService.search(query, token).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
@@ -157,15 +166,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 			return undefined;
 		});
-
-		this._activeSearches[requestId] = search;
-		const onDone = () => delete this._activeSearches[requestId];
-		search.done(onDone, onDone);
-
-		return search;
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void> {
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<void> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -173,18 +176,16 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const query = queryBuilder.text(pattern, folders, options);
 
 		const onProgress = (p: ISearchProgressItem) => {
-			if (p.lineMatches) {
+			if (p.matches) {
 				this._proxy.$handleTextSearchResult(p, requestId);
 			}
 		};
 
-		const search = this._searchService.search(query, onProgress).then(
+		const search = this._searchService.search(query, token, onProgress).then(
 			() => {
-				delete this._activeSearches[requestId];
 				return null;
 			},
 			err => {
-				delete this._activeSearches[requestId];
 				if (!isPromiseCanceledError(err)) {
 					return TPromise.wrapError(err);
 				}
@@ -192,19 +193,28 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				return undefined;
 			});
 
-		this._activeSearches[requestId] = search;
-
 		return search;
 	}
 
-	$cancelSearch(requestId: number): Thenable<boolean> {
-		const search = this._activeSearches[requestId];
-		if (search) {
-			delete this._activeSearches[requestId];
-			search.cancel();
-			return TPromise.as(true);
-		}
-		return undefined;
+	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean> {
+		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+		const query = queryBuilder.file(folders, {
+			includePattern: includes.join(', '),
+			exists: true
+		});
+
+		return this._searchService.search(query, token).then(
+			result => {
+				return result.limitHit;
+			},
+			err => {
+				if (!isPromiseCanceledError(err)) {
+					return TPromise.wrapError(err);
+				}
+
+				return undefined;
+			});
 	}
 
 	// --- save & edit resources ---

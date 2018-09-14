@@ -5,24 +5,25 @@
 
 'use strict';
 
-import * as path from 'path';
+import * as es from 'event-stream';
 import * as gulp from 'gulp';
-import * as sourcemaps from 'gulp-sourcemaps';
-import * as filter from 'gulp-filter';
+import * as concat from 'gulp-concat';
 import * as minifyCSS from 'gulp-cssnano';
+import * as filter from 'gulp-filter';
+import * as flatmap from 'gulp-flatmap';
+import * as sourcemaps from 'gulp-sourcemaps';
 import * as uglify from 'gulp-uglify';
 import * as composer from 'gulp-uglify/composer';
-import * as uglifyes from 'uglify-es';
-import * as es from 'event-stream';
-import * as concat from 'gulp-concat';
-import * as VinylFile from 'vinyl';
-import * as bundle from './bundle';
-import * as util from './util';
 import * as gulpUtil from 'gulp-util';
-import * as flatmap from 'gulp-flatmap';
+import * as path from 'path';
 import * as pump from 'pump';
 import * as sm from 'source-map';
-import { processNlsFiles, Language } from './i18n';
+import * as uglifyes from 'uglify-es';
+import * as VinylFile from 'vinyl';
+import * as bundle from './bundle';
+import { Language, processNlsFiles } from './i18n';
+import { createStatsStream } from './stats';
+import * as util from './util';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -121,10 +122,11 @@ function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.
 
 	return es.readArray(treatedSources)
 		.pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-		.pipe(concat(dest));
+		.pipe(concat(dest))
+		.pipe(createStatsStream(dest));
 }
 
-function toBundleStream(src:string, bundledFileHeader: string, bundles: bundle.IConcatFile[]): NodeJS.ReadWriteStream {
+function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.IConcatFile[]): NodeJS.ReadWriteStream {
 	return es.merge(bundles.map(function (bundle) {
 		return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
 	}));

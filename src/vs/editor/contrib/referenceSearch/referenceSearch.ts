@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
-import { asWinJsPromise, createCancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -26,7 +26,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -124,6 +124,10 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition, references: Location[]) => {
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
+	}
+
+	if (!references) {
+		throw new Error('missing references');
 	}
 
 	const codeEditorService = accessor.get(ICodeEditorService);
@@ -272,9 +276,7 @@ export function provideReferences(model: ITextModel, position: Position, token: 
 
 	// collect references from all providers
 	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
-		return asWinJsPromise((token) => {
-			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
-		}).then(result => {
+		return Promise.resolve(provider.provideReferences(model, position, { includeDeclaration: true }, token)).then(result => {
 			if (Array.isArray(result)) {
 				return <Location[]>result;
 			}

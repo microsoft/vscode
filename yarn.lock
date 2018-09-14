@@ -368,13 +368,6 @@ ansi-wrap@0.1.0, ansi-wrap@^0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/ansi-wrap/-/ansi-wrap-0.1.0.tgz#a82250ddb0015e9a27ca82e82ea603bbfa45efaf"
 
-anymatch@^1.3.0:
-  version "1.3.2"
-  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-1.3.2.tgz#553dcb8f91e3c889845dfdba34c77721b90b9d7a"
-  dependencies:
-    micromatch "^2.1.5"
-    normalize-path "^2.0.0"
-
 anymatch@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-2.0.0.tgz#bcb24b4f37934d9aa7ac17b4adaf89e7c76ef2eb"
@@ -1963,9 +1956,9 @@ electron-download@^4.1.0:
     semver "^5.3.0"
     sumchecker "^2.0.1"
 
-electron-mksnapshot@~1.7.0:
-  version "1.7.1"
-  resolved "https://registry.yarnpkg.com/electron-mksnapshot/-/electron-mksnapshot-1.7.1.tgz#926be7c20cfe0593249df979b0a12a2a0c5b27f1"
+electron-mksnapshot@~2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/electron-mksnapshot/-/electron-mksnapshot-2.0.0.tgz#c7a9e95b86693fdfe60ea7b65df6c237009e4be8"
   dependencies:
     electron-download "^4.1.0"
     extract-zip "^1.6.5"
@@ -4575,6 +4568,10 @@ lodash@^4.0.0, lodash@^4.13.1, lodash@^4.14.0, lodash@^4.15.0, lodash@^4.3.0:
   version "4.17.4"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.4.tgz#78203a4d1c328ae1d86dca6460e369b57f4055ae"
 
+lodash@^4.17.10:
+  version "4.17.10"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.10.tgz#1b7793cf7259ea38fb3661d4d38b3260af8ae4e7"
+
 lodash@~1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-1.0.2.tgz#8f57560c83b59fc270bd3d561b690043430e2551"
@@ -5020,13 +5017,17 @@ nan@^2.0.0:
   version "2.9.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.9.2.tgz#f564d75f5f8f36a6d9456cca7a6c4fe488ab7866"
 
-nan@^2.0.9, nan@^2.3.0:
+nan@^2.0.9:
   version "2.4.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.4.0.tgz#fb3c59d45fe4effe215f0b890f8adf6eb32d2232"
 
 nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
+
+nan@^2.10.0:
+  version "2.11.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.11.0.tgz#574e360e4d954ab16966ec102c0c049fd961a099"
 
 nan@^2.6.2:
   version "2.6.2"
@@ -5056,9 +5057,9 @@ native-keymap@1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
 
-native-watchdog@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-0.3.0.tgz#c7d952ca05e9877f1ff7a3ff80991610b6104bbb"
+native-watchdog@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.0.0.tgz#97344e83cd6815a8c8e6c44a52e7be05832e65ca"
 
 natives@^1.1.0:
   version "1.1.4"
@@ -5137,9 +5138,9 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.7.6:
-  version "0.7.6"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.6.tgz#bff6148c9c5836ca7e73c7aaaec067dcbdac2f7b"
+node-pty@0.7.7:
+  version "0.7.7"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.7.tgz#919a9de7f0462ee72b260a6e4d5459d28fde2d25"
   dependencies:
     nan "2.10.0"
 
@@ -6923,9 +6924,9 @@ sparkles@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
 
-spdlog@0.7.1:
-  version "0.7.1"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.7.1.tgz#960b8cdced12e8c482d1df9fa65220789f276979"
+spdlog@0.7.2:
+  version "0.7.2"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.7.2.tgz#9298753d7694b9ee9bbfd7e01ea1e4c6ace1e64d"
   dependencies:
     bindings "^1.3.0"
     mkdirp "^0.5.1"
@@ -7517,9 +7518,9 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@2.9.2:
-  version "2.9.2"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.9.2.tgz#1cbf61d05d6b96269244eb6a3bce4bd914e0f00c"
+typescript@3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.0.3.tgz#4853b3e275ecdaa27f78fda46dc273a7eb7fc1c8"
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -7858,15 +7859,15 @@ vm-browserify@0.0.4:
   dependencies:
     indexof "0.0.1"
 
-vsce@1.33.2:
-  version "1.33.2"
-  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.33.2.tgz#3645f69aaf984e22f74ea49d35f38dd18d66ff5f"
+vsce@1.48.0:
+  version "1.48.0"
+  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.48.0.tgz#31c1a4c6909c3b8bdc48b3d32cc8c8e94c7113a2"
   dependencies:
     cheerio "^1.0.0-rc.1"
     commander "^2.8.1"
     denodeify "^1.2.1"
     glob "^7.0.6"
-    lodash "^4.15.0"
+    lodash "^4.17.10"
     markdown-it "^8.3.1"
     mime "^1.3.4"
     minimatch "^3.0.3"
@@ -7876,15 +7877,21 @@ vsce@1.33.2:
     semver "^5.1.0"
     tmp "0.0.29"
     url-join "^1.1.0"
-    vso-node-api "^6.1.2-preview"
+    vso-node-api "6.1.2-preview"
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
-vscode-chokidar@1.6.2:
-  version "1.6.2"
-  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.2.tgz#4db06e2d963befe42dd44434212f5b8606b53831"
+vscode-anymatch@^1.3.0:
+  version "1.3.2"
+  resolved "https://registry.yarnpkg.com/vscode-anymatch/-/vscode-anymatch-1.3.2.tgz#fff357422ea59cc4d12a074f347957f08d251003"
   dependencies:
-    anymatch "^1.3.0"
+    micromatch "^2.1.5"
+    normalize-path "^2.0.0"
+
+vscode-chokidar@1.6.4:
+  version "1.6.4"
+  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.4.tgz#03e5b5f755a1e73b4f15310e66f59b11673fbdd2"
+  dependencies:
     async-each "^1.0.0"
     glob-parent "^2.0.0"
     inherits "^2.0.1"
@@ -7892,22 +7899,23 @@ vscode-chokidar@1.6.2:
     is-glob "^2.0.0"
     path-is-absolute "^1.0.0"
     readdirp "^2.0.0"
+    vscode-anymatch "^1.3.0"
   optionalDependencies:
-    vscode-fsevents "0.3.8"
+    vscode-fsevents "0.3.9"
 
-vscode-debugprotocol@1.31.0:
-  version "1.31.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.31.0.tgz#8467eeabeea65f52da5ac03b03c18e10e8b95eb4"
+vscode-debugprotocol@1.32.0-pre.0:
+  version "1.32.0-pre.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0-pre.0.tgz#14b3c07b8d7016f91b6984ec18292c18a42d2705"
 
-vscode-fsevents@0.3.8:
-  version "0.3.8"
-  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-0.3.8.tgz#389647fa2f6daffedf1b40132a5bb96ac6501521"
+vscode-fsevents@0.3.9:
+  version "0.3.9"
+  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-0.3.9.tgz#edbb66ea2c4eeb102b9194bb602e73bd9512c64c"
   dependencies:
-    nan "^2.3.0"
+    nan "^2.10.0"
 
-vscode-nls-dev@3.2.1:
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.1.tgz#8aa9537b67d1e6e7ea4c6c4f80043c46c8a725ea"
+vscode-nls-dev@3.2.2:
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-nls-dev/-/vscode-nls-dev-3.2.2.tgz#5855c9b3e566dd00fd6108f9c2e1bd02c925c153"
   dependencies:
     clone "^2.1.1"
     event-stream "^3.3.4"
@@ -7941,11 +7949,11 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.7.0-beta5:
-  version "3.7.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.7.0-beta5.tgz#04c7564d1cc8d73b268f04046b3da050c6e59be7"
+vscode-xterm@3.8.0-beta2:
+  version "3.8.0-beta2"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta2.tgz#e6f5149199e757c2fb908aaf64f4c0749f216186"
 
-vso-node-api@^6.1.2-preview:
+vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
   resolved "https://registry.yarnpkg.com/vso-node-api/-/vso-node-api-6.1.2-preview.tgz#aab3546df2451ecd894e071bb99b5df19c5fa78f"
   dependencies:

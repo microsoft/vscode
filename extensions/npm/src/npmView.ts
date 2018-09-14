@@ -47,7 +47,7 @@ class PackageJSON extends TreeItem {
 		if (relativePath.length > 0) {
 			return path.join(relativePath, packageName);
 		}
-		return path.join(folderName, packageName);
+		return packageName;
 	}
 
 	constructor(folder: Folder, relativePath: string) {

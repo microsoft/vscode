@@ -11,6 +11,25 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	export namespace languages {
+
+		/**
+		 *
+		 */
+		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
+	}
+
+	//#region Joh - read/write in chunks
+
+	export interface FileSystemProvider {
+		open?(resource: Uri): number | Thenable<number>;
+		close?(fd: number): void | Thenable<void>;
+		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+	}
+
+	//#endregion
+
 	//#region Rob: search provider
 
 	/**
@@ -78,6 +97,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options to specify the size of the result text preview.
+	 * These options don't affect the size of the match itself, just the amount of preview text.
+	 */
+	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
+		 */
+		maxLines: number;
+
+		/**
+		 * The maximum number of characters included before the start of the match.
+		 */
+		leadingChars: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		totalChars: number;
+	}
+
+	/**
 	 * Options that apply to text search.
 	 */
 	export interface TextSearchOptions extends SearchOptions {
@@ -87,9 +128,9 @@ declare module 'vscode' {
 		maxResults: number;
 
 		/**
-		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
+		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: any;
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
@@ -128,6 +169,9 @@ declare module 'vscode' {
 	 */
 	export interface FileIndexOptions extends SearchOptions { }
 
+	/**
+	 * A preview of the text result.
+	 */
 	export interface TextSearchResultPreview {
 		/**
 		 * The matching line of text, or a portion of the matching line that contains the match.
@@ -156,7 +200,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * A preview of the matching line
+		 * A preview of the text result.
 		 */
 		preview: TextSearchResultPreview;
 	}
@@ -257,6 +301,11 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
 	}
 
 	export namespace workspace {
@@ -437,10 +486,13 @@ declare module 'vscode' {
 	export namespace env {
 		/**
 		 * Current logging level.
-		 *
-		 * @readonly
 		 */
 		export const logLevel: LogLevel;
+
+		/**
+		 * An [event](#Event) that fires when the log level has changed.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion
@@ -568,17 +620,14 @@ declare module 'vscode' {
 
 	interface DocumentCommentProvider {
 		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	interface WorkspaceCommentProvider {
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	namespace workspace {
@@ -757,6 +806,63 @@ declare module 'vscode' {
 	export namespace workspace {
 		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
+	}
+	//#endregion
+
+	//#region Signature Help
+	/**
+	 * How a [Signature provider](#SignatureHelpProvider) was triggered
+	 */
+	export enum SignatureHelpTriggerReason {
+		/**
+		 * Signature help was invoked manually by the user or by a command.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Signature help was triggered by a trigger character.
+		 */
+		TriggerCharacter = 2,
+
+		/**
+		 * Signature help was retriggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		Retrigger = 3,
+	}
+
+	/**
+	 * Contains additional information about the context in which a
+	 * [signature help provider](#SignatureHelpProvider.provideSignatureHelp) is triggered.
+	 */
+	export interface SignatureHelpContext {
+		/**
+		 * Action that caused signature help to be requested.
+		 */
+		readonly triggerReason: SignatureHelpTriggerReason;
+
+		/**
+		 * Character that caused signature help to be requested.
+		 *
+		 * This is `undefined` for manual triggers or retriggers for a cursor move.
+		 */
+		readonly triggerCharacter?: string;
+	}
+
+	export interface SignatureHelpProvider {
+		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	}
+
+	//#endregion
+
+	//#region Alex - OnEnter enhancement
+	export interface OnEnterRule {
+		/**
+		 * This rule will only execute if the text above the this line matches this regular expression.
+		 */
+		oneLineAboveText?: RegExp;
 	}
 	//#endregion
 }

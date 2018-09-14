@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Paths from 'path';
 import * as resources from 'vs/base/common/resources';

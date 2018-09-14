@@ -11,7 +11,7 @@ import { IProgress } from 'vs/platform/search/common/search';
 import { FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { IRawSearch, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch } from './search';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
-import { ISearchWorker } from './worker/searchWorkerIpc';
+import { ISearchWorker, ISearchWorkerSearchArgs } from './worker/searchWorkerIpc';
 
 export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
@@ -95,7 +95,7 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
 			const maxResults = this.config.maxResults && (this.config.maxResults - this.numResults);
-			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding };
+			const searchArgs: ISearchWorkerSearchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding, previewOptions: this.config.previewOptions };
 			worker.search(searchArgs).then(result => {
 				if (!result || this.limitReached || this.isCanceled) {
 					return unwind(batchBytes);

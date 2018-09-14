@@ -35,4 +35,8 @@ export abstract class Disposable {
 		}
 		return value;
 	}
+
+	protected get isDisposed() {
+		return this._isDisposed;
+	}
 }

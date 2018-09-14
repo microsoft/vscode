@@ -40,7 +40,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): TPromise<void> {
+	$reveal(treeViewId: string, item: ITreeItem, parentChain: ITreeItem[], options: { select: boolean, focus: boolean }): Thenable<void> {
 		return this.viewsService.openView(treeViewId, options.focus)
 			.then(() => {
 				const viewer = this.getTreeViewer(treeViewId);
@@ -98,13 +98,13 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		if (treeItem && treeItem.children) {
 			return TPromise.as(treeItem.children);
 		}
-		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
+		return TPromise.wrap(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : void 0)
 			.then(children => {
 				return this.postGetChildren(children);
 			}, err => {
 				this.notificationService.error(err);
 				return [];
-			});
+			}));
 	}
 
 	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {

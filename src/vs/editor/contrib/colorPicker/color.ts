@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -53,7 +52,7 @@ registerLanguageCommand('_executeDocumentColorProvider', function (accessor, arg
 
 	const rawCIs: { range: IRange, color: [number, number, number, number] }[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => asWinJsPromise(token => provider.provideDocumentColors(model, token)).then(result => {
+	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			for (let ci of result) {
 				rawCIs.push({ range: ci.range, color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] });
@@ -85,7 +84,7 @@ registerLanguageCommand('_executeColorPresentationProvider', function (accessor,
 
 	const presentations: IColorPresentation[] = [];
 	const providers = ColorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => asWinJsPromise(token => provider.provideColorPresentations(model, colorInfo, token)).then(result => {
+	const promises = providers.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			presentations.push(...result);
 		}

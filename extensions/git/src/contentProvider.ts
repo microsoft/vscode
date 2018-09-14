@@ -92,7 +92,11 @@ export class GitContentProvider {
 				return '';
 			}
 
-			return await repository.diff(path, { cached: ref === 'index' });
+			if (ref === 'index') {
+				return await repository.diffIndexWithHEAD(path);
+			} else {
+				return await repository.diffWithHEAD(path);
+			}
 		}
 
 		const repository = this.model.getRepository(uri);

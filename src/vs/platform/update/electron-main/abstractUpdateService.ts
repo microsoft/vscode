@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Throttler } from 'vs/base/common/async';
+import { Throttler, timeout } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import product from 'vs/platform/node/product';
@@ -15,6 +15,7 @@ import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } fr
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/node/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export function createUpdateURL(platform: string, quality: string): string {
 	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
@@ -75,8 +76,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.setState(State.Idle(this.getUpdateType()));
 
 		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000)
-			.done(null, err => this.logService.error(err));
+		this.scheduleCheckForUpdates(30 * 1000).then(null, err => this.logService.error(err));
 	}
 
 	private getProductQuality(): string {
@@ -84,8 +84,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return quality === 'none' ? null : product.quality;
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
-		return TPromise.timeout(delay)
+	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
+		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(update => {
 				if (update) {
@@ -145,7 +145,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).done(vetod => {
+		this.lifecycleService.quit(true /* from update */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -162,7 +162,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!this.url) {
 			return TPromise.as(undefined);
 		}
-		return this.requestService.request({ url: this.url }).then(context => {
+		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
 			if (context.res.statusCode === 204) {

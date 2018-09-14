@@ -15,7 +15,7 @@ import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';

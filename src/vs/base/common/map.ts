@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
 import { Iterator } from './iterator';
 
@@ -455,7 +455,7 @@ interface Item<K, V> {
 	value: V;
 }
 
-export enum Touch {
+export const enum Touch {
 	None = 0,
 	AsOld = 1,
 	AsNew = 2

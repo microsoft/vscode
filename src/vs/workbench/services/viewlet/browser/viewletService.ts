@@ -92,7 +92,7 @@ export class ViewletService extends Disposable implements IViewletService {
 			.filter(v => v.enabled);
 	}
 
-	private getAllViewlets(): ViewletDescriptor[] {
+	getAllViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
 			.sort((v1, v2) => v1.order - v2.order);
 	}

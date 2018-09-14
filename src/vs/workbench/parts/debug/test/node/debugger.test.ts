@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { IAdapterExecutable, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 

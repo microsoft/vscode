@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ISuggestSupport } from 'vs/editor/common/modes';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { Context as SuggestContext } from './suggest';
-import { SuggestModel, State } from './suggestModel';
-import { ICompletionItem } from './completionModel';
-import { SuggestWidget, ISelectedSuggestion } from './suggestWidget';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
+import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICompletionItem } from './completionModel';
+import { Context as SuggestContext } from './suggest';
+import { State, SuggestModel } from './suggestModel';
+import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 
 class AcceptOnCharacterOracle {
 
@@ -223,7 +223,8 @@ export class SuggestController implements IEditorContribution {
 			insertText,
 			suggestion.overwriteBefore + columnDelta,
 			suggestion.overwriteAfter,
-			false, false
+			false, false,
+			!suggestion.noWhitespaceAdjust
 		);
 
 		this._editor.pushUndoStop();
@@ -238,7 +239,7 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
+			this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).then(undefined, onUnexpectedError);
 			this._model.cancel();
 		}
 

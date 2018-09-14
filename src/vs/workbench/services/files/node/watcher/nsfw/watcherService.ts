@@ -39,9 +39,9 @@ export class FileWatcher {
 
 	public startWatching(): () => void {
 		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap'),
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
-				serverName: 'Watcher',
+				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],
 				env: {
 					AMD_ENTRYPOINT: 'vs/workbench/services/files/node/watcher/nsfw/watcherApp',

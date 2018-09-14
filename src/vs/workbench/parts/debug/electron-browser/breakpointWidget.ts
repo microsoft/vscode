@@ -5,7 +5,6 @@
 
 import 'vs/css!../browser/media/breakpointWidget';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as lifecycle from 'vs/base/common/lifecycle';
@@ -22,7 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { SuggestRegistry, ISuggestResult, SuggestContext } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -183,7 +182,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					condition,
 					hitCondition,
 					logMessage
-				}]).done(null, errors.onUnexpectedError);
+				}]);
 			}
 		}
 

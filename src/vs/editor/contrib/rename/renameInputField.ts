@@ -8,7 +8,6 @@
 import 'vs/css!./renameInputField';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -123,7 +122,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string | boolean> {
+	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): Promise<string | boolean> {
 
 		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField.value = value;
@@ -139,7 +138,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._hide();
 		};
 
-		return new TPromise<string>(resolve => {
+		return new Promise<string>(resolve => {
 
 			this._currentCancelInput = (focusEditor) => {
 				this._currentAcceptInput = null;
@@ -171,14 +170,12 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 			this._show();
 
-		}, () => {
-			this._currentCancelInput(true);
 		}).then(newValue => {
 			always();
 			return newValue;
 		}, err => {
 			always();
-			return TPromise.wrapError<string>(err);
+			return Promise.reject(err);
 		});
 	}
 

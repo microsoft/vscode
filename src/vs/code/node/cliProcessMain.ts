@@ -41,7 +41,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -77,7 +77,7 @@ class Main {
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			returnPromise = this.installExtension(args);
+			returnPromise = this.installExtension(args, argv['force']);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
@@ -96,7 +96,7 @@ class Main {
 		});
 	}
 
-	private installExtension(extensions: string[]): TPromise<any> {
+	private installExtension(extensions: string[], force: boolean): TPromise<any> {
 		const vsixTasks: Task[] = extensions
 			.filter(e => /\.vsix$/i.test(e))
 			.map(id => () => {
@@ -138,7 +138,7 @@ class Main {
 							}
 
 							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
-							if (installedExtension) {
+							if (installedExtension && !force) {
 								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
 								if (outdated) {
 									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
@@ -233,7 +233,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 		const stateService = accessor.get(IStateService);
 
 		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = envService;
+			const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
@@ -243,7 +243,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
 			const appenders: AppInsightsAppender[] = [];
-			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
+			if (isBuilt && !extensionDevelopmentLocationURI && !envService.args['disable-telemetry'] && product.enableTelemetry) {
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
 					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));

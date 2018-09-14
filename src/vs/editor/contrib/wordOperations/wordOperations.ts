@@ -123,7 +123,7 @@ export class CursorWordLeft extends WordLeftCommand {
 	constructor() {
 		super({
 			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordStart,
+			wordNavigationType: WordNavigationType.WordStartFast,
 			id: 'cursorWordLeft',
 			precondition: null
 		});

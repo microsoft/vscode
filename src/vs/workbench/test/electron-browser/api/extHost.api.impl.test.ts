@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { originalFSPath } from 'vs/workbench/api/node/extHost.api.impl';
 
 suite('ExtHost API', function () {

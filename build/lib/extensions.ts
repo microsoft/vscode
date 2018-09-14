@@ -4,7 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as es from 'event-stream';
+import * as fs from 'fs';
+import * as glob from 'glob';
+import * as gulp from 'gulp';
+import * as path from 'path';
 import { Stream } from 'stream';
+import * as File from 'vinyl';
+import * as vsce from 'vsce';
+import { createStatsStream } from './stats';
+import * as util2 from './util';
 import assign = require('object-assign');
 import remote = require('gulp-remote-src');
 const flatmap = require('gulp-flatmap');
@@ -16,20 +24,31 @@ const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vsce from 'vsce';
-import * as File from 'vinyl';
-import * as glob from 'glob';
-import * as gulp from 'gulp';
-import * as util2 from './util';
 
 const root = path.resolve(path.join(__dirname, '..', '..'));
 
 export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
+	const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
+	if (fs.existsSync(webpackFilename)) {
+		return fromLocalWebpack(extensionPath, sourceMappingURLBase);
+	} else {
+		return fromLocalNormal(extensionPath);
+	}
+}
+
+function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string): Stream {
 	let result = es.through();
 
-	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn }).then(fileNames => {
+	let packagedDependencies: string[] = [];
+	let packageJsonConfig = require(path.join(extensionPath, 'package.json'));
+	let webpackRootConfig = require(path.join(extensionPath, 'extension.webpack.config.js'));
+	for (const key in webpackRootConfig.externals) {
+		if (key in packageJsonConfig.dependencies) {
+			packagedDependencies.push(key);
+		}
+	}
+
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
 			.map(fileName => path.join(extensionPath, fileName))
 			.map(filePath => new File({
@@ -41,27 +60,57 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 
 		const filesStream = es.readArray(files);
 
-		// check for a webpack configuration file, then invoke webpack
+		// check for a webpack configuration files, then invoke webpack
 		// and merge its output with the files stream. also rewrite the package.json
 		// file to a new entry point
-		if (fs.existsSync(path.join(extensionPath, 'extension.webpack.config.js'))) {
-			const packageJsonFilter = filter('package.json', { restore: true });
+		const webpackConfigLocations = (<string[]>glob.sync(
+			path.join(extensionPath, '/**/extension.webpack.config.js'),
+			{ ignore: ['**/node_modules'] }
+		));
 
-			const patchFilesStream = filesStream
-				.pipe(packageJsonFilter)
-				.pipe(buffer())
-				.pipe(json(data => {
-					// hardcoded entry point directory!
-					data.main = data.main.replace('/out/', /dist/);
-					return data;
-				}))
-				.pipe(packageJsonFilter.restore);
+		const packageJsonFilter = filter(f => {
+			if (path.basename(f.path) === 'package.json') {
+				// only modify package.json's next to the webpack file.
+				// to be safe, use existsSync instead of path comparison.
+				return fs.existsSync(path.join(path.dirname(f.path), 'extension.webpack.config.js'));
+			}
+			return false;
+		}, { restore: true });
+
+		const patchFilesStream = filesStream
+			.pipe(packageJsonFilter)
+			.pipe(buffer())
+			.pipe(json(data => {
+				// hardcoded entry point directory!
+				data.main = data.main.replace('/out/', /dist/);
+				return data;
+			}))
+			.pipe(packageJsonFilter.restore);
+
+
+		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
+
+			const webpackDone = (err, stats) => {
+				util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
+				if (err) {
+					result.emit('error', err);
+				}
+				const { compilation } = stats;
+				if (compilation.errors.length > 0) {
+					result.emit('error', compilation.errors.join('\n'));
+				}
+				if (compilation.warnings.length > 0) {
+					result.emit('error', compilation.warnings.join('\n'));
+				}
+			};
 
 			const webpackConfig = {
-				...require(path.join(extensionPath, 'extension.webpack.config.js')),
-				...{ mode: 'production', stats: 'errors-only' }
+				...require(webpackConfigPath),
+				...{ mode: 'production' }
 			};
-			const webpackStream = webpackGulp(webpackConfig, webpack)
+			let relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
+
+			return webpackGulp(webpackConfig, webpack, webpackDone)
 				.pipe(es.through(function (data) {
 					data.stat = data.stat || {};
 					data.base = extensionPath;
@@ -74,7 +123,7 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 					if (sourceMappingURLBase) {
 						const contents = (<Buffer>data.contents).toString('utf8');
 						data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/dist/${g1}`;
+							return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
 						}), 'utf8');
 
 						if (/\.js\.map$/.test(data.path)) {
@@ -85,24 +134,41 @@ export function fromLocal(extensionPath: string, sourceMappingURLBase?: string):
 						}
 					}
 					this.emit('data', data);
-				}))
-				;
+				}));
+		});
 
-			es.merge(webpackStream, patchFilesStream)
-				// .pipe(es.through(function (data) {
-				// 	// debug
-				// 	console.log('out', data.path, data.contents.length);
-				// 	this.emit('data', data);
-				// }))
-				.pipe(result);
-
-		} else {
-			filesStream.pipe(result);
-		}
+		es.merge(...webpackStreams, patchFilesStream)
+			// .pipe(es.through(function (data) {
+			// 	// debug
+			// 	console.log('out', data.path, data.contents.length);
+			// 	this.emit('data', data);
+			// }))
+			.pipe(result);
 
 	}).catch(err => result.emit('error', err));
 
-	return result;
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
+}
+
+function fromLocalNormal(extensionPath: string): Stream {
+	const result = es.through();
+
+	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
+		.then(fileNames => {
+			const files = fileNames
+				.map(fileName => path.join(extensionPath, fileName))
+				.map(filePath => new File({
+					path: filePath,
+					stat: fs.statSync(filePath),
+					base: extensionPath,
+					contents: fs.createReadStream(filePath) as any
+				}));
+
+			es.readArray(files).pipe(result);
+		})
+		.catch(err => result.emit('error', err));
+
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
 function error(err: any): Stream {

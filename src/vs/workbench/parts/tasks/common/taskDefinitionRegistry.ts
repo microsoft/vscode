@@ -107,7 +107,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as model from 'vs/editor/common/model';
 import { LanguageIdentifier, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
@@ -16,7 +16,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
 import { IntervalNode, IntervalTree, recomputeMaxEnd, getNodeIsInOverviewRuler } from 'vs/editor/common/model/intervalTree';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -1323,7 +1323,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength] = TextModel._eolCount(change.text);
-				this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+				try {
+					this._tokens.applyEdits(change.range, eolCount, firstLineLength);
+				} catch (err) {
+					// emergency recovery => reset tokens
+					this._tokens = new ModelLinesTokens(this._tokens.languageIdentifier, this._tokens.tokenizationSupport);
+				}
 				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 
@@ -1671,8 +1676,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return;
 		}
 
-		const nodeWasInOverviewRuler = (node.options.overviewRuler.color ? true : false);
-		const nodeIsInOverviewRuler = (options.overviewRuler.color ? true : false);
+		const nodeWasInOverviewRuler = (node.options.overviewRuler && node.options.overviewRuler.color ? true : false);
+		const nodeIsInOverviewRuler = (options.overviewRuler && options.overviewRuler.color ? true : false);
 
 		if (nodeWasInOverviewRuler !== nodeIsInOverviewRuler) {
 			// Delete + Insert due to an overview ruler status change
@@ -2778,30 +2783,40 @@ function cleanClassName(className: string): string {
 export class ModelDecorationOverviewRulerOptions implements model.IModelDecorationOverviewRulerOptions {
 	readonly color: string | ThemeColor;
 	readonly darkColor: string | ThemeColor;
-	readonly hcColor: string | ThemeColor;
 	readonly position: model.OverviewRulerLane;
-	_resolvedColor: string;
+	private _resolvedColor: string;
 
 	constructor(options: model.IModelDecorationOverviewRulerOptions) {
-		this.color = strings.empty;
-		this.darkColor = strings.empty;
-		this.hcColor = strings.empty;
-		this.position = model.OverviewRulerLane.Center;
+		this.color = options.color || strings.empty;
+		this.darkColor = options.darkColor || strings.empty;
+		this.position = (typeof options.position === 'number' ? options.position : model.OverviewRulerLane.Center);
 		this._resolvedColor = null;
+	}
 
-		if (options && options.color) {
-			this.color = options.color;
+	public getColor(theme: ITheme): string {
+		if (!this._resolvedColor) {
+			if (theme.type !== 'light' && this.darkColor) {
+				this._resolvedColor = this._resolveColor(this.darkColor, theme);
+			} else {
+				this._resolvedColor = this._resolveColor(this.color, theme);
+			}
 		}
-		if (options && options.darkColor) {
-			this.darkColor = options.darkColor;
-			this.hcColor = options.darkColor;
+		return this._resolvedColor;
+	}
+
+	public invalidateCachedColor(): void {
+		this._resolvedColor = null;
+	}
+
+	private _resolveColor(color: string | ThemeColor, theme: ITheme): string {
+		if (typeof color === 'string') {
+			return color;
 		}
-		if (options && options.hcColor) {
-			this.hcColor = options.hcColor;
+		let c = color ? theme.getColor(color.id) : null;
+		if (!c) {
+			return strings.empty;
 		}
-		if (options && options.hasOwnProperty('position')) {
-			this.position = options.position;
-		}
+		return c.toString();
 	}
 }
 
@@ -2836,19 +2851,19 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	private constructor(options: model.IModelDecorationOptions) {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
-		this.className = options.className ? cleanClassName(options.className) : strings.empty;
-		this.hoverMessage = options.hoverMessage || [];
-		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || [];
+		this.className = options.className ? cleanClassName(options.className) : null;
+		this.hoverMessage = options.hoverMessage || null;
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
-		this.overviewRuler = new ModelDecorationOverviewRulerOptions(options.overviewRuler);
-		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : strings.empty;
-		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : strings.empty;
-		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : strings.empty;
-		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : strings.empty;
+		this.overviewRuler = options.overviewRuler ? new ModelDecorationOverviewRulerOptions(options.overviewRuler) : null;
+		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
+		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
+		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : null;
+		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : null;
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
-		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : strings.empty;
-		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : strings.empty;
+		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : null;
+		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});

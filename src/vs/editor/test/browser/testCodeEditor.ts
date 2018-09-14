@@ -72,10 +72,14 @@ export interface TestCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	serviceCollection?: ServiceCollection;
 }
 
-export function withTestCodeEditor(text: string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
+export function withTestCodeEditor(text: string | string[], options: TestCodeEditorCreationOptions, callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
-		options.model = TextModel.createFromString(text.join('\n'));
+		if (typeof text === 'string') {
+			options.model = TextModel.createFromString(text);
+		} else {
+			options.model = TextModel.createFromString(text.join('\n'));
+		}
 	}
 
 	let editor = <TestCodeEditor>createTestCodeEditor(options);

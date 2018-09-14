@@ -9,9 +9,9 @@ import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
 import { join, sep } from 'path';
 import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, toWinJsPromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -50,11 +50,7 @@ export class SearchService implements IRawSearchService {
 
 				promise.then(
 					c => emitter.fire(c),
-					err => {
-						if (!isPromiseCanceledError(err)) {
-							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
-						}
-					});
+					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
@@ -75,11 +71,7 @@ export class SearchService implements IRawSearchService {
 
 				promise.then(
 					c => emitter.fire(c),
-					err => {
-						if (!isPromiseCanceledError(err)) {
-							emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } });
-						}
-					});
+					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
 			onLastListenerRemove: () => {
 				promise.cancel();
@@ -174,6 +166,7 @@ export class SearchService implements IRawSearchService {
 				type: 'success',
 				stats: {
 					detailStats: complete.stats,
+					type: 'searchProcess',
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
@@ -225,7 +218,7 @@ export class SearchService implements IRawSearchService {
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
-		return toWinJsPromise<[ISerializedSearchSuccess, IRawFileMatch[]]>(
+		return TPromise.wrap<[ISerializedSearchSuccess, IRawFileMatch[]]>(
 			allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
@@ -353,7 +346,7 @@ export class SearchService implements IRawSearchService {
 			});
 		}
 
-		return toWinJsPromise(cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
+		return TPromise.wrap(cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
 			if (token && token.isCancellationRequested) {
 				throw canceled();
 			}

@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
@@ -63,7 +62,7 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, arg: any): Promise<void> {
 		const modeService = accessor.get(IModeService);
 		const snippetService = accessor.get(ISnippetsService);
 
@@ -75,7 +74,7 @@ class InsertSnippetAction extends EditorAction {
 		const { lineNumber, column } = editor.getPosition();
 		let { snippet, name, langId } = Args.fromUser(arg);
 
-		return new TPromise<Snippet>(async (resolve, reject) => {
+		return new Promise<Snippet>(async (resolve, reject) => {
 
 			if (snippet) {
 				return resolve(new Snippet(

@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { untildify } from 'vs/base/common/labels';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
@@ -95,7 +95,9 @@ export class QueryBuilder {
 			useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
-			ignoreSymlinks
+			ignoreSymlinks,
+			previewOptions: options.previewOptions,
+			exists: options.exists
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
@@ -185,28 +187,6 @@ export class QueryBuilder {
 		}
 
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
-	}
-
-	/**
-	 * A helper that splits positive and negative patterns from a string that combines both.
-	 */
-	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
-		const grouped = collections.groupBy(
-			splitGlobPattern(pattern),
-			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
-
-		const result = {};
-		if (grouped.includePattern) {
-			result['includePattern'] = grouped.includePattern.join(', ');
-		}
-
-		if (grouped.excludePattern) {
-			result['excludePattern'] = grouped.excludePattern
-				.map(s => strings.ltrim(s, '!'))
-				.join(', ');
-		}
-
-		return result;
 	}
 
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {

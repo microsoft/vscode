@@ -29,7 +29,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -90,10 +90,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		const cssClass = `extensionViewlet-test`;
 		const icon = URI.parse(require.toUrl('./media/test.svg'));
 
-		this.registerCustomViewlet({ id: TEST_VIEW_CONTAINER_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
+		this.registerCustomViewlet({ id: TEST_VIEW_CONTAINER_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass, void 0);
 	}
 
 	private handleAndRegisterCustomViewContainers() {
+		let order = TEST_VIEW_CONTAINER_ORDER + 1;
 		viewsContainersExtensionPoint.setHandler((extensions) => {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
@@ -103,7 +104,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					}
 					switch (entry.key) {
 						case 'activitybar':
-							this.registerCustomViewContainers(entry.value, extension.description);
+							order = this.registerCustomViewContainers(entry.value, extension.description, order);
 							break;
 					}
 				});
@@ -139,22 +140,23 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
-		containers.forEach((descriptor, index) => {
+	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number): number {
+		containers.forEach(descriptor => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
-			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
+			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, order++, cssClass, extension.id);
 		});
+		return order;
 	}
 
-	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor2, order: number, cssClass: string): void {
+	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor2, order: number, cssClass: string, extensionId: string): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 		const id = descriptor.id;
 
 		if (!viewletRegistry.getViewlet(id)) {
 
-			viewContainersRegistry.registerViewContainer(id);
+			viewContainersRegistry.registerViewContainer(id, extensionId);
 
 			// Register as viewlet
 			class CustomViewlet extends ViewContainerViewlet {

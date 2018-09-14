@@ -17,6 +17,7 @@ import { createUpdateURL, AbstractUpdateService } from 'vs/platform/update/elect
 import { asJson } from 'vs/base/node/request';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { shell } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -44,7 +45,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 		this.setState(State.CheckingForUpdates(context));
 
-		this.requestService.request({ url: this.url })
+		this.requestService.request({ url: this.url }, CancellationToken.None)
 			.then<IUpdate>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {

@@ -93,7 +93,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 				let command = this._commands[element.id];
 				if (command) {
 					editor.focus();
-					commandService.executeCommand(command.id, ...command.arguments).done(undefined, err => {
+					commandService.executeCommand(command.id, ...command.arguments).then(undefined, err => {
 						notificationService.error(err);
 					});
 				}

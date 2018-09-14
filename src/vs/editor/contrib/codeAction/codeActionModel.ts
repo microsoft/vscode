@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
+import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -24,22 +24,24 @@ export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAc
 export class CodeActionOracle {
 
 	private _disposables: IDisposable[] = [];
+	private readonly _autoTriggerTimer = new TimeoutTimer();
 
 	constructor(
 		private _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
 		private _signalChange: (e: CodeActionsComputeEvent) => any,
-		delay: number = 250,
+		private readonly _delay: number = 250,
 		private readonly _progressService?: IProgressService,
 	) {
 		this._disposables.push(
-			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
-			debounceEvent(this._editor.onDidChangeCursorPosition, (last, cur) => cur, delay)(e => this._onCursorChange())
+			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
+			this._editor.onDidChangeCursorPosition(() => this._onCursorChange()),
 		);
 	}
 
 	dispose(): void {
 		this._disposables = dispose(this._disposables);
+		this._autoTriggerTimer.cancel();
 	}
 
 	trigger(trigger: CodeActionTrigger) {
@@ -49,16 +51,17 @@ export class CodeActionOracle {
 
 	private _onMarkerChanges(resources: URI[]): void {
 		const { uri } = this._editor.getModel();
-		for (const resource of resources) {
-			if (resource.toString() === uri.toString()) {
+		if (resources.some(resource => resource.toString() === uri.toString())) {
+			this._autoTriggerTimer.cancelAndSet(() => {
 				this.trigger({ type: 'auto' });
-				return;
-			}
+			}, this._delay);
 		}
 	}
 
 	private _onCursorChange(): void {
-		this.trigger({ type: 'auto' });
+		this._autoTriggerTimer.cancelAndSet(() => {
+			this.trigger({ type: 'auto' });
+		}, this._delay);
 	}
 
 	private _getRangeOfMarker(selection: Selection): Range {

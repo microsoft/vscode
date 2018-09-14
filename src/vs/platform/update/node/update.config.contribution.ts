@@ -21,20 +21,20 @@ configurationRegistry.registerConfiguration({
 			'enum': ['none', 'default'],
 			'default': 'default',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from an online service."),
+			'description': nls.localize('updateChannel', "Configure whether you receive automatic updates from an update channel. Requires a restart after change. The updates are fetched from a Microsoft online service."),
 			'tags': ['usesOnlineServices']
 		},
 		'update.enableWindowsBackgroundUpdates': {
 			'type': 'boolean',
 			'default': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates. The updates are fetched from an online service."),
+			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates. The updates are fetched from a Microsoft online service."),
 			'tags': ['usesOnlineServices']
 		},
 		'update.showReleaseNotes': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from an online service."),
+			'description': nls.localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			'tags': ['usesOnlineServices']
 		}
 	}

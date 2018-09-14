@@ -10,7 +10,7 @@ import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, ChordKeybind
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeBinding, ScanCode, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding, ScanCode, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/scanCode';
 
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.

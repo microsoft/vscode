@@ -11,7 +11,7 @@ import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readFile, writeFile } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IResolvedKeybinding {

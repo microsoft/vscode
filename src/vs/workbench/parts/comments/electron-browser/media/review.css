@@ -220,7 +220,7 @@
 	display: inline-block;
 	font-size: 13px;
 	margin-left: 20px;
-	cursor: pointer;
+	cursor: default;
 }
 
 .monaco-editor .review-widget .head .review-title .dirname:not(:empty) {
@@ -301,12 +301,20 @@
 
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
-	content: '·';
+	content: '◆';
+	font-size: 10px;
 	height: 100%;
+	line-height: 100%;
 	width: 9px;
 	left: -6px;
 	z-index: 20;
 	color: black;
+	text-align: center;
+	display:flex;
+	flex-direction:row;
+	align-items: center;
+	justify-content: center;
+
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .folding {
