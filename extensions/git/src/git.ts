@@ -1429,6 +1429,10 @@ export class Repository {
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
+		} else if (/^@/.test(name)) {
+			const symbolicFullNameResult = await this.run(['rev-parse', '--symbolic-full-name', name]);
+			const symbolicFullName = symbolicFullNameResult.stdout.trim();
+			name = symbolicFullName || name;
 		}
 
 		const result = await this.run(['rev-parse', name]);
