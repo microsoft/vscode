@@ -39,12 +39,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
 import { firstIndex } from 'vs/base/common/arrays';
@@ -748,6 +745,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
+	protected contextKeyService: IContextKeyService;
 
 	constructor(
 		id: string,
@@ -762,12 +760,15 @@ export class RepositoryPanel extends ViewletPanel {
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
 		super({ id, title: repository.provider.label }, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
+
+		this.contextKeyService = contextKeyService.createScoped(this.element);
+		this.contextKeyService.createKey('scmRepository', repository);
 	}
 
 	render(): void {
@@ -819,7 +820,7 @@ export class RepositoryPanel extends ViewletPanel {
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
 		const updatePlaceholder = () => {
-			const placeholder = format(this.repository.input.placeholder, platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const placeholder = format(this.repository.input.placeholder, this.keybindingService.lookupKeybinding('scm.acceptInput').getLabel());
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
@@ -854,13 +855,9 @@ export class RepositoryPanel extends ViewletPanel {
 
 		updatePlaceholder();
 		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
+		this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null, this.disposables);
 
 		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
-
-		chain(domEvent(this.inputBox.inputElement, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.onDidAcceptInput, this, this.disposables);
 
 		if (this.repository.provider.onDidChangeCommitTemplate) {
 			this.repository.provider.onDidChangeCommitTemplate(this.updateInputBox, this, this.disposables);
@@ -994,17 +991,6 @@ export class RepositoryPanel extends ViewletPanel {
 		}
 
 		this.inputBox.value = this.repository.provider.commitTemplate;
-	}
-
-	private onDidAcceptInput(): void {
-		if (!this.repository.provider.acceptInputCommand) {
-			return;
-		}
-
-		const id = this.repository.provider.acceptInputCommand.id;
-		const args = this.repository.provider.acceptInputCommand.arguments;
-
-		this.commandService.executeCommand(id, ...args);
 	}
 
 	dispose(): void {

@@ -20,6 +20,11 @@ import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ISCMRepository } from 'vs/workbench/services/scm/common/scm';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -98,4 +103,27 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		title: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
 	},
 	order: 3
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.acceptInput',
+	description: { description: localize('scm accept', "SCM: Accept Input"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: new ContextKeyDefinedExpr('scmRepository'),
+	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+
+		if (!repository || !repository.provider.acceptInputCommand) {
+			return TPromise.as(null);
+		}
+
+		const id = repository.provider.acceptInputCommand.id;
+		const args = repository.provider.acceptInputCommand.arguments;
+
+		const commandService = accessor.get(ICommandService);
+		return commandService.executeCommand(id, ...args);
+	}
 });
