@@ -77,7 +77,6 @@ export default class LanguageProvider extends Disposable {
 		this._register((await import('./features/signatureHelp')).register(selector, this.client));
 		this._register((await import('./features/tagClosing')).register(selector, this.description.id, this.client));
 		this._register((await import('./features/typeDefinitions')).register(selector, this.client));
-		this._register((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
 	}
 
 	private configurationChanged(): void {

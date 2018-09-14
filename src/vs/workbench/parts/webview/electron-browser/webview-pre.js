@@ -361,9 +361,6 @@
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
 					setInitialScrollPosition(contentDocument.body, contentWindow);
-
-					// Bubble out link clicks
-					contentDocument.body.addEventListener('click', handleInnerClick);
 				}
 
 				const newFrame = getPendingFrame();
@@ -400,6 +397,9 @@
 					onLoad(e.target, this);
 				}
 			});
+
+			// Bubble out link clicks
+			newFrame.contentWindow.addEventListener('click', handleInnerClick);
 
 			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
 			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden

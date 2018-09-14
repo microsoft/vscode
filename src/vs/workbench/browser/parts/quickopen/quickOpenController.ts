@@ -29,7 +29,7 @@ import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/wor
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -77,6 +77,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
 	private closeOnFocusLost: boolean;
+	private searchInEditorHistory: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
 	private pendingGetResultsInvocation: CancellationTokenSource;
 
@@ -111,6 +112,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		} else {
 			this.closeOnFocusLost = this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG);
 		}
+
+		this.searchInEditorHistory = this.configurationService.getValue(SEARCH_EDITOR_HISTORY);
 	}
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
@@ -403,8 +406,14 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	private handleDefaultHandler(handler: QuickOpenHandlerDescriptor, value: string, token: CancellationToken): TPromise<void> {
 
-		// Fill in history results if matching
-		const matchingHistoryEntries = this.editorHistoryHandler.getResults(value, token);
+		// Fill in history results if matching and we are configured to search in history
+		let matchingHistoryEntries: QuickOpenEntry[];
+		if (value && !this.searchInEditorHistory) {
+			matchingHistoryEntries = [];
+		} else {
+			matchingHistoryEntries = this.editorHistoryHandler.getResults(value, token);
+		}
+
 		if (matchingHistoryEntries.length > 0) {
 			matchingHistoryEntries[0] = new EditorHistoryEntryGroup(matchingHistoryEntries[0], nls.localize('historyMatches', "recently opened"), false);
 		}

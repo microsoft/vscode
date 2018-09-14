@@ -9,8 +9,6 @@ import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
-import { URI } from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -38,6 +36,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -427,45 +426,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public layout(dimension: Dimension): void {
 		this._list.layout(dimension.height);
-	}
-}
-
-export class RuntimeExtensionsInput extends EditorInput {
-
-	static readonly ID = 'workbench.runtimeExtensions.input';
-
-	constructor() {
-		super();
-	}
-
-	getTypeId(): string {
-		return RuntimeExtensionsInput.ID;
-	}
-
-	getName(): string {
-		return nls.localize('extensionsInputName', "Running Extensions");
-	}
-
-	matches(other: any): boolean {
-		if (!(other instanceof RuntimeExtensionsInput)) {
-			return false;
-		}
-		return true;
-	}
-
-	resolve(): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	supportsSplitEditor(): boolean {
-		return false;
-	}
-
-	getResource(): URI {
-		return URI.from({
-			scheme: 'runtime-extensions',
-			path: 'default'
-		});
 	}
 }
 

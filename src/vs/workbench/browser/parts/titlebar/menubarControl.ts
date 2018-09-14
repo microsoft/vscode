@@ -28,7 +28,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER, MENUBAR_SEPARATOR_BACKGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -1273,6 +1273,15 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 				border: 1px solid ${selectedMenuItemBorderColor};
+			}
+		`);
+	}
+
+	const menuItemSeparatorBackground = theme.getColor(MENUBAR_SEPARATOR_BACKGROUND);
+	if (menuItemSeparatorBackground) {
+		collector.addRule(`
+		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
+				border-bottom: 1px solid ${menuItemSeparatorBackground};
 			}
 		`);
 	}

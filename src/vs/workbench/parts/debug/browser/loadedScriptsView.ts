@@ -47,6 +47,13 @@ class BaseTreeItem {
 		this._showedMoreThanOne = false;
 	}
 
+	getSession(): IDebugSession {
+		if (this._parent) {
+			return this._parent.getSession();
+		}
+		return undefined;
+	}
+
 	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
 	}
@@ -60,8 +67,21 @@ class BaseTreeItem {
 		return child;
 	}
 
+	getChild(key: string): BaseTreeItem {
+		return this._children[key];
+	}
+
 	remove(key: string): void {
 		delete this._children[key];
+	}
+
+	removeFromParent(): void {
+		if (this._parent) {
+			this._parent.remove(this._label);
+			if (Object.keys(this._parent._children).length === 0) {
+				this._parent.removeFromParent();
+			}
+		}
 	}
 
 	getTemplateId(): string {
@@ -191,6 +211,10 @@ class RootTreeItem extends BaseTreeItem {
 	add(session: IDebugSession): SessionTreeItem {
 		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this, session, this._environmentService, this._contextService));
 	}
+
+	find(session: IDebugSession): SessionTreeItem {
+		return <SessionTreeItem>this.getChild(session.getId());
+	}
 }
 
 class SessionTreeItem extends BaseTreeItem {
@@ -199,11 +223,17 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private _session: IDebugSession;
 	private _initialized: boolean;
+	private _map: Map<string, BaseTreeItem>;
 
 	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getName(true));
 		this._initialized = false;
 		this._session = session;
+		this._map = new Map();
+	}
+
+	getSession(): IDebugSession {
+		return this._session;
 	}
 
 	getHoverLabel(): string {
@@ -294,18 +324,28 @@ class SessionTreeItem extends BaseTreeItem {
 			}
 		}
 
-		let x: BaseTreeItem = this;
+		let leaf: BaseTreeItem = this;
 		path.split(/[\/\\]/).forEach((segment, i) => {
 			if (i === 0 && folder) {
-				x = x.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
+				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
 			} else if (i === 0 && url) {
-				x = x.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
+				leaf = leaf.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
 			} else {
-				x = x.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
+				leaf = leaf.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
 			}
 		});
 
-		x.setSource(this._session, source);
+		leaf.setSource(this._session, source);
+		this._map.set(source.raw.path, leaf);
+	}
+
+	removePath(source: Source): boolean {
+		const leaf = this._map.get(source.raw.path);
+		if (leaf) {
+			leaf.removeFromParent();
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -343,7 +383,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			{
 				dataSource: new LoadedScriptsDataSource(),
 				renderer: this.instantiationService.createInstance(LoadedScriptsRenderer),
-				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
+				accessibilityProvider: new LoadedSciptsAccessibilityProvider()
 			},
 			{
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
@@ -389,10 +429,22 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 
 		const registerLoadedSourceListener = (session: IDebugSession) => {
 			this.disposables.push(session.onDidLoadedSource(event => {
-				const sessionRoot = root.add(session);
-				sessionRoot.addPath(event.source);
-				nextRefreshIsRecursive = true;
-				refreshScheduler.schedule();
+				let sessionRoot: SessionTreeItem;
+				switch (event.reason) {
+					case 'new':
+						sessionRoot = root.add(session);
+						sessionRoot.addPath(event.source);
+						nextRefreshIsRecursive = true;
+						refreshScheduler.schedule();
+						break;
+					case 'removed':
+						sessionRoot = root.find(session);
+						if (sessionRoot && sessionRoot.removePath(event.source)) {
+							nextRefreshIsRecursive = true;
+							refreshScheduler.schedule();
+						}
+						break;
+				}
 			}));
 		};
 

@@ -334,7 +334,7 @@ export class DebugService implements IDebugService {
 									return this.createSession(launch, config, unresolvedConfiguration);
 								}
 
-								if (launch && type) {
+								if (launch && type && config === null) {	// show launch.json only for "config" being "null".
 									return launch.openConfigFile(false, true, type).then(() => undefined);
 								}
 

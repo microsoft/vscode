@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
-import { Git, CommitOptions } from './git';
+import { Git, CommitOptions, Stash, ForcePushMode } from './git';
 import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -150,6 +150,17 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	];
 
 	return { merge, resolved, unresolved };
+}
+
+enum PushType {
+	Push,
+	PushTo,
+	PushTags,
+}
+
+interface PushOptions {
+	pushType: PushType;
+	forcePush?: boolean;
 }
 
 export class CommandCenter {
@@ -453,7 +464,7 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		let path: string | undefined;
+		let repositoryPath: string | undefined;
 
 		if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
 			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
@@ -464,10 +475,10 @@ export class CommandCenter {
 				return;
 			}
 
-			path = item.folder.uri.fsPath;
+			repositoryPath = item.folder.uri.fsPath;
 		}
 
-		if (!path) {
+		if (!repositoryPath) {
 			const homeUri = Uri.file(os.homedir());
 			const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
 				? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
@@ -496,11 +507,32 @@ export class CommandCenter {
 				}
 			}
 
-			path = uri.fsPath;
+			repositoryPath = uri.fsPath;
 		}
 
-		await this.git.init(path);
-		await this.model.openRepository(path);
+		await this.git.init(repositoryPath);
+
+		const choices = [];
+		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
+		const open = localize('openrepo', "Open Repository");
+		choices.push(open);
+
+		const addToWorkspace = localize('add', "Add to Workspace");
+		if (workspace.workspaceFolders) {
+			message = localize('proposeopen2 init', "Would you like to open the initialized repository, or add it to the current workspace?");
+			choices.push(addToWorkspace);
+		}
+
+		const result = await window.showInformationMessage(message, ...choices);
+		const uri = Uri.file(repositoryPath);
+
+		if (result === open) {
+			commands.executeCommand('vscode.openFolder', uri);
+		} else if (result === addToWorkspace) {
+			workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+		} else {
+			await this.model.openRepository(repositoryPath);
+		}
 	}
 
 	@command('git.openRepository', { repository: false })
@@ -1261,19 +1293,42 @@ export class CommandCenter {
 		await choice.run(repository);
 	}
 
+
 	@command('git.branch', { repository: true })
 	async branch(repository: Repository): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
+		const validateName = new RegExp(branchValidationRegex);
+		const sanitize = (name: string) => {
+			name = name.trim();
+
+			if (!name) {
+				return name;
+			}
+
+			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.|\[|\]$/g, branchWhitespaceChar);
+		};
+
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
-			ignoreFocusOut: true
+			ignoreFocusOut: true,
+			validateInput: (name: string) => {
+				if (validateName.test(sanitize(name))) {
+					return null;
+				}
+
+				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+			}
 		});
 
-		if (!result) {
+		const name = sanitize(result || '');
+
+		if (!name) {
 			return;
 		}
 
-		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		await repository.branch(name, true);
 	}
 
@@ -1463,12 +1518,43 @@ export class CommandCenter {
 		await repository.pullWithRebase(repository.HEAD);
 	}
 
-	@command('git.push', { repository: true })
-	async push(repository: Repository): Promise<void> {
+	private async _push(repository: Repository, pushOptions: PushOptions) {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
 			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		let forcePushMode: ForcePushMode | undefined = undefined;
+
+		if (pushOptions.forcePush) {
+			if (!config.get<boolean>('allowForcePush')) {
+				await window.showErrorMessage(localize('force push not allowed', "Force push is not allowed, please enable it with the 'git.allowForcePush' setting."));
+				return;
+			}
+
+			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
+
+			if (config.get<boolean>('confirmForcePush')) {
+				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
+				const yes = localize('ok', "OK");
+				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+				if (pick === neverAgain) {
+					config.update('confirmForcePush', false, true);
+				} else if (pick !== yes) {
+					return;
+				}
+			}
+		}
+
+		if (pushOptions.pushType === PushType.PushTags) {
+			await repository.pushTags(undefined, forcePushMode);
+
+			window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 			return;
 		}
 
@@ -1477,62 +1563,65 @@ export class CommandCenter {
 			return;
 		}
 
-		try {
-			await repository.push(repository.HEAD);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
-				throw err;
-			}
+		if (pushOptions.pushType === PushType.Push) {
+			try {
+				await repository.push(repository.HEAD, forcePushMode);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
+					throw err;
+				}
 
+				const branchName = repository.HEAD.name;
+				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+				const yes = localize('ok', "OK");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+				if (pick === yes) {
+					await this.publish(repository);
+				}
+			}
+		} else {
 			const branchName = repository.HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
-			const yes = localize('ok', "OK");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
+			const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
+			const pick = await window.showQuickPick(picks, { placeHolder });
 
-			if (pick === yes) {
-				await this.publish(repository);
+			if (!pick) {
+				return;
 			}
+
+			await repository.pushTo(pick.label, branchName, undefined, forcePushMode);
 		}
+	}
+
+	@command('git.push', { repository: true })
+	async push(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.Push });
+	}
+
+	@command('git.pushForce', { repository: true })
+	async pushForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.Push, forcePush: true });
 	}
 
 	@command('git.pushWithTags', { repository: true })
 	async pushWithTags(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+		await this._push(repository, { pushType: PushType.PushTags });
+	}
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
-			return;
-		}
-
-		await repository.pushTags();
-
-		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
+	@command('git.pushWithTagsForce', { repository: true })
+	async pushWithTagsForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTags, forcePush: true });
 	}
 
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+		await this._push(repository, { pushType: PushType.PushTo });
+	}
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
-			return;
-		}
-
-		if (!repository.HEAD || !repository.HEAD.name) {
-			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
-			return;
-		}
-
-		const branchName = repository.HEAD.name;
-		const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
-		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-		const pick = await window.showQuickPick(picks, { placeHolder });
-
-		if (!pick) {
-			return;
-		}
-
-		await repository.pushTo(pick.label, branchName);
+	@command('git.pushToForce', { repository: true })
+	async pushToForce(repository: Repository): Promise<void> {
+		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
@@ -1678,22 +1767,14 @@ export class CommandCenter {
 
 	@command('git.stashPop', { repository: true })
 	async stashPop(repository: Repository): Promise<void> {
-		const stashes = await repository.getStashes();
-
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
-			return;
-		}
-
-		const picks = stashes.map(r => ({ label: `#${r.index}:  ${r.description}`, description: '', details: '', id: r.index }));
 		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const stash = await this.pickStash(repository, placeHolder);
 
-		if (!choice) {
+		if (!stash) {
 			return;
 		}
 
-		await repository.popStash(choice.id);
+		await repository.popStash(stash.index);
 	}
 
 	@command('git.stashPopLatest', { repository: true })
@@ -1701,11 +1782,48 @@ export class CommandCenter {
 		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes to restore."));
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
 			return;
 		}
 
 		await repository.popStash();
+	}
+
+	@command('git.stashApply', { repository: true })
+	async stashApply(repository: Repository): Promise<void> {
+		const placeHolder = localize('pick stash to apply', "Pick a stash to apply");
+		const stash = await this.pickStash(repository, placeHolder);
+
+		if (!stash) {
+			return;
+		}
+
+		await repository.applyStash(stash.index);
+	}
+
+	@command('git.stashApplyLatest', { repository: true })
+	async stashApplyLatest(repository: Repository): Promise<void> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		await repository.applyStash();
+	}
+
+	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
+		const stashes = await repository.getStashes();
+
+		if (stashes.length === 0) {
+			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
+			return;
+		}
+
+		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
+		const result = await window.showQuickPick(picks, { placeHolder });
+		return result && result.stash;
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
@@ -1751,6 +1869,11 @@ export class CommandCenter {
 				let message: string;
 				let type: 'error' | 'warning' = 'error';
 
+				const choices = new Map<string, () => void>();
+				const openOutputChannelChoice = localize('open git log', "Open Git Log");
+				const outputChannel = this.outputChannel as OutputChannel;
+				choices.set(openOutputChannelChoice, () => outputChannel.show());
+
 				switch (err.gitErrorCode) {
 					case GitErrorCodes.DirtyWorkTree:
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
@@ -1762,6 +1885,11 @@ export class CommandCenter {
 						message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
 						type = 'warning';
 						options.modal = false;
+						break;
+					case GitErrorCodes.NoUserNameConfigured:
+					case GitErrorCodes.NoUserEmailConfigured:
+						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
+						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
@@ -1783,14 +1911,17 @@ export class CommandCenter {
 					return;
 				}
 
-				const outputChannel = this.outputChannel as OutputChannel;
-				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const choice = type === 'error'
-					? await window.showErrorMessage(message, options, openOutputChannelChoice)
-					: await window.showWarningMessage(message, options, openOutputChannelChoice);
+				const allChoices = Array.from(choices.keys());
+				const result = type === 'error'
+					? await window.showErrorMessage(message, options, ...allChoices)
+					: await window.showWarningMessage(message, options, ...allChoices);
 
-				if (choice === openOutputChannelChoice) {
-					outputChannel.show();
+				if (result) {
+					const resultFn = choices.get(result);
+
+					if (resultFn) {
+						resultFn();
+					}
 				}
 			});
 		};

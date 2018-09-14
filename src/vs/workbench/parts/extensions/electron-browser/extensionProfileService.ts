@@ -15,12 +15,13 @@ import { append, $, addDisposableListener } from 'vs/base/browser/dom';
 import { IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionHostProfileService, ProfileSessionState, RuntimeExtensionsInput } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/node/product';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 

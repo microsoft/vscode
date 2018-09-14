@@ -19,7 +19,7 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
@@ -32,26 +32,33 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
 
-const NLS_SYMBOL_CACHE: { [type: string]: string } = {
-	'method': nls.localize('method', "methods ({0})"),
-	'function': nls.localize('function', "functions ({0})"),
-	'constructor': nls.localize('_constructor', "constructors ({0})"),
-	'variable': nls.localize('variable', "variables ({0})"),
-	'class': nls.localize('class', "classes ({0})"),
-	'interface': nls.localize('interface', "interfaces ({0})"),
-	'namespace': nls.localize('namespace', "namespaces ({0})"),
-	'package': nls.localize('package', "packages ({0})"),
-	'module': nls.localize('modules', "modules ({0})"),
-	'property': nls.localize('property', "properties ({0})"),
-	'enum': nls.localize('enum', "enumerations ({0})"),
-	'string': nls.localize('string', "strings ({0})"),
-	'rule': nls.localize('rule', "rules ({0})"),
-	'file': nls.localize('file', "files ({0})"),
-	'array': nls.localize('array', "arrays ({0})"),
-	'number': nls.localize('number', "numbers ({0})"),
-	'boolean': nls.localize('boolean', "booleans ({0})"),
-	'object': nls.localize('object', "objects ({0})"),
-	'key': nls.localize('key', "keys ({0})")
+const FALLBACK_NLS_SYMBOL_KIND = nls.localize('property', "properties ({0})");
+const NLS_SYMBOL_KIND_CACHE: { [type: number]: string } = {
+	[SymbolKind.Method]: nls.localize('method', "methods ({0})"),
+	[SymbolKind.Function]: nls.localize('function', "functions ({0})"),
+	[SymbolKind.Constructor]: nls.localize('_constructor', "constructors ({0})"),
+	[SymbolKind.Variable]: nls.localize('variable', "variables ({0})"),
+	[SymbolKind.Class]: nls.localize('class', "classes ({0})"),
+	[SymbolKind.Struct]: nls.localize('struct', "structs ({0})"),
+	[SymbolKind.Event]: nls.localize('event', "events ({0})"),
+	[SymbolKind.Operator]: nls.localize('operator', "operators ({0})"),
+	[SymbolKind.Interface]: nls.localize('interface', "interfaces ({0})"),
+	[SymbolKind.Namespace]: nls.localize('namespace', "namespaces ({0})"),
+	[SymbolKind.Package]: nls.localize('package', "packages ({0})"),
+	[SymbolKind.TypeParameter]: nls.localize('typeParameter', "type parameters ({0})"),
+	[SymbolKind.Module]: nls.localize('modules', "modules ({0})"),
+	[SymbolKind.Property]: nls.localize('property', "properties ({0})"),
+	[SymbolKind.Enum]: nls.localize('enum', "enumerations ({0})"),
+	[SymbolKind.EnumMember]: nls.localize('enumMember', "enumeration members ({0})"),
+	[SymbolKind.String]: nls.localize('string', "strings ({0})"),
+	[SymbolKind.File]: nls.localize('file', "files ({0})"),
+	[SymbolKind.Array]: nls.localize('array', "arrays ({0})"),
+	[SymbolKind.Number]: nls.localize('number', "numbers ({0})"),
+	[SymbolKind.Boolean]: nls.localize('boolean', "booleans ({0})"),
+	[SymbolKind.Object]: nls.localize('object', "objects ({0})"),
+	[SymbolKind.Key]: nls.localize('key', "keys ({0})"),
+	[SymbolKind.Field]: nls.localize('field', "fields ({0})"),
+	[SymbolKind.Constant]: nls.localize('constant', "constants ({0})")
 };
 
 export class GotoSymbolAction extends QuickOpenAction {
@@ -112,7 +119,7 @@ class OutlineModel extends QuickOpenModel {
 		// Mark all type groups
 		const visibleResults = <SymbolEntry[]>this.getEntries(true);
 		if (visibleResults.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			let currentType: string = null;
+			let currentType: SymbolKind = null;
 			let currentResult: SymbolEntry = null;
 			let typeCounter = 0;
 
@@ -120,14 +127,14 @@ class OutlineModel extends QuickOpenModel {
 				const result = visibleResults[i];
 
 				// Found new type
-				if (currentType !== result.getType()) {
+				if (currentType !== result.getKind()) {
 
 					// Update previous result with count
 					if (currentResult) {
 						currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
 					}
 
-					currentType = result.getType();
+					currentType = result.getKind();
 					currentResult = result;
 					typeCounter = 1;
 
@@ -194,9 +201,9 @@ class OutlineModel extends QuickOpenModel {
 		searchValue = searchValue.substr(SCOPE_PREFIX.length);
 
 		// Sort by type first if scoped search
-		const elementAType = elementA.getType();
-		const elementBType = elementB.getType();
-		let r = elementAType.localeCompare(elementBType);
+		const elementATypeLabel = NLS_SYMBOL_KIND_CACHE[elementA.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
+		const elementBTypeLabel = NLS_SYMBOL_KIND_CACHE[elementB.getKind()] || FALLBACK_NLS_SYMBOL_KIND;
+		let r = elementATypeLabel.localeCompare(elementBTypeLabel);
 		if (r !== 0) {
 			return r;
 		}
@@ -220,13 +227,13 @@ class OutlineModel extends QuickOpenModel {
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
 
-	private renderGroupLabel(type: string, count: number): string {
-		const pattern = NLS_SYMBOL_CACHE[type];
-		if (pattern) {
-			return strings.format(pattern, count);
+	private renderGroupLabel(type: SymbolKind, count: number): string {
+		let pattern = NLS_SYMBOL_KIND_CACHE[type];
+		if (!pattern) {
+			pattern = FALLBACK_NLS_SYMBOL_KIND;
 		}
 
-		return type;
+		return strings.format(pattern, count);
 	}
 }
 
@@ -234,19 +241,19 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private editorService: IEditorService;
 	private index: number;
 	private name: string;
-	private type: string;
+	private kind: SymbolKind;
 	private icon: string;
 	private description: string;
 	private range: IRange;
 	private revealRange: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, kind: SymbolKind, description: string, icon: string, range: IRange, revealRange: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
 		this.name = name;
-		this.type = type;
+		this.kind = kind;
 		this.icon = icon;
 		this.description = description;
 		this.range = range;
@@ -276,8 +283,8 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.description;
 	}
 
-	getType(): string {
-		return this.type;
+	getKind(): SymbolKind {
+		return this.kind;
 	}
 
 	getRange(): IRange {
@@ -470,7 +477,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			results.push(new SymbolEntry(i,
-				label, icon, description, `symbol-icon ${icon}`,
+				label, element.kind, description, `symbol-icon ${icon}`,
 				element.range, element.selectionRange, null, this.editorService, this
 			));
 		}

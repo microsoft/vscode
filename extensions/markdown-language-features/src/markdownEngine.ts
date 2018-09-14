@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownContributions } from './markdownExtensions';
 import { Slugifier } from './slugify';
+import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -146,8 +147,17 @@ export class MarkdownEngine {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
-				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path) {
+				const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
+				if (externalSchemeUri) {
+					return normalizeLink(externalSchemeUri.toString());
+				}
+
+
+				// Assume it must be an relative or absolute file path
+				// Use a fake scheme to avoid parse warnings
+				let uri = vscode.Uri.parse(`fake-scheme:${link}`);
+
+				if (uri.path) {
 					// Assume it must be a file
 					const fragment = uri.fragment;
 					if (uri.path[0] === '/') {
@@ -165,7 +175,7 @@ export class MarkdownEngine {
 						});
 					}
 					return normalizeLink(uri.with({ scheme: 'vscode-resource' }).toString(true));
-				} else if (!uri.scheme && !uri.path && uri.fragment) {
+				} else if (!uri.path && uri.fragment) {
 					return normalizeLink(uri.with({
 						fragment: this.slugifier.fromHeading(uri.fragment).value
 					}).toString(true));

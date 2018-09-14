@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+import * as vscode from 'vscode';
 
-'use strict';
+const knownSchemes = ['http:', 'https:', 'file:', 'mailto:'];
 
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extension.ts',
-	},
-	externals: {
-		'../../../product.json': 'commonjs ../../../product.json',
-		'typescript': 'commonjs typescript'
+export function getUriForLinkWithKnownExternalScheme(
+	link: string,
+): vscode.Uri | undefined {
+	if (knownSchemes.some(knownScheme => link.toLowerCase().startsWith(knownScheme))) {
+		return vscode.Uri.parse(link);
 	}
-});
+
+	return undefined;
+}

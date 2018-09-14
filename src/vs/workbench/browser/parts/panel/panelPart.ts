@@ -94,12 +94,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.partService.setPanelHidden(true),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: {
-				backgroundColor: PANEL_BACKGROUND,
-				badgeBackground,
-				badgeForeground,
-				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
-			}
+			colors: theme => ({
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
+			})
 		}));
 
 		for (const panel of this.getPanels()) {
@@ -320,20 +322,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
-				color: ${titleActive};
-				border-bottom-color: ${titleActiveBorder};
-			}
-		`);
-	}
-
-	// Title Inactive
-	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	if (titleInactive) {
-		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-				color: ${titleInactive};
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+				color: ${titleActive} !important;
+				border-bottom-color: ${titleActiveBorder} !important;
 			}
 		`);
 	}
@@ -343,7 +334,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (focusBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive};
+				color: ${titleActive} !important;
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
 			}
