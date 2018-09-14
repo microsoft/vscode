@@ -226,6 +226,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminals: ExtHostTerminal[] = [];
 	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
+	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -289,11 +290,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
-		// TODO: Queue requests, currently the first 100ms of data may get missed
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal._fireOnData(data);
-		}
+		this._getTerminalByIdEventually(id).then(terminal => {
+			if (terminal) {
+				terminal._fireOnData(data);
+			}
+		});
 	}
 
 	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
@@ -431,6 +432,23 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
+		if (!this._getTerminalPromises[id]) {
+			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
+		} else {
+			this._getTerminalPromises[id].then(c => {
+				return this._createGetTerminalPromise(id, retries);
+			});
+		}
+		return this._getTerminalPromises[id];
+	}
+
+	private _delay(timeout: number, result: any) {
+		return new Promise(c => {
+			setTimeout(c(result), timeout);
+		});
+	}
+
+	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
 				c(undefined);
@@ -443,9 +461,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				setTimeout(() => {
-					c(this._getTerminalByIdEventually(id, retries - 1));
-				}, 200);
+				this._delay(200, c(this._getTerminalByIdEventually(id, retries - 1)));
 			}
 		});
 	}
