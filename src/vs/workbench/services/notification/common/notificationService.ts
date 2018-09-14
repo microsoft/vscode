@@ -55,7 +55,6 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
-		let handle: INotificationHandle;
 
 		// Convert choices into primary/secondary actions
 		const actions: INotificationActions = { primary: [], secondary: [] };
@@ -69,7 +68,7 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 
 		// Show notification with actions
-		handle = this.notify({ severity, message, actions });
+		const handle = this.notify({ severity, message, actions });
 
 		once(handle.onDidClose)(() => {
 
