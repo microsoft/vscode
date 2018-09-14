@@ -104,12 +104,6 @@ export class CommentNode extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
 
-		this._toDispose.push(this._commentEditor.onDidBlurEditorWidget(e => {
-			if (!this._domNode.contains(document.activeElement) && this._commentEditor.getValue() === this.comment.body.value) {
-				this.removeCommentEditor();
-			}
-		}));
-
 		this._toDispose.push(this._commentEditor);
 		this._toDispose.push(this._commentEditorModel);
 	}
@@ -192,8 +186,12 @@ export class CommentNode extends Disposable {
 		}));
 
 		this._toDispose.push(dom.addDisposableListener(this._domNode, 'focusout', (e: FocusEvent) => {
-			if (!(<HTMLElement>e.target).contains((<HTMLElement>e.relatedTarget))) {
+			if (!this._domNode.contains((<HTMLElement>e.relatedTarget))) {
 				actionsContainer.classList.add('hidden');
+
+				if (this._commentEditor && this._commentEditor.getValue() === this.comment.body.value) {
+					this.removeCommentEditor();
+				}
 			}
 		}));
 	}

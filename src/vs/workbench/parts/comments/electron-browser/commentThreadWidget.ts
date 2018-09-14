@@ -222,7 +222,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 					this.commentService,
 					this.modelService,
 					this.modeService);
-				// Does this makes sense to put here?
 				this._disposables.push(newElement);
 
 				newCommentNodeList.unshift(newElement);
