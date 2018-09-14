@@ -137,12 +137,6 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<ICompletionItem>element).suggestion;
 
-		if (canExpandCompletionItem(element)) {
-			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details", suggestion.label));
-		} else {
-			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
-		}
-
 		data.icon.className = 'icon ' + suggestion.type;
 		data.colorspan.style.backgroundColor = '';
 
@@ -292,7 +286,10 @@ class SuggestionDetails {
 		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
 
-		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.detail || '', item.suggestion.documentation || '');
+		this.ariaLabel = strings.format(
+			'{0}{1}',
+			item.suggestion.detail || '',
+			item.suggestion.documentation ? (typeof item.suggestion.documentation === 'string' ? item.suggestion.documentation : item.suggestion.documentation.value) : '');
 	}
 
 	getAriaLabel(): string {
@@ -504,10 +501,17 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	}
 
 	private _getSuggestionAriaAlertLabel(item: ICompletionItem): string {
-		if (canExpandCompletionItem(item)) {
-			return nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.suggestion.label);
+		const isSnippet = item.suggestion.type === 'snippet';
+
+		if (!canExpandCompletionItem(item)) {
+			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.suggestion.label)
+				: nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.suggestion.label);
+		} else if (this.expandDocsSettingFromStorage()) {
+			return isSnippet ? nls.localize('ariaCurrentSnippeSuggestionReadDetails', "{0}, snippet suggestion. Reading details. {1}", item.suggestion.label, this.details.getAriaLabel())
+				: nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, suggestion. Reading details. {1}", item.suggestion.label, this.details.getAriaLabel());
 		} else {
-			return nls.localize('ariaCurrentSuggestion', "{0}, suggestion", item.suggestion.label);
+			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestionWithDetails', "{0}, snippet suggestion, has details", item.suggestion.label)
+				: nls.localize('ariaCurrentSuggestionWithDetails', "{0}, suggestion, has details", item.suggestion.label);
 		}
 	}
 
@@ -560,7 +564,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 
 		const item = e.elements[0];
-		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 
 		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item === this.focusedItem) {
@@ -598,6 +601,8 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			} else {
 				removeClass(this.element, 'docs-side');
 			}
+
+			this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 		}).catch(onUnexpectedError).then(() => {
 			if (this.focusedItem === item) {
 				this.currentSuggestionDetails = null;
@@ -888,6 +893,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 
 			this.updateExpandDocsSetting(true);
 			this.showDetails();
+			this._ariaAlert(this.details.getAriaLabel());
 			/* __GDPR__
 				"suggestWidget:expandDetails" : {
 					"${include}": [
@@ -916,8 +922,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.adjustDocsPosition();
 
 		this.editor.focus();
-
-		this._ariaAlert(this.details.getAriaLabel());
 	}
 
 	private show(): void {
