@@ -45,7 +45,7 @@ class PackageJSON extends TreeItem {
 
 	static getLabel(folderName: string, relativePath: string): string {
 		if (relativePath.length > 0) {
-			return path.join(relativePath, packageName);
+			return path.join(folderName, relativePath, packageName);
 		}
 		return path.join(folderName, packageName);
 	}
