@@ -139,7 +139,7 @@ export class StatusBarController implements IWorkbenchContribution {
 			this.disposables = this.disposables.filter(d => d !== removeDisposable);
 
 			if (this.scmService.repositories.length === 0) {
-				this.focusedProviderContextKey.set(undefined);
+				this.onDidFocusRepository(undefined);
 			} else if (this.focusedRepository === repository) {
 				this.scmService.repositories[0].focus();
 			}
@@ -153,20 +153,28 @@ export class StatusBarController implements IWorkbenchContribution {
 		}
 	}
 
-	private onDidFocusRepository(repository: ISCMRepository): void {
+	private onDidFocusRepository(repository: ISCMRepository | undefined): void {
 		if (this.focusedRepository === repository) {
 			return;
 		}
 
 		this.focusedRepository = repository;
-		this.focusedProviderContextKey.set(repository.provider.id);
+		this.focusedProviderContextKey.set(repository && repository.provider.id);
 		this.focusDisposable.dispose();
-		this.focusDisposable = repository.provider.onDidChange(() => this.render(repository));
+
+		if (repository) {
+			this.focusDisposable = repository.provider.onDidChange(() => this.render(repository));
+		}
+
 		this.render(repository);
 	}
 
-	private render(repository: ISCMRepository): void {
+	private render(repository: ISCMRepository | undefined): void {
 		this.statusBarDisposable.dispose();
+
+		if (!repository) {
+			return;
+		}
 
 		const commands = repository.provider.statusBarCommands || [];
 		const label = repository.provider.rootUri
