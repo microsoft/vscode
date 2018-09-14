@@ -1192,10 +1192,21 @@ export interface ITokenizationRegistry {
 	register(language: string, support: ITokenizationSupport): IDisposable;
 
 	/**
+	 * Register a promise for a tokenization support.
+	 */
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+
+	/**
 	 * Get the tokenization support for a language.
 	 * Returns null if not found.
 	 */
 	get(language: string): ITokenizationSupport;
+
+	/**
+	 * Get the promise of a tokenization support for a language.
+	 * `null` is returned if no support is available and no promise for the support has been registered yet.
+	 */
+	getPromise(language: string): Thenable<ITokenizationSupport>;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
