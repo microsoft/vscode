@@ -678,7 +678,7 @@ export class Repository {
 		}
 
 		const result = await this.run(args, options);
-		return result.stdout;
+		return result.stdout.trim();
 	}
 
 	async getConfigs(scope: string): Promise<{ key: string; value: string; }[]> {
