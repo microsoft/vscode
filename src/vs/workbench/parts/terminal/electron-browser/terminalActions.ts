@@ -640,11 +640,15 @@ export class RunActiveFileInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		let uriPath: string = uri.fsPath;
-		if ((uriPath.indexOf(' ') !== -1) || (uriPath.indexOf('"') !== -1)) {
-			if (isWindows) {
-				uriPath = '"' + uriPath + '"';
-			} else {
+		const hasSpace = uriPath.indexOf(' ') !== -1;
+		if (hasSpace && isWindows) {
+			uriPath = '"' + uriPath + '"';
+		} else if (!isWindows) {
+			const hasDoubleQuote = uriPath.indexOf('"') !== -1;
+			if (!hasSpace && hasDoubleQuote) {
 				uriPath = '\'' + uriPath + '\'';
+			} else if (hasSpace) {
+				uriPath = uriPath.replace(' ', '\\ ');
 			}
 		}
 		instance.sendText(uriPath, true);
