@@ -25,6 +25,7 @@ import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/co
 import { SimpleCommentEditor } from 'vs/workbench/parts/comments/electron-browser/simpleCommentEditor';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Selection } from 'vs/editor/common/core/selection';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -108,6 +109,9 @@ export class CommentNode extends Disposable {
 		this._commentEditor.setValue(this.comment.body.value);
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
+		const lastLine = this._commentEditorModel.getLineCount();
+		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
+		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		this._toDispose.push(this._commentEditor.onKeyDown((e: IKeyboardEvent) => {
 			const isCmdOrCtrl = isMacintosh ? e.metaKey : e.ctrlKey;
@@ -123,10 +127,12 @@ export class CommentNode extends Disposable {
 	private removeCommentEditor() {
 		this._editAction.enabled = true;
 		this._body.classList.remove('hidden');
-		this._commentEditContainer.remove();
 
 		this._commentEditorModel.dispose();
 		this._commentEditor.dispose();
+		this._commentEditor = null;
+
+		this._commentEditContainer.remove();
 	}
 
 	private editComment(): void {
