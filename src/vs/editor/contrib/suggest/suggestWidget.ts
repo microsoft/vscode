@@ -826,6 +826,21 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 	}
 
+	selectNth(number): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollTop();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.setFocus([number]);
+				return true;
+		}
+	}
+
 	getFocusedItem(): ISelectedSuggestion {
 		if (this.state !== State.Hidden
 			&& this.state !== State.Empty

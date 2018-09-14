@@ -307,6 +307,12 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
+	selectNthSuggestion(number): void {
+		if (this._widget) {
+			this._widget.selectNth(number);
+		}
+	}
+
 	toggleSuggestionDetails(): void {
 		if (this._widget) {
 			this._widget.toggleDetails();
@@ -477,3 +483,18 @@ registerEditorCommand(new SuggestCommand({
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
 	}
 }));
+
+for (let idx = 0, len = 10; idx < len; idx++) {
+	registerEditorCommand(new SuggestCommand({
+		id: 'selectNthSuggestion' + idx,
+		precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+		handler: c => c.selectNthSuggestion(idx),
+		kbOpts: {
+			weight: weight,
+			kbExpr: EditorContextKeys.textInputFocus,
+			primary: KeyCode.KEY_0 + idx - 1,
+			secondary: [KeyMod.CtrlCmd],
+			mac: { primary: KeyMod.CtrlCmd, secondary: [KeyCode.KEY_0 + idx - 1] }
+		}
+	}));
+}
