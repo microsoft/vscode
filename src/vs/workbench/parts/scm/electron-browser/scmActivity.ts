@@ -15,6 +15,8 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { commonPrefixLength } from 'vs/base/common/strings';
 
 export class StatusUpdater implements IWorkbenchContribution {
 
@@ -81,13 +83,51 @@ export class StatusBarController implements IWorkbenchContribution {
 	constructor(
 		@ISCMService private scmService: ISCMService,
 		@IStatusbarService private statusbarService: IStatusbarService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService private editorService: IEditorService
 	) {
 		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 
-		if (this.scmService.repositories.length > 0) {
-			this.onDidFocusRepository(this.scmService.repositories[0]);
+		for (const repository of this.scmService.repositories) {
+			this.onDidAddRepository(repository);
+		}
+
+		editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.disposables);
+	}
+
+	private onDidActiveEditorChange(): void {
+		if (!this.editorService.activeEditor) {
+			return;
+		}
+
+		const resource = this.editorService.activeEditor.getResource();
+
+		if (!resource || resource.scheme !== 'file') {
+			return;
+		}
+
+		let bestRepository: ISCMRepository | null = null;
+		let bestMatchLength = Number.NEGATIVE_INFINITY;
+
+		for (const repository of this.scmService.repositories) {
+			const root = repository.provider.rootUri;
+
+			if (!root) {
+				continue;
+			}
+
+			const rootFSPath = root.fsPath;
+			const prefixLength = commonPrefixLength(rootFSPath, resource.fsPath);
+
+			if (prefixLength === rootFSPath.length && prefixLength > bestMatchLength) {
+				bestRepository = repository;
+				bestMatchLength = prefixLength;
+			}
+		}
+
+		if (bestRepository) {
+			this.onDidFocusRepository(bestRepository);
 		}
 	}
 
@@ -108,17 +148,18 @@ export class StatusBarController implements IWorkbenchContribution {
 		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
 		this.disposables.push(disposable);
 
-		if (this.scmService.repositories.length === 1) {
+		if (!this.focusedRepository) {
 			this.onDidFocusRepository(repository);
 		}
 	}
 
 	private onDidFocusRepository(repository: ISCMRepository): void {
-		if (this.focusedRepository !== repository) {
-			this.focusedRepository = repository;
-			this.focusedProviderContextKey.set(repository.provider.id);
+		if (this.focusedRepository === repository) {
+			return;
 		}
 
+		this.focusedRepository = repository;
+		this.focusedProviderContextKey.set(repository.provider.id);
 		this.focusDisposable.dispose();
 		this.focusDisposable = repository.provider.onDidChange(() => this.render(repository));
 		this.render(repository);
