@@ -6,10 +6,8 @@
 'use strict';
 
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { INotificationsModel, NotificationsModel } from 'vs/workbench/common/notifications';
+import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
 import { once } from 'vs/base/common/event';
 
 export class NotificationService extends Disposable implements INotificationService {
@@ -58,25 +56,11 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
 		let handle: INotificationHandle;
-		let choiceClicked = false;
 
 		// Convert choices into primary/secondary actions
 		const actions: INotificationActions = { primary: [], secondary: [] };
 		choices.forEach((choice, index) => {
-			const action = new Action(`workbench.dialog.choice.${index}`, choice.label, null, true, () => {
-				choiceClicked = true;
-
-				// Pass to runner
-				choice.run();
-
-				// Close notification unless we are told to keep open
-				if (!choice.keepOpen) {
-					handle.close();
-				}
-
-				return TPromise.as(void 0);
-			});
-
+			const action = new ChoiceAction(`workbench.dialog.choice.${index}`, choice);
 			if (!choice.isSecondary) {
 				actions.primary.push(action);
 			} else {
@@ -93,7 +77,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			dispose(...actions.primary, ...actions.secondary);
 
 			// Indicate cancellation to the outside if no action was executed
-			if (!choiceClicked && typeof onCancel === 'function') {
+			if (typeof onCancel === 'function' && ![...actions.primary, ...actions.secondary].some((action: ChoiceAction) => action.clicked)) {
 				onCancel();
 			}
 		});

@@ -423,10 +423,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				this._instantiationService.invokeFunction((accessor) => {
 					const editorService = accessor.get(IEditorService);
 					editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
-					// keepOpen does not appear to work
-					setTimeout(() => {
-						this._onResponsiveStateChanged(state);
-					}, 100);
 				});
 			}
 		};
