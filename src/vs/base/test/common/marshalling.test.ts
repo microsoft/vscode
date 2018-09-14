@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 
 suite('Marshalling', () => {

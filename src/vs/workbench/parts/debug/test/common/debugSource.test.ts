@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { normalize } from 'vs/base/common/paths';
 

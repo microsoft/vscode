@@ -21,7 +21,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -29,7 +29,7 @@ class ExtensionMemento implements IExtensionMemento {
 	private readonly _shared: boolean;
 	private readonly _storage: ExtHostStorage;
 
-	private readonly _init: TPromise<ExtensionMemento>;
+	private readonly _init: Thenable<ExtensionMemento>;
 	private _value: { [n: string]: any; };
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
@@ -43,7 +43,7 @@ class ExtensionMemento implements IExtensionMemento {
 		});
 	}
 
-	get whenReady(): TPromise<ExtensionMemento> {
+	get whenReady(): Thenable<ExtensionMemento> {
 		return this._init;
 	}
 
@@ -94,7 +94,7 @@ class ExtensionStoragePath {
 		}
 
 		const storageName = this._workspace.id;
-		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+		const storagePath = join(this._environment.appSettingsHome.fsPath, 'workspaceStorage', storageName);
 
 		const exists = await dirExists(storagePath);
 
@@ -402,7 +402,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// -- called by main thread
 
-	public $activateByEvent(activationEvent: string): TPromise<void> {
+	public $activateByEvent(activationEvent: string): Thenable<void> {
 		return this.activateByEvent(activationEvent, false);
 	}
 }

@@ -25,10 +25,9 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -54,9 +53,10 @@ export class TextFileEditor extends BaseTextEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService private preferencesService: IPreferencesService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
 		// Clear view state for deleted files
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
@@ -192,11 +192,7 @@ export class TextFileEditor extends BaseTextEditor {
 								});
 							}),
 							new Action('workbench.window.action.configureMemoryLimit', nls.localize('configureMemoryLimit', 'Configure Memory Limit'), null, true, () => {
-								return this.preferencesService.openGlobalSettings().then(editor => {
-									if (editor instanceof PreferencesEditor) {
-										editor.focusSearch('files.maxMemoryForLargeFilesMB');
-									}
-								});
+								return this.preferencesService.openGlobalSettings(undefined, { query: 'files.maxMemoryForLargeFilesMB' });
 							})
 						]
 					}));
@@ -220,9 +216,9 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).done(viewlet => {
+				this.viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
 					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
-				}, errors.onUnexpectedError);
+				});
 			}
 		});
 

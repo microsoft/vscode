@@ -16,7 +16,7 @@ import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape 
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -28,7 +28,7 @@ import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { UriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { LabelService } from 'vs/platform/label/common/label';
 
 suite('MainThreadEditors', () => {
 
@@ -84,7 +84,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new UriLabelService(TestEnvironmentService, new TestContextService()));
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {

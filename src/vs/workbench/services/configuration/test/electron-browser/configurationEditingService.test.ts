@@ -38,7 +38,7 @@ import { mkdirp } from 'vs/base/node/pfs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 

@@ -10,7 +10,7 @@ import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IProgress, ISearchEngineStats } from 'vs/platform/search/common/search';
+import { IProgress, ISearchEngineStats, IFileSearchStats } from 'vs/platform/search/common/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
@@ -297,7 +297,7 @@ suite('SearchService', () => {
 			sortByScore: true,
 			cacheKey: 'x'
 		}, cb, undefined, -1).then(complete => {
-			assert.strictEqual(complete.stats.fromCache, false);
+			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
 		}).then(() => {
 			const results = [];
@@ -314,7 +314,7 @@ suite('SearchService', () => {
 				sortByScore: true,
 				cacheKey: 'x'
 			}, cb, undefined, -1).then(complete => {
-				assert.ok(complete.stats.fromCache);
+				assert.ok((<IFileSearchStats>complete.stats).fromCache);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc')]);
 			}, null);
 		}).then(() => {
@@ -340,7 +340,7 @@ suite('SearchService', () => {
 				sortByScore: true,
 				cacheKey: 'x'
 			}, cb, undefined, -1).then(complete => {
-				assert.strictEqual(complete.stats.fromCache, false);
+				assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
 			});
 		});

@@ -566,12 +566,12 @@ export interface IController {
 	onMouseUp?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 }
 
-export enum DragOverEffect {
+export const enum DragOverEffect {
 	COPY,
 	MOVE
 }
 
-export enum DragOverBubble {
+export const enum DragOverBubble {
 	BUBBLE_DOWN,
 	BUBBLE_UP
 }

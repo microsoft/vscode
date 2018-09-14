@@ -148,7 +148,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		if (!config.contribInfo.lightbulbEnabled) {
 			return;
 		}
-		const { lineNumber } = this._model.position;
+		const { lineNumber, column } = this._model.position;
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
@@ -158,13 +158,21 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = TextModel.computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = config.fontInfo.spaceWidth * indent > 22;
+		const isFolded = (lineNumber) => {
+			return lineNumber > 2 && this._editor.getTopForLineNumber(lineNumber) === this._editor.getTopForLineNumber(lineNumber - 1);
+		};
 
 		let effectiveLineNumber = lineNumber;
 		if (!lineHasSpace) {
-			if (lineNumber > 1) {
+			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				effectiveLineNumber -= 1;
-			} else {
+			} else if (!isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
+			} else if (column * config.fontInfo.spaceWidth < 22) {
+				// cannot show lightbulb above/below and showing
+				// it inline would overlay the cursor...
+				this.hide();
+				return;
 			}
 		}
 

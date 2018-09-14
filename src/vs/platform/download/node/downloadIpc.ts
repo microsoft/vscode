@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
 import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -69,7 +69,7 @@ export class DownloadServiceChannelClient implements IDownloadService {
 							out.end();
 							disposable.dispose();
 							c(null);
-						} else if (result instanceof Buffer) {
+						} else if (Buffer.isBuffer(result)) {
 							out.write(result);
 						} else if (typeof result === 'string') {
 							out.close();

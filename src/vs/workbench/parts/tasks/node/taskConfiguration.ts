@@ -25,7 +25,7 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
 import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
-export enum ShellQuoting {
+export const enum ShellQuoting {
 	/**
 	 * Default is character escaping.
 	 */
@@ -890,7 +890,12 @@ namespace CommandConfiguration {
 				if (converted !== void 0) {
 					result.args.push(converted);
 				} else {
-					context.problemReporter.error(nls.localize('ConfigurationParser.inValidArg', 'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}', context.problemReporter.error(nls.localize('ConfigurationParser.noargs', 'Error: command arguments must be an array of strings. Provided value is:\n{0}', arg ? JSON.stringify(arg, undefined, 4) : 'undefined'))));
+					context.problemReporter.error(
+						nls.localize(
+							'ConfigurationParser.inValidArg',
+							'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}',
+							arg ? JSON.stringify(arg, undefined, 4) : 'undefined'
+						));
 				}
 			}
 		}

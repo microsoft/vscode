@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
-export enum ContextKeyExprType {
+export const enum ContextKeyExprType {
 	Defined = 1,
 	Not = 2,
 	Equals = 3,

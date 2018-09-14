@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 

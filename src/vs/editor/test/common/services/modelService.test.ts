@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';

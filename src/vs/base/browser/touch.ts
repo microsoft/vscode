@@ -5,7 +5,7 @@
 'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as DomUtils from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 
@@ -64,7 +64,7 @@ interface TouchEvent extends Event {
 	changedTouches: TouchList;
 }
 
-export class Gesture implements IDisposable {
+export class Gesture extends Disposable {
 
 	private static readonly SCROLL_FRICTION = -0.005;
 	private static INSTANCE: Gesture;
@@ -72,19 +72,19 @@ export class Gesture implements IDisposable {
 
 	private dispatched: boolean;
 	private targets: HTMLElement[];
-	private toDispose: IDisposable[];
 	private handle: IDisposable;
 
 	private activeTouches: { [id: number]: TouchData; };
 
 	private constructor() {
-		this.toDispose = [];
+		super();
+
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
 	}
 
 	public static addTarget(element: HTMLElement): void {
@@ -106,9 +106,10 @@ export class Gesture implements IDisposable {
 	public dispose(): void {
 		if (this.handle) {
 			this.handle.dispose();
-			dispose(this.toDispose);
 			this.handle = null;
 		}
+
+		super.dispose();
 	}
 
 	private onTouchStart(e: TouchEvent): void {

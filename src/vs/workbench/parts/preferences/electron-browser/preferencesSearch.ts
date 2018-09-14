@@ -160,8 +160,9 @@ interface IBingRequestDetails {
 
 class RemoteSearchProvider implements ISearchProvider {
 	// Must keep extension filter size under 8kb. 42 filters puts us there.
-	private static MAX_REQUEST_FILTERS = 42;
-	private static MAX_REQUESTS = 10;
+	private static readonly MAX_REQUEST_FILTERS = 42;
+	private static readonly MAX_REQUESTS = 10;
+	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
 
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
@@ -190,21 +191,31 @@ class RemoteSearchProvider implements ISearchProvider {
 			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
 			const minScore = highScore / 5;
 			if (this.options.newExtensionsOnly) {
-				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= minScore);
-				const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
-					const remoteSetting = remoteResult.scoredResults[k];
-					const setting = remoteSettingToISetting(remoteSetting);
-					return <ISettingMatch>{
-						setting,
-						score: remoteSetting.score,
-						matches: [] // TODO
+				return this.installedExtensions.then(installedExtensions => {
+					const newExtsMinScore = Math.max(RemoteSearchProvider.NEW_EXTENSIONS_MIN_SCORE, minScore);
+					const passingScoreKeys = resultKeys
+						.filter(k => {
+							const result = remoteResult.scoredResults[k];
+							const resultExtId = (result.extensionPublisher + '.' + result.extensionName).toLowerCase();
+							return !installedExtensions.some(ext => ext.galleryIdentifier.id.toLowerCase() === resultExtId);
+						})
+						.filter(k => remoteResult.scoredResults[k].score >= newExtsMinScore);
+
+					const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
+						const remoteSetting = remoteResult.scoredResults[k];
+						const setting = remoteSettingToISetting(remoteSetting);
+						return <ISettingMatch>{
+							setting,
+							score: remoteSetting.score,
+							matches: [] // TODO
+						};
+					});
+
+					return <ISearchResult>{
+						filterMatches,
+						metadata: remoteResult
 					};
 				});
-
-				return <ISearchResult>{
-					filterMatches,
-					metadata: remoteResult
-				};
 			} else {
 				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
 				const filterMatches = preferencesModel.filterSettings(this.options.filter, group => null, settingMatcher);
@@ -260,7 +271,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				'api-key': this.options.endpoint.key
 			},
 			timeout: 5000
-		}).then(context => {
+		}, CancellationToken.None).then(context => {
 			if (context.res.statusCode >= 300) {
 				throw new Error(`${details} returned status code: ${context.res.statusCode}`);
 			}
@@ -522,6 +533,16 @@ class SettingMatches {
 	}
 
 	private toKeyRange(setting: ISetting, match: IMatch): IRange {
+		if (!setting.keyRange) {
+			// No source range? Return fake range, don't care
+			return {
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 0,
+			};
+		}
+
 		return {
 			startLineNumber: setting.keyRange.startLineNumber,
 			startColumn: setting.keyRange.startColumn + match.start,
@@ -531,6 +552,16 @@ class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		if (!setting.keyRange) {
+			// No source range? Return fake range, don't care
+			return {
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 0,
+			};
+		}
+
 		return {
 			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
 			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
@@ -540,6 +571,16 @@ class SettingMatches {
 	}
 
 	private toValueRange(setting: ISetting, match: IMatch): IRange {
+		if (!setting.keyRange) {
+			// No source range? Return fake range, don't care
+			return {
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 0,
+			};
+		}
+
 		return {
 			startLineNumber: setting.valueRange.startLineNumber,
 			startColumn: setting.valueRange.startColumn + match.start + 1,

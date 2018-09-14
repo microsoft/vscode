@@ -40,7 +40,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
+	const ts = tsb.create(opts, true, null, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
 
@@ -71,6 +71,8 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	};
 }
 
+const libDtsGlob = 'node_modules/typescript/lib/*.d.ts';
+
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
@@ -78,7 +80,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 
 		const srcPipe = es.merge(
 			gulp.src(`${src}/**`, { base: `${src}` }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src(libDtsGlob),
 		);
 
 		// Do not write .d.ts files to disk, as they are not needed there.
@@ -100,7 +102,7 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts'),
+			gulp.src(libDtsGlob),
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 

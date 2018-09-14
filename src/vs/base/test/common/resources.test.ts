@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, isMalformedFileUri } from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Resources', () => {

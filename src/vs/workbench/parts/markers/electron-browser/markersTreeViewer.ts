@@ -21,7 +21,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -99,7 +100,7 @@ export class Renderer implements IRenderer {
 		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 	}
 
@@ -208,7 +209,7 @@ export class Renderer implements IRenderer {
 		if (templateData.resourceLabel instanceof FileLabel) {
 			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: this.uriLabelService.getLabel(element.uri, true), resource: element.uri }, { matches: element.uriMatches });
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.uri), true), resource: element.uri }, { matches: element.uriMatches });
 		}
 		(<IResourceMarkersTemplateData>templateData).count.setCount(element.filteredCount);
 	}
@@ -234,7 +235,7 @@ export class Renderer implements IRenderer {
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
 		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath), element.uriMatches);
-		templateData.resourceLabel.element.title = this.uriLabelService.getLabel(element.raw.resource, true);
+		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, true);
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
 		templateData.description.set(element.raw.message, element.messageMatches);
 		templateData.description.element.title = element.raw.message;
@@ -272,13 +273,13 @@ export class Renderer implements IRenderer {
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
-		@IUriLabelService private uriLabelServie: IUriLabelService
+		@ILabelService private labelServie: ILabelService
 	) {
 	}
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
-			const path = this.uriLabelServie.getLabel(element.uri, true) || element.uri.fsPath;
+			const path = this.labelServie.getUriLabel(element.uri, true) || element.uri.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.filteredCount, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {

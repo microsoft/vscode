@@ -242,6 +242,18 @@ export class CommentsPanel extends Panel {
 		return true;
 	}
 
+	public setVisible(visible: boolean): TPromise<void> {
+		const wasVisible = this.isVisible();
+		return super.setVisible(visible)
+			.then(() => {
+				if (this.isVisible()) {
+					if (!wasVisible) {
+						this.refresh();
+					}
+				}
+			});
+	}
+
 	private refresh(): void {
 		if (this.isVisible()) {
 			this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();

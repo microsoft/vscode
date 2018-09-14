@@ -3,3 +3,4 @@ test/**
 out/**
 tsconfig.json
 build/**
+extension.webpack.config.js

@@ -65,6 +65,12 @@
 	line-height: 1;
 }
 
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	background-color: #646465;
+	height: 100%;
+	-webkit-mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
+	mask: url('submenu.svg') no-repeat 90% 50%/14px 14px;
+}
 
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .keybinding,
 .monaco-menu .monaco-action-bar.vertical .action-item.disabled .submenu-indicator {
@@ -161,6 +167,7 @@
 	border: 1px dotted #f38518;
 }
 
-.hc-black .monaco-menu .monaco-action-bar.vertical .menu-item-check {
+.hc-black .monaco-menu .monaco-action-bar.vertical .menu-item-check,
+.hc-black .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
 	background-color: white;
 }

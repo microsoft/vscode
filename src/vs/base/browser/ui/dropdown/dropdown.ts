@@ -6,17 +6,17 @@
 'use strict';
 
 import 'vs/css!./dropdown';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { BaseActionItem, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, removeClass, addClass } from 'vs/base/browser/dom';
+import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
+import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, addClasses } from 'vs/base/browser/dom';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -28,65 +28,75 @@ export interface IBaseDropdownOptions {
 }
 
 export class BaseDropdown extends ActionRunner {
-	private _toDispose: IDisposable[] = [];
-
-	private $el: Builder;
-	private $boxContainer: Builder;
-	private $label: Builder;
-	private $contents: Builder;
+	private _element: HTMLElement;
+	private boxContainer: HTMLElement;
+	private _label: HTMLElement;
+	private contents: HTMLElement;
 	private visible: boolean;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
 
-		this.$el = $('.monaco-dropdown').appendTo(container);
+		this._element = append(container, $('.monaco-dropdown'));
 
-		this.$label = $('.dropdown-label');
+		this._label = append(this._element, $('.dropdown-label'));
 
 		let labelRenderer = options.labelRenderer;
 		if (!labelRenderer) {
 			labelRenderer = (container: HTMLElement): IDisposable => {
-				$(container).text(options.label || '');
+				container.textContent = options.label || '';
+
 				return null;
 			};
 		}
 
-		this.$label.on([EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap], (e: Event) => {
-			EventHelper.stop(e, true); // prevent default click behaviour to trigger
-		}).on([EventType.MOUSE_DOWN, GestureEventType.Tap], (e: Event) => {
-			if (e instanceof MouseEvent && e.detail > 1) {
-				return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
-			}
+		[EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap].forEach(event => {
+			this._register(addDisposableListener(this._label, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
+		});
 
-			if (this.visible) {
-				this.hide();
-			} else {
-				this.show();
-			}
-		}).appendTo(this.$el);
+		[EventType.MOUSE_DOWN, GestureEventType.Tap].forEach(event => {
+			this._register(addDisposableListener(this._label, event, e => {
+				if (e instanceof MouseEvent && e.detail > 1) {
+					return; // prevent multiple clicks to open multiple context menus (https://github.com/Microsoft/vscode/issues/41363)
+				}
 
-		const cleanupFn = labelRenderer(this.$label.getHTMLElement());
+				if (this.visible) {
+					this.hide();
+				} else {
+					this.show();
+				}
+			}));
+		});
+
+		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
+			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				if (this.visible) {
+					this.hide();
+				} else {
+					this.show();
+				}
+			}
+		}));
+
+		const cleanupFn = labelRenderer(this._label);
 		if (cleanupFn) {
-			this._toDispose.push(cleanupFn);
+			this._register(cleanupFn);
 		}
 
-		Gesture.addTarget(this.$label.getHTMLElement());
-	}
-
-	get toDispose(): IDisposable[] {
-		return this._toDispose;
+		Gesture.addTarget(this._label);
 	}
 
 	get element(): HTMLElement {
-		return this.$el.getHTMLElement();
+		return this._element;
 	}
 
 	get label(): HTMLElement {
-		return this.$label.getHTMLElement();
+		return this._label;
 	}
 
 	set tooltip(tooltip: string) {
-		this.$label.title(tooltip);
+		this._label.title = tooltip;
 	}
 
 	show(): void {
@@ -105,21 +115,19 @@ export class BaseDropdown extends ActionRunner {
 		super.dispose();
 		this.hide();
 
-		this._toDispose = dispose(this.toDispose);
-
-		if (this.$boxContainer) {
-			this.$boxContainer.destroy();
-			this.$boxContainer = null;
+		if (this.boxContainer) {
+			this.boxContainer.remove();
+			this.boxContainer = null;
 		}
 
-		if (this.$contents) {
-			this.$contents.destroy();
-			this.$contents = null;
+		if (this.contents) {
+			this.contents.remove();
+			this.contents = null;
 		}
 
-		if (this.$label) {
-			this.$label.destroy();
-			this.$label = null;
+		if (this._label) {
+			this._label.remove();
+			this._label = null;
 		}
 	}
 }
@@ -279,15 +287,13 @@ export class DropdownMenuActionItem extends BaseActionItem {
 
 	render(container: HTMLElement): void {
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
-			this.builder = $('a.action-label').attr({
-				tabIndex: '0',
-				role: 'button',
-				'aria-haspopup': 'true',
-				title: this._action.label || '',
-				class: this.clazz
-			});
+			this.element = append(el, $('a.action-label'));
+			addClasses(this.element, this.clazz);
 
-			this.builder.appendTo(el);
+			this.element.tabIndex = 0;
+			this.element.setAttribute('role', 'button');
+			this.element.setAttribute('aria-haspopup', 'true');
+			this.element.title = this._action.label || '';
 
 			return null;
 		};

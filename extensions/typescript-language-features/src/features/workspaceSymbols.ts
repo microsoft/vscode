@@ -44,7 +44,15 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			file: filepath,
 			searchValue: search
 		};
-		const { body } = await this.client.execute('navto', args, token);
+
+		let response: Proto.NavtoResponse;
+		try {
+			response = await this.client.execute('navto', args, token);
+		} catch {
+			return [];
+
+		}
+		const { body } = response;
 		if (!body) {
 			return [];
 		}

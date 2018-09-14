@@ -21,6 +21,7 @@ import { asJson } from 'vs/base/node/request';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface IExperimentStorageState {
 	enabled: boolean;
@@ -29,7 +30,7 @@ interface IExperimentStorageState {
 	lastEditedDate?: string;
 }
 
-export enum ExperimentState {
+export const enum ExperimentState {
 	Evaluating,
 	NoRun,
 	Run,
@@ -168,7 +169,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		if (!product.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return TPromise.as([]);
 		}
-		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
+		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }, CancellationToken.None).then(context => {
 			if (context.res.statusCode !== 200) {
 				return TPromise.as(null);
 			}
@@ -279,6 +280,24 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}
 	}
 
+	private checkExperimentDependencies(experiment: IRawExperiment): boolean {
+		if (experiment.condition.experimentsPreviouslyRun) {
+			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
+			let includeCheck = true;
+			let excludeCheck = true;
+			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
+				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
+			}
+			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
+				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
+			}
+			if (!includeCheck || !excludeCheck) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
 		if (processedExperiment.state !== ExperimentState.Evaluating) {
 			return TPromise.wrap(processedExperiment.state);
@@ -292,19 +311,8 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return TPromise.wrap(ExperimentState.Run);
 		}
 
-		if (experiment.condition.experimentsPreviouslyRun) {
-			const runExperimentIdsFromStorage: string[] = safeParse(this.storageService.get('currentOrPreviouslyRunExperiments', StorageScope.GLOBAL), []);
-			let includeCheck = true;
-			let excludeCheck = true;
-			if (Array.isArray(experiment.condition.experimentsPreviouslyRun.includes)) {
-				includeCheck = runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.includes.indexOf(x) > -1);
-			}
-			if (includeCheck && Array.isArray(experiment.condition.experimentsPreviouslyRun.excludes)) {
-				excludeCheck = !runExperimentIdsFromStorage.some(x => experiment.condition.experimentsPreviouslyRun.excludes.indexOf(x) > -1);
-			}
-			if (!includeCheck || !excludeCheck) {
-				return TPromise.wrap(ExperimentState.NoRun);
-			}
+		if (!this.checkExperimentDependencies(experiment)) {
+			return TPromise.wrap(ExperimentState.NoRun);
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
@@ -399,7 +407,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				});
 				if (latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
-					processedExperiment.state = latestExperimentState.state = Math.random() < experiment.condition.userProbability ? ExperimentState.Run : ExperimentState.NoRun;
+					processedExperiment.state = latestExperimentState.state = (Math.random() < experiment.condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
 					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
 					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
 						this.fireRunExperiment(processedExperiment);

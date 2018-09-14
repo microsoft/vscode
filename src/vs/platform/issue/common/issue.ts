@@ -22,7 +22,7 @@ export interface WindowData {
 	zoomLevel: number;
 }
 
-export enum IssueType {
+export const enum IssueType {
 	Bug,
 	PerformanceIssue,
 	FeatureRequest,
@@ -74,6 +74,7 @@ export interface ProcessExplorerStyles extends WindowStyles {
 }
 
 export interface ProcessExplorerData extends WindowData {
+	pid: number;
 	styles: ProcessExplorerStyles;
 }
 

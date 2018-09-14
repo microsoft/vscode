@@ -11,8 +11,8 @@ import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
-const decoration = vscode.window.createTextEditorDecorationType({
-	color: '#9e9e9e'
+const fadedDecoration = vscode.window.createTextEditorDecorationType({
+	color: '#777'
 });
 
 let pendingLaunchJsonDecoration: NodeJS.Timer;
@@ -241,7 +241,7 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): voi
 		}
 	});
 
-	editor.setDecorations(decoration, ranges);
+	editor.setDecorations(fadedDecoration, ranges);
 }
 
 vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {

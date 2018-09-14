@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { assign, deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
@@ -98,8 +97,7 @@ export class CrashReporterService implements ICrashReporterService {
 
 				// start crash reporter in the main process
 				return this.windowsService.startCrashReporter(this.options);
-			})
-			.done(null, onUnexpectedError);
+			});
 	}
 
 	private getSubmitURL(): string {

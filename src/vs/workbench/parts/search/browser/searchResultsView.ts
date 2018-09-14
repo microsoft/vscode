@@ -27,7 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class SearchDataSource implements IDataSource {
 
@@ -329,7 +329,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 	}
 
@@ -341,7 +341,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof FileMatch) {
-			const path = this.uriLabelService.getLabel(element.resource(), true) || element.resource().fsPath;
+			const path = this.labelService.getUriLabel(element.resource(), true) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}

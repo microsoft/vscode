@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 

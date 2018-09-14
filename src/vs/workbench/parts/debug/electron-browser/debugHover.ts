@@ -152,7 +152,7 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		let promise: TPromise<IExpression>;
-		if (session.raw.capabilities.supportsEvaluateForHovers) {
+		if (session.capabilities.supportsEvaluateForHovers) {
 			const result = new Expression(matchingExpression);
 			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
 		} else {

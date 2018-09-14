@@ -1222,5 +1222,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	dispose(): void {
 		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
+
+		this._onOpen.dispose();
+		this._onPin.dispose();
+		this._onDidDispose.dispose();
 	}
 }

@@ -15,10 +15,6 @@ module.exports = withDefaults({
 		extension: './src/extension.ts',
 	},
 	externals: {
-		'@emmetio/css-parser': 'commonjs @emmetio/css-parser',
-		'@emmetio/html-matcher': 'commonjs @emmetio/html-matcher',
-		'@emmetio/math-expression': 'commonjs @emmetio/math-expression',
-		'image-size': 'commonjs image-size',
 		'vscode-emmet-helper': 'commonjs vscode-emmet-helper',
 	},
 });

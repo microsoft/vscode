@@ -9,7 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 
 export interface ISimpleWindow {
@@ -92,7 +92,7 @@ export function findWindowOnWorkspace<W extends ISimpleWindow>(windows: W[], wor
 
 export function findWindowOnExtensionDevelopmentPath<W extends ISimpleWindow>(windows: W[], extensionDevelopmentPath: string): W {
 	for (const window of windows) {
-		// match on extension development path
+		// match on extension development path. The path can be a path or uri string, using paths.isEqual is not 100% correct but good enough
 		if (paths.isEqual(window.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
 			return window;
 		}

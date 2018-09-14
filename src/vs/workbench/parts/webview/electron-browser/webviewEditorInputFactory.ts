@@ -7,7 +7,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 interface SerializedWebview {
 	readonly viewType: string;

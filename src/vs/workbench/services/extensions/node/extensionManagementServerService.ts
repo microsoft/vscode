@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
 

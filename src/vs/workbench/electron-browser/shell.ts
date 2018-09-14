@@ -93,11 +93,12 @@ import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
-import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
+import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 /**
  * Services that we require for the Shell
@@ -117,6 +118,7 @@ export interface ICoreServices {
 export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
+	private labelService: ILabelService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
@@ -154,6 +156,7 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private renderContents(): void {
+
 		// ARIA
 		aria.setARIAContainer(document.body);
 
@@ -177,6 +180,16 @@ export class WorkbenchShell extends Disposable {
 	}
 
 	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, container: HTMLElement): Workbench {
+
+		function handleStartupError(logService: ILogService, error: Error): void {
+
+			// Log it
+			logService.error(toErrorMessage(error, true));
+
+			// Rethrow
+			throw error;
+		}
+
 		try {
 			const workbench = instantiationService.createInstance(Workbench, container, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
@@ -184,7 +197,7 @@ export class WorkbenchShell extends Disposable {
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			// Startup Workbench
-			workbench.startup().done(startupInfos => {
+			workbench.startup().then(startupInfos => {
 
 				// Set lifecycle phase to `Runnning` so that other contributions can now do something
 				this.lifecycleService.phase = LifecyclePhase.Running;
@@ -208,16 +221,13 @@ export class WorkbenchShell extends Disposable {
 				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					this.logLocalStorageMetrics();
 				}
-			});
+			}, error => handleStartupError(this.logService, error));
 
 			return workbench;
 		} catch (error) {
+			handleStartupError(this.logService, error);
 
-			// Log it
-			this.logService.error(toErrorMessage(error, true));
-
-			// Rethrow
-			throw error;
+			return void 0;
 		}
 	}
 
@@ -316,6 +326,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
+		serviceCollection.set(ILabelService, this.labelService);
 		serviceCollection.set(ILogService, this._register(this.logService));
 
 		serviceCollection.set(IStorageService, this.storageService);
@@ -336,11 +347,10 @@ export class WorkbenchShell extends Disposable {
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
-		sharedProcess
-			.done(client => {
-				client.registerChannel('download', new DownloadServiceChannel());
-				client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
-			});
+		sharedProcess.then(client => {
+			client.registerChannel('download', new DownloadServiceChannel());
+			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
+		});
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
@@ -397,9 +407,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IExtensionService, this.extensionService);
 
 		perf.mark('willLoadExtensions');
-		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			perf.mark('didLoadExtensions');
-		});
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);
@@ -441,9 +449,10 @@ export class WorkbenchShell extends Disposable {
 	open(): void {
 
 		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event) => {
+		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-			errors.onUnexpectedError((<any>event).reason);
+			errors.onUnexpectedError(event.reason);
 
 			// Prevent the printing of this event to the console
 			event.preventDefault();

@@ -6,10 +6,10 @@ import { extname } from 'path';
 import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
 import { nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
-export enum WebviewProtocol {
+export const enum WebviewProtocol {
 	CoreResource = 'vscode-core-resource',
 	VsCodeResource = 'vscode-resource'
 }

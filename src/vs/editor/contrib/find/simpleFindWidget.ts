@@ -12,7 +12,7 @@ import * as dom from 'vs/base/browser/dom';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
 import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -29,7 +29,6 @@ export abstract class SimpleFindWidget extends Widget {
 	private _innerDomNode: HTMLElement;
 	private _isVisible: boolean;
 	private _focusTracker: dom.IFocusTracker;
-	private _findInputFocusTracker: dom.IFocusTracker;
 	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
@@ -113,10 +112,6 @@ export abstract class SimpleFindWidget extends Widget {
 		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
 
-		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
-
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
@@ -134,7 +129,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public get focusTracker(): dom.IFocusTracker {
-		return this._findInputFocusTracker;
+		return this._focusTracker;
 	}
 
 	public updateTheme(theme: ITheme): void {
@@ -144,10 +139,13 @@ export abstract class SimpleFindWidget extends Widget {
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
 		};
 		this._findInput.style(inputStyles);

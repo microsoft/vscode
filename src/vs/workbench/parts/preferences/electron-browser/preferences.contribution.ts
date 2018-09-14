@@ -6,7 +6,7 @@
 
 import 'vs/css!../browser/media/preferences';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -149,23 +149,23 @@ class KeybindingsEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
+interface ISerializedSettingsEditor2EditorInput {
+}
+
 class SettingsEditor2InputFactory implements IEditorInputFactory {
 
-	public serialize(editorInput: SettingsEditor2Input): string {
-		const input = <DefaultPreferencesEditorInput>editorInput;
-
-		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.getResource().toString() };
+	public serialize(input: SettingsEditor2Input): string {
+		const serialized: ISerializedSettingsEditor2EditorInput = {
+		};
 
 		return JSON.stringify(serialized);
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
-		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
-
-		return instantiationService.createInstance(SettingsEditor2Input, URI.parse(deserialized.resource));
+		return instantiationService.createInstance(
+			SettingsEditor2Input);
 	}
 }
-
 
 interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
@@ -320,7 +320,7 @@ CommandsRegistry.registerCommand(OpenFolderSettingsAction.ID, serviceAccessor =>
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenFolderSettingsAction.ID,
-		title: `${category}: ${OpenFolderSettingsAction.LABEL}`,
+		title: { value: `${category}: ${OpenFolderSettingsAction.LABEL}`, original: 'Preferences: Open Folder Settings' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
 });
@@ -331,7 +331,7 @@ CommandsRegistry.registerCommand(OpenWorkspaceSettingsAction.ID, serviceAccessor
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceSettingsAction.ID,
-		title: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`,
+		title: { value: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`, original: 'Preferences: Open Workspace Settings' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').notEqualsTo('empty')
 });

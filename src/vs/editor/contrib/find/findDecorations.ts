@@ -272,7 +272,6 @@ export class FindDecorations implements IDisposable {
 		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -283,7 +282,6 @@ export class FindDecorations implements IDisposable {
 		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});
@@ -298,7 +296,6 @@ export class FindDecorations implements IDisposable {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
-			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
 		}
 	});

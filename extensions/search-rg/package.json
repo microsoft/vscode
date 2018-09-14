@@ -14,7 +14,7 @@
   "categories": [],
   "dependencies": {
     "vscode-extension-telemetry": "0.0.18",
-    "vscode-nls": "^3.2.4",
+    "vscode-nls": "^4.0.0",
     "vscode-ripgrep": "1.1.0"
   },
   "devDependencies": {
