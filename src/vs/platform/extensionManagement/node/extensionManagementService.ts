@@ -538,10 +538,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
 		return this.toNonCancellablePromise(this.getInstalled(LocalExtensionType.User)
 			.then(installed => {
-				const promises = installed
-					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
-					.map(e => this.checkForDependenciesAndUninstall(e, installed));
-				return TPromise.join(promises).then(() => null, error => TPromise.wrapError(this.joinErrors(error)));
+				const extensionsToUninstall = installed
+					.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name);
+				if (extensionsToUninstall.length) {
+					const promises = extensionsToUninstall.map(e => this.checkForDependenciesAndUninstall(e, installed));
+					return TPromise.join(promises).then(() => null, error => TPromise.wrapError(this.joinErrors(error)));
+				} else {
+					return TPromise.wrapError(new Error(nls.localize('notInstalled', "Extension '{0}' is not installed.", extension.manifest.displayName || extension.manifest.name)));
+				}
 			}));
 	}
 
