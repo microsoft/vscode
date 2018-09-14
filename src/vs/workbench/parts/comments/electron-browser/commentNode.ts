@@ -6,22 +6,25 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import * as modes from 'vs/editor/common/modes';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Action } from 'vs/base/common/actions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as modes from 'vs/editor/common/modes';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { SimpleCommentEditor } from 'vs/workbench/parts/comments/electron-browser/simpleCommentEditor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ITextModel } from 'vs/editor/common/model';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { SimpleCommentEditor } from 'vs/workbench/parts/comments/electron-browser/simpleCommentEditor';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -36,6 +39,8 @@ export class CommentNode extends Disposable {
 	private _commentEditContainer: HTMLElement;
 	private _commentEditor: SimpleCommentEditor;
 	private _commentEditorModel: ITextModel;
+	private _updateCommentButton: Button;
+	private _errorEditingContainer: HTMLElement;
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -104,6 +109,13 @@ export class CommentNode extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
 
+		this._toDispose.push(this._commentEditor.onKeyDown((e: IKeyboardEvent) => {
+			const isCmdOrCtrl = isMacintosh ? e.metaKey : e.ctrlKey;
+			if (this._updateCommentButton.enabled && e.keyCode === KeyCode.Enter && isCmdOrCtrl) {
+				this.editComment();
+			}
+		}));
+
 		this._toDispose.push(this._commentEditor);
 		this._toDispose.push(this._commentEditorModel);
 	}
@@ -117,13 +129,36 @@ export class CommentNode extends Disposable {
 		this._commentEditor.dispose();
 	}
 
+	private editComment(): void {
+		this._updateCommentButton.enabled = false;
+		this._updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
+
+		try {
+			this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue()).then(editedComment => {
+				this._updateCommentButton.enabled = true;
+				this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
+				this._commentEditor.getDomNode().style.outline = '';
+				this.removeCommentEditor();
+				this.update(editedComment);
+			});
+		} catch (e) {
+			this._updateCommentButton.enabled = true;
+			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
+
+			this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
+			this._errorEditingContainer.textContent = nls.localize('commentCreationError', "Updating the comment failed: {0}.", e.message);
+			this._errorEditingContainer.classList.remove('hidden');
+			this._commentEditor.focus();
+		}
+	}
+
 	private createEditAction(commentDetailsContainer: HTMLElement): Action {
 		return new Action('comment.edit', nls.localize('label.edit', "Edit"), 'octicon octicon-pencil', true, () => {
 			this._body.classList.add('hidden');
 			this._commentEditContainer = dom.append(commentDetailsContainer, dom.$('.edit-container'));
 			this.createCommentEditor();
 
-			const error = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
+			this._errorEditingContainer = dom.append(this._commentEditContainer, dom.$('.validation-error.hidden'));
 			const formActions = dom.append(this._commentEditContainer, dom.$('.form-actions'));
 
 			const cancelEditButton = new Button(formActions);
@@ -134,35 +169,16 @@ export class CommentNode extends Disposable {
 				this.removeCommentEditor();
 			}));
 
-			const updateCommentButton = new Button(formActions);
-			updateCommentButton.label = UPDATE_COMMENT_LABEL;
-			attachButtonStyler(updateCommentButton, this.themeService);
+			this._updateCommentButton = new Button(formActions);
+			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
+			attachButtonStyler(this._updateCommentButton, this.themeService);
 
-			this._toDispose.push(updateCommentButton.onDidClick(_ => {
-				updateCommentButton.enabled = false;
-				updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
-
-				try {
-					this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue()).then(editedComment => {
-						updateCommentButton.enabled = true;
-						updateCommentButton.label = UPDATE_COMMENT_LABEL;
-						this._commentEditor.getDomNode().style.outline = '';
-						this.removeCommentEditor();
-						this.update(editedComment);
-					});
-				} catch (e) {
-					updateCommentButton.enabled = true;
-					updateCommentButton.label = UPDATE_COMMENT_LABEL;
-
-					this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
-					error.textContent = nls.localize('commentCreationError', "Updating the comment failed: {0}.", e.message);
-					error.classList.remove('hidden');
-					this._commentEditor.focus();
-				}
+			this._toDispose.push(this._updateCommentButton.onDidClick(_ => {
+				this.editComment();
 			}));
 
 			this._toDispose.push(this._commentEditor.onDidChangeModelContent(_ => {
-				updateCommentButton.enabled = !!this._commentEditor.getValue();
+				this._updateCommentButton.enabled = !!this._commentEditor.getValue();
 			}));
 
 			this._editAction.enabled = false;
