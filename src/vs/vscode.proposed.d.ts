@@ -615,8 +615,10 @@ declare module 'vscode' {
 		gravatar: string;
 
 		/**
-		 * Whether the current user has permission to edit the comment. This will be treated as false if no `editComment` method
-		 * is provided on the DocumentCommentProvider.
+		 * Whether the current user has permission to edit the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
 		 */
 		canEdit?: boolean;
 

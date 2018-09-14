@@ -1013,7 +1013,7 @@ export interface Comment {
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly gravatar: string;
-	readonly canEdit: boolean;
+	readonly canEdit?: boolean;
 	readonly command?: Command;
 }
 

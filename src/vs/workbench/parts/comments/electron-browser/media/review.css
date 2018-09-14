@@ -30,6 +30,10 @@
 	position: absolute;
 }
 
+.monaco-editor .review-widget .hidden {
+	display: none !important;
+}
+
 .monaco-editor .review-widget .body .review-comment {
 	padding: 8px 16px 8px 20px;
 	display: flex;
@@ -50,10 +54,6 @@
 
 .monaco-editor .review-widget .body .review-comment .comment-title .action-label.octicon {
 	line-height: 18px;
-}
-
-.monaco-editor .review-widget .body .comment-body.hidden {
-	display: none;
 }
 
 .monaco-editor .review-widget .body .comment-body blockquote {
@@ -79,9 +79,10 @@
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents {
-	margin-left: 20px;
+	padding-left: 20px;
 	user-select: text;
 	width: 100%;
+	overflow: hidden;
 }
 
 .monaco-editor .review-widget .body pre {
@@ -152,7 +153,7 @@
 	padding: 8px 0;
 }
 
-.monaco-editor .review-widget .body .comment-form .validation-error {
+.monaco-editor .review-widget .validation-error {
 	display: inline-block;
 	overflow: hidden;
 	text-align: left;
@@ -169,10 +170,6 @@
 	margin-top: -1px;
 	margin-left: -1px;
 	word-wrap: break-word;
-}
-
-.monaco-editor .review-widget .body .comment-form .validation-error.hidden {
-	display: none;
 }
 
 .monaco-editor .review-widget .body .comment-form.expand .review-thread-reply-button {
@@ -213,6 +210,7 @@
 	max-height: 500px;
 	border-radius: 3px;
 	border: 0px;
+	box-sizing: content-box;
 	padding: 6px 0 6px 12px;
 }
 
@@ -227,14 +225,14 @@
 	padding: 10px 0;
 }
 
-
-.monaco-editor .review-widget .body .edit-container {
-	margin-right: 28px;
+.monaco-editor .review-widget .body .edit-container .form-actions {
+	display: flex;
+	justify-content: flex-end;
 }
 
 .monaco-editor .review-widget .body .edit-textarea {
 	height: 90px;
-	margin-bottom: 10px;
+	margin: 5px 0 10px 0;
 }
 
 .monaco-editor .review-widget .body .comment-form .monaco-text-button,
@@ -242,6 +240,9 @@
 	width: auto;
 	padding: 4px 10px;
 	margin-left: 5px;
+}
+
+.monaco-editor .review-widget .body .comment-form .monaco-text-button {
 	float: right;
 }
 

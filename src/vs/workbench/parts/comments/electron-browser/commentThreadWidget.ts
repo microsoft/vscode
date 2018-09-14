@@ -592,12 +592,12 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		const errorBorder = theme.getColor(inputValidationErrorBorder);
 		if (errorBorder) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { border: 1px solid ${errorBorder}; }`);
+			content.push(`.monaco-editor .review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
 		}
 
 		const errorBackground = theme.getColor(inputValidationErrorBackground);
 		if (errorBackground) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { background: ${errorBackground}; }`);
+			content.push(`.monaco-editor .review-widget .validation-error { background: ${errorBackground}; }`);
 		}
 
 		const errorForeground = theme.getColor(inputValidationErrorForeground);
