@@ -90,6 +90,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enum: [1, 2, 3, 4, 5],
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
+		},
+		'scm.alwaysShowActions': {
+			type: 'boolean',
+			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
+			default: false
 		}
 	}
 });

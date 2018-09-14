@@ -868,6 +868,11 @@ export class RepositoryPanel extends ViewletPanel {
 		// List
 
 		this.listContainer = append(container, $('.scm-status.show-file-icons'));
+
+		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
+		filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility);
+		updateActionsVisibility();
+
 		const delegate = new ProviderListDelegate();
 
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
