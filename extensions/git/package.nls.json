@@ -104,6 +104,7 @@
 	"config.useForcePushWithLease": "Controls whether force pushing uses the safer force-with-lease variant.",
 	"config.confirmForcePush": "Controls whether to ask for confirmation before force-pushing.",
 	"colors.added": "Color for added resources.",
+	"config.autoFetchPeriod": "Controls the auto fetch period in seconds(if enabled).",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",
