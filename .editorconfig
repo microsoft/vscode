@@ -1,8 +1,6 @@
 # EditorConfig is awesome: http://EditorConfig.org
-
 # top-most EditorConfig file
 root = true
-
 # Tab indentation
 [*]
 indent_style = tab

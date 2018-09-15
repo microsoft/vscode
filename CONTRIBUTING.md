@@ -23,4 +23,4 @@ The more information you can provide, the more likely someone will be successful
 
 ## Contributing Fixes
 If you are interested in fixing issues and contributing directly to the code base,
-please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute).
+please see the document [How to Contribute](https://github.com/Micosoft/vscode/wiki/How-to-Contribute).
