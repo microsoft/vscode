@@ -69,10 +69,8 @@ function loader(bundledFileHeader) {
 			return f;
 		}));
 }
-
 function toConcatStream(bundledFileHeader, sources, dest) {
-	const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
-
+		const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
 	// If a bundle ends up including in any of the sources our copyright, then
 	// insert a fake source at the beginning of each bundle with our copyright
 	let containsOurCopyright = false;
@@ -83,14 +81,12 @@ function toConcatStream(bundledFileHeader, sources, dest) {
 			break;
 		}
 	}
-
 	if (containsOurCopyright) {
 		sources.unshift({
 			path: null,
 			contents: bundledFileHeader
 		});
 	}
-
 	const treatedSources = sources.map(function(source) {
 		const root = source.path ? path.dirname(__dirname).replace(/\\/g, '/') : '';
 		const base = source.path ? root + '/out-build' : '';
@@ -130,17 +126,13 @@ exports.optimizeTask = function(opts) {
 	const loaderConfig = opts.loaderConfig;
 	const bundledFileHeader = opts.header;
 	const out = opts.out;
-
 	return function() {
 		const bundlesStream = es.through(); // this stream will contain the bundled files
 		const resourcesStream = es.through(); // this stream will contain the resources
 		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
-
 		bundle.bundle(entryPoints, loaderConfig, function(err, result) {
 			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
-
 			toBundleStream(bundledFileHeader, result.files).pipe(bundlesStream);
-
 			// Remove css inlined resources
 			const filteredResources = resources.slice();
 			result.cssInlinedResources.forEach(function(resource) {
@@ -150,7 +142,6 @@ exports.optimizeTask = function(opts) {
 				filteredResources.push('!' + resource);
 			});
 			gulp.src(filteredResources, { base: 'out-build' }).pipe(resourcesStream);
-
 			const bundleInfoArray = [];
 			if (opts.bundleInfo) {
 				bundleInfoArray.push(new File({
@@ -161,10 +152,8 @@ exports.optimizeTask = function(opts) {
 			}
 			es.readArray(bundleInfoArray).pipe(bundleInfoStream);
 		});
-
 		const otherSourcesStream = es.through();
 		const otherSourcesStreamArr = [];
-
 		gulp.src(otherSources, { base: 'out-build' })
 			.pipe(es.through(function (data) {
 				otherSourcesStreamArr.push(toConcatStream(bundledFileHeader, [data], data.relative));
@@ -175,7 +164,6 @@ exports.optimizeTask = function(opts) {
 					es.merge(otherSourcesStreamArr).pipe(otherSourcesStream);
 				}
 			}));
-
 		const result = es.merge(
 			loader(bundledFileHeader),
 			bundlesStream,
@@ -183,7 +171,6 @@ exports.optimizeTask = function(opts) {
 			resourcesStream,
 			bundleInfoStream
 		);
-
 		return result
 			.pipe(sourcemaps.write('./', {
 				sourceRoot: null,
@@ -196,26 +183,20 @@ exports.optimizeTask = function(opts) {
 			.pipe(gulp.dest(out));
 	};
 };
-
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
  */
 function uglifyWithCopyrights() {
 	let currentFileHasOurCopyright = false;
-
 	const onNewFile = () => currentFileHasOurCopyright = false;
-
 	const preserveComments = function(node, comment) {
 		const text = comment.value;
 		const type = comment.type;
-
 		if (/@minifier_do_not_preserve/.test(text)) {
 			return false;
 		}
-
 		const isOurCopyright = IS_OUR_COPYRIGHT_REGEXP.test(text);
-
 		if (isOurCopyright) {
 			if (currentFileHasOurCopyright) {
 				return false;
@@ -223,7 +204,6 @@ function uglifyWithCopyrights() {
 			currentFileHasOurCopyright = true;
 			return true;
 		}
-
 		if ('comment2' === type) {
 			// check for /*!. Note that text doesn't contain leading /*
 			return (text.length > 0 && text[0] === '!') || /@preserve|license|@cc_on|copyright/i.test(text);
@@ -237,22 +217,17 @@ function uglifyWithCopyrights() {
 
 	return es.through(function (data) {
 		const _this = this;
-
 		onNewFile();
-
 		uglifyStream.once('data', function(data) {
 			_this.emit('data', data);
 		})
 		uglifyStream.write(data);
-	},
-	function () { this.emit('end'); });
+	},function () { this.emit('end'); });
 }
-
 exports.minifyTask = function (src, addSourceMapsComment) {
 	return function() {
 		const jsFilter = filter('**/*.js', { restore: true });
 		const cssFilter = filter('**/*.css', { restore: true });
-
 		return gulp.src([src + '/**', '!' + src + '/**/*.map'])
 			.pipe(jsFilter)
 			.pipe(sourcemaps.init({ loadMaps: true }))
@@ -268,7 +243,6 @@ exports.minifyTask = function (src, addSourceMapsComment) {
 				sourceRoot: null,
 				includeContent: true,
 				addComment: addSourceMapsComment
-			}))
-			.pipe(gulp.dest(src + '-min'));
+			})).pipe(gulp.dest(src + '-min'));
 	};
 };

@@ -6,54 +6,44 @@
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
-var gulp = require('gulp');
-var path = require('path');
-var tsb = require('gulp-tsb');
-var es = require('event-stream');
-var filter = require('gulp-filter');
-var rimraf = require('rimraf');
-var util = require('./lib/util');
-var watcher = require('./lib/watch');
-var createReporter = require('./lib/reporter');
-var glob = require('glob');
-var sourcemaps = require('gulp-sourcemaps');
-var nlsDev = require('vscode-nls-dev');
-
-var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
-
-var compilations = glob.sync('**/tsconfig.json', {
+var gulp = require('gulp'),
+	path = require('path'),
+	tsb = require('gulp-tsb'),
+	es = require('event-stream'),
+	filter = require('gulp-filter'),
+	rimraf = require('rimraf'),
+	util = require('./lib/util'),
+	watcher = require('./lib/watch'),
+	createReporter = require('./lib/reporter'),
+	glob = require('glob'),
+	sourcemaps = require('gulp-sourcemaps'),
+	nlsDev = require('vscode-nls-dev'),
+	extensionsPath = path.join(path.dirname(__dirname), 'extensions'),
+compilations = glob.sync('**/tsconfig.json', {
 	cwd: extensionsPath,
 	ignore: ['**/out/**', '**/node_modules/**']
-});
-
-var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
-
-var tasks = compilations.map(function(tsconfigFile) {
+}),
+languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'],
+tasks = compilations.map(function(tsconfigFile) {
 	var absolutePath = path.join(extensionsPath, tsconfigFile);
 	var relativeDirname = path.dirname(tsconfigFile);
-
 	var tsOptions = require(absolutePath).compilerOptions;
 	tsOptions.verbose = false;
 	tsOptions.sourceMap = true;
-
 	var name = relativeDirname.replace(/\//g, '-');
 
 	// Tasks
-	var clean = 'clean-extension:' + name;
-	var compile = 'compile-extension:' + name;
-	var watch = 'watch-extension:' + name;
-
-	// Build Tasks
-	var cleanBuild = 'clean-extension-build:' + name;
-	var compileBuild = 'compile-extension-build:' + name;
-	var watchBuild = 'watch-extension-build:' + name;
-
-	var root = path.join('extensions', relativeDirname);
-	var srcBase = path.join(root, 'src');
-	var src = path.join(srcBase, '**');
-	var out = path.join(root, 'out');
-	var i18n = path.join(__dirname, '..', 'i18n');
-
+	var clean = 'clean-extension:' + name,
+	compile = 'compile-extension:' + name,
+	watch = 'watch-extension:' + name,
+	cleanBuild = 'clean-extension-build:' + name,
+	compileBuild = 'compile-extension-build:' + name,
+	watchBuild = 'watch-extension-build:' + name,
+	root = path.join('extensions', relativeDirname),
+	srcBase = path.join(root, 'src'),
+	src = path.join(srcBase, '**'),
+	out = path.join(root, 'out'),
+	i18n = path.join(__dirname, '..', 'i18n');
 	function createPipeline(build) {
 		var reporter = createReporter();
 
