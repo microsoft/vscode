@@ -51,7 +51,7 @@ export class StorageService implements IStorageService {
 		return this._workspaceId;
 	}
 
-	setWorkspaceId(workspaceId: string, legacyWorkspaceId?: number): void {
+	public setWorkspaceId(workspaceId: string, legacyWorkspaceId?: number): void {
 		this._workspaceId = workspaceId;
 
 		// Calculate workspace storage key
@@ -124,7 +124,7 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	store(key: string, value: any, scope = StorageScope.GLOBAL): void {
+	public store(key: string, value: any, scope = StorageScope.GLOBAL): void {
 		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 
 		if (types.isUndefinedOrNull(value)) {
@@ -142,7 +142,7 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	get(key: string, scope = StorageScope.GLOBAL, defaultValue?: any): string {
+	public get(key: string, scope = StorageScope.GLOBAL, defaultValue?: any): string {
 		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 
 		const value = storage.getItem(this.toStorageKey(key, scope));
@@ -153,7 +153,7 @@ export class StorageService implements IStorageService {
 		return value;
 	}
 
-	getInteger(key: string, scope = StorageScope.GLOBAL, defaultValue?: number): number {
+	public getInteger(key: string, scope = StorageScope.GLOBAL, defaultValue?: number): number {
 		const value = this.get(key, scope, defaultValue);
 
 		if (types.isUndefinedOrNull(value)) {
@@ -163,7 +163,7 @@ export class StorageService implements IStorageService {
 		return parseInt(value, 10);
 	}
 
-	getBoolean(key: string, scope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
+	public getBoolean(key: string, scope = StorageScope.GLOBAL, defaultValue?: boolean): boolean {
 		const value = this.get(key, scope, defaultValue);
 
 		if (types.isUndefinedOrNull(value)) {
@@ -177,7 +177,7 @@ export class StorageService implements IStorageService {
 		return value ? true : false;
 	}
 
-	remove(key: string, scope = StorageScope.GLOBAL): void {
+	public remove(key: string, scope = StorageScope.GLOBAL): void {
 		const storage = (scope === StorageScope.GLOBAL) ? this._globalStorage : this._workspaceStorage;
 		const storageKey = this.toStorageKey(key, scope);
 
