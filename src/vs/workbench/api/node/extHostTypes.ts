@@ -1892,19 +1892,25 @@ export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
 	readonly type = 'executable';
 	readonly command: string;
 	readonly args: string[];
+	readonly env?: { [key: string]: string };
+	readonly cwd?: string;
 
-	constructor(command: string, args?: string[]) {
+	constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string) {
 		this.command = command;
 		this.args = args;
+		this.env = env;
+		this.cwd = cwd;
 	}
 }
 
 export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	readonly type = 'server';
 	readonly port: number;
+	readonly host: string;
 
-	constructor(port: number) {
+	constructor(port: number, host?: string) {
 		this.port = port;
+		this.host = host;
 	}
 }
 

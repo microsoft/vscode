@@ -347,7 +347,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 							mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 						}
 
-					}(adapter.port);
+					}(adapter);
 					break;
 
 				case 'executable':
@@ -363,7 +363,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 							mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 						}
 
-					}(config.type, adapter);
+					}(adapter, config.type);
 					break;
 
 				default:

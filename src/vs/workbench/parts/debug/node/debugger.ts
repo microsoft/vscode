@@ -46,9 +46,9 @@ export class Debugger implements IDebugger {
 			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
 					case 'server':
-						return new SocketDebugAdapter(adapterDescriptor.port);
+						return new SocketDebugAdapter(adapterDescriptor);
 					case 'executable':
-						return new DebugAdapter(this.type, adapterDescriptor, outputService);
+						return new DebugAdapter(adapterDescriptor, this.type, outputService);
 					default:
 						return undefined;
 				}

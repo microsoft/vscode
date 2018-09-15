@@ -453,9 +453,21 @@ declare module 'vscode' {
 		readonly args: string[];
 
 		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		readonly env?: { [key: string]: string };
+
+		/**
+		 * The working directory for the debug adapter.
+		 */
+		readonly cwd?: string;
+
+		/**
 		 * Create a new debug adapter specification.
 		 */
-		constructor(command: string, args?: string[]);
+		constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string);
 	}
 
 	export class DebugAdapterServer {
@@ -468,9 +480,14 @@ declare module 'vscode' {
 		readonly port: number;
 
 		/**
+		 * The host.
+		 */
+		readonly host?: string;
+
+		/**
 		 * Create a new debug adapter specification.
 		 */
-		constructor(port: number);
+		constructor(port: number, host?: string);
 	}
 
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
