@@ -9,8 +9,6 @@ import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
-import { URI } from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -30,7 +28,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
@@ -38,6 +36,10 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { randomPort } from 'vs/base/node/ports';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -410,9 +412,15 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public getActions(): IAction[] {
 		return [
+			this.debugExtensionHostAction,
 			this.saveExtensionHostProfileAction,
 			this.extensionHostProfileAction
 		];
+	}
+
+	@memoize
+	private get debugExtensionHostAction(): IAction {
+		return this._instantiationService.createInstance(DebugExtensionHostAction);
 	}
 
 	@memoize
@@ -427,45 +435,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public layout(dimension: Dimension): void {
 		this._list.layout(dimension.height);
-	}
-}
-
-export class RuntimeExtensionsInput extends EditorInput {
-
-	static readonly ID = 'workbench.runtimeExtensions.input';
-
-	constructor() {
-		super();
-	}
-
-	getTypeId(): string {
-		return RuntimeExtensionsInput.ID;
-	}
-
-	getName(): string {
-		return nls.localize('extensionsInputName', "Running Extensions");
-	}
-
-	matches(other: any): boolean {
-		if (!(other instanceof RuntimeExtensionsInput)) {
-			return false;
-		}
-		return true;
-	}
-
-	resolve(): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	supportsSplitEditor(): boolean {
-		return false;
-	}
-
-	getResource(): URI {
-		return URI.from({
-			scheme: 'runtime-extensions',
-			path: 'default'
-		});
 	}
 }
 
@@ -521,6 +490,45 @@ class ReportExtensionIssueAction extends Action {
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;
+	}
+}
+
+class DebugExtensionHostAction extends Action {
+	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
+	static LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
+	static CSS_CLASS = 'debug-extension-host';
+
+	constructor(
+		@IDebugService private readonly _debugService: IDebugService,
+		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+	) {
+		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
+	}
+
+	run(): TPromise<any> {
+
+		const inspectPort = this._extensionService.getInspectPort();
+		if (!inspectPort) {
+			return this._dialogService.confirm({
+				type: 'info',
+				message: nls.localize('restart1', "Profile Extensions"),
+				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
+				primaryButton: nls.localize('restart3', "Restart"),
+				secondaryButton: nls.localize('cancel', "Cancel")
+			}).then(res => {
+				if (res.confirmed) {
+					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				}
+			});
+		}
+
+		return this._debugService.startDebugging(null, {
+			type: 'node',
+			request: 'attach',
+			port: inspectPort
+		});
 	}
 }
 

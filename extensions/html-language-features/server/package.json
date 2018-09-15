@@ -31,6 +31,6 @@
     "install-service-local": "npm install ../../../../vscode-css-languageservice -f && npm install ../../../../vscode-html-languageservice -f",
     "install-server-next": "yarn add vscode-languageserver@next",
     "install-server-local": "npm install ../../../../vscode-languageserver-node/server -f",
-    "test": "npm run compile && ../../../node_modules/.bin/mocha"
+    "test": "npm run compile && npx mocha"
   }
 }

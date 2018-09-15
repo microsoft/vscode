@@ -122,6 +122,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			this._updateBracketsSoon.schedule();
 		}));
 		this._register(editor.onDidChangeModel((e) => {
+			this._lastBracketsData = [];
 			this._decorations = [];
 			this._updateBracketsSoon.schedule();
 		}));

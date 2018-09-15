@@ -163,6 +163,7 @@ const configurationValueWhitelist = [
 	'extensions.autoUpdate',
 	'files.associations',
 	'files.autoGuessEncoding',
+	'files.restrictGuessedEncodings',
 	'files.autoSave',
 	'files.autoSaveDelay',
 	'files.encoding',

@@ -1567,6 +1567,10 @@ export class SettingsTree extends NonExpandableOrSelectableTree {
 			this.style(colors);
 		}));
 	}
+
+	public dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
 }
 
 class CopySettingIdAction extends Action {

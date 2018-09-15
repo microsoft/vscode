@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IMainContext } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent, ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -308,7 +308,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
-		let event = getTelemetryActivationEvent(extensionDescription);
+		let event = getTelemetryActivationEvent(extensionDescription, reason);
 		/* __GDPR__
 			"activatePlugin" : {
 				"${include}": [
@@ -421,14 +421,19 @@ function loadCommonJSModule<T>(logService: ILogService, modulePath: string, acti
 	return TPromise.as(r);
 }
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
+	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
+		reason instanceof ExtensionActivatedByAPI ? 'api' :
+			'';
+
 	/* __GDPR__FRAGMENT__
 		"TelemetryActivationEvent" : {
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	*/
 	let event = {
@@ -436,7 +441,8 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		name: extensionDescription.name,
 		publisherDisplayName: extensionDescription.publisher,
 		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
-		isBuiltin: extensionDescription.isBuiltin
+		isBuiltin: extensionDescription.isBuiltin,
+		reason: reasonStr
 	};
 
 	return event;

@@ -266,7 +266,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		}
 
 		if (opts.updateSearchScope) {
-			stateChanges.searchScope = this._editor.getSelection();
+			let currentSelection = this._editor.getSelection();
+			if (!currentSelection.isEmpty()) {
+				stateChanges.searchScope = currentSelection;
+			}
 		}
 
 		this._state.change(stateChanges, false);

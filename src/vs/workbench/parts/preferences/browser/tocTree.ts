@@ -48,7 +48,9 @@ export class TOCTreeModel {
 	}
 
 	public update(): void {
-		this.updateGroupCount(this._settingsTreeRoot);
+		if (this._settingsTreeRoot) {
+			this.updateGroupCount(this._settingsTreeRoot);
+		}
 	}
 
 	private updateGroupCount(group: SettingsTreeGroupElement): void {

@@ -492,4 +492,50 @@ suite('FindController query options persistence', () => {
 			assert.deepEqual(findController.getState().searchScope, new Selection(1, 1, 2, 1));
 		});
 	});
+
+	test('issue #58604: Do not update searchScope if it is empty', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 2, 1, 2));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, null);
+		});
+	});
+
+	test('issue #58604: Update searchScope if it is not empty', () => {
+		withTestCodeEditor([
+			'var x = (3 * 5)',
+			'var y = (3 * 5)',
+			'var z = (3 * 5)',
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: true, globalFindClipboard: false } }, (editor, cursor) => {
+			// clipboardState = '';
+			editor.setSelection(new Range(1, 2, 1, 3));
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.NoFocusChange,
+				shouldAnimate: false,
+				updateSearchScope: true
+			});
+
+			assert.deepEqual(findController.getState().searchScope, new Selection(1, 2, 1, 3));
+		});
+	});
 });

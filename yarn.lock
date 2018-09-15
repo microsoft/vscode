@@ -5051,9 +5051,9 @@ native-keymap@1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
 
-native-watchdog@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-0.3.0.tgz#c7d952ca05e9877f1ff7a3ff80991610b6104bbb"
+native-watchdog@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.0.0.tgz#97344e83cd6815a8c8e6c44a52e7be05832e65ca"
 
 natives@^1.1.0:
   version "1.1.4"

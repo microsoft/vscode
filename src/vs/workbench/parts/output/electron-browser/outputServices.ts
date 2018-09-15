@@ -507,7 +507,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
-				return this.doShowChannel(this.activeChannel, true);
+				return this.doShowChannel(this.activeChannel, false);
 			}
 		}
 		return TPromise.as(null);

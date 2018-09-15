@@ -3538,6 +3538,11 @@ declare namespace monaco.editor {
 		 */
 		position: IPosition;
 		/**
+		 * Optionally, a range can be provided to further
+		 * define the position of the content widget.
+		 */
+		range?: IRange;
+		/**
 		 * Placement preference for position, in order of preference.
 		 */
 		preference: ContentWidgetPositionPreference[];

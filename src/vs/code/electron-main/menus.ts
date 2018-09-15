@@ -1098,7 +1098,7 @@ export class CodeMenu {
 
 			case StateType.Idle:
 				return [new MenuItem({
-					label: nls.localize('miCheckForUpdates', "Check for &&Updates..."), click: () => setTimeout(() => {
+					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 
 						const focusedWindow = this.windowsMainService.getFocusedWindow();
@@ -1112,7 +1112,7 @@ export class CodeMenu {
 
 			case StateType.AvailableForDownload:
 				return [new MenuItem({
-					label: nls.localize('miDownloadUpdate', "D&&ownload Available Update"), click: () => {
+					label: this.mnemonicLabel(nls.localize('miDownloadUpdate', "D&&ownload Available Update")), click: () => {
 						this.updateService.downloadUpdate();
 					}
 				})];
@@ -1122,7 +1122,7 @@ export class CodeMenu {
 
 			case StateType.Downloaded:
 				return [new MenuItem({
-					label: nls.localize('miInstallUpdate', "Install &&Update..."), click: () => {
+					label: this.mnemonicLabel(nls.localize('miInstallUpdate', "Install &&Update...")), click: () => {
 						this.reportMenuActionTelemetry('InstallUpdate');
 						this.updateService.applyUpdate();
 					}
@@ -1133,7 +1133,7 @@ export class CodeMenu {
 
 			case StateType.Ready:
 				return [new MenuItem({
-					label: nls.localize('miRestartToUpdate', "Restart to &&Update..."), click: () => {
+					label: this.mnemonicLabel(nls.localize('miRestartToUpdate', "Restart to &&Update...")), click: () => {
 						this.reportMenuActionTelemetry('RestartToUpdate');
 						this.updateService.quitAndInstall();
 					}

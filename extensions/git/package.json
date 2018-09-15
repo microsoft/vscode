@@ -286,13 +286,28 @@
         "category": "Git"
       },
       {
+        "command": "git.pushForce",
+        "title": "%command.pushForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushTo",
         "title": "%command.pushTo%",
         "category": "Git"
       },
       {
+        "command": "git.pushToForce",
+        "title": "%command.pushToForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushWithTags",
         "title": "%command.pushWithTags%",
+        "category": "Git"
+      },
+      {
+        "command": "git.pushWithTagsForce",
+        "title": "%command.pushWithTagsForce%",
         "category": "Git"
       },
       {
@@ -338,6 +353,16 @@
       {
         "command": "git.stashPopLatest",
         "title": "%command.stashPopLatest%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashApply",
+        "title": "%command.stashApply%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashApplyLatest",
+        "title": "%command.stashApplyLatest%",
         "category": "Git"
       }
     ],
@@ -508,12 +533,24 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.pushForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pushTo",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.pushToForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pushWithTags",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushWithTagsForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",
@@ -549,6 +586,14 @@
         },
         {
           "command": "git.stashPopLatest",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashApply",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashApplyLatest",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         }
       ],
@@ -675,6 +720,16 @@
         },
         {
           "command": "git.stashPopLatest",
+          "group": "5_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashApply",
+          "group": "5_stash",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.stashApplyLatest",
           "group": "5_stash",
           "when": "scmProvider == git"
         },
@@ -936,6 +991,16 @@
             "usesOnlineServices"
           ]
         },
+        "git.branchValidationRegex": {
+          "type": "string",
+          "description": "%config.branchValidationRegex%",
+          "default": ""
+        },
+        "git.branchWhitespaceChar": {
+          "type": "string",
+          "description": "%config.branchWhitespaceChar%",
+          "default": "-"
+        },
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",
@@ -1089,6 +1154,21 @@
           "scope": "resource",
           "default": false,
           "description": "%config.fetchOnPull%"
+        },
+        "git.allowForcePush": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.allowForcePush%"
+        },
+        "git.useForcePushWithLease": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.useForcePushWithLease%"
+        },
+        "git.confirmForcePush": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.confirmForcePush%"
         }
       }
     },
@@ -1124,7 +1204,7 @@
         "id": "gitDecoration.untrackedResourceForeground",
         "description": "%colors.untracked%",
         "defaults": {
-          "light": "#018101",
+          "light": "#007100",
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
@@ -1134,7 +1214,7 @@
         "description": "%colors.ignored%",
         "defaults": {
           "light": "#8E8E90",
-          "dark": "#A7A8A9",
+          "dark": "#8C8C8C",
           "highContrast": "#A7A8A9"
         }
       },

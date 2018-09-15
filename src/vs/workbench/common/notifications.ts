@@ -5,11 +5,13 @@
 
 'use strict';
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError, isErrorWithActions } from 'vs/base/common/errors';
+import { Action } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface INotificationsModel {
 
@@ -543,5 +545,28 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		return true;
+	}
+}
+
+export class ChoiceAction extends Action {
+	private _clicked: boolean;
+
+	constructor(id: string, private choice: IPromptChoice) {
+		super(id, choice.label, null, true, () => {
+			this._clicked = true;
+
+			// Pass to runner
+			choice.run();
+
+			return TPromise.as(void 0);
+		});
+	}
+
+	get keepOpen(): boolean {
+		return this.choice.keepOpen;
+	}
+
+	get clicked(): boolean {
+		return this._clicked;
 	}
 }

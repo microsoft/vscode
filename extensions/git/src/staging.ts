@@ -76,6 +76,8 @@ export function getModifiedRange(textDocument: TextDocument, diff: LineChange): 
 	if (diff.modifiedEndLineNumber === 0) {
 		if (diff.modifiedStartLineNumber === 0) {
 			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
+		} else if (textDocument.lineCount === diff.modifiedStartLineNumber) {
+			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end);
 		} else {
 			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
 		}

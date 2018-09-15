@@ -8,29 +8,31 @@ import { Application, ApplicationOptions } from '../../application';
 
 export function setup() {
 
-	let app: Application;
-
-	after(async function () {
-		if (app) {
-			await app.stop();
-		}
-	});
-
-	afterEach(async function () {
-		if (app) {
-			if (this.currentTest.state === 'failed') {
-				const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-				await app.captureScreenshot(name);
-			}
-		}
-	});
-
 	describe('Launch', () => {
+
+		let app: Application;
+
+		after(async function () {
+			if (app) {
+				await app.stop();
+			}
+		});
+
+		afterEach(async function () {
+			if (app) {
+				if (this.currentTest.state === 'failed') {
+					const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+					await app.captureScreenshot(name);
+				}
+			}
+		});
+
 		it(`verifies that application launches when user data directory has non-ascii characters`, async function () {
 			const defaultOptions = this.defaultOptions as ApplicationOptions;
 			const options: ApplicationOptions = { ...defaultOptions, userDataDir: path.join(defaultOptions.userDataDir, 'abcdø') };
 			app = new Application(options);
 			await app.start();
 		});
+
 	});
 }

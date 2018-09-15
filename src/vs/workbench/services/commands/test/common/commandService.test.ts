@@ -43,6 +43,9 @@ class SimpleExtensionService implements IExtensionService {
 	startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
+	getInspectPort(): number {
+		return 0;
+	}
 	restartExtensionHost(): void {
 	}
 	startExtensionHost(): void {

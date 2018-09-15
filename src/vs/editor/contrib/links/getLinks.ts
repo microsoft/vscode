@@ -43,7 +43,7 @@ export class Link implements ILink {
 	resolve(token: CancellationToken): Thenable<URI> {
 		if (this._link.url) {
 			try {
-				return TPromise.as(URI.parse(this._link.url));
+				return Promise.resolve(URI.parse(this._link.url));
 			} catch (e) {
 				return TPromise.wrapError<URI>(new Error('invalid'));
 			}

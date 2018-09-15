@@ -229,7 +229,7 @@ export function registerCommands(): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
-			title: nls.localize('inlineBreakpoint', "Inline Breakpoint"),
+			title: { value: nls.localize('inlineBreakpoint', "Inline Breakpoint"), original: 'Debug: Inline Breakpoint' },
 			category: nls.localize('debug', "Debug")
 		}
 	});
