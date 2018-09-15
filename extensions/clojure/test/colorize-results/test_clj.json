@@ -1,5 +1,4 @@
-[
-	{
+[{
 		"c": ";",
 		"t": "clojure.comment.definition.line.punctuation.semicolon",
 		"r": {
@@ -42,8 +41,7 @@
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword.control rgb(0, 0, 255)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword.control rgb(86, 156, 214)"
 		}
-	},
-	{
+	},{
 		"c": " '",
 		"t": "clojure.expression.meta",
 		"r": {
@@ -53,8 +51,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": "[",
 		"t": "clojure.expression.meta.vector",
 		"r": {
@@ -64,8 +61,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": "clojure",
 		"t": "clojure.expression.meta.symbol.vector",
 		"r": {
@@ -75,8 +71,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": ".",
 		"t": "clojure.expression.meta.vector",
 		"r": {
@@ -86,8 +81,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": "string",
 		"t": "clojure.expression.meta.symbol.vector",
 		"r": {
@@ -97,8 +91,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": " ",
 		"t": "clojure.expression.meta.vector",
 		"r": {
@@ -108,8 +101,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": ":as",
 		"t": "clojure.constant.expression.keyword.meta.vector",
 		"r": {
@@ -119,8 +111,7 @@
 			"light_vs": ".vs.vscode-theme-defaults-themes-light_vs-json .token.keyword rgb(0, 0, 255)",
 			"hc_black": ".hc-black.vscode-theme-defaults-themes-hc_black-json .token.keyword rgb(86, 156, 214)"
 		}
-	},
-	{
+	},{
 		"c": " ",
 		"t": "clojure.expression.meta.vector",
 		"r": {
@@ -130,8 +121,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": "str",
 		"t": "clojure.expression.meta.symbol.vector",
 		"r": {
@@ -141,8 +131,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": "]",
 		"t": "clojure.expression.meta.vector",
 		"r": {
@@ -152,8 +141,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": ")",
 		"t": "clojure.end.expression.meta.punctuation.section",
 		"r": {
@@ -174,8 +162,7 @@
 			"light_vs": ".vs .token rgb(0, 0, 0)",
 			"hc_black": ".hc-black .token rgb(255, 255, 255)"
 		}
-	},
-	{
+	},{
 		"c": "def",
 		"t": "clojure.control.definition.expression.global.keyword.meta",
 		"r": {

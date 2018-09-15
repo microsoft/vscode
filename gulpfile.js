@@ -4,51 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
-const gulp = require('gulp');
-const json = require('gulp-json-editor');
-const buffer = require('gulp-buffer');
-const tsb = require('gulp-tsb');
-const filter = require('gulp-filter');
-const mocha = require('gulp-mocha');
-const es = require('event-stream');
-const watch = require('./build/lib/watch');
-const nls = require('./build/lib/nls');
-const util = require('./build/lib/util');
-const reporter = require('./build/lib/reporter')();
-const remote = require('gulp-remote-src');
-const zip = require('gulp-vinyl-zip');
-const path = require('path');
-const bom = require('gulp-bom');
-const sourcemaps = require('gulp-sourcemaps');
-const _ = require('underscore');
-const assign = require('object-assign');
-const monacodts = require('./build/monaco/api');
-const fs = require('fs');
-const glob = require('glob');
-
-const rootDir = path.join(__dirname, 'src');
-const options = require('./src/tsconfig.json').compilerOptions;
+const gulp = require('gulp'),
+	  json = require('gulp-json-editor'),
+	  buffer = require('gulp-buffer'),
+	  tsb = require('gulp-tsb'),
+	  filter = require('gulp-filter'),
+	  mocha = require('gulp-mocha'),
+	  es = require('event-stream'),
+	  watch = require('./build/lib/watch'),
+	  nls = require('./build/lib/nls'),
+	  util = require('./build/lib/util'),
+	  reporter = require('./build/lib/reporter')(),
+	  remote = require('gulp-remote-src'),
+	  zip = require('gulp-vinyl-zip'),
+	  path = require('path'),
+	  bom = require('gulp-bom'),
+	  sourcemaps = require('gulp-sourcemaps'),
+	  _ = require('underscore'),
+	  assign = require('object-assign'),
+	  monacodts = require('./build/monaco/api'),
+	  fs = require('fs'),
+	  glob = require('glob'),
+	  rootDir = path.join(__dirname, 'src'),
+	  options = require('./src/tsconfig.json').compilerOptions;
 options.verbose = false;
 options.sourceMap = true;
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
-
 function createCompile(build, emitError) {
 	const opts = _.clone(options);
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
-
 	const ts = tsb.create(opts, null, null, err => reporter(err.toString()));
-
 	return function (token) {
 		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
-
 		const input = es.through();
 		const output = input
 			.pipe(utf8Filter)
@@ -67,47 +61,37 @@ function createCompile(build, emitError) {
 			}))
 			.pipe(tsFilter.restore)
 			.pipe(reporter.end(emitError));
-
 		return es.duplex(input, output);
 	};
 }
-
 function compileTask(out, build) {
 	const compile = createCompile(build, true);
-
 	return function () {
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
 			gulp.src('node_modules/typescript/lib/lib.d.ts')
 		);
-
 		return src
 			.pipe(compile())
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, false));
 	};
 }
-
 function watchTask(out, build) {
 	const compile = createCompile(build);
-
-	return function () {
+	return function (){
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src('node_modules/typescript/lib/lib.d.ts')
-		);
+			gulp.src('node_modules/typescript/lib/lib.d.ts'));
 		const watchSrc = watch('src/**', { base: 'src' });
-
 		return watchSrc
 			.pipe(util.incremental(compile, src, true))
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, true));
 	};
 }
-
 function monacodtsTask(out, isWatch) {
 	let timer = -1;
-
 	const runSoon = function(howSoon) {
 		if (timer !== -1) {
 			clearTimeout(timer);
@@ -118,16 +102,15 @@ function monacodtsTask(out, isWatch) {
 			runNow();
 		}, howSoon);
 	};
-
 	const runNow = function() {
 		if (timer !== -1) {
 			clearTimeout(timer);
 			timer = -1;
 		}
-		// if (reporter.hasErrors()) {
-		// 	monacodts.complainErrors();
-		// 	return;
-		// }
+		if (reporter.hasErrors()) {
+		 	monacodts.complainErrors();
+		 	return;
+		 }
 		const result = monacodts.run(out);
 		if (!result.isTheSame) {
 			if (isWatch) {
@@ -137,40 +120,23 @@ function monacodtsTask(out, isWatch) {
 			}
 		}
 	};
-
 	let resultStream;
-
 	if (isWatch) {
-
 		const filesToWatchMap = {};
 		monacodts.getFilesToWatch(out).forEach(function(filePath) {
 			filesToWatchMap[path.normalize(filePath)] = true;
 		});
-
-		watch('build/monaco/*').pipe(es.through(function() {
-			runSoon(5000);
-		}));
-
+		watch('build/monaco/*').pipe(es.through(function() {runSoon(5000);}));
 		resultStream = es.through(function(data) {
 			const filePath = path.normalize(data.path);
-			if (filesToWatchMap[filePath]) {
-				runSoon(5000);
-			}
+			if (filesToWatchMap[filePath]) {runSoon(5000)}
 			this.emit('data', data);
 		});
-
 	} else {
-
-		resultStream = es.through(null, function() {
-			runNow();
-			this.emit('end');
-		});
-
+		resultStream = es.through(null, function() {runNow();this.emit('end');});
 	}
-
 	return resultStream;
 }
-
 // Fast compile for development time
 gulp.task('clean-client', util.rimraf('out'));
 gulp.task('compile-client', ['clean-client'], compileTask('out', false));
@@ -199,42 +165,33 @@ gulp.task('test', function () {
 		.pipe(mocha({ ui: 'tdd', delay: true }))
 		.once('end', function () { process.exit(); });
 });
-
 gulp.task('mixin', function () {
 	const repo = process.env['VSCODE_MIXIN_REPO'];
-
 	if (!repo) {
 		console.log('Missing VSCODE_MIXIN_REPO, skipping mixin');
 		return;
 	}
-
 	const quality = process.env['VSCODE_QUALITY'];
-
 	if (!quality) {
 		console.log('Missing VSCODE_QUALITY, skipping mixin');
 		return;
 	}
-
-	const url = 'https://github.com/' + repo + '/archive/master.zip';
-	const opts = { base: '' };
-	const username = process.env['VSCODE_MIXIN_USERNAME'];
-	const password = process.env['VSCODE_MIXIN_PASSWORD'];
-
+	const url = 'https://github.com/' + repo + '/archive/master.zip',
+		  opts = { base: '' },
+		  username = process.env['VSCODE_MIXIN_USERNAME'],
+		  password = process.env['VSCODE_MIXIN_PASSWORD'];
 	if (username || password) {
 		opts.auth = { user: username || '', pass: password || '' };
 	}
-
 	console.log('Mixing in sources from \'' + url + '\':');
 
 	let all = remote(url, opts)
 		.pipe(zip.src())
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(util.rebase(1));
-
 	if (quality) {
 		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
-
 		const mixin = all
 			.pipe(filter('quality/' + quality + '/**'))
 			.pipe(util.rebase(2))
@@ -245,10 +202,8 @@ gulp.task('mixin', function () {
 				return assign(original, patch);
 			}))
 			.pipe(productJsonFilter.restore);
-
 		all = es.merge(build, mixin);
 	}
-
 	return all
 		.pipe(es.mapSync(function (f) {
 			console.log(f.relative);
@@ -256,7 +211,6 @@ gulp.task('mixin', function () {
 		}))
 		.pipe(gulp.dest('.'));
 });
-
 const build = path.join(__dirname, 'build');
 glob.sync('gulpfile.*.js', { cwd: build })
 	.forEach(f => require(`./build/${ f }`));

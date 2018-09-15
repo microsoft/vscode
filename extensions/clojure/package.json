@@ -1,6 +1,9 @@
 {
 	"name": "clojure",
 	"version": "0.1.0",
+	"author":"microsoft",
+	"description":"clojure",
+	"licence":"MIT",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"contributes": {

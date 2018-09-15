@@ -1,5 +1,4 @@
-{
-  "name": "code-oss-dev",
+{"name": "code-oss-dev",
   "version": "1.4.0",
   "dependencies": {
     "agent-base": {

@@ -1,5 +1,4 @@
-{
-	"compilerOptions": {
+{	"compilerOptions": {
 		"module": "commonjs",
 		"noImplicitAny": false,
 		"removeComments": false,

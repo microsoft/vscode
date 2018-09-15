@@ -5,7 +5,6 @@
 
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
-
 var gulp = require('gulp'),
 	path = require('path'),
 	tsb = require('gulp-tsb'),
@@ -31,7 +30,6 @@ tasks = compilations.map(function(tsconfigFile) {
 	tsOptions.verbose = false;
 	tsOptions.sourceMap = true;
 	var name = relativeDirname.replace(/\//g, '-');
-
 	// Tasks
 	var clean = 'clean-extension:' + name,
 	compile = 'compile-extension:' + name,
@@ -73,13 +71,10 @@ tasks = compilations.map(function(tsconfigFile) {
 			return es.duplex(input, output);
 		};
 	}
-
 	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
-
 	gulp.task(clean, function (cb) {
 		rimraf(out, cb);
 	});
-
 	gulp.task(compile, [clean], function () {
 		const pipeline = createPipeline(false);
 		const input = gulp.src(src, srcOpts);
@@ -88,21 +83,17 @@ tasks = compilations.map(function(tsconfigFile) {
 			.pipe(pipeline())
 			.pipe(gulp.dest(out));
 	});
-
 	gulp.task(watch, [clean], function () {
-		const pipeline = createPipeline(false);
-		const input = gulp.src(src, srcOpts);
-		const watchInput = watcher(src, srcOpts);
-
+		const pipeline = createPipeline(false),
+		input = gulp.src(src, srcOpts),
+		watchInput = watcher(src, srcOpts);
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
 			.pipe(gulp.dest(out));
 	});
-
 	gulp.task(cleanBuild, function (cb) {
 		rimraf(out, cb);
 	});
-
 	gulp.task(compileBuild, [clean], function () {
 		const pipeline = createPipeline(true);
 		const input = gulp.src(src, srcOpts);
@@ -121,7 +112,6 @@ tasks = compilations.map(function(tsconfigFile) {
 			.pipe(util.incremental(function () { return pipeline(true); }, input))
 			.pipe(gulp.dest(out));
 	});
-
 	return {
 		clean: clean,
 		compile: compile,
@@ -135,7 +125,6 @@ tasks = compilations.map(function(tsconfigFile) {
 gulp.task('clean-extensions', tasks.map(function (t) { return t.clean; }));
 gulp.task('compile-extensions', tasks.map(function (t) { return t.compile; }));
 gulp.task('watch-extensions', tasks.map(function (t) { return t.watch; }));
-
 gulp.task('clean-extensions-build', tasks.map(function (t) { return t.cleanBuild; }));
 gulp.task('compile-extensions-build', tasks.map(function (t) { return t.compileBuild; }));
 gulp.task('watch-extensions-build', tasks.map(function (t) { return t.watchBuild; }));

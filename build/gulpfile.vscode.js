@@ -4,48 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
-
-const gulp = require('gulp');
-const fs = require('fs');
-const path = require('path');
-const es = require('event-stream');
-const azure = require('gulp-azure-storage');
-const electron = require('gulp-atom-electron');
-const symdest = require('gulp-symdest');
-const rename = require('gulp-rename');
-const replace = require('gulp-replace');
-const filter = require('gulp-filter');
-const json = require('gulp-json-editor');
-const _ = require('underscore');
-const util = require('./lib/util');
-const buildfile = require('../src/buildfile');
-const common = require('./gulpfile.common');
-const nlsDev = require('vscode-nls-dev');
-const root = path.dirname(__dirname);
-const build = path.join(root, '.build');
-const commit = util.getVersion(root);
-const packageJson = require('../package.json');
-const product = require('../product.json');
-const shrinkwrap = require('../npm-shrinkwrap.json');
-
-const dependencies = Object.keys(shrinkwrap.dependencies);
-const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
-const nodeModules = ['electron', 'original-fs']
+const gulp = require('gulp'),
+	  fs = require('fs'),
+	  path = require('path'),
+	  es = require('event-stream'),
+	  azure = require('gulp-azure-storage'),
+	  electron = require('gulp-atom-electron'),
+	  symdest = require('gulp-symdest'),
+	  rename = require('gulp-rename'),
+	  replace = require('gulp-replace'),
+	  filter = require('gulp-filter'),
+	  json = require('gulp-json-editor'),
+	  _ = require('underscore'),
+	  util = require('./lib/util'),
+	  buildfile = require('../src/buildfile'),
+	  common = require('./gulpfile.common'),
+	  nlsDev = require('vscode-nls-dev'),
+	  root = path.dirname(__dirname),
+	  build = path.join(root, '.build'),
+	  commit = util.getVersion(root),
+	  packageJson = require('../package.json'),
+	  product = require('../product.json'),
+	  shrinkwrap = require('../npm-shrinkwrap.json'),
+	  dependencies = Object.keys(shrinkwrap.dependencies),
+	  baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n)),
+	  nodeModules = ['electron', 'original-fs']
 	.concat(dependencies)
-	.concat(baseModules);
-
-// Build
-
-const vscodeEntryPoints = _.flatten([
+	.concat(baseModules),
+	 vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
 	buildfile.base,
 	buildfile.editor,
 	buildfile.languages,
 	buildfile.workbench,
 	buildfile.code
-]);
-
-const vscodeResources = [
+]),vscodeResources = [
 	'out-build/main.js',
 	'out-build/cli.js',
 	'out-build/bootstrap.js',
@@ -70,13 +63,11 @@ const vscodeResources = [
 	'out-build/vs/workbench/services/files/**/*.md',
 	'!**/test/**'
 ];
-
 const BUNDLED_FILE_HEADER = [
 	'/*!--------------------------------------------------------',
 	' * Copyright (C) Microsoft Corporation. All rights reserved.',
 	' *--------------------------------------------------------*/'
 ].join('\n');
-
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
 	entryPoints: vscodeEntryPoints,
@@ -86,13 +77,10 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	header: BUNDLED_FILE_HEADER,
 	out: 'out-vscode'
 }));
-
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
 gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', true));
-
 // Package
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
-
 const config = {
 	version: packageJson.electronVersion,
 	productAppName: product.nameLong,
@@ -118,40 +106,30 @@ const config = {
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
-
 const electronPath = path.join(build, 'electron');
-
 gulp.task('clean-electron', util.rimraf(electronPath));
-
 gulp.task('electron', ['clean-electron'], () => {
 	const platform = process.platform;
 	const arch = process.env.VSCODE_ELECTRON_PLATFORM || (platform === 'win32' ? 'ia32' : process.arch);
 	const opts = _.extend({}, config, { platform, arch, ffmpegChromium: true, keepDefaultApp: true });
 	const name = product.nameShort;
-
 	return gulp.src('package.json')
 		.pipe(json({ name }))
 		.pipe(electron(opts))
 		.pipe(filter(['**', '!**/app/package.json']))
 		.pipe(symdest(electronPath));
 });
-
 const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
-
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
-
 	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
 	platform = platform || process.platform;
 	arch = platform === 'win32' ? 'ia32' : arch;
-
 	return () => {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
-
 		const src = gulp.src(out + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
-
 		const extensions = gulp.src([
 			'extensions/**',
 			'!extensions/*/src/**',
@@ -168,19 +146,15 @@ function packageTask(platform, arch, opts) {
 			'!extensions/vscode-api-tests/**',
 			'!extensions/vscode-colorize-tests/**'
 		], { base: '.' });
-
 		const sources = es.merge(src, extensions)
 			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform }));
-
 		let version = packageJson.version;
 		const quality = product.quality;
-
 		if (quality && quality !== 'stable') {
 			version += '-' + quality;
 		}
-
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
@@ -188,12 +162,9 @@ function packageTask(platform, arch, opts) {
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date }));
-
 		const license = gulp.src(['Credits_*', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
-
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
-
 		const depsSrc = _.flatten(dependencies
 			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
 
@@ -204,15 +175,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node']))
 			.pipe(util.cleanNodeModule('pty.js', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['build/Release/**']));
 
-		let all = es.merge(
-			packageJsonStream,
-			productJsonStream,
-			license,
-			api,
-			sources,
-			deps
-		);
-
+		let all = es.merge(packageJsonStream,productJsonStream,license,api,sources,deps);
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src('resources/win32/code_file.ico', { base: '.' }));
 		} else if (platform === 'linux') {
@@ -220,23 +183,18 @@ function packageTask(platform, arch, opts) {
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(rename('bin/code'));
-
 			all = es.merge(all, shortcut);
 		}
-
 		let result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform, arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
-
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
-
 			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; })));
-
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
@@ -245,39 +203,31 @@ function packageTask(platform, arch, opts) {
 				.pipe(replace('@@NAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
-
 		return result.pipe(symdest(destination));
 	};
 }
-
 const buildRoot = path.dirname(root);
-
 gulp.task('clean-vscode-win32', util.rimraf(path.join(buildRoot, 'VSCode-win32')));
 gulp.task('clean-vscode-darwin', util.rimraf(path.join(buildRoot, 'VSCode-darwin')));
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(buildRoot, 'VSCode-linux-ia32')));
 gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(buildRoot, 'VSCode-linux-x64')));
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(buildRoot, 'VSCode-linux-arm')));
-
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
 gulp.task('vscode-linux-ia32', ['optimize-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32'));
 gulp.task('vscode-linux-x64', ['optimize-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64'));
 gulp.task('vscode-linux-arm', ['optimize-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm'));
-
 gulp.task('vscode-win32-min', ['minify-vscode', 'clean-vscode-win32'], packageTask('win32', null, { minified: true }));
 gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true }));
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
-
 // Sourcemaps
-
 gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], function () {
 	return gulp.src('out-vscode-min/**/*.map')
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'sourcemaps',
-			prefix: commit + '/'
-		}));
+			prefix: commit + '/'}));
 });

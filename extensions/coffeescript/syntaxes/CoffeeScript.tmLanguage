@@ -5,25 +5,15 @@
 	<key>comment</key>
 	<string>CoffeeScript</string>
 	<key>fileTypes</key>
-	<array>
-		<string>coffee</string>
-		<string>Cakefile</string>
-		<string>coffee.erb</string>
-	</array>
+	<array>	<string>coffee</string><string>Cakefile</string><string>coffee.erb</string></array>
 	<key>injections</key>
 	<dict>
 		<key>string.regexp.block.coffee</key>
 		<dict>
 			<key>patterns</key>
 			<array>
-				<dict>
-					<key>include</key>
-					<string>#interpolated_coffee</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>#embedded_comment</string>
-				</dict>
+				<dict><key>include</key><string>#interpolated_coffee</string></dict>
+				<dict><key>include</key><string>#embedded_comment</string></dict>
 			</array>
 		</dict>
 	</dict>
@@ -37,10 +27,7 @@
 			<key>captures</key>
 			<dict>
 				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.parameters.begin.coffee</string>
-				</dict>
+				<dict><key>name</key><string>punctuation.definition.parameters.begin.coffee</string></dict>
 				<key>2</key>
 				<dict>
 					<key>patterns</key>
@@ -54,40 +41,20 @@
 									<string>variable.parameter.function.coffee</string>
 								</dict>
 								<key>2</key>
-								<dict>
-									<key>name</key>
-									<string>punctuation.separator.key-value.coffee</string>
+								<dict><key>name</key><string>punctuation.separator.key-value.coffee</string>
 								</dict>
 								<key>3</key>
-								<dict>
-									<key>name</key>
-									<string>string.quoted.double.coffee</string>
-								</dict>
+								<dict><key>name</key><string>string.quoted.double.coffee</string></dict>
 								<key>4</key>
-								<dict>
-									<key>name</key>
-									<string>punctuation.definition.string.begin.coffee</string>
-								</dict>
+								<dict><key>name</key><string>punctuation.definition.string.begin.coffee</string></dict>
 								<key>5</key>
-								<dict>
-									<key>name</key>
-									<string>punctuation.definition.string.end.coffee</string>
-								</dict>
+								<dict><key>name</key><string>punctuation.definition.string.end.coffee</string></dict>
 								<key>6</key>
-								<dict>
-									<key>name</key>
-									<string>string.quoted.single.coffee</string>
-								</dict>
+								<dict><key>name</key><string>string.quoted.single.coffee</string></dict>
 								<key>7</key>
-								<dict>
-									<key>name</key>
-									<string>punctuation.definition.string.begin.coffee</string>
-								</dict>
+								<dict><key>name</key><string>punctuation.definition.string.begin.coffee</string></dict>
 								<key>8</key>
-								<dict>
-									<key>name</key>
-									<string>punctuation.definition.string.end.coffee</string>
-								</dict>
+								<dict><key>name</key><string>punctuation.definition.string.end.coffee</string></dict>
 							</dict>
 							<key>match</key>
 							<string>(?x)
@@ -113,15 +80,9 @@
 					</array>
 				</dict>
 				<key>3</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.parameters.begin.coffee</string>
-				</dict>
+				<dict><key>name</key><string>punctuation.definition.parameters.begin.coffee</string></dict>
 				<key>4</key>
-				<dict>
-					<key>name</key>
-					<string>storage.type.function.coffee</string>
-				</dict>
+				<dict><key>name</key><string>storage.type.function.coffee</string></dict>
 			</dict>
 			<key>comment</key>
 			<string>match stuff like: a -&gt; … </string>
@@ -134,15 +95,9 @@
 			<key>captures</key>
 			<dict>
 				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.operator.new.coffee</string>
-				</dict>
+				<dict><key>name</key><string>keyword.operator.new.coffee</string></dict>
 				<key>2</key>
-				<dict>
-					<key>name</key>
-					<string>entity.name.type.instance.coffee</string>
-				</dict>
+				<dict><key>name</key><string>entity.name.type.instance.coffee</string></dict>
 			</dict>
 			<key>match</key>
 			<string>(new)\s+(\w+(?:\.\w*)*)</string>
@@ -165,10 +120,7 @@
 			<key>endCaptures</key>
 			<dict>
 				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.string.end.coffee</string>
-				</dict>
+				<dict><key>name</key><string>punctuation.definition.string.end.coffee</string></dict>
 			</dict>
 			<key>name</key>
 			<string>string.unquoted.heredoc.coffee</string>
@@ -179,20 +131,14 @@
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.string.begin.coffee</string>
-				</dict>
+				<dict><key>name</key><string>punctuation.definition.string.begin.coffee</string></dict>
 			</dict>
 			<key>end</key>
 			<string>"""</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>0</key>
-				<dict>
-					<key>name</key>
-					<string>punctuation.definition.string.end.coffee</string>
-				</dict>
+				<dict><key>name</key><string>punctuation.definition.string.end.coffee</string></dict>
 			</dict>
 			<key>name</key>
 			<string>string.quoted.double.heredoc.coffee</string>
@@ -204,10 +150,7 @@
 					<key>name</key>
 					<string>constant.character.escape.coffee</string>
 				</dict>
-				<dict>
-					<key>include</key>
-					<string>#interpolated_coffee</string>
-				</dict>
+				<dict><key>include</key><string>#interpolated_coffee</string></dict>
 			</array>
 		</dict>
 		<dict>
