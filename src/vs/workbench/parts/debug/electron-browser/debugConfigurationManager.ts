@@ -22,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -119,10 +119,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
-	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
-		const providers = this.providers.filter(p => p.type === type && p.debugAdapterExecutable);
+	public provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor | undefined> {
+		const providers = this.providers.filter(p => p.type === config.type && p.provideDebugAdapter);
 		if (providers.length === 1) {
-			return providers[0].debugAdapterExecutable(folderUri);
+			return providers[0].provideDebugAdapter(session, folderUri, config);
+		} else {
+			// TODO@AW handle n > 1 case
 		}
 		return TPromise.as(undefined);
 	}
@@ -140,10 +142,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debugAdapterProviders.get(type);
 	}
 
-	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable, debugPort: number): IDebugAdapter | undefined {
-		let dap = this.getDebugAdapterProvider(debugType);
+	public createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter {
+		let dap = this.getDebugAdapterProvider(config.type);
 		if (dap) {
-			return dap.createDebugAdapter(debugType, adapterExecutable, debugPort);
+			return dap.createDebugAdapter(session, folder, config);
 		}
 		return undefined;
 	}

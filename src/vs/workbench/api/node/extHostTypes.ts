@@ -1889,12 +1889,22 @@ export class FunctionBreakpoint extends Breakpoint {
 }
 
 export class DebugAdapterExecutable implements vscode.DebugAdapterExecutable {
+	readonly type = 'executable';
 	readonly command: string;
 	readonly args: string[];
 
 	constructor(command: string, args?: string[]) {
 		this.command = command;
 		this.args = args;
+	}
+}
+
+export class DebugAdapterServer implements vscode.DebugAdapterServer {
+	readonly type = 'server';
+	readonly port: number;
+
+	constructor(port: number) {
+		this.port = port;
 	}
 }
 

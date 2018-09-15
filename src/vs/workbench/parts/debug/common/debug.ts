@@ -111,7 +111,7 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 }
 
 export interface IDebugger {
-	createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter>;
+	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void>;
 	getCustomTelemetryService(): TPromise<TelemetryService>;
 }
@@ -452,14 +452,22 @@ export interface IDebugAdapter extends IDisposable {
 }
 
 export interface IDebugAdapterProvider extends ITerminalLauncher {
-	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null, debugPort: number): IDebugAdapter;
+	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 }
 
 export interface IAdapterExecutable {
-	readonly command?: string;
-	readonly args?: string[];
+	readonly type: 'executable';
+	readonly command: string;
+	readonly args: string[];
 }
+
+export interface IAdapterServer {
+	readonly type: 'server';
+	readonly port: number;
+}
+
+export type IAdapterDescriptor = IAdapterExecutable | IAdapterServer;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;
@@ -498,7 +506,7 @@ export interface IDebugConfigurationProvider {
 	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
-	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
+	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor>;
 }
 
 export interface ITerminalLauncher {
@@ -549,10 +557,11 @@ export interface IConfigurationManager {
 	unregisterDebugConfigurationProvider(handle: number): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
-	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
+	provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
-	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null, debugPort?: number): IDebugAdapter | undefined;
+	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
+
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }

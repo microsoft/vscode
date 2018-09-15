@@ -11,7 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IAdapterServer } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -39,36 +39,43 @@ export class Debugger implements IDebugger {
 
 	public hasConfigurationProvider = false;
 
-	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter> {
-		return this.getAdapterExecutable(root).then(adapterExecutable => {
-			if (this.inEH()) {
-				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable, debugPort);
-			} else {
-				if (debugPort) {
-					return new SocketDebugAdapter(debugPort);
-				} else {
-					return new DebugAdapter(this.type, adapterExecutable, this.mergedExtensionDescriptions, outputService);
+	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter> {
+		if (this.inEH()) {
+			return TPromise.as(this.configurationManager.createDebugAdapter(session, root, config));
+		} else {
+			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
+				switch (adapterDescriptor.type) {
+					case 'server':
+						return new SocketDebugAdapter(adapterDescriptor.port);
+					case 'executable':
+						return new DebugAdapter(this.type, adapterDescriptor, outputService);
+					default:
+						return undefined;
 				}
-			}
-		});
+			});
+		}
 	}
 
-	public getAdapterExecutable(root: IWorkspaceFolder): TPromise<IAdapterExecutable | null> {
+	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): TPromise<IAdapterDescriptor> {
 
-		// first try to get an executable from DebugConfigurationProvider
-		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.type).then(adapterExecutable => {
+		// try deprecated command based extension API to receive an executable
+		if (this.debuggerContribution.adapterExecutableCommand) {
+			const adapterExecutable = this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
+			return TPromise.wrap(adapterExecutable);
+		}
 
-			if (adapterExecutable) {
-				return adapterExecutable;
+		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+			if (adapter) {
+				return adapter;
 			}
-
-			// try deprecated command based extension API to receive an executable
-			if (this.debuggerContribution.adapterExecutableCommand) {
-				return this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
+			if (typeof config.debugServer === 'number') {
+				return <IAdapterServer>{
+					type: 'server',
+					port: config.debugServer
+				};
 			}
-
-			// give up and let DebugAdapter determine executable based on package.json contribution
-			return TPromise.as(null);
+			// fallback: use information from package.json
+			return DebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
 		});
 	}
 

@@ -294,12 +294,8 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess;
 
-	constructor(private debugType: string, private adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private outputService?: IOutputService) {
+	constructor(private debugType: string, private adapterExecutable: IAdapterExecutable, private outputService?: IOutputService) {
 		super();
-
-		if (!this.adapterExecutable) {
-			this.adapterExecutable = DebugAdapter.platformAdapterExecutable(extensionDescriptions, this.debugType);
-		}
 	}
 
 	startSession(): TPromise<void> {
@@ -492,11 +488,13 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 		if (runtime) {
 			return {
+				type: 'executable',
 				command: runtime,
 				args: (runtimeArgs || []).concat([program]).concat(args || [])
 			};
 		} else {
 			return {
+				type: 'executable',
 				command: program,
 				args: args || []
 			};

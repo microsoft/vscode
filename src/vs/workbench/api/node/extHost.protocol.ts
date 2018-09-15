@@ -33,7 +33,7 @@ import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem } from 'vs/workbench/common/views';
-import { IAdapterExecutable, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, ITerminalSettings, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -943,20 +943,26 @@ export interface ISourceMultiBreakpointDto {
 	}[];
 }
 
+export interface IDebugSessionDto {
+	id: DebugSessionUUID;
+	type: string;
+	name: string;
+}
+
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
-	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): Thenable<void>;
+	$startDASession(handle: number, session: IDebugSessionDto, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<void>;
 	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): Thenable<IConfig[]>;
-	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): Thenable<IAdapterExecutable>;
-	$acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void;
-	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
-	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
-	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
-	$acceptBreakpointsDelta(delat: IBreakpointsDeltaDto): void;
+	$provideDebugAdapter(handle: number, session: IDebugSessionDto, folderUri: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IAdapterDescriptor>;
+	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
+	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
+	$acceptDebugSessionActiveChanged(session: IDebugSessionDto): void;
+	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
+	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 }
 
 

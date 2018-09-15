@@ -437,6 +437,9 @@ declare module 'vscode' {
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
 	export class DebugAdapterExecutable {
+
+		readonly type: 'executable';
+
 		/**
 		 * The command path of the debug adapter executable.
 		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
@@ -455,6 +458,23 @@ declare module 'vscode' {
 		constructor(command: string, args?: string[]);
 	}
 
+	export class DebugAdapterServer {
+
+		readonly type: 'server';
+
+		/**
+		 * The port.
+		 */
+		readonly port: number;
+
+		/**
+		 * Create a new debug adapter specification.
+		 */
+		constructor(port: number);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
+
 	export interface DebugConfigurationProvider {
 		/**
 		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
@@ -462,8 +482,18 @@ declare module 'vscode' {
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
 		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
+		 * @deprecated Use DebugConfigurationProvider.provideDebugAdapter instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
+
+		/**
+		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
+		 * Registering more than one provideDebugAdapter for a type results in an error.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param token A cancellation token.
+		 * @return a [debug adapter's descriptor](#DebugAdapterDescriptor) or undefined.
+		 */
+		provideDebugAdapter?(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
 	}
 
 	//#endregion
