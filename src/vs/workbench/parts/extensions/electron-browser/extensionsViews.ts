@@ -222,6 +222,15 @@ export class ExtensionsListView extends ViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
+		const categories: string[] = [];
+		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
+			const entry = (category || quotedCategory || '').toLowerCase();
+			if (categories.indexOf(entry) === -1) {
+				categories.push(entry);
+			}
+			return '';
+		});
+
 		if (/@installed/i.test(value)) {
 			// Show installed extensions
 			value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -229,7 +238,9 @@ export class ExtensionsListView extends ViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.User && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => e.type === LocalExtensionType.User
+					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -253,7 +264,9 @@ export class ExtensionsListView extends ViewletPanel {
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(extension => extension.outdated && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(extension => extension.outdated
+					&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => extension.local.manifest.categories.some(c => c.toLowerCase() === category))));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -266,7 +279,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e))
+					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -280,7 +295,8 @@ export class ExtensionsListView extends ViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => e.type === LocalExtensionType.User &&
 					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
-					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1) &&
+					(!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category)))
 				);
 
 			return new PagedModel(this.sortExtensions(result, options));
