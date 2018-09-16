@@ -4,7 +4,7 @@
 	"name": "atom-brightray",
 	"repositoryURL": "https://github.com/electron/brightray",
 	"license": "MIT",
-	"isProd": true
+	"isDev": true
 },
 {
 	"name": "chromium",

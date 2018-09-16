@@ -4,7 +4,7 @@
   "electronVersion": "0.37.6",
   "author": { "name": "Microsoft Corporation"},
   "main": "./out/main",
-  "private": true,
+  "private": false,
   "scripts": {
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
