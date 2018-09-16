@@ -21,14 +21,13 @@ import { IExtensionEnablementService, IExtensionIdentifier, EnablementState, IEx
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference, Translations, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -38,8 +37,8 @@ import { Barrier } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
-import * as strings from 'vs/base/common/strings';
-import { RPCProtocol, IRPCProtocolLogger, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+// import * as strings from 'vs/base/common/strings';
+import { ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
@@ -49,8 +48,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 // Enable to see detailed message communication between window and extension host
-const LOG_EXTENSION_HOST_COMMUNICATION = false;
-const LOG_USE_COLORS = true;
+// const LOG_EXTENSION_HOST_COMMUNICATION = false;
+// const LOG_USE_COLORS = true;
 
 let _SystemExtensionsRoot: string = null;
 function getSystemExtensionsRoot(): string {
@@ -124,7 +123,6 @@ export class ExtensionHostProcessManager extends Disposable {
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private readonly _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
-	private _extensionHostProcessRPCProtocol: RPCProtocol;
 	private readonly _extensionHostProcessCustomers: IDisposable[];
 	private readonly _extensionHostProcessWorker: IExtensionHostStarter;
 	/**
@@ -136,18 +134,17 @@ export class ExtensionHostProcessManager extends Disposable {
 		extensionHostProcessWorker: IExtensionHostStarter,
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		// @IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		super();
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
-		this._extensionHostProcessRPCProtocol = null;
 		this._extensionHostProcessCustomers = [];
 
 		this._extensionHostProcessWorker = extensionHostProcessWorker;
 		this.onDidCrash = this._extensionHostProcessWorker.onCrashed;
 		this._extensionHostProcessProxy = this._extensionHostProcessWorker.start().then(
-			(protocol) => {
-				return { value: this._createExtensionHostCustomers(protocol) };
+			(rpcProtocol) => {
+				return { value: this._createExtensionHostCustomers(rpcProtocol) };
 			},
 			(err) => {
 				console.error('Error received from starting extension host');
@@ -163,9 +160,6 @@ export class ExtensionHostProcessManager extends Disposable {
 	public dispose(): void {
 		if (this._extensionHostProcessWorker) {
 			this._extensionHostProcessWorker.dispose();
-		}
-		if (this._extensionHostProcessRPCProtocol) {
-			this._extensionHostProcessRPCProtocol.dispose();
 		}
 		for (let i = 0, len = this._extensionHostProcessCustomers.length; i < len; i++) {
 			const customer = this._extensionHostProcessCustomers[i];
@@ -184,19 +178,20 @@ export class ExtensionHostProcessManager extends Disposable {
 		return this._extensionHostProcessWorker && Boolean(this._extensionHostProcessWorker.getInspectPort());
 	}
 
-	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
+	private _createExtensionHostCustomers(rpcProtocol: IRPCProtocol): ExtHostExtensionServiceShape {
 
-		let logger: IRPCProtocolLogger = null;
-		if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
-			logger = new RPCLogger();
-		}
+		// TODO@joao
+		// let logger: IRPCProtocolLogger = null;
+		// if (LOG_EXTENSION_HOST_COMMUNICATION || this._environmentService.logExtensionHostCommunication) {
+		// 	logger = new RPCLogger();
+		// }
 
-		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
-		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
+		// TODO@joao
+		// this._register(rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
-			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
-			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
-			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol.assertRegistered(identifiers),
+			getProxy: <T>(identifier: ProxyIdentifier<T>): T => rpcProtocol.getProxy(identifier),
+			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => rpcProtocol.set(identifier, instance),
+			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => rpcProtocol.assertRegistered(identifiers),
 		};
 
 		// Named customers
@@ -205,7 +200,7 @@ export class ExtensionHostProcessManager extends Disposable {
 			const [id, ctor] = namedCustomers[i];
 			const instance = this._instantiationService.createInstance(ctor, extHostContext);
 			this._extensionHostProcessCustomers.push(instance);
-			this._extensionHostProcessRPCProtocol.set(id, instance);
+			rpcProtocol.set(id, instance);
 		}
 
 		// Customers
@@ -218,9 +213,9 @@ export class ExtensionHostProcessManager extends Disposable {
 
 		// Check that no named customers are missing
 		const expected: ProxyIdentifier<any>[] = Object.keys(MainContext).map((key) => (<any>MainContext)[key]);
-		this._extensionHostProcessRPCProtocol.assertRegistered(expected);
+		rpcProtocol.assertRegistered(expected);
 
-		return this._extensionHostProcessRPCProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
+		return rpcProtocol.getProxy(ExtHostContext.ExtHostExtensionService);
 	}
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
@@ -1027,61 +1022,61 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 }
 
-const colorTables = [
-	['#2977B1', '#FC802D', '#34A13A', '#D3282F', '#9366BA'],
-	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
-];
+// const colorTables = [
+// 	['#2977B1', '#FC802D', '#34A13A', '#D3282F', '#9366BA'],
+// 	['#8B564C', '#E177C0', '#7F7F7F', '#BBBE3D', '#2EBECD']
+// ];
 
-function prettyWithoutArrays(data: any): any {
-	if (Array.isArray(data)) {
-		return data;
-	}
-	if (data && typeof data === 'object' && typeof data.toString === 'function') {
-		let result = data.toString();
-		if (result !== '[object Object]') {
-			return result;
-		}
-	}
-	return data;
-}
+// function prettyWithoutArrays(data: any): any {
+// 	if (Array.isArray(data)) {
+// 		return data;
+// 	}
+// 	if (data && typeof data === 'object' && typeof data.toString === 'function') {
+// 		let result = data.toString();
+// 		if (result !== '[object Object]') {
+// 			return result;
+// 		}
+// 	}
+// 	return data;
+// }
 
-function pretty(data: any): any {
-	if (Array.isArray(data)) {
-		return data.map(prettyWithoutArrays);
-	}
-	return prettyWithoutArrays(data);
-}
+// function pretty(data: any): any {
+// 	if (Array.isArray(data)) {
+// 		return data.map(prettyWithoutArrays);
+// 	}
+// 	return prettyWithoutArrays(data);
+// }
 
-class RPCLogger implements IRPCProtocolLogger {
+// class RPCLogger implements IRPCProtocolLogger {
 
-	private _totalIncoming = 0;
-	private _totalOutgoing = 0;
+// 	private _totalIncoming = 0;
+// 	private _totalOutgoing = 0;
 
-	private _log(direction: string, totalLength, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
-		data = pretty(data);
+// 	private _log(direction: string, totalLength, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+// 		data = pretty(data);
 
-		const colorTable = colorTables[initiator];
-		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
-		let args = [`%c[${direction}]%c[${strings.pad(totalLength, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]%c${strings.pad(req, 5, ' ')} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
-		if (/\($/.test(str)) {
-			args = args.concat(data);
-			args.push(')');
-		} else {
-			args.push(data);
-		}
-		console.log.apply(console, args);
-	}
+// 		const colorTable = colorTables[initiator];
+// 		const color = LOG_USE_COLORS ? colorTable[req % colorTable.length] : '#000000';
+// 		let args = [`%c[${direction}]%c[${strings.pad(totalLength, 7, ' ')}]%c[len: ${strings.pad(msgLength, 5, ' ')}]%c${strings.pad(req, 5, ' ')} - ${str}`, 'color: darkgreen', 'color: grey', 'color: grey', `color: ${color}`];
+// 		if (/\($/.test(str)) {
+// 			args = args.concat(data);
+// 			args.push(')');
+// 		} else {
+// 			args.push(data);
+// 		}
+// 		console.log.apply(console, args);
+// 	}
 
-	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
-		this._totalIncoming += msgLength;
-		this._log('Ext \u2192 Win', this._totalIncoming, msgLength, req, initiator, str, data);
-	}
+// 	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
+// 		this._totalIncoming += msgLength;
+// 		this._log('Ext \u2192 Win', this._totalIncoming, msgLength, req, initiator, str, data);
+// 	}
 
-	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
-		this._totalOutgoing += msgLength;
-		this._log('Win \u2192 Ext', this._totalOutgoing, msgLength, req, initiator, str, data);
-	}
-}
+// 	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void {
+// 		this._totalOutgoing += msgLength;
+// 		this._log('Win \u2192 Ext', this._totalOutgoing, msgLength, req, initiator, str, data);
+// 	}
+// }
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;

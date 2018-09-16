@@ -14,16 +14,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TimeoutTimer } from 'vs/base/common/async';
 
-export function generateRandomPipeName(): string {
-	const randomSuffix = generateUuid();
-	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
-	} else {
-		// Mac/Unix: use socket file
-		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
-	}
-}
-
 /**
  * A message has the following format:
  *
@@ -272,4 +262,14 @@ export function connect(hook: any, clientId: string): Thenable<Client> {
 
 		socket.once('error', e);
 	});
+}
+
+export function generateRandomPipeName(): string {
+	const randomSuffix = generateUuid();
+	if (process.platform === 'win32') {
+		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
+	} else {
+		// Mac/Unix: use socket file
+		return join(tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
+	}
 }

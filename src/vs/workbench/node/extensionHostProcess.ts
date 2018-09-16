@@ -8,12 +8,11 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
-import { createConnection } from 'net';
-import { Event, filterEvent } from 'vs/base/common/event';
-import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
+import { Event } from 'vs/base/common/event';
 import * as nativeWatchdog from 'native-watchdog';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol.ipc';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -33,133 +32,102 @@ import * as nativeWatchdog from 'native-watchdog';
 	};
 })();
 
-interface IRendererConnection {
-	protocol: IMessagePassingProtocol;
-	initData: IInitData;
-}
-
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function () {
 	exit();
 };
 
-function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
-
-	const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST;
-
-	return new Promise<IMessagePassingProtocol>((resolve, reject) => {
-
-		const socket = createConnection(pipeName, () => {
-			socket.removeListener('error', reject);
-			resolve(new Protocol(socket));
-		});
-		socket.once('error', reject);
-
-	}).then(protocol => {
-
-		return new class implements IMessagePassingProtocol {
-
-			private _terminating = false;
-
-			readonly onMessage: Event<any> = filterEvent(protocol.onMessage, msg => {
-				if (!isMessageOfType(msg, MessageType.Terminate)) {
-					return true;
-				}
-				this._terminating = true;
-				onTerminate();
-				return false;
-			});
-
-			send(msg: any): void {
-				if (!this._terminating) {
-					protocol.send(msg);
-				}
+function setup(initData: IInitData): void {
+	// Print a console message when rejection isn't handled within N seconds. For details:
+	// see https://nodejs.org/api/process.html#process_event_unhandledrejection
+	// and https://nodejs.org/api/process.html#process_event_rejectionhandled
+	const unhandledPromises: Promise<any>[] = [];
+	process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+		unhandledPromises.push(promise);
+		setTimeout(() => {
+			const idx = unhandledPromises.indexOf(promise);
+			if (idx >= 0) {
+				unhandledPromises.splice(idx, 1);
+				console.warn('rejected promise not handled within 1 second');
+				onUnexpectedError(reason);
 			}
-		};
+		}, 1000);
 	});
+
+	process.on('rejectionHandled', (promise: Promise<any>) => {
+		const idx = unhandledPromises.indexOf(promise);
+		if (idx >= 0) {
+			unhandledPromises.splice(idx, 1);
+		}
+	});
+
+	// Print a console message when an exception isn't handled.
+	process.on('uncaughtException', function (err: Error) {
+		onUnexpectedError(err);
+	});
+
+	// Kill oneself if one's parent dies. Much drama.
+	setInterval(function () {
+		try {
+			process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+		} catch (e) {
+			onTerminate();
+		}
+	}, 1000);
+
+	// In certain cases, the event loop can become busy and never yield
+	// e.g. while-true or process.nextTick endless loops
+	// So also use the native node module to do it from a separate thread
+	let watchdog: typeof nativeWatchdog;
+	try {
+		watchdog = require.__$__nodeRequire('native-watchdog');
+		watchdog.start(initData.parentPid);
+	} catch (err) {
+		// no problem...
+		onUnexpectedError(err);
+	}
 }
 
-function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>((c, e) => {
-
-		// Listen init data message
-		const first = protocol.onMessage(raw => {
-			first.dispose();
-
-			const initData = <IInitData>JSON.parse(raw.toString());
-
-			// Print a console message when rejection isn't handled within N seconds. For details:
-			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
-			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
-			process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-				unhandledPromises.push(promise);
-				setTimeout(() => {
-					const idx = unhandledPromises.indexOf(promise);
-					if (idx >= 0) {
-						unhandledPromises.splice(idx, 1);
-						console.warn('rejected promise not handled within 1 second');
-						onUnexpectedError(reason);
-					}
-				}, 1000);
-			});
-
-			process.on('rejectionHandled', (promise: Promise<any>) => {
-				const idx = unhandledPromises.indexOf(promise);
-				if (idx >= 0) {
-					unhandledPromises.splice(idx, 1);
-				}
-			});
-
-			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function (err: Error) {
-				onUnexpectedError(err);
-			});
-
-			// Kill oneself if one's parent dies. Much drama.
-			setInterval(function () {
-				try {
-					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-				} catch (e) {
-					onTerminate();
-				}
-			}, 1000);
-
-			// In certain cases, the event loop can become busy and never yield
-			// e.g. while-true or process.nextTick endless loops
-			// So also use the native node module to do it from a separate thread
-			let watchdog: typeof nativeWatchdog;
-			try {
-				watchdog = require.__$__nodeRequire('native-watchdog');
-				watchdog.start(initData.parentPid);
-			} catch (err) {
-				// no problem...
-				onUnexpectedError(err);
+async function init(client: Client): Promise<void> {
+	// register a lifecycle channel and expect a terminate call
+	client.registerChannel('lifecycle', new class implements IChannel {
+		call<T>(command: string): Thenable<T> {
+			if (command === 'terminate') {
+				onTerminate();
 			}
 
-			// Tell the outside that we are initialized
-			protocol.send(createMessageOfType(MessageType.Initialized));
+			return Promise.resolve(null);
+		}
 
-			c({ protocol, initData });
-		});
-
-		// Tell the outside that we are ready to receive messages
-		protocol.send(createMessageOfType(MessageType.Ready));
+		listen<T>(): Event<T> { throw new Error('Method not implemented.'); }
 	});
+
+	// get the other end's lifecycle channel and start initialization
+	const channel = client.getChannel('lifecycle');
+
+	// get initData and setup
+	const initData = await channel.call<IInitData>('init');
+	setup(initData);
+
+	// let renderer know we're done
+	await channel.call<void>('initDone');
+
+	// here, instead of this, we must create an rpcProtocol instance which
+	// is based on the IPC layer and not on the IMessagePassingProtocol
+	const rpcProtocol = new RPCProtocol(client, client);
+
+	// bootstrap extension host main
+	const extensionHostMain = new ExtensionHostMain(rpcProtocol, initData);
+	onTerminate = () => extensionHostMain.terminate();
+	return extensionHostMain.start();
 }
 
 patchExecArgv();
 
-createExtHostProtocol().then(protocol => {
-	// connect to main side
-	return connectToRenderer(protocol);
-}).then(renderer => {
-	// setup things
-	const extensionHostMain = new ExtensionHostMain(renderer.protocol, renderer.initData);
-	onTerminate = () => extensionHostMain.terminate();
-	return extensionHostMain.start();
-}).catch(err => console.error(err));
+connect(process.env.VSCODE_IPC_HOOK_EXTHOST, 'exthost')
+	.then(init)
+	.then(null, err => console.error(err));
 
 function patchExecArgv() {
 	// when encountering the prevent-inspect flag we delete this

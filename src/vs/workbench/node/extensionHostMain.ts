@@ -17,13 +17,12 @@ import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspa
 import * as errors from 'vs/base/common/errors';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
 import { Counter } from 'vs/base/common/numbers';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -88,8 +87,8 @@ export class ExtensionHostMain {
 	private _searchRequestIdProvider: Counter;
 	private _mainThreadWorkspace: MainThreadWorkspaceShape;
 
-	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
-		const rpcProtocol = new RPCProtocol(protocol);
+	constructor(rpcProtocol: IRPCProtocol, initData: IInitData) {
+
 
 		// ensure URIs are transformed and revived
 		initData = this.transform(initData, rpcProtocol);
@@ -335,13 +334,13 @@ export class ExtensionHostMain {
 		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
 	}
 
-	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
+	private transform(initData: IInitData, rpcProtocol: IRPCProtocol): IInitData {
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
 		initData.environment.appRoot = URI.revive(initData.environment.appRoot);
 		initData.environment.appSettingsHome = URI.revive(initData.environment.appSettingsHome);
 		initData.environment.extensionDevelopmentLocationURI = URI.revive(initData.environment.extensionDevelopmentLocationURI);
 		initData.logsLocation = URI.revive(initData.logsLocation);
-		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
+		// initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}
 

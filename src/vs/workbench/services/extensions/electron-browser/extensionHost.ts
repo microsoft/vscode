@@ -19,9 +19,9 @@ import { ChildProcess, fork } from 'child_process';
 import { ipcRenderer as ipc } from 'electron';
 import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
-import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
-import { createServer, Server, Socket } from 'net';
+import { IChannel, SingleClientChannelClient } from 'vs/base/parts/ipc/node/ipc';
+import { generateRandomPipeName, serve } from 'vs/base/parts/ipc/node/ipc.net';
+import { Server, Socket } from 'net';
 import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -30,22 +30,22 @@ import { ICrashReporterService } from 'vs/workbench/services/crashReporter/elect
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { isEqual } from 'vs/base/common/resources';
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
 import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { timeout } from 'vs/base/common/async';
-import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol.ipc';
 
 export interface IExtensionHostStarter {
 	readonly onCrashed: Event<[number, string]>;
-	start(): TPromise<IMessagePassingProtocol>;
+	start(): TPromise<IRPCProtocol>;
 	getInspectPort(): number;
 	dispose(): void;
 }
@@ -71,7 +71,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess;
 	private _extensionHostConnection: Socket;
-	private _messageProtocol: TPromise<IMessagePassingProtocol>;
+	private _rpcProtocol: TPromise<IRPCProtocol>;
 
 	constructor(
 		private readonly _extensions: TPromise<IExtensionDescription[]>,
@@ -103,7 +103,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		this._namedPipeServer = null;
 		this._extensionHostProcess = null;
 		this._extensionHostConnection = null;
-		this._messageProtocol = null;
+		this._rpcProtocol = null;
 
 		this._toDispose = [];
 		this._toDispose.push(this._onCrashed);
@@ -140,23 +140,22 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		}
 	}
 
-	public start(): TPromise<IMessagePassingProtocol> {
+	public start(): TPromise<IRPCProtocol> {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
 		}
 
-		if (!this._messageProtocol) {
-			this._messageProtocol = TPromise.join([this._tryListenOnPipe(), this._tryFindDebugPort()]).then(data => {
-				const pipeName = data[0];
-				const portData = data[1];
+		if (!this._rpcProtocol) {
+			const namedPipe = generateRandomPipeName();
 
+			this._rpcProtocol = TPromise.join([serve(namedPipe), this._tryFindDebugPort()]).then(([server, portData]) => {
 				const opts = {
 					env: objects.mixin(objects.deepClone(process.env), {
 						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
-						VSCODE_IPC_HOOK_EXTHOST: pipeName,
+						VSCODE_IPC_HOOK_EXTHOST: namedPipe,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose),
 						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
@@ -243,48 +242,61 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 				this._inspectPort = portData.actual;
 
-				// Help in case we fail to start it
-				let startupTimeoutHandle: number;
-				if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
-					startupTimeoutHandle = setTimeout(() => {
-						const msg = this._isExtensionDevDebugBrk
-							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
-							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+				// create a single client channel client
+				const client = new SingleClientChannelClient(server, 'exthost');
 
-						this._notificationService.prompt(Severity.Warning, msg,
-							[{
-								label: nls.localize('reloadWindow', "Reload Window"),
-								run: () => this._windowService.reloadWindow()
-							}]
-						);
-					}, 10000);
-				}
+				// terminate exthost on disposal
+				this._toDispose.push(toDisposable(() => {
 
-				// Initialize extension host process with hand shakes
-				return this._tryExtHostHandshake().then((protocol) => {
-					clearTimeout(startupTimeoutHandle);
-					return protocol;
+					// send termination call
+					client.getChannel('lifecycle').call('terminate');
+
+					// Give the extension host 10s, after which we will
+					// try to kill the process and release any resources
+					setTimeout(() => this._cleanResources(), 10 * 1000);
+				}));
+
+				return new TPromise((c, e) => {
+					const that = this;
+
+					// Help in case we fail to start it
+					let startupTimeoutHandle: number;
+					if (!this._environmentService.isBuilt || this._isExtensionDevHost) {
+						startupTimeoutHandle = setTimeout(() => {
+							const msg = this._isExtensionDevDebugBrk
+								? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
+								: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+
+							this._notificationService.prompt(Severity.Warning, msg,
+								[{
+									label: nls.localize('reloadWindow', "Reload Window"),
+									run: () => this._windowService.reloadWindow()
+								}]
+							);
+
+							e(new Error(msg));
+						}, 10000);
+					}
+
+					server.registerChannel('lifecycle', new class implements IChannel {
+						call(command: string): Thenable<any> {
+							if (command === 'init') {
+								return that._createExtHostInitData();
+							} else if (command === 'initDone') {
+								clearTimeout(startupTimeoutHandle);
+								c(new RPCProtocol(client, server));
+							}
+
+							return Promise.resolve(null);
+						}
+
+						listen<T>(): Event<T> { throw new Error('Method not implemented.'); }
+					});
 				});
 			});
 		}
 
-		return this._messageProtocol;
-	}
-
-	/**
-	 * Start a server (`this._namedPipeServer`) that listens on a named pipe and return the named pipe name.
-	 */
-	private _tryListenOnPipe(): Promise<string> {
-		return new Promise<string>((resolve, reject) => {
-			const pipeName = generateRandomPipeName();
-
-			this._namedPipeServer = createServer();
-			this._namedPipeServer.on('error', reject);
-			this._namedPipeServer.listen(pipeName, () => {
-				this._namedPipeServer.removeListener('error', reject);
-				resolve(pipeName);
-			});
-		});
+		return this._rpcProtocol;
 	}
 
 	/**
@@ -314,68 +326,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 				return resolve({ expected, actual: port });
 			});
-		});
-	}
-
-	private _tryExtHostHandshake(): Promise<IMessagePassingProtocol> {
-
-		return new Promise<IMessagePassingProtocol>((resolve, reject) => {
-
-			// Wait for the extension host to connect to our named pipe
-			// and wrap the socket in the message passing protocol
-			let handle = setTimeout(() => {
-				this._namedPipeServer.close();
-				this._namedPipeServer = null;
-				reject('timeout');
-			}, 60 * 1000);
-
-			this._namedPipeServer.on('connection', socket => {
-				clearTimeout(handle);
-				this._namedPipeServer.close();
-				this._namedPipeServer = null;
-				this._extensionHostConnection = socket;
-				resolve(new Protocol(this._extensionHostConnection));
-			});
-
-		}).then((protocol) => {
-
-			// 1) wait for the incoming `ready` event and send the initialization data.
-			// 2) wait for the incoming `initialized` event.
-			return new Promise<IMessagePassingProtocol>((resolve, reject) => {
-
-				let handle = setTimeout(() => {
-					reject('timeout');
-				}, 60 * 1000);
-
-				const disposable = protocol.onMessage(msg => {
-
-					if (isMessageOfType(msg, MessageType.Ready)) {
-						// 1) Extension Host is ready to receive messages, initialize it
-						this._createExtHostInitData().then(data => protocol.send(Buffer.from(JSON.stringify(data))));
-						return;
-					}
-
-					if (isMessageOfType(msg, MessageType.Initialized)) {
-						// 2) Extension Host is initialized
-
-						clearTimeout(handle);
-
-						// stop listening for messages here
-						disposable.dispose();
-
-						// release this promise
-						// using a buffered message protocol here because between now
-						// and the first time a `then` executes some messages might be lost
-						// unless we immediately register a listener for `onMessage`.
-						resolve(new BufferedMessagePassingProtocol(protocol));
-						return;
-					}
-
-					console.error(`received unexpected message during handshake phase from the extension host: `, msg);
-				});
-
-			});
-
 		});
 	}
 
@@ -476,30 +426,6 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			return;
 		}
 		this._terminating = true;
-
-		dispose(this._toDispose);
-
-		if (!this._messageProtocol) {
-			// .start() was not called
-			return;
-		}
-
-		this._messageProtocol.then((protocol) => {
-
-			// Send the extension host a request to terminate itself
-			// (graceful termination)
-			protocol.send(createMessageOfType(MessageType.Terminate));
-
-			// Give the extension host 10s, after which we will
-			// try to kill the process and release any resources
-			setTimeout(() => this._cleanResources(), 10 * 1000);
-
-		}, (err) => {
-
-			// Establishing a protocol with the extension host failed, so
-			// try to kill the process and release any resources.
-			this._cleanResources();
-		});
 	}
 
 	private _cleanResources(): void {
@@ -534,56 +460,56 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 	}
 }
 
-/**
- * Will ensure no messages are lost from creation time until the first user of onMessage comes in.
- */
-class BufferedMessagePassingProtocol implements IMessagePassingProtocol {
+// /**
+//  * Will ensure no messages are lost from creation time until the first user of onMessage comes in.
+//  */
+// class BufferedMessagePassingProtocol implements IMessagePassingProtocol {
 
-	private readonly _actual: IMessagePassingProtocol;
-	private _bufferedMessagesListener: IDisposable;
-	private _bufferedMessages: Buffer[];
+// 	private readonly _actual: IMessagePassingProtocol;
+// 	private _bufferedMessagesListener: IDisposable;
+// 	private _bufferedMessages: Buffer[];
 
-	constructor(actual: IMessagePassingProtocol) {
-		this._actual = actual;
-		this._bufferedMessages = [];
-		this._bufferedMessagesListener = this._actual.onMessage((buff) => this._bufferedMessages.push(buff));
-	}
+// 	constructor(actual: IMessagePassingProtocol) {
+// 		this._actual = actual;
+// 		this._bufferedMessages = [];
+// 		this._bufferedMessagesListener = this._actual.onMessage((buff) => this._bufferedMessages.push(buff));
+// 	}
 
-	public send(buffer: Buffer): void {
-		this._actual.send(buffer);
-	}
+// 	public send(buffer: Buffer): void {
+// 		this._actual.send(buffer);
+// 	}
 
-	public onMessage(listener: (e: Buffer) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable {
-		if (!this._bufferedMessages) {
-			// second caller gets nothing
-			return this._actual.onMessage(listener, thisArgs, disposables);
-		}
+// 	public onMessage(listener: (e: Buffer) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable {
+// 		if (!this._bufferedMessages) {
+// 			// second caller gets nothing
+// 			return this._actual.onMessage(listener, thisArgs, disposables);
+// 		}
 
-		// prepare result
-		const result = this._actual.onMessage(listener, thisArgs, disposables);
+// 		// prepare result
+// 		const result = this._actual.onMessage(listener, thisArgs, disposables);
 
-		// stop listening to buffered messages
-		this._bufferedMessagesListener.dispose();
+// 		// stop listening to buffered messages
+// 		this._bufferedMessagesListener.dispose();
 
-		// capture buffered messages
-		const bufferedMessages = this._bufferedMessages;
-		this._bufferedMessages = null;
+// 		// capture buffered messages
+// 		const bufferedMessages = this._bufferedMessages;
+// 		this._bufferedMessages = null;
 
-		// it is important to deliver these messages after this call, but before
-		// other messages have a chance to be received (to guarantee in order delivery)
-		// that's why we're using here nextTick and not other types of timeouts
-		process.nextTick(() => {
-			// deliver buffered messages
-			while (bufferedMessages.length > 0) {
-				const msg = bufferedMessages.shift();
-				try {
-					listener.call(thisArgs, msg);
-				} catch (e) {
-					onUnexpectedError(e);
-				}
-			}
-		});
+// 		// it is important to deliver these messages after this call, but before
+// 		// other messages have a chance to be received (to guarantee in order delivery)
+// 		// that's why we're using here nextTick and not other types of timeouts
+// 		process.nextTick(() => {
+// 			// deliver buffered messages
+// 			while (bufferedMessages.length > 0) {
+// 				const msg = bufferedMessages.shift();
+// 				try {
+// 					listener.call(thisArgs, msg);
+// 				} catch (e) {
+// 					onUnexpectedError(e);
+// 				}
+// 			}
+// 		});
 
-		return result;
-	}
-}
+// 		return result;
+// 	}
+// }

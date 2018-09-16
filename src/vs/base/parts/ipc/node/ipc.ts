@@ -152,12 +152,13 @@ function deserialize(buffer: Buffer): { header: any, body: any } {
 
 export class ChannelServer implements IChannelServer, IDisposable {
 
-	private channels = new Map<string, IChannel>();
+	private channels: Map<string, IChannel>;
 	private activeRequests = new Map<number, IDisposable>();
 	private protocolListener: IDisposable;
 
-	constructor(private protocol: IMessagePassingProtocol) {
+	constructor(private protocol: IMessagePassingProtocol, channels: Map<string, IChannel> = new Map<string, IChannel>()) {
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
+		this.channels = channels;
 		this.sendResponse({ type: ResponseType.Initialize });
 	}
 
@@ -483,10 +484,8 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 			const onFirstMessage = once(protocol.onMessage);
 
 			onFirstMessage(rawId => {
-				const channelServer = new ChannelServer(protocol);
+				const channelServer = new ChannelServer(protocol, this.channels);
 				const channelClient = new ChannelClient(protocol);
-
-				this.channels.forEach((channel, name) => channelServer.registerChannel(name, channel));
 
 				const id = rawId.toString();
 				this.channelClients.set(id, channelClient);
@@ -627,4 +626,30 @@ export function getNextTickChannel<T extends IChannel>(channel: T): T {
 			return relay.event;
 		}
 	} as T;
+}
+
+class SingleClientRouter implements IClientRouter {
+
+	constructor(private id: string) { }
+
+	async routeCall(): Promise<string> {
+		return this.id;
+	}
+
+	async routeEvent(): Promise<string> {
+		return this.id;
+	}
+}
+
+export class SingleClientChannelClient implements IChannelClient {
+
+	private router: IClientRouter;
+
+	constructor(private client: IRoutingChannelClient, id: string) {
+		this.router = new SingleClientRouter(id);
+	}
+
+	getChannel<T extends IChannel>(channelName: string): T {
+		return this.client.getChannel(channelName, this.router);
+	}
 }
