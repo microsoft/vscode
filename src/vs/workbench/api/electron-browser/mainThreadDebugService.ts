@@ -185,7 +185,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return this.debugService.startDebugging(launch, nameOrConfiguration).then(x => {
 			return true;
 		}, err => {
-			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debugging');
+			return TPromise.wrapError(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});
 	}
 
