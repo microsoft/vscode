@@ -622,6 +622,12 @@ var AMDLoader;
             script.setAttribute('type', 'text/javascript');
             this.attachListeners(script, callback, errorback);
             script.setAttribute('src', scriptSrc);
+			// Propagate CSP nonces to dynamically created script tags if the site uses a nonce-based CSP.
+			var noncedScript = document.querySelector('script[nonce]');
+            if (noncedScript) {
+              // Check for nonce in IDL first and fallback to attribute. 
+              script.setAttribute('nonce', noncedScript.nonce || noncedScript.getAttribute('nonce'));
+            }
             document.getElementsByTagName('head')[0].appendChild(script);
         };
         return BrowserScriptLoader;
