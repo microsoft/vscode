@@ -6,7 +6,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';

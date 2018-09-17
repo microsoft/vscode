@@ -8,7 +8,7 @@
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
