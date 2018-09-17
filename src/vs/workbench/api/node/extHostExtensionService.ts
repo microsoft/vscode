@@ -243,7 +243,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(value, ext));
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
 			});
 			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}
