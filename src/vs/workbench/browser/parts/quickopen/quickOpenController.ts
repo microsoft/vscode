@@ -174,7 +174,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.quickOpenWidget = this._register(new QuickOpenWidget(
 				this.partService.getWorkbenchElement(),
 				{
-					// onOk: () => { /* ignore */ },
 					onOk: () => this.onOk(),
 					onCancel: () => { /* ignore */ },
 					onType: (value: string) => this.onType(value || ''),
