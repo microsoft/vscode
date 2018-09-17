@@ -228,15 +228,15 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public openReference(ref: Location, sideBySide: boolean): void {
+		// clear stage
+		if (!sideBySide) {
+			this.closeWidget();
+		}
+
 		const { uri, range } = ref;
 		this._editorService.openCodeEditor({
 			resource: uri,
 			options: { selection: range }
 		}, this._editor, sideBySide);
-
-		// clear stage
-		if (!sideBySide) {
-			this.closeWidget();
-		}
 	}
 }
