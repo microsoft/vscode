@@ -21,7 +21,7 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
@@ -52,6 +52,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -1010,7 +1011,7 @@ export class ReloadAction extends Action {
 	}
 }
 
-export class OpenExtensionsViewletAction extends ToggleViewletAction {
+export class OpenExtensionsViewletAction extends ShowViewletAction {
 
 	static ID = VIEWLET_ID;
 	static LABEL = localize('toggleExtensionsViewlet', "Show Extensions");
@@ -1019,9 +1020,10 @@ export class OpenExtensionsViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 

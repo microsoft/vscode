@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -25,14 +25,15 @@ import { ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
-class OpenSCMViewletAction extends ToggleViewletAction {
+class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IPartService partService: IPartService) {
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 

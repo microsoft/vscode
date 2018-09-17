@@ -11,7 +11,7 @@ import * as resources from 'vs/base/common/resources';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -186,13 +186,14 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			viewletRegistry.registerViewlet(viewletDescriptor);
 
 			// Register Action to Open Viewlet
-			class OpenCustomViewletAction extends ToggleViewletAction {
+			class OpenCustomViewletAction extends ShowViewletAction {
 				constructor(
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
-					@IEditorGroupsService editorGroupService: IEditorGroupsService
+					@IEditorGroupsService editorGroupService: IEditorGroupsService,
+					@IPartService partService: IPartService
 				) {
-					super(id, label, id, viewletService, editorGroupService);
+					super(id, label, id, viewletService, editorGroupService, partService);
 				}
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

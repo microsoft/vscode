@@ -15,7 +15,7 @@ import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
@@ -111,9 +111,9 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 Registry.add(Extensions.Viewlets, new ViewletRegistry());
 
 /**
- * A reusable action to toggle a viewlet with a specific id.
+ * A reusable action to show a viewlet with a specific id.
  */
-export class ToggleViewletAction extends Action {
+export class ShowViewletAction extends Action {
 	private viewletId: string;
 
 	constructor(
@@ -121,7 +121,8 @@ export class ToggleViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IPartService private partService: IPartService
 	) {
 		super(id, name);
 
@@ -152,7 +153,7 @@ export class ToggleViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activeElement = document.activeElement;
 
-		return activeViewlet && activeElement && DOM.isAncestor(activeElement, (<Viewlet>activeViewlet).getContainer());
+		return activeViewlet && activeElement && DOM.isAncestor(activeElement, this.partService.getContainer(Parts.SIDEBAR_PART));
 	}
 }
 
