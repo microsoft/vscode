@@ -636,20 +636,27 @@ export class StartFindReplaceAction extends EditorAction {
 
 		let controller = CommonFindController.get(editor);
 		let currentSelection = editor.getSelection();
-		// we only seed search string from selection when the current selection is single line and not empty.
-		let seedSearchStringFromSelection = !currentSelection.isEmpty() &&
-			currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection;
-		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
-		// is still empty, so we should focus the Find Input instead of Replace Input.
-		let shouldFocus = seedSearchStringFromSelection ?
+		let findInputFocused = controller.isFindInputFocused();
+		// we only seed search string from selection when the current selection is single line and not empty,
+		// + the find input is not focused
+		let seedSearchStringFromSelection = !currentSelection.isEmpty()
+			&& currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection
+			&& !findInputFocused;
+		/*
+		 * if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input is still empty, so we should focus the Find Input instead of Replace Input.
+
+		 * findInputFocused true -> seedSearchStringFromSelection false, FocusReplaceInput
+		 * findInputFocused false, seedSearchStringFromSelection true FocusReplaceInput
+		 * findInputFocused false seedSearchStringFromSelection false FocusFindInput
+		 */
+		let shouldFocus = (findInputFocused || seedSearchStringFromSelection) ?
 			FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput;
 
-		let findInputFocused = controller.isFindInputFocused();
 
 		if (controller) {
 			controller.start({
 				forceRevealReplace: true,
-				seedSearchStringFromSelection: seedSearchStringFromSelection && !findInputFocused,
+				seedSearchStringFromSelection: seedSearchStringFromSelection,
 				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
 				shouldAnimate: true,
