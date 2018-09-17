@@ -192,14 +192,12 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 			return;
 		}
 
-		if (Date.now() > this._unresponsiveTime) {
+		if (this._potentialUnresponsiveRequests.length >= 2 && Date.now() > this._unresponsiveTime) {
 			// Unresponsive!!
 			this._setResponsiveState(ResponsiveState.Unresponsive);
 		} else {
 			// Not (yet) unresponsive, be sure to check again soon
-			if (this._potentialUnresponsiveRequests.length > 0) {
-				this._asyncCheckUresponsive.schedule();
-			}
+			this._asyncCheckUresponsive.schedule();
 		}
 	}
 
