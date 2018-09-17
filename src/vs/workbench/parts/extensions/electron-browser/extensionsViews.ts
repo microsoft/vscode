@@ -8,7 +8,7 @@
 
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
@@ -40,7 +40,6 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { distinct } from 'vs/base/common/arrays';
 import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
-import { createCancelablePromise } from 'vs/base/common/async';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -49,7 +48,6 @@ export class ExtensionsListView extends ViewletPanel {
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
 	private list: WorkbenchPagedList<IExtension>;
-	private languagePacks: string[] = [];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -69,21 +67,6 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExperimentService private experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
-
-		// TODO: Remove this once all the language packs we own are published using the latest vsce
-		const languagePackPromise = createCancelablePromise(token => {
-			return this.extensionsWorkbenchService.queryGallery({ text: 'category:"language packs"' }).then(pager => {
-				this.languagePacks.push(...pager.firstPage.map(e => e.id));
-				const allPromises = [];
-				for (let i = 1; i < pager.total; i++) {
-					allPromises.push(pager.getPage(i, token).then(result => {
-						this.languagePacks.push(...result.map(e => e.id));
-					}));
-				}
-				return TPromise.join(allPromises);
-			});
-		});
-		this.disposables.push(toDisposable(() => languagePackPromise.cancel()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -102,7 +85,7 @@ export class ExtensionsListView extends ViewletPanel {
 		this.extensionsList = append(container, $('.extensions-list'));
 		this.messageBox = append(container, $('.message'));
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer, this.languagePacks);
+		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			multipleSelectionSupport: false
