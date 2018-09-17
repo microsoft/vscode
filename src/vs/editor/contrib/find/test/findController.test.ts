@@ -271,7 +271,8 @@ suite('FindController', () => {
 				seedSearchStringFromSelection: false,
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
-				shouldAnimate: false
+				shouldAnimate: false,
+				updateSearchScope: false
 			});
 			nextMatchFindAction.run(null, editor);
 			startFindReplaceAction.run(null, editor);
