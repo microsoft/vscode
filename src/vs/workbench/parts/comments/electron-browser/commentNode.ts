@@ -202,7 +202,7 @@ export class CommentNode extends Disposable {
 		}));
 
 		this._toDispose.push(dom.addDisposableListener(this._domNode, 'mouseleave', (e: MouseEvent) => {
-			if (document.activeElement !== e.target) {
+			if (!this._domNode.contains(document.activeElement)) {
 				actionsContainer.classList.add('hidden');
 			}
 		}));
