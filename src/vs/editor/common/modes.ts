@@ -288,14 +288,10 @@ export type SuggestionType = 'method'
 /**
  * @internal
  */
-export type SnippetType = 'internal' | 'textmate';
-
-/**
- * @internal
- */
 export interface ISuggestion {
 	label: string;
 	insertText: string;
+	insertTextIsSnippet?: boolean;
 	type: SuggestionType;
 	detail?: string;
 	documentation?: string | IMarkdownString;
@@ -308,7 +304,6 @@ export interface ISuggestion {
 	overwriteAfter?: number;
 	additionalTextEdits?: model.ISingleEditOperation[];
 	command?: Command;
-	snippetType?: SnippetType;
 	noWhitespaceAdjust?: boolean;
 }
 
