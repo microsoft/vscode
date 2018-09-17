@@ -230,7 +230,7 @@ export class FoldingController implements IEditorContribution {
 		}
 
 		if (this._foldingStrategy !== 'auto' && this._foldingStrategy !== 'indentation') {
-			const foldingProviders = FoldingRangeProviderRegistry.entries().filter(provider => provider.id() === this._foldingStrategy);
+			const foldingProviders = FoldingRangeProviderRegistry.entries().filter(provider => provider.id === this._foldingStrategy);
 			if (foldingProviders.length > 0) {
 				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
 			}

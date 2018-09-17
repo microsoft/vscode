@@ -658,7 +658,19 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
 		'editor.foldingStrategy': {
-			'type': 'string',
+			'oneOf': [
+				{
+					'type': 'string',
+				},
+				{
+					'type': 'string',
+					'enum': ['auto', 'indentation'],
+					'enumDescriptions': [
+						nls.localize('foldingStrategyAuto', 'If available, use a language specific folding strategy, otherwise falls back to the indentation based strategy.'),
+						nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
+					],
+				}
+			],
 			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
 			'description': nls.localize('foldingStrategy', "Controls the way folding ranges are computed. 'auto' picks uses a language specific folding strategy, if available. 'indentation' forces that the indentation based folding strategy is used.")
 		},

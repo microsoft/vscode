@@ -5141,7 +5141,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provides the id of the provider.
 		 */
-		id(): string | null;
+		id: string | null;
 		/**
 		 * Provides the folding ranges for a specific model.
 		 */
