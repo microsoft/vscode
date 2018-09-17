@@ -656,10 +656,37 @@ declare module 'vscode' {
 	}
 
 	interface Comment {
+		/**
+		 * The id of the comment
+		 */
 		commentId: string;
+
+		/**
+		 * The text of the comment
+		 */
 		body: MarkdownString;
+
+		/**
+		 * The display name of the user who created the comment
+		 */
 		userName: string;
+
+		/**
+		 * The avatar src of the user who created the comment
+		 */
 		gravatar: string;
+
+		/**
+		 * Whether the current user has permission to edit the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
+		 */
+		canEdit?: boolean;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
 		command?: Command;
 	}
 
@@ -681,14 +708,42 @@ declare module 'vscode' {
 	}
 
 	interface DocumentCommentProvider {
+		/**
+		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
+		 */
 		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
+
+		/**
+		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
+		 */
 		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		/**
+		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
+		 */
 		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		/**
+		 * Called when a user edits the comment body to the be new text text.
+		 */
+		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<Comment>;
+
+		/**
+		 * Notify of updates to comment threads.
+		 */
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	interface WorkspaceCommentProvider {
+		/**
+		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
+		 * from the panel runs the comment's command.
+		 */
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+
+		/**
+		 * Notify of updates to comment threads.
+		 */
 		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 

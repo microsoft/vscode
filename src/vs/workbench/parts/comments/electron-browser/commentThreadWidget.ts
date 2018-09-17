@@ -37,64 +37,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commentNode';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
 const COMMENT_SCHEME = 'comment';
-
-export class CommentNode {
-	private _domNode: HTMLElement;
-	private _body: HTMLElement;
-	private _md: HTMLElement;
-	private _clearTimeout: any;
-
-	public get domNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	constructor(
-		public comment: modes.Comment,
-		private markdownRenderer: MarkdownRenderer,
-	) {
-		this._domNode = dom.$('div.review-comment');
-		this._domNode.tabIndex = 0;
-		let avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
-		let img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
-		img.src = comment.gravatar;
-		let commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
-
-		let header = dom.append(commentDetailsContainer, dom.$('div'));
-		let author = dom.append(header, dom.$('strong.author'));
-		author.innerText = comment.userName;
-		this._body = dom.append(commentDetailsContainer, dom.$('div.comment-body'));
-		this._md = this.markdownRenderer.render(comment.body).element;
-		this._body.appendChild(this._md);
-
-		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
-		this._domNode.setAttribute('role', 'treeitem');
-		this._clearTimeout = null;
-	}
-
-	update(newComment: modes.Comment) {
-		if (newComment.body !== this.comment.body) {
-			this._body.removeChild(this._md);
-			this._md = this.markdownRenderer.render(newComment.body).element;
-			this._body.appendChild(this._md);
-		}
-
-		this.comment = newComment;
-	}
-
-	focus() {
-		this.domNode.focus();
-		if (!this._clearTimeout) {
-			dom.addClass(this.domNode, 'focus');
-			this._clearTimeout = setTimeout(() => {
-				dom.removeClass(this.domNode, 'focus');
-			}, 3000);
-		}
-	}
-}
 
 let INMEM_MODEL_ID = 0;
 
@@ -219,9 +166,9 @@ export class ReviewZoneWidget extends ZoneWidget {
 				this.dispose();
 				return null;
 			}
+
 			this._isCollapsed = true;
 			this.hide();
-
 			return null;
 		});
 
@@ -265,7 +212,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {
-				let newElement = new CommentNode(currentComment, this._markdownRenderer);
+				let newElement = new CommentNode(
+					currentComment,
+					this.owner,
+					this.editor.getModel().uri,
+					this._markdownRenderer,
+					this.themeService,
+					this.instantiationService,
+					this.commentService,
+					this.modelService,
+					this.modeService);
+				this._disposables.push(newElement);
+
 				newCommentNodeList.unshift(newElement);
 				if (lastCommentElement) {
 					this._commentsElement.insertBefore(newElement.domNode, lastCommentElement);
@@ -302,7 +260,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			let newCommentNode = new CommentNode(this._commentThread.comments[i], this._markdownRenderer);
+			let newCommentNode = new CommentNode(this._commentThread.comments[i],
+				this.owner,
+				this.editor.getModel().uri,
+				this._markdownRenderer,
+				this.themeService,
+				this.instantiationService,
+				this.commentService,
+				this.modelService,
+				this.modeService);
+			this._disposables.push(newCommentNode);
 			this._commentElements.push(newCommentNode);
 			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
@@ -592,18 +559,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const content: string[] = [];
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {
-			content.push(`.monaco-editor .review-widget .body .review-comment a { color: ${linkColor} }`);
+			content.push(`.monaco-editor .review-widget .body .comment-body a { color: ${linkColor} }`);
 		}
 
 		const linkActiveColor = theme.getColor(textLinkActiveForeground);
 		if (linkActiveColor) {
-			content.push(`.monaco-editor .review-widget .body .review-comment a:hover, a:active { color: ${linkActiveColor} }`);
+			content.push(`.monaco-editor .review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
 		}
 
 		const focusColor = theme.getColor(focusBorder);
 		if (focusColor) {
-			content.push(`.monaco-editor .review-widget .body .review-comment a:focus { outline: 1px solid ${focusColor}; }`);
-			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
+			content.push(`.monaco-editor .review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
+			content.push(`.monaco-editor .review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
 		}
 
 		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
@@ -619,17 +586,17 @@ export class ReviewZoneWidget extends ZoneWidget {
 		const hcBorder = theme.getColor(contrastBorder);
 		if (hcBorder) {
 			content.push(`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
-			content.push(`.monaco-editor .review-widget .body .comment-form .monaco-editor { outline: 1px solid ${hcBorder}; }`);
+			content.push(`.monaco-editor .review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
 		}
 
 		const errorBorder = theme.getColor(inputValidationErrorBorder);
 		if (errorBorder) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { border: 1px solid ${errorBorder}; }`);
+			content.push(`.monaco-editor .review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
 		}
 
 		const errorBackground = theme.getColor(inputValidationErrorBackground);
 		if (errorBackground) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { background: ${errorBackground}; }`);
+			content.push(`.monaco-editor .review-widget .validation-error { background: ${errorBackground}; }`);
 		}
 
 		const errorForeground = theme.getColor(inputValidationErrorForeground);
