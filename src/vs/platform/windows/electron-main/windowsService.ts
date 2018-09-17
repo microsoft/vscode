@@ -23,7 +23,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorksp
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
@@ -522,20 +522,15 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			process.arch
 		);
 
-		const buttons = [nls.localize('okButton', "OK")];
-		if (isWindows) {
-			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
-		}
-
 		this.windowsMainService.showMessageBox({
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
-			buttons,
+			buttons: [nls.localize('okButton', "OK"), mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))],
 			noLink: true
 		}, lastActiveWindow).then(result => {
-			if (isWindows && result.button === 1) {
+			if (result.button === 1) {
 				clipboard.writeText(detail);
 			}
 		});
