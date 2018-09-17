@@ -182,7 +182,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.ratings.style.display = '';
 		data.extension = extension;
 
-		if (this.languagePacks.indexOf(extension.id) > -1) {
+		if (extension.gallery && extension.gallery.properties && extension.gallery.properties.localizedLanguages && extension.gallery.properties.localizedLanguages.length) {
+			data.description.textContent = extension.gallery.properties.localizedLanguages.filter(name => name.trim()).map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
+		} else if (this.languagePacks.indexOf(extension.id) > -1) {
 			const manifestPromise = createCancelablePromise(token => extension.getManifest(token).then(manifest => {
 				if (manifest) {
 					const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
