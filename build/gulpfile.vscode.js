@@ -135,7 +135,7 @@ const config = {
 	darwinHelpBookFolder: 'VS Code HelpBook',
 	darwinHelpBookName: 'VS Code HelpBook',
 	darwinBundleDocumentTypes: [
-		darwinBundleDocumentType(["bat"], 'resources/darwin/bat.icns'),
+		darwinBundleDocumentType(["bat", "cmd"], 'resources/darwin/bat.icns'),
 		darwinBundleDocumentType(["bowerrc"], 'resources/darwin/bower.icns'),
 		darwinBundleDocumentType(["c", "h"], 'resources/darwin/c.icns'),
 		darwinBundleDocumentType(["config", "editorconfig", "gitattributes", "gitconfig", "gitignore", "ini"], 'resources/darwin/config.icns'),
@@ -162,7 +162,7 @@ const config = {
 		darwinBundleDocumentType(["vue"], 'resources/darwin/vue.icns'),
 		darwinBundleDocumentType(["ascx", "csproj", "dtd", "wxi", "wxl", "wxs", "xml", "xaml"], 'resources/darwin/xml.icns'),
 		darwinBundleDocumentType(["eyaml", "eyml", "yaml", "yml"], 'resources/darwin/yaml.icns'),
-		darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "jsp", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
+		darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "code-workspace", "coffee", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "jsp", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
 	],
 	darwinBundleURLTypes: [{
 		role: 'Viewer',
@@ -339,6 +339,7 @@ function packageTask(platform, arch, opts) {
 			all = es.merge(all, gulp.src([
 				'resources/win32/bower.ico',
 				'resources/win32/c.ico',
+				'resources/win32/config.ico',
 				'resources/win32/cpp.ico',
 				'resources/win32/csharp.ico',
 				'resources/win32/css.ico',
@@ -348,11 +349,13 @@ function packageTask(platform, arch, opts) {
 				'resources/win32/jade.ico',
 				'resources/win32/java.ico',
 				'resources/win32/javascript.ico',
+				'resources/win32/json.ico',
 				'resources/win32/less.ico',
 				'resources/win32/markdown.ico',
 				'resources/win32/php.ico',
 				'resources/win32/powershell.ico',
 				'resources/win32/python.ico',
+				'resources/win32/react.ico',
 				'resources/win32/ruby.ico',
 				'resources/win32/sass.ico',
 				'resources/win32/shell.ico',
