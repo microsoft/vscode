@@ -9,10 +9,11 @@
 }
 
 .file-icon-themable-tree .monaco-tree-row .content::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
+	-webkit-mask-size: 16px;
+	-webkit-mask-position: 50% 50%;
+	-webkit-mask-repeat: no-repeat;
+	-webkit-mask-image: url('');
+	margin-right: 6px;
 	width: 16px;
 	height: 22px;
 	display: inline-block;
@@ -20,29 +21,43 @@
 	content: ' ';
 }
 
+/* Default Icon Colors */
+.vs-dark .file-icon-themable-tree .monaco-tree-row .content::before {
+	background-color: #E8E8E8;
+}
+
+.vs .file-icon-themable-tree .monaco-tree-row .content::before {
+	background-color: #646465;
+}
+
+.hc-black .file-icon-themable-tree .monaco-tree-row .content::before {
+	background-color: #FFF;
+}
+
+
 .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded.svg");
+	-webkit-mask-image: url("expanded.svg");
 }
 
 .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
 	display: inline-block;
-	background-image: url("collapsed.svg");
+	-webkit-mask-image: url("collapsed.svg");
 }
 
 .vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-dark.svg");
+	-webkit-mask-image: url("expanded-dark.svg");
 }
 
 .vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-dark.svg");
+	-webkit-mask-image: url("collapsed-dark.svg");
 }
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-hc.svg");
+	-webkit-mask-image: url("expanded-hc.svg");
 }
 
 .hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-hc.svg");
+	-webkit-mask-image: url("collapsed-hc.svg");
 }
 
 .file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
@@ -78,35 +93,39 @@
 	overflow: hidden;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
-	background-size: 16px;
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-icon {
+	/* background-size: 16px;
 	background-position: left center;
-	background-repeat: no-repeat;
+	background-repeat: no-repeat; */
+	-webkit-mask-size: 16px;
+	-webkit-mask-position: 50% 50%;
+	-webkit-mask-repeat: no-repeat;
+	-webkit-mask-image: url();
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
 	flex: 1;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions {
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions {
 	display: block;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
+.tree-explorer-viewlet-tree-view .monaco-tree .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;

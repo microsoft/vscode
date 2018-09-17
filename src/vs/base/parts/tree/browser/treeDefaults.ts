@@ -483,6 +483,7 @@ export class DefaultTreestyler implements _.ITreeStyler {
 
 		if (styles.listFocusForeground) {
 			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { color: ${styles.listFocusForeground}; }`);
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) .content::before { background-color: ${styles.listFocusForeground}; }`);
 		}
 
 		if (styles.listActiveSelectionBackground) {
@@ -491,6 +492,7 @@ export class DefaultTreestyler implements _.ITreeStyler {
 
 		if (styles.listActiveSelectionForeground) {
 			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listActiveSelectionForeground}; }`);
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) .content::before { background-color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {
@@ -503,8 +505,8 @@ export class DefaultTreestyler implements _.ITreeStyler {
 		if (styles.listFocusAndSelectionForeground) {
 			content.push(`
 				.monaco-tree-drag-image,
-				.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { color: ${styles.listFocusAndSelectionForeground}; }
-			`);
+				.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { color: ${styles.listFocusAndSelectionForeground}; }`);
+			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) .content::before { background-color: ${styles.listFocusAndSelectionForeground}; }`);
 		}
 
 		if (styles.listInactiveSelectionBackground) {
@@ -513,6 +515,7 @@ export class DefaultTreestyler implements _.ITreeStyler {
 
 		if (styles.listInactiveSelectionForeground) {
 			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listInactiveSelectionForeground}; }`);
+			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) .content::before { background-color: ${styles.listInactiveSelectionForeground}; }`);
 		}
 
 		if (styles.listHoverBackground) {
