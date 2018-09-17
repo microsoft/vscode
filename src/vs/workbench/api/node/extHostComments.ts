@@ -106,6 +106,19 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(comment => convertToComment(provider, comment, this._commandsConverter));
 	}
 
+	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Thenable<void> {
+		const data = this._documents.getDocumentData(URI.revive(uri));
+
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
+		}
+
+		const provider = this._documentProviders.get(handle);
+		return asThenable(() => {
+			return provider.deleteComment(data.document, convertFromComment(comment), CancellationToken.None);
+		});
+	}
+
 	$provideDocumentComments(handle: number, uri: UriComponents): Thenable<modes.CommentInfo> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 		if (!data || !data.document) {
@@ -178,18 +191,21 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 		body: extHostTypeConverter.MarkdownString.to(comment.body),
 		userName: comment.userName,
 		gravatar: comment.gravatar,
-		canEdit: comment.canEdit
+		canEdit: comment.canEdit,
+		canDelete: comment.canDelete
 	};
 }
 
 function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
+	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
 		gravatar: vscodeComment.gravatar,
 		canEdit: canEdit,
+		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null
 	};
 }
