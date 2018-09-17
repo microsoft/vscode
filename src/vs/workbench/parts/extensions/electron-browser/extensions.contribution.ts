@@ -246,6 +246,18 @@ CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccess
 	}
 });
 
+CommandsRegistry.registerCommand('extension.open', (accessor: ServicesAccessor, extensionId: string) => {
+	const extensionService = accessor.get(IExtensionsWorkbenchService);
+
+	return extensionService.queryGallery({ names: [extensionId], pageSize: 1 }).then(pager => {
+		if (pager.total !== 1) {
+			return;
+		}
+
+		extensionService.open(pager.firstPage[0]);
+	});
+});
+
 // File menu registration
 
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
