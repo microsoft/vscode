@@ -397,9 +397,13 @@ export class TextMateService implements ITextMateService {
 	}
 
 	private registerDefinition(modeId: string): void {
-		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService));
-		}, onUnexpectedError);
+		const promise = this._createGrammar(modeId).then((r) => {
+			return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+		}, e => {
+			onUnexpectedError(e);
+			return null;
+		});
+		TokenizationRegistry.registerPromise(modeId, promise);
 	}
 }
 
