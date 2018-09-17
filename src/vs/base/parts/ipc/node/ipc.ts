@@ -495,6 +495,11 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 				this.channels.forEach((channel, name) => channelServer.registerChannel(name, channel));
 
 				const id = rawId.toString();
+
+				if (this.channelClients.has(id)) {
+					console.warn(`IPC client with id '${id}' is already registered.`);
+				}
+
 				this.channelClients.set(id, channelClient);
 				this.onClientAdded.fire(id);
 
