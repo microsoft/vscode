@@ -124,8 +124,16 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.stylingContainer = append(parent, $('.suggest-input-container'));
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', null, options.placeholderText || ''));
 
+		const editorOptions: IEditorOptions = {
+			...getSimpleEditorOptions(),
+			...getHTMLInputStyleOptions(ariaLabel),
+			...{
+				iconsInSuggestions: false
+			}
+		};
+
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
-			mixinHTMLInputStyleOptions(getSimpleEditorOptions(), ariaLabel),
+			editorOptions,
 			{
 				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer],
 				isSimpleWidget: true,
@@ -244,17 +252,20 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 }
 
 
-function mixinHTMLInputStyleOptions(config: IEditorOptions, ariaLabel?: string): IEditorOptions {
-	config.fontSize = 13;
-	config.lineHeight = 22;
-	config.wordWrap = 'off';
-	config.scrollbar.vertical = 'hidden';
-	config.roundedSelection = false;
-	config.ariaLabel = ariaLabel || '';
-	config.renderIndentGuides = false;
-	config.cursorWidth = 1;
-	config.snippetSuggestions = 'none';
-	config.suggest = { filterGraceful: false };
-	config.fontFamily = ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif';
-	return config;
+function getHTMLInputStyleOptions(ariaLabel?: string): IEditorOptions {
+	return <IEditorOptions>{
+		fontSize: 13,
+		lineHeight: 22,
+		wordWrap: 'off',
+		scrollbar: {
+			vertical: 'hidden',
+		},
+		roundedSelection: false,
+		ariaLabel: ariaLabel || '',
+		renderIndentGuides: false,
+		cursorWidth: 1,
+		snippetSuggestions: 'none',
+		suggest: { filterGraceful: false },
+		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif',
+	};
 }
