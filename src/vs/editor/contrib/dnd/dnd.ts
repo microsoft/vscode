@@ -21,6 +21,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -164,20 +165,22 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {
+				let newSelections: Selection[] = null;
 				if (mouseEvent.event.shiftKey) {
 					let primarySelection = this._editor.getSelection();
 					let { selectionStartLineNumber, selectionStartColumn } = primarySelection;
-					this._editor.setSelections([new Selection(selectionStartLineNumber, selectionStartColumn, newCursorPosition.lineNumber, newCursorPosition.column)]);
+					newSelections = [new Selection(selectionStartLineNumber, selectionStartColumn, newCursorPosition.lineNumber, newCursorPosition.column)];
 				} else {
-					let newSelections = this._editor.getSelections().map(selection => {
+					newSelections = this._editor.getSelections().map(selection => {
 						if (selection.containsPosition(newCursorPosition)) {
 							return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
 						} else {
 							return selection;
 						}
 					});
-					this._editor.setSelections(newSelections);
 				}
+				// Use `mouse` as the source instead of `api`.
+				(<CodeEditorWidget>this._editor).setSelections(newSelections, 'mouse');
 			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
 				(
 					(
