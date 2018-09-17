@@ -222,7 +222,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): TPromise<string> {
+	public promptForPath(resource: URI, defaultPath: string): TPromise<string> {
 		return TPromise.wrap(this.promptPath);
 	}
 
