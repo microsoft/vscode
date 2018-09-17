@@ -86,8 +86,8 @@ export interface IChannelClient {
  * channels (each from a separate client) to pick from.
  */
 export interface IClientRouter {
-	routeCall(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<string>;
-	routeEvent(event: string, arg?: any): Thenable<string>;
+	routeCall(clientIds: string[], command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<string>;
+	routeEvent(clientIds: string[], event: string, arg?: any): Thenable<string>;
 }
 
 /**
@@ -478,6 +478,12 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 	private channelClients = new Map<string, ChannelClient>();
 	private onClientAdded = new Emitter<string>();
 
+	private get clientKeys(): string[] {
+		const result = [];
+		this.channelClients.forEach((_, key) => result.push(key));
+		return result;
+	}
+
 	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
 		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = once(protocol.onMessage);
@@ -506,7 +512,7 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
-				const channelPromise = router.routeCall(command, arg)
+				const channelPromise = router.routeCall(that.clientKeys, command, arg)
 					.then(id => that.getClient(id))
 					.then(client => client.getChannel(channelName));
 
@@ -514,7 +520,7 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 					.call(command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any) {
-				const channelPromise = router.routeEvent(event, arg)
+				const channelPromise = router.routeEvent(that.clientKeys, event, arg)
 					.then(id => that.getClient(id))
 					.then(client => client.getChannel(channelName));
 
