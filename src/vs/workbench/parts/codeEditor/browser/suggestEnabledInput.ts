@@ -32,6 +32,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { mixin } from 'vs/base/common/objects';
 
 interface SuggestResultsProvider {
 	/**
@@ -82,7 +83,6 @@ type ISuggestEnabledInputStyles = {
 	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
 };
 
-
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
@@ -91,7 +91,6 @@ export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeServi
 		inputPlaceholderForeground: (style && style.inputPlaceholderForeground) || inputPlaceholderForeground,
 	} as ISuggestEnabledInputStyleOverrides, widget);
 }
-
 
 export class SuggestEnabledInput extends Widget implements IThemable {
 
@@ -124,13 +123,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.stylingContainer = append(parent, $('.suggest-input-container'));
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', null, options.placeholderText || ''));
 
-		const editorOptions: IEditorOptions = {
-			...getSimpleEditorOptions(),
-			...getHTMLInputStyleOptions(ariaLabel),
-			...{
-				iconsInSuggestions: false
-			}
-		};
+		const editorOptions: IEditorOptions = mixin(
+			getSimpleEditorOptions(),
+			getSuggestEnabledInputOptions(ariaLabel));
 
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
@@ -252,20 +247,20 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 }
 
 
-function getHTMLInputStyleOptions(ariaLabel?: string): IEditorOptions {
-	return <IEditorOptions>{
+function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
+	return {
 		fontSize: 13,
 		lineHeight: 22,
 		wordWrap: 'off',
-		scrollbar: {
-			vertical: 'hidden',
-		},
+		scrollbar: { vertical: 'hidden', },
 		roundedSelection: false,
-		ariaLabel: ariaLabel || '',
 		renderIndentGuides: false,
 		cursorWidth: 1,
+		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif',
+		ariaLabel: ariaLabel || '',
+
 		snippetSuggestions: 'none',
 		suggest: { filterGraceful: false },
-		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif',
+		iconsInSuggestions: false
 	};
 }
