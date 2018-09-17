@@ -146,7 +146,7 @@ const config = {
 		darwinBundleDocumentType(["asp", "aspx", "cshtml", "htm", "html", "jshtm", "jsp", "phtml", "shtml"], 'resources/darwin/html.icns'),
 		darwinBundleDocumentType(["jade"], 'resources/darwin/jade.icns'),
 		darwinBundleDocumentType(["jav", "java"], 'resources/darwin/java.icns'),
-		darwinBundleDocumentType(["js", "jscsrc", "jshintrc"], 'resources/darwin/javascript.icns'),
+		darwinBundleDocumentType(["js", "jscsrc", "jshintrc", "mjs"], 'resources/darwin/javascript.icns'),
 		darwinBundleDocumentType(["json"], 'resources/darwin/json.icns'),
 		darwinBundleDocumentType(["less"], 'resources/darwin/less.icns'),
 		darwinBundleDocumentType(["markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn"], 'resources/darwin/markdown.icns'),
