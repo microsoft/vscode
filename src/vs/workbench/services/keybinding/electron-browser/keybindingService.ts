@@ -176,8 +176,8 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 		return false;
 	}
-	if (typeof keyBinding.key !== 'string') {
-		rejects.push(nls.localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'key'));
+	if (keyBinding.key && typeof keyBinding.key !== 'string') {
+		rejects.push(nls.localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'key'));
 		return false;
 	}
 	if (keyBinding.when && typeof keyBinding.when !== 'string') {
