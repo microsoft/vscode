@@ -98,6 +98,7 @@
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .author {
 	color: #fff;
 	font-weight: 600;
+	line-height: 19px;
 }
 
 .monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-body {
