@@ -109,15 +109,37 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return await this.query(query).then(model => {
+		const parsedQuery = Query.parse(query);
+
+		let options: IQueryOptions = {
+			sortOrder: SortOrder.Default
+		};
+
+		switch (parsedQuery.sortBy) {
+			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
+			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
+		}
+		if (!query || !query.trim()) {
+			options.sortBy = SortBy.InstallCount;
+		}
+
+		const successCallback = model => {
 			this.setModel(model);
 			return model;
-		}).catch(e => {
+		};
+		const errorCallback = e => {
 			console.warn('Error querying extensions gallery', e);
 			const model = new PagedModel([]);
 			this.setModel(model, true);
 			return model;
-		});
+		};
+
+		if (ExtensionsListView.isInstalledExtensionsQuery(query) || /@builtin/.test(query)) {
+			return await this.queryLocal(parsedQuery, options).then(successCallback).catch(errorCallback);
+		}
+
+		return await this.queryGallery(parsedQuery, options).then(successCallback).catch(errorCallback);
 	}
 
 	select(): void {
@@ -154,22 +176,8 @@ export class ExtensionsListView extends ViewletPanel {
 		return TPromise.as(emptyModel);
 	}
 
-	private async query(value: string): Promise<IPagedModel<IExtension>> {
-		const query = Query.parse(value);
-
-		let options: IQueryOptions = {
-			sortOrder: SortOrder.Default
-		};
-
-		switch (query.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
-			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
-		}
-		if (!value || !value.trim()) {
-			options.sortBy = SortBy.InstallCount;
-		}
-
+	private async queryLocal(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
+		let value = query.value;
 		if (/@builtin/i.test(value)) {
 			const showThemesOnly = /@builtin:themes/i.test(value);
 			if (showThemesOnly) {
@@ -245,18 +253,6 @@ export class ExtensionsListView extends ViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
-		let idMatch;
-		const names: string[] = [];
-		while ((idMatch = idRegex.exec(value)) !== null) {
-			const name = idMatch[1];
-			names.push(name);
-		}
-
-		if (names.length) {
-			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
-				.then(pager => new PagedModel(pager));
-		}
 
 		if (/@outdated/i.test(value)) {
 			value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -300,6 +296,25 @@ export class ExtensionsListView extends ViewletPanel {
 				);
 
 			return new PagedModel(this.sortExtensions(result, options));
+		}
+
+		return new PagedModel([]);
+	}
+
+	private async queryGallery(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
+		let value = query.value;
+
+		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
+		let idMatch;
+		const names: string[] = [];
+		while ((idMatch = idRegex.exec(value)) !== null) {
+			const name = idMatch[1];
+			names.push(name);
+		}
+
+		if (names.length) {
+			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
+				.then(pager => new PagedModel(pager));
 		}
 
 		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {
