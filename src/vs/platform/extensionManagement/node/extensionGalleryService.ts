@@ -278,7 +278,7 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.LocalizedLanguages) : [];
 	const value = (values.length > 0 && values[0].value) || '';
-	return value.split(',');
+	return value ? value.split(',') : [];
 }
 
 function getIsPreview(flags: string): boolean {

@@ -181,7 +181,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extension = extension;
 
 		if (extension.gallery && extension.gallery.properties && extension.gallery.properties.localizedLanguages && extension.gallery.properties.localizedLanguages.length) {
-			data.description.textContent = extension.gallery.properties.localizedLanguages.filter(name => name.trim()).map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
+			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
 		}
 	}
 
