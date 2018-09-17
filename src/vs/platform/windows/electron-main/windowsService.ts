@@ -23,7 +23,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorksp
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
@@ -522,15 +522,25 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			process.arch
 		);
 
+		const ok = nls.localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		let buttons: string[];
+		if (isLinux) {
+			buttons = [copy, ok];
+		} else {
+			buttons = [ok, copy];
+		}
+
 		this.windowsMainService.showMessageBox({
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
-			buttons: [nls.localize('okButton', "OK"), mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))],
-			noLink: true
+			buttons,
+			noLink: true,
+			defaultId: buttons.indexOf(ok)
 		}, lastActiveWindow).then(result => {
-			if (result.button === 1) {
+			if (buttons[result.button] === copy) {
 				clipboard.writeText(detail);
 			}
 		});

@@ -158,7 +158,13 @@ export abstract class Marker {
 		const newChildren = parent.children.slice(0);
 		newChildren.splice(idx, 1, ...others);
 		parent._children = newChildren;
-		others.forEach(node => node.parent = parent);
+
+		(function _fixParent(children: Marker[], parent: Marker) {
+			for (const child of children) {
+				child.parent = parent;
+				_fixParent(child.children, child);
+			}
+		})(others, parent);
 	}
 
 	get children(): Marker[] {
