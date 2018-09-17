@@ -1222,3 +1222,39 @@ export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 		state.change({ matchCase: !state.matchCase }, false);
 	}
 }
+
+export class FindNext extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.terminalService.findNext();
+		return TPromise.as(void 0);
+	}
+}
+
+export class FindPrevious extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.terminalService.findPrevious();
+		return TPromise.as(void 0);
+	}
+}
