@@ -69,6 +69,8 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExperimentService private experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
+
+		// TODO: Remove this once all the language packs we own are published using the latest vsce
 		const languagePackPromise = createCancelablePromise(token => {
 			return this.extensionsWorkbenchService.queryGallery({ text: 'category:"language packs"' }).then(pager => {
 				this.languagePacks.push(...pager.firstPage.map(e => e.id));
