@@ -43,30 +43,7 @@ function patchProcess(allowExit: boolean) {
 }
 
 export function exit(code?: number) {
-	// See https://github.com/Microsoft/vscode/issues/32990
-	// calling process.exit() does not exit the process when the process is being debugged
-	// It waits for the debugger to disconnect, but in our version, the debugger does not
-	// receive an event that the process desires to exit such that it can disconnect.
-
-	let watchdog: { exit: (exitCode: number) => void; } = null;
-	try {
-		watchdog = require.__$__nodeRequire('native-watchdog');
-	} catch (err) {
-		nativeExit(code);
-		return;
-	}
-
-	// Do exactly what node.js would have done, minus the wait for the debugger part
-
-	if (code || code === 0) {
-		process.exitCode = code;
-	}
-
-	if (!(<any>process)._exiting) {
-		(<any>process)._exiting = true;
-		process.emit('exit', process.exitCode || 0);
-	}
-	watchdog.exit(process.exitCode || 0);
+	nativeExit(code);
 }
 
 interface ITestRunner {
