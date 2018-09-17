@@ -20,6 +20,13 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
 import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { snippetsPlaceholderBackground, snippetsFinalPlaceholderBorder } from 'vs/platform/theme/common/colorRegistry';
+
+registerThemingParticipant((theme, collector) => {
+	collector.addRule(`.monaco-editor .snippet-placeholder { background-color: ${theme.getColor(snippetsPlaceholderBackground)}}`);
+	collector.addRule(`.monaco-editor .finish-snippet-placeholder { outline-color: ${theme.getColor(snippetsFinalPlaceholderBorder)}}`);
+});
 
 export class OneSnippet {
 

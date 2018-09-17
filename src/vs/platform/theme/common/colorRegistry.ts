@@ -293,6 +293,12 @@ export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', 
 export const diffBorder = registerColor('diffEditor.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('diffEditorBorder', 'Border color between the two text editors.'));
 
 /**
+ * Snippet placeholder colors
+ */
+export const snippetsPlaceholderBackground = registerColor('snippetPlaceholder.brackground', { dark: new Color(new RGBA(124, 124, 124, 0.3)), light: new Color(new RGBA(10, 50, 100, 0.2)), hc: new Color(new RGBA(124, 124, 124, 0.3)) }, nls.localize('snippetPlaceholder', "Background color of a snippet placeholder"));
+export const snippetsFinalPlaceholderBorder = registerColor('snippetFinalPlaceholder.border', { dark: '#525252', light: new Color(new RGBA(10, 50, 100, 0.5)), hc: '#525252' }, nls.localize('snippetFinalPlaceholder', "Border of the final placeholder of a snippet."));
+
+/**
  * Breadcrumb colors
  */
 export const breadcrumbsForeground = registerColor('breadcrumb.foreground', { light: transparent(foreground, .8), dark: transparent(foreground, .8), hc: transparent(foreground, .8) }, nls.localize('breadcrumbsFocusForeground', "Color of focused breadcrumb items."));
