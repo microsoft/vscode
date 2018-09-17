@@ -143,7 +143,7 @@ const config = {
 		darwinBundleDocumentType(["cs", "csx"], 'resources/darwin/csharp.icns'),
 		darwinBundleDocumentType(["css"], 'resources/darwin/css.icns'),
 		darwinBundleDocumentType(["go"], 'resources/darwin/go.icns'),
-		darwinBundleDocumentType(["asp", "aspx", "cshtml", "htm", "html", "jshtm", "phtml", "shtml"], 'resources/darwin/html.icns'),
+		darwinBundleDocumentType(["asp", "aspx", "cshtml", "htm", "html", "jshtm", "jsp", "phtml", "shtml"], 'resources/darwin/html.icns'),
 		darwinBundleDocumentType(["jade"], 'resources/darwin/jade.icns'),
 		darwinBundleDocumentType(["jav", "java"], 'resources/darwin/java.icns'),
 		darwinBundleDocumentType(["js", "jscsrc", "jshintrc"], 'resources/darwin/javascript.icns'),
@@ -162,7 +162,7 @@ const config = {
 		darwinBundleDocumentType(["vue"], 'resources/darwin/vue.icns'),
 		darwinBundleDocumentType(["ascx", "csproj", "dtd", "wxi", "wxl", "wxs", "xml", "xaml"], 'resources/darwin/xml.icns'),
 		darwinBundleDocumentType(["eyaml", "eyml", "yaml", "yml"], 'resources/darwin/yaml.icns'),
-		darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "code-workspace", "coffee", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "jsp", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
+		darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "code-workspace", "coffee", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
 	],
 	darwinBundleURLTypes: [{
 		role: 'Viewer',
