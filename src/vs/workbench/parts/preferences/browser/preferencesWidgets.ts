@@ -570,7 +570,7 @@ export class SearchWidget extends Widget {
 
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
-	private inputBox: InputBox;
+	protected inputBox: InputBox;
 	private controlsDiv: HTMLElement;
 
 	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
