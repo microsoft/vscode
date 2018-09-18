@@ -337,7 +337,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), true);
+		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, breakpoint);

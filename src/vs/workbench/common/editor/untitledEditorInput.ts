@@ -84,7 +84,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(resources.dirname(this.resource), true);
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
 	}
 
 	@memoize
@@ -121,7 +121,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.resource, true);
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
