@@ -93,10 +93,7 @@
 	overflow: hidden;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-icon {
-	/* background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat; */
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
 	-webkit-mask-size: 16px;
 	-webkit-mask-position: 50% 50%;
 	-webkit-mask-repeat: no-repeat;
@@ -109,25 +106,25 @@
 	-webkit-font-smoothing: antialiased;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
 	flex: 1;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel::after {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
 	display: none;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions,
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions,
-.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions {
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
+.tree-explorer-viewlet-tree-view .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
 	display: block;
 }
 
-.tree-explorer-viewlet-tree-view .monaco-tree .custom-view-tree-node-item>.custom-view-tree-node-item-resourceLabel>.actions .action-label {
+.tree-explorer-viewlet-tree-view .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
 	width: 16px;
 	height: 100%;
 	background-position: 50% 50%;
