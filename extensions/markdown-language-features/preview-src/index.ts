@@ -13,7 +13,6 @@ import throttle = require('lodash.throttle');
 declare var acquireVsCodeApi: any;
 
 var scrollDisabled = true;
-var windowLoaded = false;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 
@@ -30,10 +29,6 @@ window.styleLoadingMonitor.setPoster(messaging);
 
 window.onload = () => {
 	updateImageSizes();
-
-	setTimeout(() => {
-		windowLoaded = true;
-	}, 500);
 };
 
 onceDocumentLoaded(() => {
@@ -153,7 +148,7 @@ if (settings.scrollEditorWithPreview) {
 	window.addEventListener('scroll', throttle(() => {
 		if (scrollDisabled) {
 			scrollDisabled = false;
-		} else if (windowLoaded) {
+		} else {
 			const line = getEditorLineNumberForPageOffset(window.scrollY);
 			if (typeof line === 'number' && !isNaN(line)) {
 				messaging.postMessage('revealLine', { line });

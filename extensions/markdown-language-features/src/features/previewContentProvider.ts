@@ -152,7 +152,8 @@ export class MarkdownContentProvider {
 		if (state && state.imageInfo) {
 			state.imageInfo.forEach((imgInfo: any) => {
 				ret += `#${imgInfo.id}.loading {
-					min-height: ${imgInfo.height}px;
+					height: ${imgInfo.height}px;
+					width: ${imgInfo.width}px;
 				}\n`;
 			});
 		}
