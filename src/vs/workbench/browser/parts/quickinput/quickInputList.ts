@@ -38,6 +38,7 @@ interface IListElement {
 	saneLabel: string;
 	saneDescription?: string;
 	saneDetail?: string;
+	alwaysShow?: boolean;
 	checked: boolean;
 	separator: IQuickPickSeparator;
 	fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -49,6 +50,7 @@ class ListElement implements IListElement {
 	saneLabel: string;
 	saneDescription?: string;
 	saneDetail?: string;
+	alwaysShow?: boolean;
 	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
@@ -363,6 +365,7 @@ export class QuickInputList {
 					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
 					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
 					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
+					alwaysShow: item.alwaysShow,
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
