@@ -78,11 +78,12 @@ function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?:
 	}
 
 	try {
-		return fs.readdirSync(parentDir).map(f => {
+		const paths = fs.readdirSync(parentDir).map(f => {
 			return isDir(path.resolve(parentDir, f))
 				? f + '/'
 				: f;
 		});
+		return paths.filter(p => p[0] !== '.');
 	} catch (e) {
 		return [];
 	}

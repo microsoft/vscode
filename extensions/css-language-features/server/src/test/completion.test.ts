@@ -193,4 +193,14 @@ suite('Completions', () => {
 			]
 		}, testSCSSUri, folders, 'scss');
 	});
+
+	test('Completion should ignore files/folders starting with dot', function () {
+		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+
+		assertCompletions('html { background-image: url("../|")', {
+			count: 4
+		}, testUri, folders);
+
+	});
 });
