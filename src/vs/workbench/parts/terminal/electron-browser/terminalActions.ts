@@ -1198,7 +1198,7 @@ abstract class ToggleFindOptionCommand extends Action {
 
 export class ToggleRegexCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
-	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX, "Toggle find using regex");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
 
 	protected runInner(state: FindReplaceState): void {
 		state.change({ isRegex: !state.isRegex }, false);
@@ -1207,7 +1207,7 @@ export class ToggleRegexCommand extends ToggleFindOptionCommand {
 
 export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
-	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD, "Toggle find using whole word");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
 
 	protected runInner(state: FindReplaceState): void {
 		state.change({ wholeWord: !state.wholeWord }, false);
@@ -1216,7 +1216,7 @@ export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
 
 export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
 	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
-	public static readonly LABEL = nls.localize(TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE, "Toggle find using case sensitive");
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
 
 	protected runInner(state: FindReplaceState): void {
 		state.change({ matchCase: !state.matchCase }, false);
