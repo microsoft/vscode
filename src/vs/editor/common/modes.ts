@@ -842,7 +842,7 @@ export interface FoldingRangeProvider {
 	/**
 	 * Provides the id of the provider.
 	 */
-	id: string | null;
+	id?: string;
 	/**
 	 * Provides the folding ranges for a specific model.
 	 */
