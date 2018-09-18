@@ -593,12 +593,11 @@ export class CommandCenter {
 			return;
 		}
 
-		const preview = uris.length === 1 ? true : false;
 		const activeTextEditor = window.activeTextEditor;
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
-				preview,
+				preview: false,
 				viewColumn: ViewColumn.Active
 			};
 
