@@ -109,6 +109,12 @@ suite('MainThreadSaveParticipant', function () {
 			model.textEditorModel.setValue(lineContent);
 			participant.participate(model, { reason: SaveReason.EXPLICIT });
 			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${textContent}${eol}`);
+
+			// Collapse new lines into one when file has only newlines bug#48853
+			lineContent = `${eol}${eol}${eol}`;
+			model.textEditorModel.setValue(lineContent);
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			assert.equal(snapshotToString(model.createSnapshot()), `${eol}`);
 		});
 	});
 
