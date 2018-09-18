@@ -15,20 +15,21 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestSupport, ISuggestion } from 'vs/editor/common/modes';
+import { ISuggestion, ISuggestSupport } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICompletionItem, CompletionModel } from './completionModel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICompletionItem } from './completionModel';
 import { Context as SuggestContext } from './suggest';
+import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class AcceptOnCharacterOracle {
 
@@ -73,93 +74,6 @@ class AcceptOnCharacterOracle {
 
 	dispose() {
 		dispose(this._disposables);
-	}
-}
-
-class SuggestAlternatives {
-
-	static OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
-
-	private readonly _ckOtherSuggestions: IContextKey<boolean>;
-
-	private _index: number;
-	private _model: CompletionModel;
-	private _listener: IDisposable;
-	private _ignore: boolean;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _accept: (selected: ISelectedSuggestion) => any,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		this._ckOtherSuggestions = SuggestAlternatives.OtherSuggestions.bindTo(contextKeyService);
-	}
-
-	reset(): void {
-		this._ckOtherSuggestions.reset();
-		dispose(this._listener);
-		this._model = undefined;
-		this._ignore = false;
-	}
-
-	set({ model, index }: ISelectedSuggestion): void {
-		// no suggestions -> nothing to do
-		if (model.items.length === 0) {
-			this.reset();
-			return;
-		}
-
-		// no alternative suggestions -> nothing to do
-		let nextIndex = SuggestAlternatives._moveIndex(true, model, index);
-		if (nextIndex === index) {
-			this.reset();
-			return;
-		}
-
-		this._model = model;
-		this._index = index;
-		this._listener = this._editor.onDidChangeCursorPosition(() => {
-			if (!this._ignore) {
-				this.reset();
-			}
-		});
-		this._ckOtherSuggestions.set(true);
-	}
-
-	private static _moveIndex(fwd: boolean, model: CompletionModel, index: number): number {
-		let newIndex = index;
-		while (true) {
-			newIndex = (newIndex + model.items.length + (fwd ? +1 : -1)) % model.items.length;
-			if (newIndex === index) {
-				break;
-			}
-			if (!model.items[newIndex].suggestion.insertTextIsSnippet) {
-				break;
-			}
-		}
-		return newIndex;
-	}
-
-	next(): void {
-		this._move(true);
-	}
-
-	prev(): void {
-		this._move(false);
-	}
-
-	private _move(fwd: boolean): void {
-		if (!this._model) {
-			// nothing to reason about
-			return;
-		}
-		try {
-			this._ignore = true;
-			this._index = SuggestAlternatives._moveIndex(fwd, this._model, this._index);
-			this._accept({ index: this._index, item: this._model.items[this._index], model: this._model });
-		} finally {
-			this._ignore = false;
-		}
 	}
 }
 
