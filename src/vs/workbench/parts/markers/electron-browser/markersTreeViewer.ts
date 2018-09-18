@@ -82,7 +82,7 @@ export class DataSource implements IDataSource {
 		}
 
 		if (element instanceof ResourceMarkers) {
-			return element.filteredCount <= 10;
+			return true;
 		}
 
 		if (element instanceof Marker && element.resourceRelatedInformation.length > 0) {
