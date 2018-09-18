@@ -659,11 +659,14 @@ export class RunActiveFileInTerminalAction extends Action {
 		if (hasSpace && isWindows) {
 			uriPath = '"' + uriPath + '"';
 		} else if (!isWindows) {
+			if (uriPath.indexOf('\\') !== 0) {
+				uriPath = uriPath.replace(/\\/g, '\\\\');
+			}
 			const hasDoubleQuote = uriPath.indexOf('"') !== -1;
 			if (!hasSpace && hasDoubleQuote) {
 				uriPath = '\'' + uriPath + '\'';
 			} else if (hasSpace) {
-				uriPath = uriPath.replace(' ', '\\ ');
+				uriPath = uriPath.replace(/ /g, '\\ ');
 			}
 		}
 		instance.sendText(uriPath, true);
