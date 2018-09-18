@@ -60,7 +60,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		labelService.registerFormatter(Schemas.file, {
 			uri: {
-				label: '${path}',
+				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows
