@@ -1012,11 +1012,11 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		return this.sendToOneOrAllSessions(session, s => {
-			return s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
+			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
 				if (data) {
 					this.model.setBreakpointSessionData(s.getId(), data);
 				}
-			});
+			}) : TPromise.as(undefined);
 		});
 	}
 
