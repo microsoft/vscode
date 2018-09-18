@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -402,6 +402,23 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _onExtensionHostCrashed(code: number, signal: string): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
+
+		if (code === 55) {
+			this._notificationService.prompt(
+				Severity.Error,
+				nls.localize('extensionHostProcess.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+				[{
+					label: nls.localize('relaunch', "Relaunch VS Code"),
+					run: () => {
+						this._instantiationService.invokeFunction((accessor) => {
+							const windowsService = accessor.get(IWindowsService);
+							windowsService.relaunch({});
+						});
+					}
+				}]
+			);
+			return;
+		}
 
 		let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly.");
 		if (code === 87) {

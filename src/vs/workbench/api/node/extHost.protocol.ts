@@ -59,6 +59,7 @@ export interface IWorkspaceData {
 }
 
 export interface IInitData {
+	commit: string;
 	parentPid: number;
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
