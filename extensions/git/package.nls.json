@@ -28,6 +28,7 @@
 	"command.commitAll": "Commit All",
 	"command.commitAllSigned": "Commit All (Signed Off)",
 	"command.commitAllAmend": "Commit All (Amend)",
+	"command.restoreCommitTemplate": "Restore Commit Template",
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
 	"command.branch": "Create Branch...",

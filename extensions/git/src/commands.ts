@@ -1238,6 +1238,11 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { empty: true });
 	}
 
+	@command('git.restoreCommitTemplate', { repository: true })
+	async restoreCommitTemplate(repository: Repository): Promise<void> {
+		repository.inputBox.value = await repository.getCommitTemplate();
+	}
+
 	@command('git.undoCommit', { repository: true })
 	async undoCommit(repository: Repository): Promise<void> {
 		const HEAD = repository.HEAD;
