@@ -89,7 +89,7 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options?: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
 		this.width = options.width || 100;
@@ -385,6 +385,7 @@ export class FindInput extends Widget {
 
 		let controls = document.createElement('div');
 		controls.className = 'controls';
+		controls.style.display = this._showOptionButtons ? 'block' : 'none';
 		controls.appendChild(this.caseSensitive.domNode);
 		controls.appendChild(this.wholeWords.domNode);
 		controls.appendChild(this.regex.domNode);

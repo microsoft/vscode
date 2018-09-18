@@ -152,8 +152,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 					getAnchor: () => anchor,
 					getActions: () => TPromise.as(contextMenuActions),
 					getActionItem: action => this.actionItemProvider(action as Action),
-					actionRunner: activeViewlet.getActionRunner(),
-					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id)
+					actionRunner: activeViewlet.getActionRunner()
 				});
 			}
 		}

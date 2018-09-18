@@ -352,6 +352,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+			console.log(_error);
 		},
 		onObjectEnd() {
 			if (inScripts) {
@@ -360,7 +361,9 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 		},
 		onLiteralValue(value: any, _offset: number, _length: number) {
 			if (script) {
-				scripts[script] = value;
+				if (typeof value === 'string') {
+					scripts[script] = value;
+				}
 				script = undefined;
 			}
 		},
@@ -368,8 +371,10 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			if (property === 'scripts') {
 				inScripts = true;
 			}
-			else if (inScripts) {
+			else if (inScripts && !script) {
 				script = property;
+			} else { // nested object which is invalid, ignore the script 
+				script = undefined;
 			}
 		}
 	};
@@ -416,6 +421,7 @@ export function findAllScriptRanges(buffer: string): Map<string, [number, number
 
 export function findScriptAtPosition(buffer: string, offset: number): string | undefined {
 	let script: string | undefined = undefined;
+	let foundScript: string | undefined = undefined;
 	let inScripts = false;
 	let scriptStart: number | undefined;
 	let visitor: JSONVisitor = {
@@ -429,9 +435,10 @@ export function findScriptAtPosition(buffer: string, offset: number): string | u
 		},
 		onLiteralValue(value: any, nodeOffset: number, nodeLength: number) {
 			if (inScripts && scriptStart) {
-				if (offset >= scriptStart && offset < nodeOffset + nodeLength) {
+				if (typeof value === 'string' && offset >= scriptStart && offset < nodeOffset + nodeLength) {
 					// found the script
 					inScripts = false;
+					foundScript = script;
 				} else {
 					script = undefined;
 				}
@@ -444,11 +451,13 @@ export function findScriptAtPosition(buffer: string, offset: number): string | u
 			else if (inScripts) {
 				scriptStart = nodeOffset;
 				script = property;
+			} else { // nested object which is invalid, ignore the script 
+				script = undefined;
 			}
 		}
 	};
 	visit(buffer, visitor);
-	return script;
+	return foundScript;
 }
 
 export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {

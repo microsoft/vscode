@@ -59,6 +59,7 @@ export interface IWorkspaceData {
 }
 
 export interface IInitData {
+	commit: string;
 	parentPid: number;
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
@@ -471,7 +472,7 @@ export interface ExtHostUrlsShape {
 
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<UriComponents[]>;
-	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<void>;
+	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
@@ -995,6 +996,7 @@ export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Thenable<modes.CommentInfo>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread>;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
+	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Thenable<modes.Comment>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 

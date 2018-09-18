@@ -33,6 +33,7 @@ export class MarkdownPreview {
 	private forceUpdate = false;
 	private isScrolling = false;
 	private _disposed: boolean = false;
+	private imageInfo: { id: string, width: number, height: number }[] = [];
 
 	public static async revive(
 		webview: vscode.WebviewPanel,
@@ -123,6 +124,10 @@ export class MarkdownPreview {
 			}
 
 			switch (e.type) {
+				case 'cacheImageSizes':
+					this.onCacheImageSizes(e.body);
+					break;
+
 				case 'command':
 					vscode.commands.executeCommand(e.body.command, ...e.body.args);
 					break;
@@ -181,7 +186,8 @@ export class MarkdownPreview {
 		return {
 			resource: this.resource.toString(),
 			locked: this._locked,
-			line: this.line
+			line: this.line,
+			imageInfo: this.imageInfo
 		};
 	}
 
@@ -399,6 +405,10 @@ export class MarkdownPreview {
 		}
 
 		vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
+	}
+
+	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {
+		this.imageInfo = imageInfo;
 	}
 }
 

@@ -221,6 +221,11 @@
         "category": "Git"
       },
       {
+        "command": "git.restoreCommitTemplate",
+        "title": "%command.restoreCommitTemplate%",
+        "category": "Git"
+      },
+      {
         "command": "git.undoCommit",
         "title": "%command.undoCommit%",
         "category": "Git"
@@ -475,6 +480,10 @@
         {
           "command": "git.commitAllAmend",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.restoreCommitTemplate",
+          "when": "false"
         },
         {
           "command": "git.undoCommit",
@@ -1106,6 +1115,11 @@
           ],
           "default": "warn",
           "description": "%config.inputValidation%"
+        },
+        "git.inputValidationLength": {
+          "type": "number",
+          "default": 72,
+          "description": "%config.inputValidationLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",

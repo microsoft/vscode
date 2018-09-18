@@ -1008,6 +1008,7 @@ export interface Comment {
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly gravatar: string;
+	readonly canEdit?: boolean;
 	readonly command?: Command;
 }
 
@@ -1039,6 +1040,7 @@ export interface DocumentCommentProvider {
 	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
 	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<Comment>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
@@ -1047,8 +1049,6 @@ export interface DocumentCommentProvider {
  */
 export interface WorkspaceCommentProvider {
 	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 

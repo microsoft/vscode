@@ -299,23 +299,19 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.keybindings-header'));
+		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
+		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Type keybindings to search");
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, <KeybindingsSearchOptions>{
-			ariaLabel: localize('SearchKeybindings.AriaLabel', "Search keybindings"),
-			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
+			ariaLabel: fullTextSearchPlaceholder,
+			placeholder: fullTextSearchPlaceholder,
 			focusKey: this.searchFocusContextKey,
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.filterKeybindings())));
-		this._register(this.searchWidget.onEscape(() => {
-			if (this.searchWidget.getValue()) {
-				this.searchWidget.clear();
-			} else {
-				this.recordKeysAction.checked = false;
-			}
-		}));
+		this._register(this.searchWidget.onEscape(() => this.recordKeysAction.checked = false));
 
 		this.sortByPrecedenceAction = new Action('keybindings.editor.sortByPrecedence', localize('sortByPrecedene', "Sort by Precedence"), 'sort-by-precedence');
 		this.sortByPrecedenceAction.checked = false;
@@ -330,9 +326,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(this.recordKeysAction.onDidChange(e => {
 			if (e.checked !== void 0) {
 				if (e.checked) {
+					this.searchWidget.inputBox.setPlaceHolder(keybindingsSearchPlaceholder);
+					this.searchWidget.inputBox.setAriaLabel(keybindingsSearchPlaceholder);
 					this.searchWidget.startRecordingKeys();
 					this.searchWidget.focus();
 				} else {
+					this.searchWidget.inputBox.setPlaceHolder(fullTextSearchPlaceholder);
+					this.searchWidget.inputBox.setAriaLabel(fullTextSearchPlaceholder);
 					this.searchWidget.stopRecordingKeys();
 					this.searchWidget.focus();
 				}
@@ -925,8 +925,10 @@ class WhenColumn extends Column {
 		DOM.toggleClass(this.whenColumn, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenColumn, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
-			new HighlightedLabel(this.whenColumn).set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
+			const whenLabel = new HighlightedLabel(this.whenColumn);
+			whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
 			this.whenColumn.title = keybindingItemEntry.keybindingItem.when;
+			whenLabel.element.title = keybindingItemEntry.keybindingItem.when;
 		} else {
 			this.whenColumn.textContent = '—';
 		}

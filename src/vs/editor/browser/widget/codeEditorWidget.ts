@@ -703,7 +703,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
-	public setSelections(ranges: ISelection[]): void {
+	public setSelections(ranges: ISelection[], source: string = 'api'): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -715,7 +715,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				throw new Error('Invalid arguments');
 			}
 		}
-		this.cursor.setSelections('api', ranges);
+		this.cursor.setSelections(source, ranges);
 	}
 
 	public getScrollWidth(): number {

@@ -775,6 +775,20 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 	}
 
+	getChanges(): IChange[] {
+		if (!this.modelRegistry) {
+			return [];
+		}
+
+		const model = this.modelRegistry.getModel(this.editor.getModel());
+
+		if (!model) {
+			return [];
+		}
+
+		return model.changes;
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}

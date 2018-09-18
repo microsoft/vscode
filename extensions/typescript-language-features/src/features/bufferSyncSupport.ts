@@ -157,7 +157,7 @@ class GetErrRequest {
 		};
 
 		client.executeAsync('geterr', args, _token.token)
-			.then(undefined, () => { })
+			.catch(() => true)
 			.then(() => {
 				if (this._done) {
 					return;

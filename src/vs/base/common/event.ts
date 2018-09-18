@@ -443,6 +443,10 @@ export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Even
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
+export function signalEvent<T>(event: Event<T>): Event<void> {
+	return event as Event<any> as Event<void>;
+}
+
 class ChainableEvent<T> implements IChainableEvent<T> {
 
 	get event(): Event<T> { return this._event; }

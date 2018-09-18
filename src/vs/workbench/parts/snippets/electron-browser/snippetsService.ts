@@ -317,6 +317,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		return this._snippets.getSnippets(languageId).then(snippets => {
 
 			let suggestions: SnippetSuggestion[];
+			let shift = Math.max(0, position.column - 100);
 			let pos = { lineNumber: position.lineNumber, column: Math.max(1, position.column - 100) };
 			let lineOffsets: number[] = [];
 			let linePrefixLow = model.getLineContent(position.lineNumber).substr(Math.max(0, position.column - 100), position.column - 1).toLowerCase();
@@ -349,7 +350,8 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 			} else {
 				let consumed = new Set<Snippet>();
 				suggestions = [];
-				for (const start of lineOffsets) {
+				for (let start of lineOffsets) {
+					start -= shift;
 					for (const snippet of snippets) {
 						if (!consumed.has(snippet) && matches(linePrefixLow, start, snippet.prefixLow, 0)) {
 							suggestions.push(new SnippetSuggestion(snippet, linePrefixLow.length - start));

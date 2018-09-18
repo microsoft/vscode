@@ -42,7 +42,6 @@ export class MarkersPanel extends Panel {
 	private currentActiveResource: URI = null;
 
 	private tree: WorkbenchTree;
-	private autoExpanded: Set<string>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -68,7 +67,6 @@ export class MarkersPanel extends Panel {
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.delayedRefresh = new Delayer<void>(500);
-		this.autoExpanded = new Set<string>();
 		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.setCurrentActiveEditor();
 	}
@@ -175,16 +173,13 @@ export class MarkersPanel extends Panel {
 			dom.toggleClass(this.treeContainer, 'hidden', !this.markersWorkbenchService.markersModel.hasFilteredResources());
 			this.renderMessage();
 			if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
-				return this.tree.refresh().then(() => {
-					this.autoExpand();
-				});
+				return this.tree.refresh();
 			}
 		}
 		return TPromise.as(null);
 	}
 
 	private updateFilter() {
-		this.autoExpanded = new Set<string>();
 		this.markersWorkbenchService.filter({ filterText: this.filterAction.filterText, useFilesExclude: this.filterAction.useFilesExclude });
 	}
 
@@ -254,7 +249,6 @@ export class MarkersPanel extends Panel {
 
 	private onDidChange(resources: URI[]) {
 		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
-		this.updateResources(resources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
@@ -293,21 +287,10 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	private updateResources(resources: URI[]) {
-		for (const resource of resources) {
-			if (!this.markersWorkbenchService.markersModel.hasResource(resource)) {
-				this.autoExpanded.delete(resource.toString());
-			}
-		}
-	}
-
 	private render(): TPromise<void> {
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersWorkbenchService.markersModel.hasFilteredResources());
 		return this.tree.setInput(this.markersWorkbenchService.markersModel)
-			.then(() => {
-				this.renderMessage();
-				this.autoExpand();
-			});
+			.then(() => this.renderMessage());
 	}
 
 	private renderMessage(): void {
@@ -375,15 +358,6 @@ export class MarkersPanel extends Panel {
 		this.ariaLabelElement.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
 	}
 
-	private autoExpand(): void {
-		this.markersWorkbenchService.markersModel.forEachFilteredResource(resource => {
-			if (!this.autoExpanded.has(resource.uri.toString())) {
-				this.tree.expand(resource);
-				this.autoExpanded.add(resource.uri.toString());
-			}
-		});
-	}
-
 	private autoReveal(focus: boolean = false): void {
 		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
 		if (typeof autoReveal === 'boolean' && autoReveal) {
@@ -400,11 +374,14 @@ export class MarkersPanel extends Panel {
 					this.tree.setFocus(this.tree.getSelection()[0]);
 				}
 			} else {
-				this.tree.reveal(currentActiveResource, 0);
-				if (focus) {
-					this.tree.setFocus(currentActiveResource);
-					this.tree.setSelection([currentActiveResource]);
-				}
+				this.tree.expand(currentActiveResource)
+					.then(() => this.tree.reveal(currentActiveResource, 0))
+					.then(() => {
+						if (focus) {
+							this.tree.setFocus(currentActiveResource);
+							this.tree.setSelection([currentActiveResource]);
+						}
+					});
 			}
 		} else if (focus) {
 			this.tree.setSelection([]);

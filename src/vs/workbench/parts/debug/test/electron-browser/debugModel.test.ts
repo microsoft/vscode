@@ -144,7 +144,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		session['_raw'] = <any>rawSession;
+		session['raw'] = <any>rawSession;
 
 		model.rawUpdate({
 			sessionId: session.getId(),
@@ -237,7 +237,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		session['_raw'] = <any>rawSession;
+		session['raw'] = <any>rawSession;
 
 		// Add the threads
 		model.rawUpdate({
@@ -351,7 +351,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		session['_raw'] = <any>rawSession;
+		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 		model.addReplExpression(session, stackFrame, 'myVariable').then();

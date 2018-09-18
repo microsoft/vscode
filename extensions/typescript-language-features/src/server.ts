@@ -25,26 +25,23 @@ interface CallbackItem<R> {
 	readonly onSuccess: (value: R) => void;
 	readonly onError: (err: any) => void;
 	readonly startTime: number;
+	readonly isAsync: boolean;
 }
 
 class CallbackMap<R> {
 	private readonly _callbacks = new Map<number, CallbackItem<R>>();
 	private readonly _asyncCallbacks = new Map<number, CallbackItem<R>>();
-	private _pendingResponseCount = 0;
-
-	public get pendingResponseCount() {
-		return this._pendingResponseCount;
-	}
 
 	public destroy(cause: Error): void {
 		for (const callback of this._callbacks.values()) {
 			callback.onError(cause);
 		}
+		this._callbacks.clear();
+
 		for (const callback of this._asyncCallbacks.values()) {
 			callback.onError(cause);
 		}
-		this._callbacks.clear();
-		this._pendingResponseCount = 0;
+		this._asyncCallbacks.clear();
 	}
 
 	public add(seq: number, callback: CallbackItem<R>, isAsync: boolean) {
@@ -52,9 +49,9 @@ class CallbackMap<R> {
 			this._asyncCallbacks.set(seq, callback);
 		} else {
 			this._callbacks.set(seq, callback);
-			++this._pendingResponseCount;
 		}
 	}
+
 
 	public fetch(seq: number): CallbackItem<R> | undefined {
 		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
@@ -63,9 +60,7 @@ class CallbackMap<R> {
 	}
 
 	private delete(seq: number) {
-		if (this._callbacks.delete(seq)) {
-			--this._pendingResponseCount;
-		} else {
+		if (!this._callbacks.delete(seq)) {
 			this._asyncCallbacks.delete(seq);
 		}
 	}
@@ -73,12 +68,12 @@ class CallbackMap<R> {
 
 interface RequestItem {
 	readonly request: Proto.Request;
-	callbacks: CallbackItem<Proto.Response | undefined> | null;
+	readonly expectsResponse: boolean;
 	readonly isAsync: boolean;
 }
 
 class RequestQueue {
-	private queue: RequestItem[] = [];
+	private readonly queue: RequestItem[] = [];
 	private sequenceNumber: number = 0;
 
 	public get length(): number {
@@ -256,6 +251,7 @@ export class TypeScriptServer extends Disposable {
 	private readonly _reader: Reader<Proto.Response>;
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response | undefined>();
+	private readonly _pendingResponses = new Set<number>();
 
 	constructor(
 		private readonly _childProcess: cp.ChildProcess,
@@ -292,6 +288,7 @@ export class TypeScriptServer extends Disposable {
 	public dispose() {
 		super.dispose();
 		this._callbacks.destroy(new Error('server disposed'));
+		this._pendingResponses.clear();
 	}
 
 	public kill() {
@@ -357,15 +354,15 @@ export class TypeScriptServer extends Disposable {
 			this._tracer.logTrace(`TypeScript Server: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 			return false;
 		} finally {
-			const p = this._callbacks.fetch(seq);
-			if (p) {
-				p.onError(new Error(`Cancelled Request ${seq}`));
+			const callback = this.fetchCallback(seq);
+			if (callback) {
+				callback.onError(new Error(`Cancelled Request ${seq}`));
 			}
 		}
 	}
 
 	private dispatchResponse(response: Proto.Response) {
-		const callback = this._callbacks.fetch(response.request_seq);
+		const callback = this.fetchCallback(response.request_seq);
 		if (!callback) {
 			return;
 		}
@@ -382,14 +379,15 @@ export class TypeScriptServer extends Disposable {
 		const request = this._requestQueue.createRequest(command, args);
 		const requestInfo: RequestItem = {
 			request: request,
-			callbacks: null,
+			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync
 		};
 		let result: Promise<any>;
 		if (executeInfo.expectsResult) {
 			let wasCancelled = false;
 			result = new Promise<any>((resolve, reject) => {
-				requestInfo.callbacks = { onSuccess: resolve, onError: reject, startTime: Date.now() };
+				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, startTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
+
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
 						wasCancelled = true;
@@ -449,7 +447,7 @@ export class TypeScriptServer extends Disposable {
 	}
 
 	private sendNextRequests(): void {
-		while (this._callbacks.pendingResponseCount === 0 && this._requestQueue.length > 0) {
+		while (this._pendingResponses.size === 0 && this._requestQueue.length > 0) {
 			const item = this._requestQueue.shift();
 			if (item) {
 				this.sendRequest(item);
@@ -459,18 +457,30 @@ export class TypeScriptServer extends Disposable {
 
 	private sendRequest(requestItem: RequestItem): void {
 		const serverRequest = requestItem.request;
-		this._tracer.traceRequest(serverRequest, !!requestItem.callbacks, this._requestQueue.length);
-		if (requestItem.callbacks) {
-			this._callbacks.add(serverRequest.seq, requestItem.callbacks, requestItem.isAsync);
+		this._tracer.traceRequest(serverRequest, requestItem.expectsResponse, this._requestQueue.length);
+
+		if (requestItem.expectsResponse && !requestItem.isAsync) {
+			this._pendingResponses.add(requestItem.request.seq);
 		}
+
 		try {
 			this.write(serverRequest);
 		} catch (err) {
-			const callback = this._callbacks.fetch(serverRequest.seq);
+			const callback = this.fetchCallback(serverRequest.seq);
 			if (callback) {
 				callback.onError(err);
 			}
 		}
+	}
+
+	private fetchCallback(seq: number) {
+		const callback = this._callbacks.fetch(seq);
+		if (!callback) {
+			return undefined;
+		}
+
+		this._pendingResponses.delete(seq);
+		return callback;
 	}
 }
 

@@ -287,7 +287,7 @@ export class BreadcrumbsControl {
 
 		/* __GDPR__
 			"breadcrumbs/select" : {
-				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this._telemetryService.publicLog('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
@@ -326,7 +326,7 @@ export class BreadcrumbsControl {
 					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
 					/* __GDPR__
 						"breadcrumbs/open" : {
-							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 						}
 					*/
 					this._telemetryService.publicLog('breadcrumbs/open', { type: !data ? 'nothing' : data.target instanceof TreeElement ? 'symbol' : 'file' });
