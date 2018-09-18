@@ -21,9 +21,11 @@ export class SuggestAlternatives {
 	private _listener: IDisposable;
 	private _ignore: boolean;
 
-	constructor(private readonly _editor: ICodeEditor, private readonly _accept: (selected: ISelectedSuggestion) => any,
-		@IContextKeyService
-		contextKeyService: IContextKeyService) {
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _accept: (selected: ISelectedSuggestion) => any,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
 		this._ckOtherSuggestions = SuggestAlternatives.OtherSuggestions.bindTo(contextKeyService);
 	}
 
