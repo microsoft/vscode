@@ -21,10 +21,10 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICompletionItem } from './completionModel';
+import { ICompletionItem, CompletionModel } from './completionModel';
 import { Context as SuggestContext } from './suggest';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
@@ -76,6 +76,72 @@ class AcceptOnCharacterOracle {
 	}
 }
 
+class SuggestAlternatives {
+
+	static OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
+
+	private readonly _ckOtherSuggestions: IContextKey<boolean>;
+
+	private _index: number;
+	private _model: CompletionModel;
+	private _listener: IDisposable;
+	private _ignore: boolean;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _accept: (selected: ISelectedSuggestion) => any,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this._ckOtherSuggestions = SuggestAlternatives.OtherSuggestions.bindTo(contextKeyService);
+	}
+
+	reset(): void {
+		this._ckOtherSuggestions.set(false);
+		dispose(this._listener);
+		this._model = undefined;
+		this._ignore = false;
+	}
+
+	set(event: ISelectedSuggestion): void {
+		// todo@joh filter snippets and so
+		if (event.model.items.length > 1) {
+			this._model = event.model;
+			this._index = event.index;
+			this._listener = this._editor.onDidChangeCursorPosition(() => this._onCursorMove());
+			this._ckOtherSuggestions.set(true);
+		} else {
+			this.reset();
+		}
+	}
+
+	private _onCursorMove(): void {
+		if (!this._ignore) {
+			this.reset();
+		}
+	}
+
+	next(): void {
+		this._move(true);
+	}
+
+	prev(): void {
+		this._move(false);
+	}
+
+	private _move(fwd: boolean): void {
+		if (this._model) {
+			try {
+				this._ignore = true;
+				this._index = (this._index + this._model.items.length + (fwd ? 1 : -1)) % this._model.items.length;
+				this._accept({ index: this._index, item: this._model.items[this._index], model: this._model });
+			} finally {
+				this._ignore = false;
+			}
+		}
+	}
+
+}
+
 export class SuggestController implements IEditorContribution {
 
 	private static readonly ID: string = 'editor.contrib.suggestController';
@@ -87,6 +153,7 @@ export class SuggestController implements IEditorContribution {
 	private _model: SuggestModel;
 	private _widget: SuggestWidget;
 	private _memory: SuggestMemories;
+	private _alternatives: SuggestAlternatives;
 	private _toDispose: IDisposable[] = [];
 
 	private readonly _sticky = false; // for development purposes only
@@ -100,6 +167,8 @@ export class SuggestController implements IEditorContribution {
 	) {
 		this._model = new SuggestModel(this._editor);
 		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.suggestSelection);
+
+		this._alternatives = new SuggestAlternatives(this._editor, item => this._onDidSelectItem(item, false), this._contextKeyService);
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
 			if (!this._widget) {
@@ -136,10 +205,10 @@ export class SuggestController implements IEditorContribution {
 	private _createSuggestWidget(): void {
 
 		this._widget = this._instantiationService.createInstance(SuggestWidget, this._editor);
-		this._toDispose.push(this._widget.onDidSelect(this._onDidSelectItem, this));
+		this._toDispose.push(this._widget.onDidSelect(item => this._onDidSelectItem(item, false), this));
 
 		// Wire up logic to accept a suggestion on certain characters
-		const autoAcceptOracle = new AcceptOnCharacterOracle(this._editor, this._widget, item => this._onDidSelectItem(item));
+		const autoAcceptOracle = new AcceptOnCharacterOracle(this._editor, this._widget, item => this._onDidSelectItem(item, false));
 		this._toDispose.push(
 			autoAcceptOracle,
 			this._model.onDidSuggest(e => {
@@ -195,8 +264,9 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	protected _onDidSelectItem(event: ISelectedSuggestion): void {
+	protected _onDidSelectItem(event: ISelectedSuggestion, keepAlternativeSuggestions: boolean): void {
 		if (!event || !event.item) {
+			this._alternatives.reset();
 			this._model.cancel();
 			return;
 		}
@@ -245,6 +315,10 @@ export class SuggestController implements IEditorContribution {
 			this._model.cancel();
 		}
 
+		if (keepAlternativeSuggestions) {
+			this._alternatives.set(event);
+		}
+
 		this._alertCompletionItem(event.item);
 		SuggestController._onDidSelectTelemetry(this._telemetryService, suggestion);
 	}
@@ -273,11 +347,19 @@ export class SuggestController implements IEditorContribution {
 		this._editor.focus();
 	}
 
-	acceptSelectedSuggestion(): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean): void {
 		if (this._widget) {
 			const item = this._widget.getFocusedItem();
-			this._onDidSelectItem(item);
+			this._onDidSelectItem(item, keepAlternativeSuggestions);
 		}
+	}
+
+	acceptNextSuggestion() {
+		this._alternatives.next();
+	}
+
+	acceptPrevSuggestion() {
+		this._alternatives.prev();
 	}
 
 	cancelSuggestWidget(): void {
@@ -377,7 +459,7 @@ const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(Sugge
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(),
+	handler: x => x.acceptSelectedSuggestion(true),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -386,9 +468,31 @@ registerEditorCommand(new SuggestCommand({
 }));
 
 registerEditorCommand(new SuggestCommand({
+	id: 'acceptNextSuggestion',
+	precondition: ContextKeyExpr.and(SuggestAlternatives.OtherSuggestions, SuggestContext.Visible.toNegated()),
+	handler: x => x.acceptNextSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textInputFocus,
+		primary: KeyCode.Tab
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'acceptPrevSuggestion',
+	precondition: ContextKeyExpr.and(SuggestAlternatives.OtherSuggestions, SuggestContext.Visible.toNegated()),
+	handler: x => x.acceptPrevSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textInputFocus,
+		primary: KeyMod.Shift | KeyCode.Tab
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
-	handler: x => x.acceptSelectedSuggestion(),
+	handler: x => x.acceptSelectedSuggestion(false),
 	kbOpts: {
 		weight: weight,
 		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
