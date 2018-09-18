@@ -347,7 +347,7 @@ export class SuggestController implements IEditorContribution {
 		this._editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
 		if (this._widget) {
 			const item = this._widget.getFocusedItem();
 			this._onDidSelectItem(item, keepAlternativeSuggestions);
