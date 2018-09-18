@@ -1307,7 +1307,7 @@ export class CommandCenter {
 				return name;
 			}
 
-			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.|\[|\]$/g, branchWhitespaceChar);
+			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
 		};
 
 		const result = await window.showInputBox({
