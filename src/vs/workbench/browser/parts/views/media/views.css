@@ -22,15 +22,15 @@
 }
 
 /* Default Icon Colors */
-.vs-dark .file-icon-themable-tree .monaco-tree-row .content::before {
+.vs-dark .monaco-tree-row .content::before {
 	background-color: #E8E8E8;
 }
 
-.vs .file-icon-themable-tree .monaco-tree-row .content::before {
+.vs .monaco-tree-row .content::before {
 	background-color: #646465;
 }
 
-.hc-black .file-icon-themable-tree .monaco-tree-row .content::before {
+.hc-black .monaco-tree-row .content::before {
 	background-color: #FFF;
 }
 
@@ -100,7 +100,9 @@
 	-webkit-mask-size: 16px;
 	-webkit-mask-position: 50% 50%;
 	-webkit-mask-repeat: no-repeat;
-	-webkit-mask-image: url();
+	background-size: 16px;
+	background-position: center;
+	background-repeat: no-repeat;
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
