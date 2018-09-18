@@ -97,10 +97,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.windowService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.labelService.onDidRegisterFormatter(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => this.doUpdateTitle()));
+		this._register(this.labelService.onDidRegisterFormatter(() => this.doUpdateTitle()));
 	}
 
 	private onBlur(): void {
@@ -115,7 +115,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('window.title')) {
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 	}
 
@@ -155,18 +155,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.activeEditorListeners = [];
 
 		// Calculate New Window Title
-		this.setTitle(this.getWindowTitle());
+		this.doUpdateTitle();
 
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof EditorInput) {
-			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => {
-				this.setTitle(this.getWindowTitle());
-			}));
-
-			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => {
-				this.setTitle(this.getWindowTitle());
-			}));
+			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.doUpdateTitle()));
+			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.doUpdateTitle()));
 		}
 
 		// Represented File Name
@@ -184,23 +179,37 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.representedFileName = path;
 	}
 
+	private doUpdateTitle(): void {
+		const title = this.getWindowTitle();
+
+		// Always set the native window title to identify us properly to the OS
+		let nativeTitle = title;
+		if (!trim(nativeTitle)) {
+			nativeTitle = this.environmentService.appNameLong;
+		}
+		window.document.title = nativeTitle;
+
+		// Apply custom title if we can
+		if (this.title) {
+			this.title.innerText = title;
+		} else {
+			this.pendingTitle = title;
+		}
+	}
+
 	private getWindowTitle(): string {
 		let title = this.doGetWindowTitle();
-		if (!trim(title)) {
-			title = this.environmentService.appNameLong;
-		}
 
 		if (this.properties.isAdmin) {
-			title = `${title} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
+			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
 
 		if (!this.properties.isPure) {
-			title = `${title} ${TitlebarPart.NLS_UNSUPPORTED}`;
+			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_UNSUPPORTED}`;
 		}
 
-		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.isExtensionDevelopment) {
-			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title}`;
+			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.environmentService.appNameLong}`;
 		}
 
 		return title;
@@ -214,7 +223,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.properties.isAdmin = isAdmin;
 			this.properties.isPure = isPure;
 
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 	}
 
@@ -303,7 +312,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.pendingTitle) {
 			this.title.innerText = this.pendingTitle;
 		} else {
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 
 		// Maximize/Restore on doubleclick
@@ -483,19 +492,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		return actions;
-	}
-
-	setTitle(title: string): void {
-
-		// Always set the native window title to identify us properly to the OS
-		window.document.title = title;
-
-		// Apply if we can
-		if (this.title) {
-			this.title.innerText = title;
-		} else {
-			this.pendingTitle = title;
-		}
 	}
 
 	private updateLayout(dimension: Dimension) {

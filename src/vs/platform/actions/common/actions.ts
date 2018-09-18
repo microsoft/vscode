@@ -126,8 +126,13 @@ export interface IMenuService {
 export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
+	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
+}
+
+export interface ICommandsMap {
+	[id: string]: ICommandAction;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -144,6 +149,14 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	getCommand(id: string): ICommandAction {
 		return this._commands[id];
+	}
+
+	getCommands(): ICommandsMap {
+		const result: ICommandsMap = Object.create(null);
+		for (const key in this._commands) {
+			result[key] = this.getCommand(key);
+		}
+		return result;
 	}
 
 	appendMenuItem({ id }: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {

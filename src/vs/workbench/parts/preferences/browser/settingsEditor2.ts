@@ -781,7 +781,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onConfigUpdate(keys?: string[], forceRefresh = false): TPromise<void> {
-		if (keys) {
+		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
 

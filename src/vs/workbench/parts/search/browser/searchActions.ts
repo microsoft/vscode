@@ -27,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { normalize } from 'vs/base/common/paths';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -122,7 +123,7 @@ export class FocusPreviousInputAction extends Action {
 
 export abstract class FindOrReplaceInFilesAction extends Action {
 
-	constructor(id: string, label: string, private viewletService: IViewletService, private panelService: IPanelService,
+	constructor(id: string, label: string, protected viewletService: IViewletService, protected panelService: IPanelService,
 		private expandSearchReplaceWidget: boolean
 	) {
 		super(id, label);
@@ -148,6 +149,36 @@ export class FindInFilesAction extends FindOrReplaceInFilesAction {
 		@IPanelService panelService: IPanelService
 	) {
 		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
+	}
+}
+
+export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
+
+	public static readonly LABEL = nls.localize('showSearch', "Show Search");
+
+	constructor(id: string, label: string,
+		@IViewletService viewletService: IViewletService,
+		@IPanelService panelService: IPanelService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, viewletService, panelService, /*expandSearchReplaceWidget=*/false);
+	}
+
+	public run(): TPromise<any> {
+
+		// Pass focus to viewlet if not open or focused
+		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewletService, this.panelService)) {
+			return super.run();
+		}
+
+		// Otherwise pass focus to editor group
+		this.editorGroupService.activeGroup.focus();
+
+		return TPromise.as(true);
+	}
+
+	private otherViewletShowing(): boolean {
+		return !getSearchView(this.viewletService, this.panelService);
 	}
 }
 

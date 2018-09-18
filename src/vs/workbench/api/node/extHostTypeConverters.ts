@@ -542,7 +542,7 @@ export namespace Suggest {
 		result.range = new types.Range(startPosition, endPosition);
 
 		// 'inserText'-logic
-		if (suggestion.snippetType === 'textmate') {
+		if (suggestion.insertTextIsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;

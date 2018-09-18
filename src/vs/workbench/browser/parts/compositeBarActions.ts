@@ -113,6 +113,8 @@ export class ActivityAction extends Action {
 }
 
 export interface ICompositeBarColors {
+	activeBackgroundColor: Color;
+	inactiveBackgroundColor: Color;
 	activeBorderBottomColor: Color;
 	activeForegroundColor: Color;
 	inactiveForegroundColor: Color;
@@ -158,7 +160,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		if (this.label) {
 			if (this.options.icon) {
-				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
+				const foreground = this._action.checked ? colors.activeBackgroundColor || colors.activeForegroundColor : colors.inactiveBackgroundColor || colors.inactiveForegroundColor;
 				this.label.style.backgroundColor = foreground ? foreground.toString() : null;
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;

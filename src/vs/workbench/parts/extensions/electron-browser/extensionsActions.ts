@@ -21,7 +21,7 @@ import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extens
 import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionRecommendation, IGalleryExtension, IExtensionsConfigContent, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
@@ -52,6 +52,7 @@ import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensions
 import product from 'vs/platform/node/product';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -443,7 +444,15 @@ export class ManageExtensionAction extends Action {
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups());
 		this.disposables.push(this._actionItem);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
+			if (extension && this.extension) {
+				if (areSameExtensions(this.extension, extension)) {
+					this.extension = extension;
+				}
+			} else {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
@@ -508,7 +517,6 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	) {
 		super(EnableForWorkspaceAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.disposables.push(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update()));
 		this.update();
 	}
@@ -547,7 +555,6 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	) {
 		super(EnableGloballyAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
@@ -599,7 +606,15 @@ export class EnableAction extends Action {
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions]);
 		this.disposables.push(this._actionItem);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
+			if (extension && this.extension) {
+				if (areSameExtensions(this.extension, extension)) {
+					this.extension = extension;
+				}
+			} else {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
@@ -650,7 +665,6 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	) {
 		super(DisableForWorkspaceAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 	}
@@ -689,7 +703,6 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	) {
 		super(DisableGloballyAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
@@ -739,7 +752,15 @@ export class DisableAction extends Action {
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions]);
 		this.disposables.push(this._actionItem);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
+			if (extension && this.extension) {
+				if (areSameExtensions(this.extension, extension)) {
+					this.extension = extension;
+				}
+			} else {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
@@ -1010,7 +1031,7 @@ export class ReloadAction extends Action {
 	}
 }
 
-export class OpenExtensionsViewletAction extends ToggleViewletAction {
+export class OpenExtensionsViewletAction extends ShowViewletAction {
 
 	static ID = VIEWLET_ID;
 	static LABEL = localize('toggleExtensionsViewlet', "Show Extensions");
@@ -1019,9 +1040,10 @@ export class OpenExtensionsViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 

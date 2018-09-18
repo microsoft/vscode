@@ -842,7 +842,35 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			reqStart = null;
 		}
 
-		return result;
+		result.sort((a, b) => {
+			const res = Range.compareRangesUsingStarts(a.range, b.range);
+			if (res === 0) {
+				if (a.id < b.id) {
+					return -1;
+				}
+				if (a.id > b.id) {
+					return 1;
+				}
+				return 0;
+			}
+			return res;
+		});
+
+		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
+		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
+		let prevDecId: string = null;
+		for (let i = 0, len = result.length; i < len; i++) {
+			const dec = result[i];
+			const decId = dec.id;
+			if (prevDecId === decId) {
+				// skip
+				continue;
+			}
+			prevDecId = decId;
+			finalResult[finalResultLen++] = dec;
+		}
+
+		return finalResult;
 	}
 }
 

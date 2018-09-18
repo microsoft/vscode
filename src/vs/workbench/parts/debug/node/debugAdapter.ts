@@ -17,7 +17,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IAdapterServer } from 'vs/workbench/parts/debug/common/debug';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -189,17 +189,6 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		this.contentLength = -1;
 
 		readable.on('data', (data: Buffer) => this.handleData(data));
-
-		readable.on('close', () => {
-			this._onError.fire(new Error('read error'));
-		});
-		readable.on('error', (error) => {
-			this._onError.fire(error);
-		});
-
-		writable.on('error', (error) => {
-			this._onError.fire(error);
-		});
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -256,20 +245,32 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 
 	private socket: net.Socket;
 
-	constructor(private port: number, private host = '127.0.0.1') {
+	constructor(private adapterServer: IAdapterServer) {
 		super();
 	}
 
 	startSession(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			this.socket = net.createConnection(this.port, this.host, () => {
-				this.connect(this.socket, <any>this.socket);
-				c(null);
+		return new TPromise<void>((resolve, reject) => {
+			let connected = false;
+			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
+				this.connect(this.socket, this.socket);
+				resolve(null);
+				connected = true;
 			});
-			this.socket.on('error', (err: any) => {
-				e(err);
+			this.socket.on('close', () => {
+				if (connected) {
+					this._onError.fire(new Error('connection closed'));
+				} else {
+					reject(new Error('connection closed'));
+				}
 			});
-			this.socket.on('close', () => this._onExit.fire(0));
+			this.socket.on('error', error => {
+				if (connected) {
+					this._onError.fire(error);
+				} else {
+					reject(error);
+				}
+			});
 		});
 	}
 
@@ -293,23 +294,19 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess;
 
-	constructor(private debugType: string, private adapterExecutable: IAdapterExecutable | null, extensionDescriptions: IExtensionDescription[], private outputService?: IOutputService) {
+	constructor(private adapterExecutable: IAdapterExecutable, private debugType: string, private outputService?: IOutputService) {
 		super();
-
-		if (!this.adapterExecutable) {
-			this.adapterExecutable = DebugAdapter.platformAdapterExecutable(extensionDescriptions, this.debugType);
-		}
 	}
 
 	startSession(): TPromise<void> {
 
-		return new TPromise<void>((c, e) => {
+		return new TPromise<void>((resolve, reject) => {
 
 			// verify executables
 			if (this.adapterExecutable.command) {
 				if (paths.isAbsolute(this.adapterExecutable.command)) {
 					if (!fs.existsSync(this.adapterExecutable.command)) {
-						e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
+						reject(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", this.adapterExecutable.command)));
 					}
 				} else {
 					// relative path
@@ -319,32 +316,62 @@ export class DebugAdapter extends StreamDebugAdapter {
 					}
 				}
 			} else {
-				e(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
+				reject(new Error(nls.localize({ key: 'debugAdapterCannotDetermineExecutable', comment: ['Adapter executable file not found'] },
 					"Cannot determine executable for debug adapter '{0}'.", this.debugType)));
 			}
 
 			if (this.adapterExecutable.command === 'node') {
 				if (Array.isArray(this.adapterExecutable.args) && this.adapterExecutable.args.length > 0) {
-					const isElectron = process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron'];
-					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), {
+					const isElectron = !!process.env['ELECTRON_RUN_AS_NODE'] || !!process.versions['electron'];
+					const options: cp.ForkOptions = {
+						env: this.adapterExecutable.env
+							? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.env)
+							: process.env,
 						execArgv: isElectron ? ['-e', 'delete process.env.ELECTRON_RUN_AS_NODE;require(process.argv[1])'] : [],
 						silent: true
-					});
+					};
+					if (this.adapterExecutable.cwd) {
+						options.cwd = this.adapterExecutable.cwd;
+					}
+					const child = cp.fork(this.adapterExecutable.args[0], this.adapterExecutable.args.slice(1), options);
 					if (!child.pid) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
+						reject(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", this.adapterExecutable.args[0])));
 					}
 					this.serverProcess = child;
-					c(null);
+					resolve(null);
 				} else {
-					e(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
+					reject(new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter.")));
 				}
 			} else {
-				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args);
-				c(null);
+				const options: cp.SpawnOptions = {
+					env: this.adapterExecutable.env
+						? objects.mixin(objects.mixin({}, process.env), this.adapterExecutable.env)
+						: process.env
+				};
+				if (this.adapterExecutable.cwd) {
+					options.cwd = this.adapterExecutable.cwd;
+				}
+				this.serverProcess = cp.spawn(this.adapterExecutable.command, this.adapterExecutable.args, options);
+				resolve(null);
 			}
 		}).then(_ => {
-			this.serverProcess.on('error', (err: Error) => this._onError.fire(err));
-			this.serverProcess.on('exit', (code: number, signal: string) => this._onExit.fire(code));
+			this.serverProcess.on('error', err => {
+				this._onError.fire(err);
+			});
+			this.serverProcess.on('exit', (code, signal) => {
+				this._onExit.fire(code);
+			});
+
+			this.serverProcess.stdout.on('close', () => {
+				this._onError.fire(new Error('read error'));
+			});
+			this.serverProcess.stdout.on('error', error => {
+				this._onError.fire(error);
+			});
+
+			this.serverProcess.stdin.on('error', error => {
+				this._onError.fire(error);
+			});
 
 			if (this.outputService) {
 				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
@@ -357,7 +384,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 			}
 
 			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
-		}, err => {
+		}, (err: Error) => {
 			this._onError.fire(err);
 		});
 	}
@@ -476,11 +503,13 @@ export class DebugAdapter extends StreamDebugAdapter {
 
 		if (runtime) {
 			return {
+				type: 'executable',
 				command: runtime,
 				args: (runtimeArgs || []).concat([program]).concat(args || [])
 			};
 		} else {
 			return {
+				type: 'executable',
 				command: program,
 				args: args || []
 			};

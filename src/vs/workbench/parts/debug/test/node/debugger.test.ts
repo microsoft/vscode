@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import { IAdapterExecutable, IConfigurationManager } from 'vs/workbench/parts/debug/common/debug';
+import { IAdapterExecutable, IConfigurationManager, IConfig, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
@@ -117,7 +117,7 @@ suite('Debug - Debugger', () => {
 
 
 	const configurationManager = <IConfigurationManager>{
-		debugAdapterExecutable(folderUri: URI | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
+		provideDebugAdapter(session: IDebugSession, folderUri: URI | undefined, config: IConfig): TPromise<IAdapterExecutable | undefined> {
 			return TPromise.as(undefined);
 		}
 	};

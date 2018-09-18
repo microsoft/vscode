@@ -48,10 +48,10 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	_serviceBrand: any;
 
-	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
 	get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> { return this._onAutoSaveConfigurationChange.event; }
 
-	private readonly _onAutoSaveConfigurationChange: Emitter<IAutoSaveConfiguration> = this._register(new Emitter<IAutoSaveConfiguration>());
+	private readonly _onFilesAssociationChange: Emitter<void> = this._register(new Emitter<void>());
 	get onFilesAssociationChange(): Event<void> { return this._onFilesAssociationChange.event; }
 
 	private readonly _onWillMove = this._register(new Emitter<IWillMoveEvent>());
@@ -99,7 +99,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(defaultPath: string): TPromise<string>;
+	abstract promptForPath(resource: URI, defaultPath: string): TPromise<string>;
 
 	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
@@ -433,7 +433,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 					// Otherwise ask user
 					else {
-						const targetPath = await this.promptForPath(this.suggestFileName(untitled));
+						const targetPath = await this.promptForPath(untitled, this.suggestFileName(untitled));
 						if (!targetPath) {
 							return TPromise.as({
 								results: [...fileResources, ...untitledResources].map(r => {
@@ -534,7 +534,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			targetPromise = this.promptForPath(dialogPath).then(pathRaw => {
+			targetPromise = this.promptForPath(resource, dialogPath).then(pathRaw => {
 				if (pathRaw) {
 					return URI.file(pathRaw);
 				}

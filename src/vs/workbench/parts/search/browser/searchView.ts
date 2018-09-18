@@ -77,6 +77,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private viewModel: SearchModel;
 
 	private viewletVisible: IContextKey<boolean>;
+	private viewletFocused: IContextKey<boolean>;
 	private inputBoxFocused: IContextKey<boolean>;
 	private inputPatternIncludesFocused: IContextKey<boolean>;
 	private inputPatternExclusionsFocused: IContextKey<boolean>;
@@ -139,6 +140,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		super(VIEW_ID, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
+		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
@@ -182,42 +184,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
-		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		const patternExclusionsHistory: string[] = history.exclude || this.viewletSettings['query.folderExclusionsHistory'] || [];
-		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		let patternIncludesHistory: string[] = history.include || this.viewletSettings['query.folderIncludesHistory'] || [];
+		const patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
+		const patternExclusionsHistory: string[] = history.exclude || [];
+		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const patternIncludesHistory: string[] = history.include || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
-
-		// Transition history from 1.22 combined include+exclude, to split include/exclude histories
-		const patternIncludesHistoryWithoutExcludes: string[] = [];
-		const patternExcludesHistoryFromIncludes: string[] = [];
-		patternIncludesHistory.forEach(historyEntry => {
-			const includeExclude = this.queryBuilder.parseIncludeExcludePattern(historyEntry);
-			if (includeExclude.includePattern) {
-				patternIncludesHistoryWithoutExcludes.push(includeExclude.includePattern);
-			}
-
-			if (includeExclude.excludePattern) {
-				patternExcludesHistoryFromIncludes.push(includeExclude.excludePattern);
-			}
-		});
-
-		patternIncludesHistory = patternIncludesHistoryWithoutExcludes;
-		patternExclusionsHistory.push(...patternExcludesHistoryFromIncludes);
-
-		// Split combined include/exclude to split include/exclude boxes
-		const includeExclude = this.queryBuilder.parseIncludeExcludePattern(patternIncludes);
-		patternIncludes = includeExclude.includePattern || '';
-
-		if (includeExclude.excludePattern) {
-			if (patternExclusions) {
-				patternExclusions += ', ' + includeExclude.excludePattern;
-			} else {
-				patternExclusions = includeExclude.excludePattern;
-			}
-		}
 
 		this.queryDetails = dom.append(this.searchWidgetsContainerElement, $('.query-details'));
 
@@ -280,7 +253,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(useExcludesAndIgnoreFiles);
 
 		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
-		this.inputPatternExcludes.onSubmit(() => this.onQueryChanged(true));
 		this.inputPatternExcludes.onCancel(() => this.viewModel.cancelSearch()); // Cancel search without focusing the search widget
 		this.trackInputBox(this.inputPatternExcludes.inputFocusTracker, this.inputPatternExclusionsFocused);
 
@@ -302,6 +274,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
+
+		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
+		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
 
 		return TPromise.as(null);
 	}
@@ -999,12 +974,17 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				} else {
 					const owningFolder = this.contextService.getWorkspaceFolder(resource);
 					if (owningFolder) {
-						const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
+						const owningRootName = owningFolder.name;
 
 						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-						const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
+						const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
 						if (isUniqueFolder) {
-							folderPath = `./${owningRootBasename}/${paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath))}`;
+							const relativePath = paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath));
+							if (relativePath === '.') {
+								folderPath = `./${owningFolder.name}`;
+							} else {
+								folderPath = `./${owningFolder.name}/${relativePath}`;
+							}
 						} else {
 							folderPath = resource.fsPath;
 						}
@@ -1266,7 +1246,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					this.showSearchWithoutFolderMessage();
 				}
 			} else {
-				this.viewModel.searchResult.toggleHighlights(true); // show highlights
+				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
 				// Indicate final search result count for ARIA
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
@@ -1535,15 +1515,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 
-		// Deprecated, remove these memento props a couple releases after 1.25
 		const searchHistory = this.searchWidget.getSearchHistory();
 		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
 		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
-		this.viewletSettings['query.searchHistory'] = searchHistory;
-		this.viewletSettings['query.replaceHistory'] = replaceHistory;
-		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
-		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
 
 		this.searchHistoryService.save({
 			search: searchHistory,

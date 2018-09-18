@@ -11,6 +11,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -21,6 +22,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalContainer: HTMLElement;
 	protected _terminalTabs: ITerminalTab[];
 	protected abstract _terminalInstances: ITerminalInstance[];
+	private _findState: FindReplaceState;
 
 	private _activeTabIndex: number;
 
@@ -60,7 +62,7 @@ export abstract class TerminalService implements ITerminalService {
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
-
+		this._findState = new FindReplaceState();
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
@@ -117,6 +119,10 @@ export abstract class TerminalService implements ITerminalService {
 
 	public getTabLabels(): string[] {
 		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+	}
+
+	public getFindState(): FindReplaceState {
+		return this._findState;
 	}
 
 	private _removeTab(tab: ITerminalTab): void {

@@ -352,6 +352,7 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 
 	let visitor: JSONVisitor = {
 		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+			console.log(_error);
 		},
 		onObjectEnd() {
 			if (inScripts) {
@@ -368,8 +369,10 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			if (property === 'scripts') {
 				inScripts = true;
 			}
-			else if (inScripts) {
+			else if (inScripts && !script) {
 				script = property;
+			} else { // nested object which is invalid, ignore the script 
+				script = undefined;
 			}
 		}
 	};

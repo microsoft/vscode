@@ -60,7 +60,7 @@
             assignLabel: false
         },
         file-explorer: {
-            assignees: [ bpasero ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         file-glob: [],

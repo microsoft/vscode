@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -58,7 +57,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 }
 
 /**
- * A reusable action to toggle a panel with a specific id.
+ * A reusable action to toggle a panel with a specific id depending on focus.
  */
 export abstract class TogglePanelAction extends Action {
 
@@ -77,7 +76,6 @@ export abstract class TogglePanelAction extends Action {
 	}
 
 	run(): TPromise<any> {
-
 		if (this.isPanelShowing()) {
 			return this.partService.setPanelHidden(true);
 		}
@@ -89,13 +87,6 @@ export abstract class TogglePanelAction extends Action {
 		const panel = this.panelService.getActivePanel();
 
 		return panel && panel.getId() === this.panelId;
-	}
-
-	protected isPanelFocused(): boolean {
-		const activePanel = this.panelService.getActivePanel();
-		const activeElement = document.activeElement;
-
-		return activePanel && activeElement && DOM.isAncestor(activeElement, (<Panel>activePanel).getContainer());
 	}
 }
 

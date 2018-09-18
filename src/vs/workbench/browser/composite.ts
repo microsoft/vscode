@@ -32,13 +32,26 @@ export abstract class Composite extends Component implements IComposite {
 	private _onDidFocus: Emitter<void>;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this._onDidFocus = this._register(new Emitter<void>());
-
-			const focusTracker = this._register(trackFocus(this.getContainer()));
-			this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+			this._registerFocusTrackEvents();
 		}
-
 		return this._onDidFocus.event;
+	}
+
+	private _onDidBlur: Emitter<void>;
+	get onDidBlur(): Event<void> {
+		if (!this._onDidBlur) {
+			this._registerFocusTrackEvents();
+		}
+		return this._onDidBlur.event;
+	}
+
+	private _registerFocusTrackEvents(): void {
+		this._onDidFocus = this._register(new Emitter<void>());
+		this._onDidBlur = this._register(new Emitter<void>());
+
+		const focusTracker = this._register(trackFocus(this.getContainer()));
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected actionRunner: IActionRunner;

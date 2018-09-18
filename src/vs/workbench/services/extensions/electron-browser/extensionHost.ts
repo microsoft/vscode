@@ -92,7 +92,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
 		const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-		const debugOk = extDevLoc && extDevLoc.scheme === Schemas.file;
+		const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
 		this._isExtensionDevDebug = debugOk && typeof this._environmentService.debugExtensionHost.port === 'number';
 		this._isExtensionDevDebugBrk = debugOk && !!this._environmentService.debugExtensionHost.break;
 		this._isExtensionDevTestFromCli = this._isExtensionDevHost && !!this._environmentService.extensionTestsPath && !this._environmentService.debugExtensionHost.break;
@@ -490,9 +490,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
 
-			// Give the extension host 60s, after which we will
+			// Give the extension host 10s, after which we will
 			// try to kill the process and release any resources
-			setTimeout(() => this._cleanResources(), 60 * 1000);
+			setTimeout(() => this._cleanResources(), 10 * 1000);
 
 		}, (err) => {
 

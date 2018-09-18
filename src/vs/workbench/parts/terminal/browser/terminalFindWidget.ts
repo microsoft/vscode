@@ -7,16 +7,18 @@ import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
 
 	constructor(
+		findState: FindReplaceState,
 		@IContextViewService _contextViewService: IContextViewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		super(_contextViewService, _contextKeyService);
+		super(_contextViewService, _contextKeyService, findState, true);
 		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
@@ -24,9 +26,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		const instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
 			if (previous) {
-				instance.findPrevious(this.inputValue);
+				instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 			} else {
-				instance.findNext(this.inputValue);
+				instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 			}
 		}
 	}

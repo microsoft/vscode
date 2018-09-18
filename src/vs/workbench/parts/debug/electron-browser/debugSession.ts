@@ -127,7 +127,7 @@ export class DebugSession implements IDebugSession {
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
 
-			return dbgr.createDebugAdapter(this.root, this.outputService, this._configuration.resolved.debugServer).then(debugAdapter => {
+			return dbgr.createDebugAdapter(this, this.root, this._configuration.resolved, this.outputService).then(debugAdapter => {
 
 				this._raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService);
 

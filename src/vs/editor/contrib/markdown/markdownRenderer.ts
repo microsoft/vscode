@@ -17,6 +17,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -45,7 +46,11 @@ export class MarkdownRenderer {
 					: this._editor.getModel().getLanguageIdentifier().language;
 
 				return this._modeService.getOrCreateMode(modeId).then(_ => {
-					return tokenizeToString(value, modeId);
+					const promise = TokenizationRegistry.getPromise(modeId);
+					if (promise) {
+						return promise.then(support => tokenizeToString(value, support));
+					}
+					return tokenizeToString(value, null);
 				}).then(code => {
 					return `<span style="font-family: ${this._editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});

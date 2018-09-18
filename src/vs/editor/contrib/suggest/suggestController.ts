@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestion } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -28,6 +28,7 @@ import { ICompletionItem } from './completionModel';
 import { Context as SuggestContext } from './suggest';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class AcceptOnCharacterOracle {
 
@@ -94,6 +95,7 @@ export class SuggestController implements IEditorContribution {
 		private _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor);
@@ -159,7 +161,7 @@ export class SuggestController implements IEditorContribution {
 				&& this._model.state === State.Auto
 				&& !item.suggestion.command
 				&& !item.suggestion.additionalTextEdits
-				&& item.suggestion.snippetType !== 'textmate'
+				&& !item.suggestion.insertTextIsSnippet
 				&& endColumn - startColumn === item.suggestion.insertText.length
 			) {
 				const oldText = this._editor.getModel().getValueInRange({
@@ -215,7 +217,7 @@ export class SuggestController implements IEditorContribution {
 		this._memory.memorize(this._editor.getModel(), this._editor.getPosition(), event.item);
 
 		let { insertText } = suggestion;
-		if (suggestion.snippetType !== 'textmate') {
+		if (!suggestion.insertTextIsSnippet) {
 			insertText = SnippetParser.escape(insertText);
 		}
 
@@ -244,6 +246,20 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this._alertCompletionItem(event.item);
+		SuggestController._onDidSelectTelemetry(this._telemetryService, suggestion);
+	}
+
+	private static _onDidSelectTelemetry(service: ITelemetryService, item: ISuggestion): void {
+		/* __GDPR__
+			"acceptSuggestion" : {
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		service.publicLog('acceptSuggestion', {
+			type: item.type,
+			multiline: item.insertText.match(/\r|\n/)
+		});
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {

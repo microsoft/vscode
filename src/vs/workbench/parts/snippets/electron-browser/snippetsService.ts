@@ -16,7 +16,7 @@ import { watch } from 'vs/base/node/extfs';
 import { exists, mkdirp, readdir } from 'vs/base/node/pfs';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SnippetType, SuggestContext, SuggestionType } from 'vs/editor/common/modes';
+import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SuggestContext, SuggestionType } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
@@ -274,7 +274,7 @@ export class SnippetSuggestion implements ISuggestion {
 	sortText: string;
 	noAutoAccept: boolean;
 	type: SuggestionType;
-	snippetType: SnippetType;
+	insertTextIsSnippet: true;
 
 	constructor(
 		readonly snippet: Snippet,
@@ -287,7 +287,7 @@ export class SnippetSuggestion implements ISuggestion {
 		this.sortText = `${snippet.isFromExtension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
 		this.type = 'snippet';
-		this.snippetType = 'textmate';
+		this.insertTextIsSnippet = true;
 	}
 
 	resolve(): this {
