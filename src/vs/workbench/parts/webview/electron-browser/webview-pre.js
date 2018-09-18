@@ -308,21 +308,21 @@
 
 			const frame = getActiveFrame();
 
-			// keep current scrollTop around and use later
+			// keep current scrollY around and use later
 			var setInitialScrollPosition;
 			if (firstLoad) {
 				firstLoad = false;
 				setInitialScrollPosition = (body, window) => {
 					if (!isNaN(initData.initialScrollProgress)) {
-						if (body.scrollTop === 0) {
+						if (window.scrollY === 0) {
 							window.scroll(0, body.clientHeight * initData.initialScrollProgress);
 						}
 					}
 				};
 			} else {
-				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+				const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentWindow.scrollY : 0;
 				setInitialScrollPosition = (body, window) => {
-					if (body.scrollTop === 0) {
+					if (window.scrollY === 0) {
 						window.scroll(0, scrollY);
 					}
 				};
@@ -359,7 +359,7 @@
 			var onLoad = (contentDocument, contentWindow) => {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
-					// check new scrollTop and reset if neccessary
+					// check new scrollY and reset if neccessary
 					setInitialScrollPosition(contentDocument.body, contentWindow);
 				}
 
