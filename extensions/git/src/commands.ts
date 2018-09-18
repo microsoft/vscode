@@ -11,7 +11,7 @@ import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, isDescendant, pathEquals } from './util';
-import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
+import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
@@ -805,7 +805,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+		await this._revertChanges(textEditor, [changes[index]]);
 	}
 
 	@command('git.revertSelectedRanges', { diff: true })
@@ -817,13 +817,12 @@ export class CommandCenter {
 		}
 
 		const modifiedDocument = textEditor.document;
-		const selections = textEditor.selections;
-		const selectedChanges = changes.filter(change => {
-			const modifiedRange = getModifiedRange(modifiedDocument, change);
-			return selections.every(selection => !selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedChanges = changes
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
+			.filter(d => !!d) as LineChange[];
 
-		if (selectedChanges.length === changes.length) {
+		if (!selectedChanges.length) {
 			return;
 		}
 
@@ -842,7 +841,10 @@ export class CommandCenter {
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectionsBeforeRevert = textEditor.selections;
 		const visibleRangesBeforeRevert = textEditor.visibleRanges;
-		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+
+		const invertedChanges = changes.map(invertLineChange);
+
+		const result = applyLineChanges(modifiedDocument, originalDocument, invertedChanges);
 
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
