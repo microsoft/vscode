@@ -319,12 +319,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (this._tsServerLoading) {
 			this._tsServerLoading.reject();
 		}
-		vscode.window.withProgress({
-			location: vscode.ProgressLocation.Window,
-			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise((resolve, reject) => {
-			this._tsServerLoading = { resolve, reject };
-		}));
+		if (this._apiVersion.gte(API.v300)) {
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: localize('serverLoading.progress', "Initializing JS/TS language features"),
+			}, () => new Promise((resolve, reject) => {
+				this._tsServerLoading = { resolve, reject };
+			}));
+		}
 
 		this.serviceStarted(resendModels);
 
@@ -613,13 +615,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'telemetry':
 				const telemetryData = (event as Proto.TelemetryEvent).body;
 				this.dispatchTelemetryEvent(telemetryData);
-
-				// This event also roughly signals that project has been loaded successfully
-				if (this._tsServerLoading) {
-					this._tsServerLoading.resolve();
-					this._tsServerLoading = undefined;
-				}
-
 				break;
 
 			case 'projectLanguageServiceState':
@@ -633,6 +628,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 					const resources = body.openFiles.map(vscode.Uri.file);
 					this.bufferSyncSupport.getErr(resources);
+				}
+
+				// This event also roughly signals that project has been loaded successfully
+				if (this._tsServerLoading) {
+					this._tsServerLoading.resolve();
+					this._tsServerLoading = undefined;
 				}
 				break;
 
