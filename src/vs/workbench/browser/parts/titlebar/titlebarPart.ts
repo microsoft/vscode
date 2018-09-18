@@ -499,12 +499,12 @@ export class TitlebarPart extends Part implements ITitleService {
 	private adjustTitleMarginToCenter(): void {
 		setTimeout(() => {
 			// Center the title in the window
-			const currentAppIconWidth = parseInt(getComputedStyle(this.appIcon).width, 10);
+			const currentAppIconWidth = this.appIcon ? parseInt(getComputedStyle(this.appIcon).width, 10) : 0;
 			let currentMenubarWidth = parseInt(getComputedStyle(this.menubar).width, 10);
 			currentMenubarWidth = isNaN(currentMenubarWidth) ? 0 : currentMenubarWidth;
 			const currentTotalWidth = parseInt(getComputedStyle(document.body).width, 10);
 			const currentTitleWidth = parseInt(getComputedStyle(this.title).width, 10);
-			const currentWindowControlsWidth = parseInt(getComputedStyle(this.windowControls).width, 10);
+			const currentWindowControlsWidth = this.windowControls ? parseInt(getComputedStyle(this.windowControls).width, 10) : 0;
 
 			let leftMargin = (currentTotalWidth / 2) - (currentTitleWidth / 2) - (currentMenubarWidth + currentAppIconWidth);
 			let rightMargin = currentTotalWidth - (currentAppIconWidth + currentMenubarWidth + leftMargin + currentTitleWidth + currentWindowControlsWidth);
