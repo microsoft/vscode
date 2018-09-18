@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
 
@@ -28,6 +29,14 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		if (!renameInfo.canRename) {
 			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
 		}
+
+		if (this.client.apiVersion.gte(API.v310)) {
+			const triggerSpan = (renameInfo as any).triggerSpan;
+			if (triggerSpan) {
+				return typeConverters.Range.fromTextSpan(triggerSpan);
+			}
+		}
+
 		return null;
 	}
 
