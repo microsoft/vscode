@@ -7,8 +7,11 @@ import { fromNodeEventEmitter } from 'vs/base/common/event';
 import { IPCClient } from 'vs/base/parts/ipc/node/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
 import { ipcRenderer } from 'electron';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
-export class Client extends IPCClient {
+export class Client extends IPCClient implements IDisposable {
+
+	private protocol: Protocol;
 
 	private static createProtocol(): Protocol {
 		const onMessage = fromNodeEventEmitter<string>(ipcRenderer, 'ipc:message', (_, message: string) => message);
@@ -17,6 +20,12 @@ export class Client extends IPCClient {
 	}
 
 	constructor(id: string) {
-		super(Client.createProtocol(), id);
+		const protocol = Client.createProtocol();
+		super(protocol, id);
+		this.protocol = protocol;
+	}
+
+	dispose(): void {
+		this.protocol.dispose();
 	}
 }

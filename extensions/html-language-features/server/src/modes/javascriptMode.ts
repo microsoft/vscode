@@ -283,17 +283,15 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return [];
 		},
-		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
+		getFoldingRanges(document: TextDocument): FoldingRange[] {
 			updateCurrentTextDocument(document);
 			let spans = jsLanguageService.getOutliningSpans(FILE_NAME);
-			let rangeStartLine = range.start.line;
-			let rangeEndLine = range.end.line;
 			let ranges: FoldingRange[] = [];
 			for (let span of spans) {
 				let curr = convertRange(currentTextDocument, span.textSpan);
 				let startLine = curr.start.line;
 				let endLine = curr.end.line;
-				if (startLine < endLine && startLine >= rangeStartLine && endLine < rangeEndLine) {
+				if (startLine < endLine) {
 					let foldingRange: FoldingRange = { startLine, endLine };
 					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
 					if (match) {

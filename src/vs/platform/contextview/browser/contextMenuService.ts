@@ -10,6 +10,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -26,11 +27,12 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService
 	) {
 		super();
 
-		this.contextMenuHandler = this._register(new ContextMenuHandler(container, contextViewService, telemetryService, notificationService, keybindingService));
+		this.contextMenuHandler = this._register(new ContextMenuHandler(container, contextViewService, telemetryService, notificationService, keybindingService, themeService));
 	}
 
 	dispose(): void {

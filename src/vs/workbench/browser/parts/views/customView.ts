@@ -34,6 +34,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { localize } from 'vs/nls';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -176,7 +177,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private _hasIconForParentNode = false;
 	private _hasIconForLeafNode = false;
 
+	private domNode: HTMLElement;
 	private treeContainer: HTMLElement;
+	private message: HTMLDivElement;
 	private tree: FileIconThemableWorkbenchTree;
 	private root: ITreeItem;
 	private elementsToRefresh: ITreeItem[] = [];
@@ -213,6 +216,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 				this.doRefresh([this.root]); /** soft refresh **/
 			}
 		}));
+
+		this.create();
 	}
 
 	get dataProvider(): ITreeViewDataProvider {
@@ -233,10 +238,13 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
+			DOM.removeClass(this.domNode, 'message');
+			this.refresh();
 		} else {
 			this._dataProvider = null;
+			DOM.addClass(this.domNode, 'message');
+			this.message.innerText = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
 		}
-		this.refresh();
 	}
 
 	get hasIconForParentNode(): boolean {
@@ -301,11 +309,16 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		if (!this.tree) {
 			this.createTree();
 		}
-		DOM.append(container, this.treeContainer);
+		DOM.append(container, this.domNode);
+	}
+
+	private create() {
+		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
+		this.message = DOM.append(this.domNode, DOM.$('.customview-message'));
+		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
 	}
 
 	private createTree() {
-		this.treeContainer = DOM.$('.tree-explorer-viewlet-tree-view');
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(TreeMenus, this.id);
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.container);
@@ -322,8 +335,8 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	layout(size: number) {
+		this.domNode.style.height = size + 'px';
 		if (this.tree) {
-			this.treeContainer.style.height = size + 'px';
 			this.tree.layout(size);
 		}
 	}
@@ -338,7 +351,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	refresh(elements?: ITreeItem[]): TPromise<void> {
-		if (this.tree) {
+		if (this.dataProvider && this.tree) {
 			elements = elements || [this.root];
 			for (const element of elements) {
 				element.children = null; // reset children
@@ -353,7 +366,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean, focus?: boolean }): TPromise<void> {
-		if (this.tree && this.isVisible) {
+		if (this.dataProvider && this.tree && this.isVisible) {
 			options = options ? options : { select: false, focus: false };
 			const select = isUndefinedOrNull(options.select) ? false : options.select;
 			const focus = isUndefinedOrNull(options.focus) ? false : options.focus;

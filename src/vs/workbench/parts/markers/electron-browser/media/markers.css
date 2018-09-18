@@ -177,7 +177,7 @@
 }
 
 .markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions {
-	width: 16px;
+	flex: 0 0 16px;
 }
 
 .markers-panel .monaco-tree .monaco-tree-row .markers-panel-tree-entry > .actions .monaco-action-bar {

@@ -456,8 +456,6 @@ class ProgressManager {
 
 export class Repository implements Disposable {
 
-	private static readonly InputValidationLength = 72;
-
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
 
@@ -669,19 +667,20 @@ export class Repository implements Disposable {
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
+		const threshold = Math.max(config.get<number>('inputValidationLength') || 72, 0) || 72;
 
-		if (line.length <= Repository.InputValidationLength) {
+		if (line.length <= threshold) {
 			if (setting !== 'always') {
 				return;
 			}
 
 			return {
-				message: localize('commitMessageCountdown', "{0} characters left in current line", Repository.InputValidationLength - line.length),
+				message: localize('commitMessageCountdown', "{0} characters left in current line", threshold - line.length),
 				type: SourceControlInputBoxValidationType.Information
 			};
 		} else {
 			return {
-				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - Repository.InputValidationLength, Repository.InputValidationLength),
+				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - threshold, threshold),
 				type: SourceControlInputBoxValidationType.Warning
 			};
 		}
