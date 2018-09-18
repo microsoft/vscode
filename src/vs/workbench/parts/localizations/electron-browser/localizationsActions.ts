@@ -49,7 +49,7 @@ export class ConfigureLocaleAction extends Action {
 				resource: stat.resource
 			});
 		}, (error) => {
-			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(file, true), error));
+			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(file, { relative: true }), error));
 		});
 	}
 }

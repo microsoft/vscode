@@ -523,6 +523,8 @@ export class WorkbenchShell extends Disposable {
 		if (this.workbench) {
 			this.workbench.dispose(reason);
 		}
+
+		this.mainProcessClient.dispose();
 	}
 }
 

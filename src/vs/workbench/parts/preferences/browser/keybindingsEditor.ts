@@ -925,8 +925,10 @@ class WhenColumn extends Column {
 		DOM.toggleClass(this.whenColumn, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenColumn, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
-			new HighlightedLabel(this.whenColumn).set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
+			const whenLabel = new HighlightedLabel(this.whenColumn);
+			whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);
 			this.whenColumn.title = keybindingItemEntry.keybindingItem.when;
+			whenLabel.element.title = keybindingItemEntry.keybindingItem.when;
 		} else {
 			this.whenColumn.textContent = '—';
 		}

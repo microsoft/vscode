@@ -563,7 +563,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return this.labelService.getUriLabel(res, true);
+		return this.labelService.getUriLabel(res, { relative: true });
 	}
 
 	//#endregion

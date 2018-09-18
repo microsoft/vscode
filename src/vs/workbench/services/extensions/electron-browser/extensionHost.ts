@@ -385,6 +385,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
+					commit: product.commit,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,

@@ -10,7 +10,7 @@ import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
 import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSubmenu, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ITheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -28,12 +28,12 @@ import { domEvent } from 'vs/base/browser/event';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, MENU_BACKGROUND, MENU_FOREGROUND, MENU_SELECTION_BACKGROUND, MENU_SELECTION_FOREGROUND, MENU_SELECTION_BORDER, MENUBAR_SEPARATOR_BACKGROUND } from 'vs/workbench/common/theme';
+import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
+import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 
 const $ = DOM.$;
 
@@ -117,7 +117,7 @@ export class MenubarControl extends Disposable {
 	private static MAX_MENU_RECENT_ENTRIES = 10;
 
 	constructor(
-		@IThemeService themeService: IThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService,
@@ -1078,6 +1078,7 @@ export class MenubarControl extends Disposable {
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
+		this._register(attachMenuStyler(menuWidget, this.themeService));
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
@@ -1203,85 +1204,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench .menubar > .menubar-menu-button:hover {
 				outline-offset: -1px;
 				outline-color: ${menubarSelectedBorderColor};
-			}
-		`);
-	}
-
-	const menuShadow = theme.getColor('widget.shadow');
-	if (menuShadow) {
-		collector.addRule(`
-			.monaco-shell .monaco-workbench .monaco-menu-container {
-				box-shadow: 0 2px 4px ${menuShadow};
-			}
-		`);
-	}
-
-	const menuBgColor = theme.getColor(MENU_BACKGROUND);
-	if (menuBgColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical,
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item {
-				background-color: ${menuBgColor};
-			}
-		`);
-	}
-
-	let menuFgColor = theme.getColor(MENU_FOREGROUND);
-	if (!menuFgColor) {
-		menuFgColor = theme.getColor(foreground);
-	}
-
-	if (menuFgColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical,
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item {
-				color: ${menuFgColor};
-			}
-
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .menu-item-check,
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item .submenu-indicator {
-				background-color: ${menuFgColor};
-			}
-		`);
-	}
-
-	const selectedMenuItemBgColor = theme.getColor(MENU_SELECTION_BACKGROUND);
-	if (menuBgColor) {
-		collector.addRule(`
-			.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
-					background-color: ${selectedMenuItemBgColor};
-				}
-		`);
-	}
-
-	const selectedMenuItemFgColor = theme.getColor(MENU_SELECTION_FOREGROUND);
-	if (selectedMenuItemFgColor) {
-		collector.addRule(`
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
-				color: ${selectedMenuItemFgColor};
-			}
-
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .menu-item-check,
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .submenu-indicator {
-			background-color: ${selectedMenuItemFgColor};
-		}
-		`);
-	}
-
-	const selectedMenuItemBorderColor = theme.getColor(MENU_SELECTION_BORDER);
-	if (selectedMenuItemBorderColor) {
-		collector.addRule(`
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-item.focused {
-				border: 1px solid ${selectedMenuItemBorderColor};
-			}
-		`);
-	}
-
-	const menuItemSeparatorBackground = theme.getColor(MENUBAR_SEPARATOR_BACKGROUND);
-	if (menuItemSeparatorBackground) {
-		collector.addRule(`
-		.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-				border-bottom: 1px solid ${menuItemSeparatorBackground};
 			}
 		`);
 	}

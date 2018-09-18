@@ -23,6 +23,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -41,11 +42,11 @@ import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree,
 import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel, SettingsEditorOptions, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
 const $ = DOM.$;
 
 export class SettingsEditor2 extends BaseEditor {
@@ -98,6 +99,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchFocusContextKey: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
+	private lastFocusedSettingElement: string;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
@@ -239,6 +241,17 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	focus(): void {
+		if (this.lastFocusedSettingElement) {
+			const elements = this.settingsTreeRenderer.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), this.lastFocusedSettingElement);
+			if (elements.length) {
+				const control = elements[0].querySelector(SettingsRenderer.CONTROL_SELECTOR);
+				if (control) {
+					(<HTMLElement>control).focus();
+					return;
+				}
+			}
+		}
+
 		this.focusSearch();
 	}
 
@@ -535,6 +548,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 		this._register(this.settingsTreeRenderer.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => {
+			this.lastFocusedSettingElement = element.setting.key;
 			this.settingsTree.reveal(element);
 		}));
 

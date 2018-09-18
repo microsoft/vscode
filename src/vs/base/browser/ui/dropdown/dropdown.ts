@@ -287,7 +287,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 
 	render(container: HTMLElement): void {
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable => {
-			this.element = append(el, $('a.action-label'));
+			this.element = append(el, $('a.action-label.icon'));
 			addClasses(this.element, this.clazz);
 
 			this.element.tabIndex = 0;

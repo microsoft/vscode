@@ -370,11 +370,12 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 			if (args.env) {
 				command += 'cmd /C "';
 				for (let key in args.env) {
-					const value = args.env[key];
+					let value = args.env[key];
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						command += `set "${key}=${args.env[key]}" && `;
+						value = value.replace(/[\^\&]/g, s => `^${s}`);
+						command += `set "${key}=${value}" && `;
 					}
 				}
 			}

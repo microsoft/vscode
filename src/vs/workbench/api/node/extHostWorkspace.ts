@@ -379,7 +379,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			.then(data => Array.isArray(data) ? data.map(URI.revive) : []);
 	}
 
-	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token: vscode.CancellationToken = CancellationToken.None) {
+	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token: vscode.CancellationToken = CancellationToken.None): Thenable<vscode.TextSearchComplete> {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
 
 		if (options.previewOptions && options.previewOptions.totalChars <= options.previewOptions.leadingChars) {
@@ -432,8 +432,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		}
 
 		return this._proxy.$startTextSearch(query, queryOptions, requestId, token).then(
-			() => {
+			result => {
 				delete this._activeSearchCallbacks[requestId];
+				return result;
 			},
 			err => {
 				delete this._activeSearchCallbacks[requestId];

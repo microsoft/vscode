@@ -15,9 +15,11 @@ import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 
 export class ContextMenuHandler {
 	private element: HTMLElement;
@@ -30,7 +32,8 @@ export class ContextMenuHandler {
 		private contextViewService: IContextViewService,
 		private telemetryService: ITelemetryService,
 		private notificationService: INotificationService,
-		private keybindingService: IKeybindingService
+		private keybindingService: IKeybindingService,
+		private themeService: IThemeService
 	) {
 		this.setContainer(element);
 	}
@@ -80,6 +83,8 @@ export class ContextMenuHandler {
 						actionRunner,
 						getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
 					});
+
+					menuDisposables.push(attachMenuStyler(menu, this.themeService));
 
 					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
