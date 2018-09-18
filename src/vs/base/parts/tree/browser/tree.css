@@ -66,7 +66,9 @@
 	content: ' ';
 	position: absolute;
 	display: block;
-	background: url('collapsed.svg') 50% 50% no-repeat;
+	-webkit-mask-image: url('collapsed.svg');
+	-webkit-mask-position: 50% 50%;
+	-webkit-mask-repeat: no-repeat;
 	width: 16px;
 	height: 100%;
 	top: 0;
@@ -74,11 +76,11 @@
 }
 
 .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.expanded > .content:before {
-	background-image: url('expanded.svg');
+	-webkit-mask-image: url('expanded.svg');
 }
 
 .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
-	background-image: url('loading.svg');
+	-webkit-mask-image: url('loading.svg');
 }
 
 /* Highlighted */
@@ -88,34 +90,34 @@
 }
 
 .vs-dark .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.has-children > .content:before {
-	background-image: url('collapsed-dark.svg');
+	-webkit-mask-image-image: url('collapsed-dark.svg');
 }
 
 .vs-dark .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.expanded > .content:before {
-	background-image: url('expanded-dark.svg');
+	-webkit-mask-image-image: url('expanded-dark.svg');
 }
 
 .vs-dark .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
-	background-image: url('loading-dark.svg');
+	-webkit-mask-image-image: url('loading-dark.svg');
 }
 
 .hc-black .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.has-children > .content:before	{
-	background-image: url('collapsed-hc.svg');
+	-webkit-mask-image-image: url('collapsed-hc.svg');
 }
 
 .hc-black .monaco-tree .monaco-tree-rows.show-twisties > .monaco-tree-row.expanded > .content:before {
-	background-image: url('expanded-hc.svg');
+	-webkit-mask-image-image: url('expanded-hc.svg');
 }
 
 .hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children.loading > .content:before {
-	background-image: url('loading-hc.svg');
+	-webkit-mask-image-image: url('loading-hc.svg');
 }
 
 .monaco-tree-action.collapse-all {
-	background: url('CollapseAll.svg') center center no-repeat;
+	-webkit-mask-image: url('CollapseAll.svg') center center no-repeat;
 }
 
 .hc-black .monaco-tree-action.collapse-all,
 .vs-dark .monaco-tree-action.collapse-all {
-	background: url('CollapseAll_inverse.svg') center center no-repeat;
+	-webkit-mask-image: url('CollapseAll_inverse.svg') center center no-repeat;
 }
