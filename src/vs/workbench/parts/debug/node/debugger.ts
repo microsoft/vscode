@@ -60,8 +60,13 @@ export class Debugger implements IDebugger {
 
 		// try deprecated command based extension API to receive an executable
 		if (this.debuggerContribution.adapterExecutableCommand) {
-			const adapterExecutable = this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
-			return TPromise.wrap(adapterExecutable);
+			return this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined).then(ae => {
+				return <IAdapterExecutable>{
+					type: 'executable',
+					command: ae.command,
+					args: ae.args || []
+				};
+			});
 		}
 
 		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
