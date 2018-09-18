@@ -156,15 +156,20 @@
 			"webRoot": "${workspaceFolder}"
 		},
 		{
-			"type": "node",
+			"type": "extensionHost",
 			"request": "launch",
-			"name": "Git Unit Tests",
-			"protocol": "inspector",
-			"program": "${workspaceFolder}/extensions/git/node_modules/mocha/bin/_mocha",
-			"stopOnEntry": false,
-			"cwd": "${workspaceFolder}/extensions/git",
+			"name": "VS Code Git Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--disable-extensions",
+				"--enable-proposed-api",
+				"vscode.git",
+				"${workspaceFolder}/extensions/git/test-fixtures",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/git",
+				"--extensionTestsPath=${workspaceFolder}/extensions/git/out/test"
+			],
 			"outFiles": [
-				"${workspaceFolder}/extensions/git/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js"
 			]
 		},
 		{

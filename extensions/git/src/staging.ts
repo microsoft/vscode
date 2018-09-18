@@ -15,7 +15,14 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 
-		result.push(original.getText(new Range(currentLine, 0, isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1, 0)));
+		if (isDeletion && diff.originalEndLineNumber === original.lineCount) {
+			const toLine = diff.originalStartLineNumber - 2;
+			const toCharacter = original.lineAt(toLine).range.end.character;
+
+			result.push(original.getText(new Range(currentLine, 0, toLine, toCharacter)));
+		} else {
+			result.push(original.getText(new Range(currentLine, 0, isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1, 0)));
+		}
 
 		if (!isDeletion) {
 			let fromLine = diff.modifiedStartLineNumber - 1;

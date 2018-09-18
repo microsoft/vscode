@@ -1336,6 +1336,7 @@
     "@types/mocha": "2.2.43",
     "@types/node": "^8.10.25",
     "@types/which": "^1.0.28",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "vscode": "^1.1.21"
   }
 }
