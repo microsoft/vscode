@@ -28,7 +28,7 @@ export abstract class SimpleFindWidget extends Widget {
 	private _findInput: FindInput;
 	private _domNode: HTMLElement;
 	private _innerDomNode: HTMLElement;
-	private _isVisible: boolean;
+	private _isVisible: boolean = false;
 	private _focusTracker: dom.IFocusTracker;
 	private _findInputFocusTracker: dom.IFocusTracker;
 	private _updateHistoryDelayer: Delayer<void>;
@@ -208,6 +208,19 @@ export abstract class SimpleFindWidget extends Widget {
 			setTimeout(() => {
 				this._findInput.select();
 			}, 200);
+		}, 0);
+	}
+
+	public show(initialInput?: string): void {
+		if (initialInput && !this._isVisible) {
+			this._findInput.setValue(initialInput);
+		}
+
+		this._isVisible = true;
+
+		setTimeout(() => {
+			dom.addClass(this._innerDomNode, 'visible');
+			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 

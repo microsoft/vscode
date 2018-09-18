@@ -131,16 +131,16 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	public findNext(): void {
 		const panel = this._panelService.getActivePanel() as TerminalPanel;
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.getFindWidget().find(false);
 			panel.showFindWidget();
+			panel.getFindWidget().find(false);
 		}
 	}
 
 	public findPrevious(): void {
 		const panel = this._panelService.getActivePanel() as TerminalPanel;
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			panel.getFindWidget().find(true);
 			panel.showFindWidget();
+			panel.getFindWidget().find(true);
 		}
 	}
 
