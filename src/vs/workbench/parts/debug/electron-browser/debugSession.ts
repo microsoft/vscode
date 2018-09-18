@@ -122,7 +122,7 @@ export class DebugSession implements IDebugSession {
 
 		if (this._raw) {
 			// if there was already a connection make sure to remove old listeners
-			this.dispose();	// TODO: do not use dispose for this!
+			this.shutdown();
 		}
 
 		return dbgr.getCustomTelemetryService().then(customTelemetryService => {
@@ -723,7 +723,7 @@ export class DebugSession implements IDebugSession {
 		}));
 	}
 
-	dispose(): void {
+	shutdown(): void {
 		dispose(this.rawListeners);
 		this.model.clearThreads(this.getId(), true);
 		this.model.removeSession(this.getId());

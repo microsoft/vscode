@@ -263,7 +263,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
-	dispose(): void { }
+	shutdown(): void { }
 }
 
 export class MockRawSession {
