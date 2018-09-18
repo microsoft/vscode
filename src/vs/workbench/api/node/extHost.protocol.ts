@@ -997,6 +997,7 @@ export interface ExtHostCommentsShape {
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread>;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
 	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Thenable<modes.Comment>;
+	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Thenable<void>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 

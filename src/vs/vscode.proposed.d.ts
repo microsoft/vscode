@@ -699,6 +699,14 @@ declare module 'vscode' {
 		canEdit?: boolean;
 
 		/**
+		 * Whether the current user has permission to delete the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 */
+		canDelete?: boolean;
+
+		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
@@ -741,6 +749,11 @@ declare module 'vscode' {
 		 * Called when a user edits the comment body to the be new text text.
 		 */
 		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<Comment>;
+
+		/**
+		 * Called when a user deletes the comment.
+		 */
+		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
 
 		/**
 		 * Notify of updates to comment threads.

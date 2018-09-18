@@ -26,6 +26,8 @@ import { SimpleCommentEditor } from 'vs/workbench/parts/comments/electron-browse
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -43,6 +45,9 @@ export class CommentNode extends Disposable {
 	private _updateCommentButton: Button;
 	private _errorEditingContainer: HTMLElement;
 
+	private _deleteAction: Action;
+	private _onDidDelete = new Emitter<CommentNode>();
+
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
@@ -56,7 +61,8 @@ export class CommentNode extends Disposable {
 		private instantiationService: IInstantiationService,
 		private commentService: ICommentService,
 		private modelService: IModelService,
-		private modeService: IModeService
+		private modeService: IModeService,
+		private dialogService: IDialogService
 	) {
 		super();
 
@@ -78,6 +84,10 @@ export class CommentNode extends Disposable {
 		this._clearTimeout = null;
 	}
 
+	public get onDidDelete(): Event<CommentNode> {
+		return this._onDidDelete.event;
+	}
+
 	private createHeader(commentDetailsContainer: HTMLElement): void {
 		const header = dom.append(commentDetailsContainer, dom.$('div.comment-title'));
 		const author = dom.append(header, dom.$('strong.author'));
@@ -87,6 +97,11 @@ export class CommentNode extends Disposable {
 		if (this.comment.canEdit) {
 			this._editAction = this.createEditAction(commentDetailsContainer);
 			actions.push(this._editAction);
+		}
+
+		if (this.comment.canDelete) {
+			this._deleteAction = this.createDeleteAction();
+			actions.push(this._deleteAction);
 		}
 
 		if (actions.length) {
@@ -156,6 +171,25 @@ export class CommentNode extends Disposable {
 			this._errorEditingContainer.classList.remove('hidden');
 			this._commentEditor.focus();
 		}
+	}
+
+	private createDeleteAction(): Action {
+		return new Action('comment.delete', nls.localize('label.delete', "Delete"), 'octicon octicon-x', true, () => {
+			return this.dialogService.confirm({
+				title: nls.localize('deleteCommentTitle', "Delete Comment"),
+				message: nls.localize('confirmDelete', "Delete comment?"),
+				type: 'question',
+				primaryButton: nls.localize('label.delete', "Delete")
+			}).then(result => {
+				if (result.confirmed) {
+					this.commentService.deleteComment(this.owner, this.resource, this.comment).then((didDelete) => {
+						if (didDelete) {
+							this._onDidDelete.fire(this);
+						}
+					});
+				}
+			});
+		});
 	}
 
 	private createEditAction(commentDetailsContainer: HTMLElement): Action {
