@@ -16,7 +16,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { isParent } from 'vs/platform/files/common/files';
-import { basename, dirname, join } from 'vs/base/common/paths';
+import { basename, dirname, join, nativeSep } from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
 
 export interface RegisterFormatterEvent {
@@ -90,7 +90,7 @@ export class LabelService implements ILabelService {
 				const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
 				if (hasMultipleRoots) {
 					const rootName = (baseResource && baseResource.name) ? baseResource.name : basenameOrAuthority(baseResource.uri);
-					relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
+					relativeLabel = relativeLabel ? (rootName + nativeSep + relativeLabel) : rootName;
 				}
 
 				return relativeLabel;
