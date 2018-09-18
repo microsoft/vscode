@@ -1107,6 +1107,11 @@
           "default": "warn",
           "description": "%config.inputValidation%"
         },
+        "git.inputValidationLength": {
+          "type": "number",
+          "default": 72,
+          "description": "%config.inputValidationLength%"
+        },
         "git.detectSubmodules": {
           "type": "boolean",
           "scope": "resource",
