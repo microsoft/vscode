@@ -75,6 +75,22 @@ export class DataSource implements IDataSource {
 	public getParent(tree: ITree, element: any): Promise {
 		return TPromise.as(null);
 	}
+
+	public shouldAutoexpand(tree: ITree, element: any): boolean {
+		if (element instanceof MarkersModel) {
+			return true;
+		}
+
+		if (element instanceof ResourceMarkers) {
+			return element.filteredCount <= 10;
+		}
+
+		if (element instanceof Marker && element.resourceRelatedInformation.length > 0) {
+			return true;
+		}
+
+		return false;
+	}
 }
 
 export class DataFilter implements IFilter {
