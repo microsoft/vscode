@@ -96,28 +96,48 @@ class SuggestAlternatives {
 	}
 
 	reset(): void {
-		this._ckOtherSuggestions.set(false);
+		this._ckOtherSuggestions.reset();
 		dispose(this._listener);
 		this._model = undefined;
 		this._ignore = false;
 	}
 
-	set(event: ISelectedSuggestion): void {
-		// todo@joh filter snippets and so
-		if (event.model.items.length > 1) {
-			this._model = event.model;
-			this._index = event.index;
-			this._listener = this._editor.onDidChangeCursorPosition(() => this._onCursorMove());
-			this._ckOtherSuggestions.set(true);
-		} else {
+	set({ model, index }: ISelectedSuggestion): void {
+		// no suggestions -> nothing to do
+		if (model.items.length === 0) {
 			this.reset();
+			return;
 		}
+
+		// no alternative suggestions -> nothing to do
+		let nextIndex = SuggestAlternatives._moveIndex(true, model, index);
+		if (nextIndex === index) {
+			this.reset();
+			return;
+		}
+
+		this._model = model;
+		this._index = index;
+		this._listener = this._editor.onDidChangeCursorPosition(() => {
+			if (!this._ignore) {
+				this.reset();
+			}
+		});
+		this._ckOtherSuggestions.set(true);
 	}
 
-	private _onCursorMove(): void {
-		if (!this._ignore) {
-			this.reset();
+	private static _moveIndex(fwd: boolean, model: CompletionModel, index: number): number {
+		let newIndex = index;
+		while (true) {
+			newIndex = (newIndex + model.items.length + (fwd ? +1 : -1)) % model.items.length;
+			if (newIndex === index) {
+				break;
+			}
+			if (!model.items[newIndex].suggestion.insertTextIsSnippet) {
+				break;
+			}
 		}
+		return newIndex;
 	}
 
 	next(): void {
@@ -129,17 +149,18 @@ class SuggestAlternatives {
 	}
 
 	private _move(fwd: boolean): void {
-		if (this._model) {
-			try {
-				this._ignore = true;
-				this._index = (this._index + this._model.items.length + (fwd ? 1 : -1)) % this._model.items.length;
-				this._accept({ index: this._index, item: this._model.items[this._index], model: this._model });
-			} finally {
-				this._ignore = false;
-			}
+		if (!this._model) {
+			// nothing to reason about
+			return;
+		}
+		try {
+			this._ignore = true;
+			this._index = SuggestAlternatives._moveIndex(fwd, this._model, this._index);
+			this._accept({ index: this._index, item: this._model.items[this._index], model: this._model });
+		} finally {
+			this._ignore = false;
 		}
 	}
-
 }
 
 export class SuggestController implements IEditorContribution {
