@@ -162,7 +162,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
 	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
 
-	// Disconnects and clears state
+	// Disconnects and clears state. Session can be initialized again for a new connection.
 	shutdown(): void;
 
 	// DAP request
