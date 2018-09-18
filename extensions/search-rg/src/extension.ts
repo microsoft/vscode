@@ -26,7 +26,7 @@ class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSear
 		process.once('exit', () => this.dispose());
 	}
 
-	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 		const engine = new RipgrepTextSearchEngine(this.outputChannel);
 		return this.withEngine(engine, () => engine.provideTextSearchResults(query, options, progress, token));
 	}
@@ -43,10 +43,12 @@ class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSear
 			.then(() => results);
 	}
 
-	private withEngine(engine: SearchEngine, fn: () => Thenable<void>): Thenable<void> {
+	private withEngine<T>(engine: SearchEngine, fn: () => Thenable<T>): Thenable<T> {
 		this.inProgress.add(engine);
-		return fn().then(() => {
+		return fn().then(result => {
 			this.inProgress.delete(engine);
+
+			return result;
 		});
 	}
 
