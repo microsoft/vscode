@@ -253,10 +253,11 @@ configurationRegistry.registerConfiguration({
 				TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
 				TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
 				TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
-				TERMINAL_COMMAND_ID.FIND_NEXT,
 				TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
-				TERMINAL_COMMAND_ID.FIND_PREVIOUS,
 				TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
+				TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
 				TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
 				TERMINAL_COMMAND_ID.FOCUS_NEXT,
 				TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
@@ -551,14 +552,26 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexComma
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find by regex');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleRegexCommand, ToggleRegexCommand.ID_TERMINAL_FOCUS, ToggleRegexCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_R,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find by regex', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID, ToggleWholeWordCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_W,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find whole word');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleWholeWordCommand, ToggleWholeWordCommand.ID_TERMINAL_FOCUS, ToggleWholeWordCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_W,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find whole word', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID, ToggleCaseSensitiveCommand.LABEL, {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
 }, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED), 'Terminal: Toggle find match case');
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleCaseSensitiveCommand, ToggleCaseSensitiveCommand.ID_TERMINAL_FOCUS, ToggleCaseSensitiveCommand.LABEL, {
+	primary: KeyMod.Alt | KeyCode.KEY_C,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Toggle find match case', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FindNext, FindNext.ID_TERMINAL_FOCUS, FindNext.LABEL, {
 	primary: KeyCode.F3,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
