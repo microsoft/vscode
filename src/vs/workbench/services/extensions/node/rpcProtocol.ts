@@ -123,7 +123,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private readonly _cancelInvokedHandlers: { [req: string]: () => void; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
 	private _responsiveState: ResponsiveState;
-	private _potentialUnresponsiveRequests: number[];
+	private _unacknowledgedCount: number;
 	private _unresponsiveTime: number;
 	private _asyncCheckUresponsive: RunOnceScheduler;
 
@@ -143,7 +143,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		this._cancelInvokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
 		this._responsiveState = ResponsiveState.Responsive;
-		this._potentialUnresponsiveRequests = [];
+		this._unacknowledgedCount = 0;
 		this._unresponsiveTime = 0;
 		this._asyncCheckUresponsive = this._register(new RunOnceScheduler(() => this._checkUnresponsive(), 1000));
 		this._protocol.onMessage((msg) => this._receiveOneMessage(msg));
@@ -160,25 +160,22 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	private _onWillSendRequest(req: number): void {
-		if (this._potentialUnresponsiveRequests.length === 0) {
+		if (this._unacknowledgedCount === 0) {
 			// Since this is the first request we are sending in a while,
 			// mark this moment as the start for the countdown to unresponsive time
 			this._unresponsiveTime = Date.now() + RPCProtocol.UNRESPONSIVE_TIME;
 		}
-		this._potentialUnresponsiveRequests.push(req);
+		this._unacknowledgedCount++;
 		if (!this._asyncCheckUresponsive.isScheduled()) {
 			this._asyncCheckUresponsive.schedule();
 		}
 	}
 
-	private _onWillReceiveReply(req: number): void {
+	private _onDidReceiveAcknowledge(req: number): void {
 		// The next possible unresponsive time is now + delta.
 		this._unresponsiveTime = Date.now() + RPCProtocol.UNRESPONSIVE_TIME;
-		// Remove all previous requests from the potential unresponsive list
-		while (this._potentialUnresponsiveRequests.length > 0 && this._potentialUnresponsiveRequests[0] <= req) {
-			this._potentialUnresponsiveRequests.shift();
-		}
-		if (this._potentialUnresponsiveRequests.length === 0) {
+		this._unacknowledgedCount--;
+		if (this._unacknowledgedCount === 0) {
 			// No more need to check for unresponsive
 			this._asyncCheckUresponsive.cancel();
 		}
@@ -187,7 +184,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	private _checkUnresponsive(): void {
-		if (this._potentialUnresponsiveRequests.length === 0) {
+		if (this._unacknowledgedCount === 0) {
 			// Not waiting for anything => cannot say if it is responsive or not
 			return;
 		}
@@ -197,9 +194,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 			this._setResponsiveState(ResponsiveState.Unresponsive);
 		} else {
 			// Not (yet) unresponsive, be sure to check again soon
-			if (this._potentialUnresponsiveRequests.length > 0) {
-				this._asyncCheckUresponsive.schedule();
-			}
+			this._asyncCheckUresponsive.schedule();
 		}
 	}
 
@@ -288,6 +283,13 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 				this._receiveRequest(msgLength, req, rpcId, method, args, (messageType === MessageType.RequestMixedArgsWithCancellation));
 				break;
 			}
+			case MessageType.Acknowledged: {
+				if (this._logger) {
+					this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `ack`);
+				}
+				this._onDidReceiveAcknowledge(req);
+				break;
+			}
 			case MessageType.Cancel: {
 				this._receiveCancel(msgLength, req);
 				break;
@@ -345,6 +347,13 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		this._cancelInvokedHandlers[callId] = cancel;
 
+		// Acknowledge the request
+		const msg = MessageIO.serializeAcknowledged(req);
+		if (this._logger) {
+			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `ack`);
+		}
+		this._protocol.send(msg);
+
 		promise.then((r) => {
 			delete this._cancelInvokedHandlers[callId];
 			if (this._uriTransformer) {
@@ -386,7 +395,6 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		const pendingReply = this._pendingRPCReplies[callId];
 		delete this._pendingRPCReplies[callId];
-		this._onWillReceiveReply(req);
 
 		pendingReply.resolveOk(value);
 	}
@@ -403,7 +411,6 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		const pendingReply = this._pendingRPCReplies[callId];
 		delete this._pendingRPCReplies[callId];
-		this._onWillReceiveReply(req);
 
 		let err: Error = null;
 		if (value && value.$isError) {
@@ -707,6 +714,10 @@ class MessageIO {
 		};
 	}
 
+	public static serializeAcknowledged(req: number): Buffer {
+		return MessageBuffer.alloc(MessageType.Acknowledged, req, 0).buffer;
+	}
+
 	public static serializeCancel(req: number): Buffer {
 		return MessageBuffer.alloc(MessageType.Cancel, req, 0).buffer;
 	}
@@ -790,12 +801,13 @@ const enum MessageType {
 	RequestJSONArgsWithCancellation = 2,
 	RequestMixedArgs = 3,
 	RequestMixedArgsWithCancellation = 4,
-	Cancel = 5,
-	ReplyOKEmpty = 6,
-	ReplyOKBuffer = 7,
-	ReplyOKJSON = 8,
-	ReplyErrError = 9,
-	ReplyErrEmpty = 10,
+	Acknowledged = 5,
+	Cancel = 6,
+	ReplyOKEmpty = 7,
+	ReplyOKBuffer = 8,
+	ReplyOKJSON = 9,
+	ReplyErrError = 10,
+	ReplyErrEmpty = 11,
 }
 
 const enum ArgType {

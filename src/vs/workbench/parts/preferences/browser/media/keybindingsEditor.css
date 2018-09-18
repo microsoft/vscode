@@ -17,16 +17,23 @@
 	position: relative;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+.keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar {
 	position: absolute;
 	top: 0;
 	right: 10px;
 	margin-top: 5px;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item {
+	width: 28px;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence.svg') center center no-repeat;
 }
 
-.hc-black .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence,
-.vs-dark .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item > .sort-by-precedence,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence_inverse.svg') center center no-repeat;
 }
 

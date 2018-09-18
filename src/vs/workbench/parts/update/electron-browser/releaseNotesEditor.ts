@@ -6,12 +6,12 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asText } from 'vs/base/node/request';
-import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -192,21 +192,18 @@ export class ReleaseNotesManager {
 	}
 
 	private async getRenderer(text: string) {
-		const result: TPromise<IMode>[] = [];
+		let result: TPromise<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			result.push(this._modeService.getOrCreateMode(modeId));
+			result.push(this._modeService.getOrCreateMode(modeId).then(_ => TokenizationRegistry.getPromise(modeId)));
 			return '';
 		};
 
 		marked(text, { renderer });
 		await TPromise.join(result);
 
-		renderer.code = (code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId)}</code>`;
-		};
+		renderer.code = (code, lang) => `<code>${tokenizeToString(code, TokenizationRegistry.get(lang))}</code>`;
 		return renderer;
 	}
 }

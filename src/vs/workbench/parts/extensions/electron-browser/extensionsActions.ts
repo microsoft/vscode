@@ -444,7 +444,15 @@ export class ManageExtensionAction extends Action {
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups());
 		this.disposables.push(this._actionItem);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
+			if (extension && this.extension) {
+				if (areSameExtensions(this.extension, extension)) {
+					this.extension = extension;
+				}
+			} else {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
@@ -509,7 +517,6 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 	) {
 		super(EnableForWorkspaceAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.disposables.push(this.workspaceContextService.onDidChangeWorkbenchState(() => this.update()));
 		this.update();
 	}
@@ -548,7 +555,6 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	) {
 		super(EnableGloballyAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
@@ -600,7 +606,15 @@ export class EnableAction extends Action {
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions]);
 		this.disposables.push(this._actionItem);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
+			if (extension && this.extension) {
+				if (areSameExtensions(this.extension, extension)) {
+					this.extension = extension;
+				}
+			} else {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
@@ -651,7 +665,6 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 	) {
 		super(DisableForWorkspaceAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 		this.workspaceContextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 	}
@@ -690,7 +703,6 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 	) {
 		super(DisableGloballyAction.ID, label);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
@@ -740,7 +752,15 @@ export class DisableAction extends Action {
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions]);
 		this.disposables.push(this._actionItem);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
+			if (extension && this.extension) {
+				if (areSameExtensions(this.extension, extension)) {
+					this.extension = extension;
+				}
+			} else {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 

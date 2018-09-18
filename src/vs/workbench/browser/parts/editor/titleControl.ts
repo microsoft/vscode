@@ -318,7 +318,7 @@ export abstract class TitleControl extends Themable {
 		});
 	}
 
-	protected getKeybinding(action: IAction): ResolvedKeybinding {
+	private getKeybinding(action: IAction): ResolvedKeybinding {
 		return this.keybindingService.lookupKeybinding(action.id);
 	}
 

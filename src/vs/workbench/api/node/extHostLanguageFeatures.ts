@@ -681,19 +681,19 @@ class SuggestAdapter {
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.snippetType = 'internal';
+			result.insertTextIsSnippet = false;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.snippetType = 'internal';
+			result.insertTextIsSnippet = false;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.snippetType = 'textmate';
+			result.insertTextIsSnippet = true;
 
 		} else {
 			result.insertText = item.label;
-			result.snippetType = 'internal';
+			result.insertTextIsSnippet = false;
 		}
 
 		// 'overwrite[Before|After]'-logic

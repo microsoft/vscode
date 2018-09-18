@@ -92,7 +92,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
 		const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-		const debugOk = extDevLoc && extDevLoc.scheme === Schemas.file;
+		const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
 		this._isExtensionDevDebug = debugOk && typeof this._environmentService.debugExtensionHost.port === 'number';
 		this._isExtensionDevDebugBrk = debugOk && !!this._environmentService.debugExtensionHost.break;
 		this._isExtensionDevTestFromCli = this._isExtensionDevHost && !!this._environmentService.extensionTestsPath && !this._environmentService.debugExtensionHost.break;

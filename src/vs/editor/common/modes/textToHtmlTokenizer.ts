@@ -5,13 +5,19 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { IState, ITokenizationSupport, TokenizationRegistry, LanguageId } from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { ITokenizationSupport, IState, LanguageId } from 'vs/editor/common/modes';
 import { LineTokens, IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { CharCode } from 'vs/base/common/charCode';
+import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 
-export function tokenizeToString(text: string, languageId: string): string {
-	return _tokenizeToString(text, _getSafeTokenizationSupport(languageId));
+const fallback = {
+	getInitialState: () => NULL_STATE,
+	tokenize: undefined,
+	tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
+};
+
+export function tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport = fallback): string {
+	return _tokenizeToString(text, tokenizationSupport);
 }
 
 export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {
@@ -81,18 +87,6 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 
 	result += `</div>`;
 	return result;
-}
-
-function _getSafeTokenizationSupport(languageId: string): ITokenizationSupport {
-	let tokenizationSupport = TokenizationRegistry.get(languageId);
-	if (tokenizationSupport) {
-		return tokenizationSupport;
-	}
-	return {
-		getInitialState: () => NULL_STATE,
-		tokenize: undefined,
-		tokenize2: (buffer: string, state: IState, deltaOffset: number) => nullTokenize2(LanguageId.Null, buffer, state, deltaOffset)
-	};
 }
 
 function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport): string {
