@@ -12,7 +12,7 @@ import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider,
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -202,7 +202,7 @@ class WatchExpressionsDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		if (element instanceof Model) {
+		if (element instanceof DebugModel) {
 			return true;
 		}
 
@@ -211,7 +211,7 @@ class WatchExpressionsDataSource implements IDataSource {
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
-		if (element instanceof Model) {
+		if (element instanceof DebugModel) {
 			const viewModel = this.debugService.getViewModel();
 			return TPromise.join(element.getWatchExpressions().map(we =>
 				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
@@ -344,7 +344,7 @@ class WatchExpressionsController extends BaseDebugController {
 			const expression = <IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
-		} else if (element instanceof Model && event.detail === 2) {
+		} else if (element instanceof DebugModel && event.detail === 2) {
 			// Double click in watch panel triggers to add a new watch expression
 			this.debugService.addWatchExpression();
 			return true;
@@ -376,8 +376,8 @@ class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 		return elements[0].name;
 	}
 
-	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-		if (target instanceof Expression || target instanceof Model) {
+	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): IDragOverReaction {
+		if (target instanceof Expression || target instanceof DebugModel) {
 			return {
 				accept: true,
 				autoExpand: false
@@ -387,12 +387,12 @@ class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 		return DRAG_OVER_REJECT;
 	}
 
-	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
+	public drop(tree: ITree, data: IDragAndDropData, target: Expression | DebugModel, originalEvent: DragMouseEvent): void {
 		const draggedData = data.getData();
 		if (Array.isArray(draggedData)) {
 			const draggedElement = <Expression>draggedData[0];
 			const watches = this.debugService.getModel().getWatchExpressions();
-			const position = target instanceof Model ? watches.length - 1 : watches.indexOf(target);
+			const position = target instanceof DebugModel ? watches.length - 1 : watches.indexOf(target);
 			this.debugService.moveWatchExpression(draggedElement.getId(), position);
 		}
 	}

@@ -16,7 +16,7 @@ import { isObject, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
-	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
+	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel, IReplElementSource,
 	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IReplElement, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
@@ -723,7 +723,7 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class Model implements IModel {
+export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
 	private toDispose: lifecycle.IDisposable[];

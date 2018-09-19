@@ -22,7 +22,7 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
+import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -47,7 +47,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -63,7 +63,7 @@ export class DebugService implements IDebugService {
 	private readonly _onDidNewSession: Emitter<IDebugSession>;
 	private readonly _onWillNewSession: Emitter<IDebugSession>;
 	private readonly _onDidEndSession: Emitter<IDebugSession>;
-	private model: Model;
+	private model: DebugModel;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
 	private allSessions = new Map<string, IDebugSession>();
@@ -114,7 +114,7 @@ export class DebugService implements IDebugService {
 		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
-		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
+		this.model = new DebugModel(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions(), this.textFileService);
 		this.toDispose.push(this.model);
 
@@ -158,7 +158,7 @@ export class DebugService implements IDebugService {
 		return this.allSessions.get(sessionId);
 	}
 
-	getModel(): IModel {
+	getModel(): IDebugModel {
 		return this.model;
 	}
 

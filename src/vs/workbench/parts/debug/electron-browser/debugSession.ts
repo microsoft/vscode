@@ -16,7 +16,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
-import { Thread, ExpressionContainer, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -49,7 +49,7 @@ export class DebugSession implements IDebugSession {
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
-		private model: Model,
+		private model: DebugModel,
 		@INotificationService private notificationService: INotificationService,
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
