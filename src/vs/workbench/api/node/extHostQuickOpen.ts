@@ -499,6 +499,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 				label: item.label,
 				description: item.description,
 				handle: i,
+				shouldAlwaysShow: item.shouldAlwaysShow,
 				detail: item.detail,
 				picked: item.picked
 			}))

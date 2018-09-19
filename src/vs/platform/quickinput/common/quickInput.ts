@@ -17,6 +17,7 @@ export interface IQuickPickItem {
 	label: string;
 	description?: string;
 	detail?: string;
+	shouldAlwaysShow?: boolean;
 	iconClasses?: string[];
 	buttons?: IQuickInputButton[];
 	picked?: boolean;
