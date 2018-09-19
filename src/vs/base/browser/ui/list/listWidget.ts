@@ -592,6 +592,10 @@ export class DefaultStyleController implements IStyleController {
 		const suffix = this.selectorSuffix ? `.${this.selectorSuffix}` : '';
 		const content: string[] = [];
 
+		if (styles.foreground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row .content::before { background-color: ${styles.foreground}; }`);
+		}
+
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
@@ -678,6 +682,7 @@ export interface IListOptions<T> extends IListViewOptions, IListStyles {
 }
 
 export interface IListStyles {
+	foreground?: Color;
 	listFocusBackground?: Color;
 	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
@@ -697,6 +702,7 @@ export interface IListStyles {
 }
 
 const defaultStyles: IListStyles = {
+	foreground: Color.fromHex('#CCCCCC'),
 	listFocusBackground: Color.fromHex('#073655'),
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),

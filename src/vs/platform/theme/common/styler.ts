@@ -207,6 +207,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 }
 
 export interface IListStyleOverrides extends IStyleOverrides {
+	foreground?: ColorIdentifier;
 	listFocusBackground?: ColorIdentifier;
 	listFocusForeground?: ColorIdentifier;
 	listActiveSelectionBackground?: ColorIdentifier;
@@ -230,6 +231,7 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 }
 
 export const defaultListStyles: IColorMapping = {
+	foreground: foreground,
 	listFocusBackground: listFocusBackground,
 	listFocusForeground: listFocusForeground,
 	listActiveSelectionBackground: listActiveSelectionBackground,

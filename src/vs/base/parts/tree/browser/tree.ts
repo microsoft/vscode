@@ -698,6 +698,7 @@ export interface ITreeStyler {
 }
 
 export interface ITreeStyles {
+	foreground?: Color;
 	listFocusBackground?: Color;
 	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;

@@ -21,20 +21,6 @@
 	content: ' ';
 }
 
-/* Default Icon Colors */
-.vs-dark .monaco-tree-row .content::before {
-	background-color: #E8E8E8;
-}
-
-.vs .monaco-tree-row .content::before {
-	background-color: #646465;
-}
-
-.hc-black .monaco-tree-row .content::before {
-	background-color: #FFF;
-}
-
-
 .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
 	-webkit-mask-image: url("expanded.svg");
 }

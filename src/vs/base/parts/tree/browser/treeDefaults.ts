@@ -477,6 +477,11 @@ export class DefaultTreestyler implements _.ITreeStyler {
 		const suffix = this.selectorSuffix ? `.${this.selectorSuffix}` : '';
 		const content: string[] = [];
 
+		// Color is for list icons
+		if (styles.foreground) {
+			content.push(`.monaco-tree${suffix} .monaco-tree-rows > .monaco-tree-row .content::before { background-color: ${styles.foreground}; }`);
+		}
+
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-tree${suffix}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { background-color: ${styles.listFocusBackground}; }`);
 		}
