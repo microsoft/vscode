@@ -5,12 +5,13 @@
 
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
+	protected _findWidgetFocused: IContextKey<boolean>;
 
 	constructor(
 		findState: FindReplaceState,
@@ -19,7 +20,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super(_contextViewService, _contextKeyService, findState, true);
+		this._register(findState.onFindReplaceStateChange(() => {
+			this.show();
+		}));
 		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
+		this._findWidgetFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED.bindTo(this._contextKeyService);
 	}
 
 	public find(previous: boolean) {
@@ -44,10 +49,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected onFocusTrackerFocus() {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(true);
+		this._findWidgetFocused.set(true);
 	}
 
 	protected onFocusTrackerBlur() {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
+		this._findWidgetFocused.reset();
 	}
 
 	protected onFindInputFocusTrackerFocus() {

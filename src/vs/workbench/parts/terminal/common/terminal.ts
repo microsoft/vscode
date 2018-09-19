@@ -33,6 +33,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
+/**  A context key that is set when the find widget in integrated terminal is focused. */
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetFocused', false);
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
 
@@ -228,6 +230,8 @@ export interface ITerminalService {
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
 	getFindState(): FindReplaceState;
+	findNext(): void;
+	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
