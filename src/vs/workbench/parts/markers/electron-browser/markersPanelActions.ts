@@ -153,6 +153,12 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		this.adjustInputBox();
 	}
 
+	focus(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.focus();
+		}
+	}
+
 	toggleLayout(small: boolean) {
 		if (this.container) {
 			DOM.toggleClass(this.container, 'small', small);
