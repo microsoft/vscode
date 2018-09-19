@@ -471,7 +471,7 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<UriComponents[]>;
+	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<UriComponents[]>;
 	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;

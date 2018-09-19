@@ -350,14 +350,15 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		this._logService.trace(`extHostWorkspace#findFiles: fileSearch, extension: ${extensionId}, entryPoint: findFiles`);
 
 		let includePattern: string;
-		let includeFolder: string;
+		let includeFolder: URI;
 		if (include) {
 			if (typeof include === 'string') {
 				includePattern = include;
 			} else {
 				includePattern = include.pattern;
-				includeFolder = include.base;
-				// TODO use include.baseFolder;
+
+				// include.base must be an absolute path
+				includeFolder = include.baseFolder || URI.file(include.base);
 			}
 		}
 
