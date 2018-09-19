@@ -562,7 +562,7 @@ registerEditorCommand(new SuggestCommand({
 //#region tab completions
 
 registerEditorCommand(new SuggestCommand({
-	id: 'acceptBestCompletion',
+	id: 'insertBestCompletion',
 	precondition: ContextKeyExpr.and(WordContextKey.AtEnd, SuggestContext.Visible.toNegated(), SuggestAlternatives.OtherSuggestions.toNegated()),
 	handler: x => x.triggerSuggestAndAcceptBest('\t'),//todo@joh fallback/default configurable?
 	kbOpts: {
@@ -572,7 +572,7 @@ registerEditorCommand(new SuggestCommand({
 }));
 
 registerEditorCommand(new SuggestCommand({
-	id: 'acceptNextSuggestion',
+	id: 'insertNextSuggestion',
 	precondition: ContextKeyExpr.and(SuggestAlternatives.OtherSuggestions, SuggestContext.Visible.toNegated()),
 	handler: x => x.acceptNextSuggestion(),
 	kbOpts: {
@@ -583,7 +583,7 @@ registerEditorCommand(new SuggestCommand({
 }));
 
 registerEditorCommand(new SuggestCommand({
-	id: 'acceptPrevSuggestion',
+	id: 'insertPrevSuggestion',
 	precondition: ContextKeyExpr.and(SuggestAlternatives.OtherSuggestions, SuggestContext.Visible.toNegated()),
 	handler: x => x.acceptPrevSuggestion(),
 	kbOpts: {
