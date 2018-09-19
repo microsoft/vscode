@@ -39,7 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { distinct } from 'vs/base/common/arrays';
-import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -48,6 +48,7 @@ export class ExtensionsListView extends ViewletPanel {
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
 	private list: WorkbenchPagedList<IExtension>;
+	private searchExperiments: IExperiment[] = [];
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -67,6 +68,7 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExperimentService private experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
+		this.experimentService.getExperimentsByType(ExperimentActionType.ExtensionSearchResults).then(result => this.searchExperiments = result);
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -361,7 +363,29 @@ export class ExtensionsListView extends ViewletPanel {
 			options.source = 'viewlet';
 		}
 
-		return this.extensionsWorkbenchService.queryGallery(options).then(pager => new PagedModel(pager));
+		const pager = await this.extensionsWorkbenchService.queryGallery(options);
+		this.searchExperiments.forEach(experiment => {
+			if (text
+				&& text.toLowerCase() === experiment.action.properties['searchText']
+				&& Array.isArray(experiment.action.properties['preferredResults'])) {
+				const preferredResults: string[] = experiment.action.properties['preferredResults'];
+				let positionToUpdate = 0;
+				for (let i = 0; i < preferredResults.length; i++) {
+					for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
+						if (pager.firstPage[j].id === preferredResults[i]) {
+							if (positionToUpdate !== j) {
+								const preferredExtension = pager.firstPage.splice(j, 1)[0];
+								pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
+								positionToUpdate++;
+							}
+							break;
+						}
+					}
+				}
+			}
+		});
+		return new PagedModel(pager);
+
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
