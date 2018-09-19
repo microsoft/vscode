@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./contextMenuHandler';
+
 import { combinedDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
@@ -14,42 +15,42 @@ import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 
 export class ContextMenuHandler {
-
-	private contextViewService: IContextViewService;
-	private notificationService: INotificationService;
-	private telemetryService: ITelemetryService;
-
 	private element: HTMLElement;
 	private elementDisposable: IDisposable;
 	private menuContainerElement: HTMLElement;
 	private focusToReturn: HTMLElement;
 
-	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, notificationService: INotificationService) {
+	constructor(
+		element: HTMLElement,
+		private contextViewService: IContextViewService,
+		private telemetryService: ITelemetryService,
+		private notificationService: INotificationService,
+		private keybindingService: IKeybindingService,
+		private themeService: IThemeService
+	) {
 		this.setContainer(element);
-
-		this.contextViewService = contextViewService;
-		this.telemetryService = telemetryService;
-		this.notificationService = notificationService;
-
-		this.menuContainerElement = null;
 	}
 
-	public setContainer(container: HTMLElement): void {
+	setContainer(container: HTMLElement): void {
 		if (this.element) {
 			this.elementDisposable = dispose(this.elementDisposable);
 			this.element = null;
 		}
+
 		if (container) {
 			this.element = container;
-			this.elementDisposable = addDisposableListener(this.element, 'mousedown', (e) => this.onMouseDown(e as MouseEvent));
+			this.elementDisposable = addDisposableListener(this.element, EventType.MOUSE_DOWN, (e) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 
-	public showContextMenu(delegate: IContextMenuDelegate): void {
+	showContextMenu(delegate: IContextMenuDelegate): void {
 		delegate.getActions().then((actions: IAction[]) => {
 			if (!actions.length) {
 				return; // Don't render an empty context menu
@@ -80,8 +81,10 @@ export class ContextMenuHandler {
 						actionItemProvider: delegate.getActionItem,
 						context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 						actionRunner,
-						getKeyBinding: delegate.getKeyBinding
+						getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
 					});
+
+					menuDisposables.push(attachMenuStyler(menu, this.themeService));
 
 					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
@@ -146,7 +149,7 @@ export class ContextMenuHandler {
 		this.contextViewService.hideContextView();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.setContainer(null);
 	}
 }

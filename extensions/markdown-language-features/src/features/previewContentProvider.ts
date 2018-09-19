@@ -79,7 +79,7 @@ export class MarkdownContentProvider {
 					data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}"
 					data-state="${JSON.stringify(state || {}).replace(/"/g, '&quot;')}">
 				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
-				${this.getStyles(sourceUri, nonce, config)}
+				${this.getStyles(sourceUri, nonce, config, state)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-resource' }).toString(true)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
@@ -147,14 +147,30 @@ export class MarkdownContentProvider {
 		</style>`;
 	}
 
-	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration): string {
+	private getImageStabilizerStyles(state?: any) {
+		let ret = '<style>\n';
+		if (state && state.imageInfo) {
+			state.imageInfo.forEach((imgInfo: any) => {
+				ret += `#${imgInfo.id}.loading {
+					height: ${imgInfo.height}px;
+					width: ${imgInfo.width}px;
+				}\n`;
+			});
+		}
+		ret += '</style>\n';
+
+		return ret;
+	}
+
+	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfiguration, state?: any): string {
 		const baseStyles = this.contributions.previewStyles
 			.map(resource => `<link rel="stylesheet" type="text/css" href="${resource.toString()}">`)
 			.join('\n');
 
 		return `${baseStyles}
 			${this.getSettingsOverrideStyles(nonce, config)}
-			${this.computeCustomStyleSheetIncludes(resource, config)}`;
+			${this.computeCustomStyleSheetIncludes(resource, config)}
+			${this.getImageStabilizerStyles(state)}`;
 	}
 
 	private getScripts(nonce: string): string {

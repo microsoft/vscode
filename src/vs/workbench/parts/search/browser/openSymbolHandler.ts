@@ -54,7 +54,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 				return `${containerName} — ${basename(this.bearing.location.uri.fsPath)}`;
 			}
 
-			return this.labelService.getUriLabel(this.bearing.location.uri, true);
+			return this.labelService.getUriLabel(this.bearing.location.uri, { relative: true });
 		}
 
 		return containerName;

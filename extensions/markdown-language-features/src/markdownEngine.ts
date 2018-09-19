@@ -6,6 +6,7 @@
 import { MarkdownIt, Token } from 'markdown-it';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { MarkdownContributions } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { getUriForLinkWithKnownExternalScheme } from './util/links';
@@ -62,6 +63,7 @@ export class MarkdownEngine {
 				this.addLineNumberRenderer(this.md, renderName);
 			}
 
+			this.addImageStabilizer(this.md);
 			this.addFencedRenderer(this.md);
 
 			this.addLinkNormalizer(this.md);
@@ -121,6 +123,28 @@ export class MarkdownEngine {
 			if (token.map && token.map.length) {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
+			}
+
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options, env, self);
+			}
+		};
+	}
+
+	private addImageStabilizer(md: any): void {
+		const original = md.renderer.rules.image;
+		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: any, self: any) => {
+			const token = tokens[idx];
+			token.attrJoin('class', 'loading');
+
+			const src = token.attrGet('src');
+			if (src) {
+				const hash = crypto.createHash('sha256');
+				hash.update(src);
+				const imgHash = hash.digest('hex');
+				token.attrSet('id', `image-hash-${imgHash}`);
 			}
 
 			if (original) {

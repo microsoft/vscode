@@ -98,6 +98,8 @@ class CreateBranchItem implements QuickPickItem {
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
+	get shouldAlwaysShow(): boolean { return true; }
+
 	async run(repository: Repository): Promise<void> {
 		await this.cc.branch(repository);
 	}
@@ -593,12 +595,11 @@ export class CommandCenter {
 			return;
 		}
 
-		const preview = uris.length === 1 ? true : false;
 		const activeTextEditor = window.activeTextEditor;
 		for (const uri of uris) {
 			const opts: TextDocumentShowOptions = {
 				preserveFocus,
-				preview,
+				preview: false,
 				viewColumn: ViewColumn.Active
 			};
 
@@ -1239,6 +1240,11 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { empty: true });
 	}
 
+	@command('git.restoreCommitTemplate', { repository: true })
+	async restoreCommitTemplate(repository: Repository): Promise<void> {
+		repository.inputBox.value = await repository.getCommitTemplate();
+	}
+
 	@command('git.undoCommit', { repository: true })
 	async undoCommit(repository: Repository): Promise<void> {
 		const HEAD = repository.HEAD;
@@ -1307,7 +1313,7 @@ export class CommandCenter {
 				return name;
 			}
 
-			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.|\[|\]$/g, branchWhitespaceChar);
+			return name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar);
 		};
 
 		const result = await window.showInputBox({

@@ -109,15 +109,37 @@ export class ExtensionsListView extends ViewletPanel {
 	}
 
 	async show(query: string): Promise<IPagedModel<IExtension>> {
-		return await this.query(query).then(model => {
+		const parsedQuery = Query.parse(query);
+
+		let options: IQueryOptions = {
+			sortOrder: SortOrder.Default
+		};
+
+		switch (parsedQuery.sortBy) {
+			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
+			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
+		}
+		if (!query || !query.trim()) {
+			options.sortBy = SortBy.InstallCount;
+		}
+
+		const successCallback = model => {
 			this.setModel(model);
 			return model;
-		}).catch(e => {
+		};
+		const errorCallback = e => {
 			console.warn('Error querying extensions gallery', e);
 			const model = new PagedModel([]);
 			this.setModel(model, true);
 			return model;
-		});
+		};
+
+		if (ExtensionsListView.isInstalledExtensionsQuery(query) || /@builtin/.test(query)) {
+			return await this.queryLocal(parsedQuery, options).then(successCallback).catch(errorCallback);
+		}
+
+		return await this.queryGallery(parsedQuery, options).then(successCallback).catch(errorCallback);
 	}
 
 	select(): void {
@@ -154,22 +176,8 @@ export class ExtensionsListView extends ViewletPanel {
 		return TPromise.as(emptyModel);
 	}
 
-	private async query(value: string): Promise<IPagedModel<IExtension>> {
-		const query = Query.parse(value);
-
-		let options: IQueryOptions = {
-			sortOrder: SortOrder.Default
-		};
-
-		switch (query.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
-			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
-		}
-		if (!value || !value.trim()) {
-			options.sortBy = SortBy.InstallCount;
-		}
-
+	private async queryLocal(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
+		let value = query.value;
 		if (/@builtin/i.test(value)) {
 			const showThemesOnly = /@builtin:themes/i.test(value);
 			if (showThemesOnly) {
@@ -222,6 +230,15 @@ export class ExtensionsListView extends ViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
+		const categories: string[] = [];
+		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
+			const entry = (category || quotedCategory || '').toLowerCase();
+			if (categories.indexOf(entry) === -1) {
+				categories.push(entry);
+			}
+			return '';
+		});
+
 		if (/@installed/i.test(value)) {
 			// Show installed extensions
 			value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -229,23 +246,13 @@ export class ExtensionsListView extends ViewletPanel {
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
 			result = result
-				.filter(e => e.type === LocalExtensionType.User && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => e.type === LocalExtensionType.User
+					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
-		let idMatch;
-		const names: string[] = [];
-		while ((idMatch = idRegex.exec(value)) !== null) {
-			const name = idMatch[1];
-			names.push(name);
-		}
-
-		if (names.length) {
-			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
-				.then(pager => new PagedModel(pager));
-		}
 
 		if (/@outdated/i.test(value)) {
 			value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
@@ -253,7 +260,9 @@ export class ExtensionsListView extends ViewletPanel {
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(extension => extension.outdated && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(extension => extension.outdated
+					&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => extension.local.manifest.categories.some(c => c.toLowerCase() === category))));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -266,7 +275,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e))
+					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					&& (!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -280,10 +291,30 @@ export class ExtensionsListView extends ViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => e.type === LocalExtensionType.User &&
 					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
-					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+					(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1) &&
+					(!categories.length || categories.some(category => (e.local.manifest.categories || []).some(c => c.toLowerCase() === category)))
 				);
 
 			return new PagedModel(this.sortExtensions(result, options));
+		}
+
+		return new PagedModel([]);
+	}
+
+	private async queryGallery(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
+		let value = query.value;
+
+		const idRegex = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/g;
+		let idMatch;
+		const names: string[] = [];
+		while ((idMatch = idRegex.exec(value)) !== null) {
+			const name = idMatch[1];
+			names.push(name);
+		}
+
+		if (names.length) {
+			return this.extensionsWorkbenchService.queryGallery({ names, source: 'queryById' })
+				.then(pager => new PagedModel(pager));
 		}
 
 		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {

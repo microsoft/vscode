@@ -39,7 +39,7 @@ const webviewDeveloperCategory = localize('developer', "Developer");
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 export function registerWebViewCommands(editorId: string): void {
-	const contextKeyExpr = ContextKeyExpr.equals('activeEditor', editorId);
+	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */);
 
 	const showNextFindWidgetCommand = new ShowWebViewEditorFindWidgetCommand({
 		id: ShowWebViewEditorFindWidgetCommand.ID,

@@ -207,7 +207,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private matchesEditor(identifier: IEditorIdentifier, editor?: IBaseEditor): boolean {
-		if (!editor) {
+		if (!editor || !editor.group) {
 			return false;
 		}
 

@@ -849,16 +849,18 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
-		const name = tabLabel.name;
-		const description = tabLabel.description || '';
-		const title = tabLabel.title || '';
 
 		// Container
+		const name = tabLabel.name;
 		tabContainer.setAttribute('aria-label', `${name}, tab`);
-		tabContainer.title = title;
 
 		// Label
+		const description = tabLabel.description || '';
 		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
+
+		// Match tab title with label title
+		const title = tabLabelWidget.element.title || tabLabel.title || '';
+		tabContainer.title = title;
 	}
 
 	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {

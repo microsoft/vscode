@@ -140,6 +140,7 @@ export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	extensionPack?: string[];
 	engine?: string;
+	localizedLanguages?: string[];
 }
 
 export interface IGalleryExtensionAsset {

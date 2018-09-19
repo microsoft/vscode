@@ -58,23 +58,34 @@ export class Debugger implements IDebugger {
 
 	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): TPromise<IAdapterDescriptor> {
 
-		// try deprecated command based extension API to receive an executable
-		if (this.debuggerContribution.adapterExecutableCommand) {
-			const adapterExecutable = this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
-			return TPromise.wrap(adapterExecutable);
+		// a "debugServer" attribute in the launch config takes precedence
+		if (typeof config.debugServer === 'number') {
+			return TPromise.wrap(<IAdapterServer>{
+				type: 'server',
+				port: config.debugServer
+			});
 		}
 
+		// try the proposed and the deprecated "provideDebugAdapter" API
 		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+
 			if (adapter) {
 				return adapter;
 			}
-			if (typeof config.debugServer === 'number') {
-				return <IAdapterServer>{
-					type: 'server',
-					port: config.debugServer
-				};
+
+			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
+			if (this.debuggerContribution.adapterExecutableCommand) {
+				const rootFolder = root ? root.uri.toString() : undefined;
+				return this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
+					return <IAdapterDescriptor>{
+						type: 'executable',
+						command: ae.command,
+						args: ae.args || []
+					};
+				});
 			}
-			// fallback: use information from package.json
+
+			// fallback: use executable information from package.json
 			return DebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
 		});
 	}

@@ -9,6 +9,7 @@ import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PANEL_ID = 'workbench.panel.terminal';
 
@@ -226,6 +227,7 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
+	getFindState(): FindReplaceState;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
@@ -269,6 +271,21 @@ export interface ITerminalDimensions {
 	 * The rows of the terminal.
 	 */
 	readonly rows: number;
+}
+
+interface ISearchOptions {
+	/**
+	 * Whether the find should be done as a regex.
+	 */
+	regex?: boolean;
+	/**
+	 * Whether only whole words should match.
+	 */
+	wholeWord?: boolean;
+	/**
+	 * Whether find should pay attention to case.
+	 */
+	caseSensitive?: boolean;
 }
 
 export interface ITerminalInstance {
@@ -436,12 +453,12 @@ export interface ITerminalInstance {
 	/**
 	 * Find the next instance of the term
 	*/
-	findNext(term: string): boolean;
+	findNext(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Find the previous instance of the term
 	 */
-	findPrevious(term: string): boolean;
+	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
 
 	/**
 	 * Notifies the terminal that the find widget's focus state has been changed.

@@ -55,12 +55,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
+	private _tsServerLoading: { resolve: () => void, reject: () => void } | undefined;
 
 	public readonly telemetryReporter: TelemetryReporter;
 	/**
 	 * API version obtained from the version picker after checking the corresponding path exists.
 	 */
 	private _apiVersion: API;
+
 	/**
 	 * Version reported by currently-running tsserver.
 	 */
@@ -143,6 +145,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		if (this.forkedTsServer) {
 			this.forkedTsServer.kill();
+		}
+
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+			this._tsServerLoading = undefined;
 		}
 	}
 
@@ -309,7 +316,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.forkedTsServer = handle;
 		this._onTsServerStarted.fire(currentVersion.version);
 
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+		}
+		if (this._apiVersion.gte(API.v300)) {
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: localize('serverLoading.progress', "Initializing JS/TS language features"),
+			}, () => new Promise((resolve, reject) => {
+				this._tsServerLoading = { resolve, reject };
+			}));
+		}
+
 		this.serviceStarted(resendModels);
+
 		return handle;
 	}
 
@@ -406,6 +426,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private serviceExited(restart: boolean): void {
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+			this._tsServerLoading = undefined;
+		}
+
 		enum MessageAction {
 			reportIssue
 		}
@@ -603,6 +628,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 					const resources = body.openFiles.map(vscode.Uri.file);
 					this.bufferSyncSupport.getErr(resources);
+				}
+
+				// This event also roughly signals that project has been loaded successfully
+				if (this._tsServerLoading) {
+					this._tsServerLoading.resolve();
+					this._tsServerLoading = undefined;
 				}
 				break;
 

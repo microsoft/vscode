@@ -65,7 +65,7 @@ const $ = dom.$;
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
-	private static readonly MAX_TEXT_RESULTS = 10000;
+	private static readonly MAX_TEXT_RESULTS = 1000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
@@ -974,12 +974,17 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				} else {
 					const owningFolder = this.contextService.getWorkspaceFolder(resource);
 					if (owningFolder) {
-						const owningRootBasename = paths.basename(owningFolder.uri.fsPath);
+						const owningRootName = owningFolder.name;
 
 						// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-						const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
+						const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
 						if (isUniqueFolder) {
-							folderPath = `./${owningRootBasename}/${paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath))}`;
+							const relativePath = paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath));
+							if (relativePath === '.') {
+								folderPath = `./${owningFolder.name}`;
+							} else {
+								folderPath = `./${owningFolder.name}/${relativePath}`;
+							}
 						} else {
 							folderPath = resource.fsPath;
 						}

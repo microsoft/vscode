@@ -1575,6 +1575,11 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
+		 * Show this item always
+		 */
+		shouldAlwaysShow?: boolean;
+
+		/**
 		 * Optional flag indicating if this item is picked initially.
 		 * (Only honored when the picker allows multiple selections.)
 		 *
@@ -8135,7 +8140,7 @@ declare module 'vscode' {
 		 * in arbitrary order and the initial debug configuration is piped through the chain.
 		 * Returning the value 'undefined' prevents the debug session from starting.
 		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
-		 * 
+		 *
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
 		 * @param token A cancellation token.

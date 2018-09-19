@@ -136,7 +136,7 @@ export interface LoadedSourceEvent {
 	source: Source;
 }
 
-export interface IDebugSession extends ITreeElement, IDisposable {
+export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
 	readonly unresolvedConfiguration: IConfig;
@@ -151,16 +151,19 @@ export interface IDebugSession extends ITreeElement, IDisposable {
 	rawUpdate(data: IRawModelUpdate): void;
 
 	// session events
-	onDidEndAdapter: Event<AdapterEndEvent>;
-	onDidChangeState: Event<State>;
+	readonly onDidEndAdapter: Event<AdapterEndEvent>;
+	readonly onDidChangeState: Event<State>;
 
 	// DA capabilities
 	readonly capabilities: DebugProtocol.Capabilities;
 
 	// DAP events
 
-	onDidLoadedSource: Event<LoadedSourceEvent>;
-	onDidCustomEvent: Event<DebugProtocol.Event>;
+	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
+	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
+
+	// Disconnects and clears state. Session can be initialized again for a new connection.
+	shutdown(): void;
 
 	// DAP request
 

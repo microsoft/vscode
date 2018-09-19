@@ -392,7 +392,7 @@ function resourcesToClipboard(resources: URI[], relative: boolean, clipboardServ
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, relative, true))
+		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
 			.join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {

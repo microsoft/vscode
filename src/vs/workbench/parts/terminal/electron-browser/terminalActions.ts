@@ -29,6 +29,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -1175,5 +1176,49 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 			instance.toggleEscapeSequenceLogging();
 		}
 		return TPromise.as(void 0);
+	}
+}
+
+abstract class ToggleFindOptionCommand extends Action {
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	protected abstract runInner(state: FindReplaceState): void;
+
+	public run(): TPromise<any> {
+		const state = this.terminalService.getFindState();
+		this.runInner(state);
+		return TPromise.as(void 0);
+	}
+}
+
+export class ToggleRegexCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ isRegex: !state.isRegex }, false);
+	}
+}
+
+export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ wholeWord: !state.wholeWord }, false);
+	}
+}
+
+export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ matchCase: !state.matchCase }, false);
 	}
 }
