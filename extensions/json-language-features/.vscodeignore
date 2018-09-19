@@ -1,6 +1,5 @@
 .vscode/**
 server/.vscode/**
-node_modules/**
 server/node_modules/**
 client/src/**
 server/src/**
@@ -16,11 +15,3 @@ server/.npmignore
 yarn.lock
 server/extension.webpack.config.js
 extension.webpack.config.js
-!node_modules/vscode-nls/**
-!node_modules/applicationinsights/**
-!node_modules/diagnostic-channel-publishers/**
-!node_modules/diagnostic-channel/**
-!node_modules/semver/**
-!node_modules/vscode-extension-telemetry/**
-!node_modules/zone.js/**
-!server/node_modules/vscode-nls/**

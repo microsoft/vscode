@@ -19,7 +19,6 @@ module.exports = withDefaults({
 	output: {
 		filename: 'htmlServerMain.js',
 		path: path.join(__dirname, 'dist'),
-		libraryTarget: "commonjs",
 	},
 	externals: {
 		'typescript': 'commonjs typescript'

@@ -234,7 +234,11 @@ function getSettings(): Settings {
 	if (folders) {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
+
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+			console.log(`workspaceValue : ${!!schemaConfigInfo!.workspaceValue}`);
+			console.log(`workspaceFolderValue : ${!!schemaConfigInfo!.workspaceFolderValue}`);
+
 			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
