@@ -566,6 +566,10 @@ export interface IEditorOptions {
 	 */
 	suggestLineHeight?: number;
 	/**
+	 * Enable tab completion.
+	 */
+	tabCompletion?: boolean;
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
@@ -963,11 +967,11 @@ export interface EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 	readonly acceptSuggestionOnCommitCharacter: boolean;
-	// readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
+	readonly tabCompletion: boolean;
 	readonly suggest: InternalSuggestOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
@@ -1375,6 +1379,7 @@ export class InternalEditorOptions {
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
+			&& a.tabCompletion === b.tabCompletion
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
@@ -1999,6 +2004,7 @@ export class EditorOptionsValidator {
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
+			tabCompletion: _boolean(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
@@ -2110,6 +2116,7 @@ export class InternalEditorOptionsFactory {
 				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
+				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2590,6 +2597,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
+		tabCompletion: false,
 		suggest: {
 			filterGraceful: true,
 			snippets: 'inline',

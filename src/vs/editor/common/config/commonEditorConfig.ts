@@ -620,6 +620,11 @@ const editorConfiguration: IConfigurationNode = {
 			'minimum': 0,
 			'markdownDescription': nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.")
 		},
+		'editor.tabCompletion': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
+		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',
 			default: true,
