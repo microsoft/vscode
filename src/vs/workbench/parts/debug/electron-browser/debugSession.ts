@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
@@ -209,7 +209,7 @@ export class DebugSession implements IDebugSession {
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
 
-	sendBreakpoints(modelUri: uri, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
+	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
 
 		if (!this.raw) {
 			return TPromise.wrapError(new Error('no debug adapter'));
@@ -404,7 +404,7 @@ export class DebugSession implements IDebugSession {
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
 
-	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse> {
+	loadSource(resource: URI): TPromise<DebugProtocol.SourceResponse> {
 
 		if (!this.raw) {
 			return TPromise.wrapError(new Error('no debug adapter'));
@@ -735,23 +735,28 @@ export class DebugSession implements IDebugSession {
 
 	//---- sources
 
-	getSourceForUri(modelUri: uri): Source {
-		return this.sources.get(modelUri.toString());
+	getSourceForUri(uri: URI): Source {
+		return this.sources.get(this.getUriKey(uri));
 	}
 
 	getSource(raw: DebugProtocol.Source): Source {
 		let source = new Source(raw, this.getId());
-		if (this.sources.has(source.uri.toString())) {
-			source = this.sources.get(source.uri.toString());
+		const uriKey = this.getUriKey(source.uri);
+		if (this.sources.has(uriKey)) {
+			source = this.sources.get(uriKey);
 			source.raw = mixin(source.raw, raw);
 			if (source.raw && raw) {
 				// Always take the latest presentation hint from adapter #42139
 				source.raw.presentationHint = raw.presentationHint;
 			}
 		} else {
-			this.sources.set(source.uri.toString(), source);
+			this.sources.set(uriKey, source);
 		}
 
 		return source;
+	}
+
+	private getUriKey(uri: URI): string {
+		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
 	}
 }

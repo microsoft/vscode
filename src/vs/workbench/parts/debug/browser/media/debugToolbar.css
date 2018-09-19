@@ -5,7 +5,7 @@
 
 /* Debug actions widget */
 
-.monaco-workbench .debug-actions-widget {
+.monaco-workbench .debug-toolbar {
 	position: absolute;
 	z-index: 200;
 	height: 32px;
@@ -13,15 +13,15 @@
 	padding-left: 7px;
 }
 
-.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item {
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item {
 	height: 32px;
 }
 
-.monaco-workbench .debug-actions-widget .monaco-action-bar .action-item.select-container {
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
 	margin-right: 7px;
 }
 
-.monaco-workbench .debug-actions-widget .drag-area {
+.monaco-workbench .debug-toolbar .drag-area {
 	cursor: -webkit-grab;
 	height: 32px;
 	width: 16px;
@@ -29,11 +29,11 @@
 	background-size: 16px 16px;
 }
 
-.monaco-workbench .debug-actions-widget .drag-area.dragged {
+.monaco-workbench .debug-toolbar .drag-area.dragged {
 	cursor: -webkit-grabbing;
 }
 
-.monaco-workbench  .debug-actions-widget .monaco-action-bar .action-item > .action-label {
+.monaco-workbench  .debug-toolbar .monaco-action-bar .action-item > .action-label {
 	width: 32px;
 	height: 32px;
 	margin-right: 0;
