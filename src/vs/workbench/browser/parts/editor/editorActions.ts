@@ -714,6 +714,30 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	}
 }
 
+export class CloseEditorInAllGroupsAction extends Action {
+
+	static readonly ID = 'workbench.action.closeEditorInAllGroups';
+	static readonly LABEL = nls.localize('closeEditorInAllGroups', "Close Editor in All Groups");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorService private editorService: IEditorService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		const activeEditor = this.editorService.activeEditor;
+		if (activeEditor) {
+			return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
+		}
+
+		return TPromise.as(null);
+	}
+}
+
 export class BaseMoveGroupAction extends Action {
 
 	constructor(

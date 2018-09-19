@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
@@ -16,7 +16,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
-import { Thread, ExpressionContainer, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -32,14 +32,13 @@ export class DebugSession implements IDebugSession {
 
 	private id: string;
 	private raw: RawDebugSession;
-	private _state: State;
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler;
 
-	private readonly _onDidChangeState = new Emitter<State>();
+	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
 
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
@@ -49,14 +48,13 @@ export class DebugSession implements IDebugSession {
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
-		private model: Model,
+		private model: DebugModel,
 		@INotificationService private notificationService: INotificationService,
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
 	) {
 		this.id = generateUuid();
-		this.state = State.Initializing;
 	}
 
 	getId(): string {
@@ -76,14 +74,15 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get state(): State {
-		return this._state;
-	}
-
-	set state(value: State) {
-		if (this._state !== value) {
-			this._state = value;
-			this._onDidChangeState.fire(value);
+		const focusedThread = this.debugService.getViewModel().focusedThread;
+		if (focusedThread && !!this.getThread(focusedThread.threadId)) {
+			return focusedThread.stopped ? State.Stopped : State.Running;
 		}
+		if (this.getAllThreads().some(t => t.stopped)) {
+			return State.Stopped;
+		}
+
+		return !!this.raw ? State.Running : State.Inactive;
 	}
 
 	get capabilities(): DebugProtocol.Capabilities {
@@ -91,8 +90,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	//---- events
-
-	get onDidChangeState(): Event<State> {
+	get onDidChangeState(): Event<void> {
 		return this._onDidChangeState.event;
 	}
 
@@ -146,7 +144,7 @@ export class DebugSession implements IDebugSession {
 						locale: platform.locale
 					}).then(response => {
 						this.model.addSession(this);
-						this.state = State.Running;
+						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
 					});
 				});
@@ -209,7 +207,7 @@ export class DebugSession implements IDebugSession {
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
 
-	sendBreakpoints(modelUri: uri, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
+	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
 
 		if (!this.raw) {
 			return TPromise.wrapError(new Error('no debug adapter'));
@@ -404,7 +402,7 @@ export class DebugSession implements IDebugSession {
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
 
-	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse> {
+	loadSource(resource: URI): TPromise<DebugProtocol.SourceResponse> {
 
 		if (!this.raw) {
 			return TPromise.wrapError(new Error('no debug adapter'));
@@ -581,7 +579,6 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidStop(event => {
-			this.state = State.Stopped;
 			this.fetchThreads(event.body).then(() => {
 				const thread = this.getThread(event.body.threadId);
 				if (thread) {
@@ -591,7 +588,7 @@ export class DebugSession implements IDebugSession {
 						return !event.body.preserveFocusHint ? this.debugService.tryToAutoFocusStackFrame(thread) : undefined;
 					});
 				}
-			});
+			}).then(() => this._onDidChangeState.fire());
 		}));
 
 		this.rawListeners.push(this.raw.onDidThread(event => {
@@ -623,7 +620,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidContinued(event => {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(this.getId(), false, threadId);
-			this.state = State.Running;
+			this._onDidChangeState.fire();
 		}));
 
 		let outputPromises: TPromise<void>[] = [];
@@ -725,6 +722,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		this.model.clearThreads(this.getId(), true);
 		this.model.removeSession(this.getId());
+		this._onDidChangeState.fire();
 		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();
@@ -734,23 +732,28 @@ export class DebugSession implements IDebugSession {
 
 	//---- sources
 
-	getSourceForUri(modelUri: uri): Source {
-		return this.sources.get(modelUri.toString());
+	getSourceForUri(uri: URI): Source {
+		return this.sources.get(this.getUriKey(uri));
 	}
 
 	getSource(raw: DebugProtocol.Source): Source {
 		let source = new Source(raw, this.getId());
-		if (this.sources.has(source.uri.toString())) {
-			source = this.sources.get(source.uri.toString());
+		const uriKey = this.getUriKey(source.uri);
+		if (this.sources.has(uriKey)) {
+			source = this.sources.get(uriKey);
 			source.raw = mixin(source.raw, raw);
 			if (source.raw && raw) {
 				// Always take the latest presentation hint from adapter #42139
 				source.raw.presentationHint = raw.presentationHint;
 			}
 		} else {
-			this.sources.set(source.uri.toString(), source);
+			this.sources.set(uriKey, source);
 		}
 
 		return source;
+	}
+
+	private getUriKey(uri: URI): string {
+		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
 	}
 }

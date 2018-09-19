@@ -104,6 +104,12 @@
 	padding: 0 1.8em;
 }
 
+.monaco-shell .linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	height: 100%;
+	-webkit-mask-size: 10px 10px;
+	mask-size: 10px 10px;
+}
+
 .monaco-shell .monaco-menu .action-item {
 	cursor: default;
 }

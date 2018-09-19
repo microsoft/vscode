@@ -668,7 +668,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 	}
 
-	showTriggered(auto: boolean) {
+	showTriggered(auto: boolean, delay: number) {
 		if (this.state !== State.Hidden) {
 			return;
 		}
@@ -679,7 +679,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.loadingTimeout = setTimeout(() => {
 				this.loadingTimeout = null;
 				this.setState(State.Loading);
-			}, 50);
+			}, delay);
 		}
 	}
 

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { ISuggestion } from 'vs/editor/common/modes';
 
@@ -109,7 +109,7 @@ export class MockDebugService implements IDebugService {
 		return TPromise.as(null);
 	}
 
-	public getModel(): IModel {
+	public getModel(): IDebugModel {
 		return null;
 	}
 
@@ -158,7 +158,7 @@ export class MockSession implements IDebugSession {
 		return null;
 	}
 
-	get onDidChangeState(): Event<State> {
+	get onDidChangeState(): Event<void> {
 		return null;
 	}
 

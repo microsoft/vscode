@@ -108,18 +108,23 @@ class ConfigAwareContextValuesContainer extends Context {
 				if (Object.prototype.hasOwnProperty.call(obj, key)) {
 					keys.push(key);
 					let value = obj[key];
-					if (typeof value === 'boolean') {
-						const configKey = keys.join('.');
-						const oldValue = this._value[configKey];
-						this._value[configKey] = value;
-						if (oldValue !== value) {
-							configKeysChanged.push(configKey);
-							configKeys[configKey] = true;
-						} else {
-							configKeys[configKey] = false;
-						}
-					} else if (typeof value === 'object') {
-						walk(value, keys);
+					switch (typeof value) {
+						case 'boolean':
+						case 'string':
+						case 'number':
+							const configKey = keys.join('.');
+							const oldValue = this._value[configKey];
+							this._value[configKey] = value;
+							if (oldValue !== value) {
+								configKeysChanged.push(configKey);
+								configKeys[configKey] = true;
+							} else {
+								configKeys[configKey] = false;
+							}
+							break;
+						case 'object':
+							walk(value, keys);
+							break;
 					}
 					keys.pop();
 				}

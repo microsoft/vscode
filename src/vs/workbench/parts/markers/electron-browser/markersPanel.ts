@@ -198,7 +198,7 @@ export class MarkersPanel extends Panel {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer, (action) => this.getActionItem(action));
 		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
-		const controller = this.instantiationService.createInstance(Controller);
+		const controller = this.instantiationService.createInstance(Controller, () => { if (this.filterInputActionItem) { this.filterInputActionItem.focus(); } });
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			filter: new Viewer.DataFilter(),

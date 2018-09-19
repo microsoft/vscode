@@ -21,6 +21,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -74,7 +75,15 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null,
 			null,
 			editorGroupService,
-			null
+			null,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				onDidPanelOpen = Event.None;
+				onDidPanelClose = Event.None;
+				getActivePanel() {
+					return null;
+				}
+			}
 		);
 		/* tslint:enable */
 	});

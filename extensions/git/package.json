@@ -221,6 +221,11 @@
         "category": "Git"
       },
       {
+        "command": "git.restoreCommitTemplate",
+        "title": "%command.restoreCommitTemplate%",
+        "category": "Git"
+      },
+      {
         "command": "git.undoCommit",
         "title": "%command.undoCommit%",
         "category": "Git"
@@ -475,6 +480,10 @@
         {
           "command": "git.commitAllAmend",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.restoreCommitTemplate",
+          "when": "false"
         },
         {
           "command": "git.undoCommit",
@@ -1142,6 +1151,12 @@
           "scope": "window",
           "description": "%config.ignoredRepositories%"
         },
+        "git.scanRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "resource",
+          "description": "%config.scanRepositories%"
+        },
         "git.showProgress": {
           "type": "boolean",
           "description": "%config.showProgress%",
@@ -1326,7 +1341,7 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "jschardet": "^1.6.0",
-    "vscode-extension-telemetry": "0.0.18",
+    "vscode-extension-telemetry": "0.0.19",
     "vscode-nls": "^4.0.0",
     "which": "^1.3.0"
   },

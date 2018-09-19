@@ -22,7 +22,7 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Model, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
+import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -47,7 +47,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -63,7 +63,7 @@ export class DebugService implements IDebugService {
 	private readonly _onDidNewSession: Emitter<IDebugSession>;
 	private readonly _onWillNewSession: Emitter<IDebugSession>;
 	private readonly _onDidEndSession: Emitter<IDebugSession>;
-	private model: Model;
+	private model: DebugModel;
 	private viewModel: ViewModel;
 	private configurationManager: ConfigurationManager;
 	private allSessions = new Map<string, IDebugSession>();
@@ -114,7 +114,7 @@ export class DebugService implements IDebugService {
 		this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 		this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 
-		this.model = new Model(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
+		this.model = new DebugModel(this.loadBreakpoints(), this.storageService.getBoolean(DEBUG_BREAKPOINTS_ACTIVATED_KEY, StorageScope.WORKSPACE, true), this.loadFunctionBreakpoints(),
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions(), this.textFileService);
 		this.toDispose.push(this.model);
 
@@ -147,8 +147,8 @@ export class DebugService implements IDebugService {
 			}
 		}, this));
 
-		this.toDispose.push(this.viewModel.onDidFocusSession(s => {
-			const id = s ? s.getId() : undefined;
+		this.toDispose.push(this.viewModel.onDidFocusStackFrame(sfEvent => {
+			const id = sfEvent && sfEvent.stackFrame ? sfEvent.stackFrame.thread.session.getId() : undefined;
 			this.model.setBreakpointsSessionId(id);
 			this.onStateChange();
 		}));
@@ -158,7 +158,7 @@ export class DebugService implements IDebugService {
 		return this.allSessions.get(sessionId);
 	}
 
-	getModel(): IModel {
+	getModel(): IDebugModel {
 		return this.model;
 	}
 
@@ -494,11 +494,10 @@ export class DebugService implements IDebugService {
 
 	private registerSessionListeners(session: IDebugSession): void {
 
-		this.toDispose.push(session.onDidChangeState((state) => {
-			if (state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
+		this.toDispose.push(session.onDidChangeState(() => {
+			if (session.state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
 				this.focusStackFrame(undefined);
 			}
-			this.onStateChange();
 		}));
 
 		this.toDispose.push(session.onDidEndAdapter(adapterExitEvent => {
@@ -543,7 +542,6 @@ export class DebugService implements IDebugService {
 	}
 
 	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
-
 
 		return this.textFileService.saveAll().then(() => {
 
@@ -610,12 +608,7 @@ export class DebugService implements IDebugService {
 		}
 
 		const sessions = this.model.getSessions();
-		if (sessions.length) {
-			return TPromise.join(sessions.map(s => s.terminate()));
-		}
-
-		this._onDidChangeState.fire();	// TODO@AW why state change?
-		return undefined;
+		return TPromise.join(sessions.map(s => s.terminate()));
 	}
 
 	private substituteVariables(launch: ILaunch | undefined, config: IConfig): TPromise<IConfig> {
@@ -1012,11 +1005,11 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		return this.sendToOneOrAllSessions(session, s => {
-			return s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
+			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
 				if (data) {
 					this.model.setBreakpointSessionData(s.getId(), data);
 				}
-			});
+			}) : TPromise.as(undefined);
 		});
 	}
 

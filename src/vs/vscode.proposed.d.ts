@@ -11,13 +11,25 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - https://github.com/Microsoft/vscode/issues/1800
+
 	export namespace languages {
 
 		/**
+		 * Set (and change) the [language](#TextDocument.languageId) that is associated
+		 * with the given document.
 		 *
+		 * *Note* that calling this function will trigger the [`onDidCloseTextDocument`](#languages.onDidCloseTextDocument) event
+		 * followed by the [`onDidOpenTextDocument`](#languages.onDidOpenTextDocument) event.
+		 *
+		 * @param document The document which language is to be changed
+		 * @param languageId The new language identifier.
+		 * @returns A thenable that resolves with the updated document.
 		 */
-		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
+		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
 	}
+
+	//#endregion
 
 	//#region Joh - read/write in chunks
 
@@ -699,6 +711,14 @@ declare module 'vscode' {
 		canEdit?: boolean;
 
 		/**
+		 * Whether the current user has permission to delete the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 */
+		canDelete?: boolean;
+
+		/**
 		 * The command to be executed if the comment is selected in the Comments Panel
 		 */
 		command?: Command;
@@ -741,6 +761,11 @@ declare module 'vscode' {
 		 * Called when a user edits the comment body to the be new text text.
 		 */
 		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<Comment>;
+
+		/**
+		 * Called when a user deletes the comment.
+		 */
+		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
 
 		/**
 		 * Notify of updates to comment threads.

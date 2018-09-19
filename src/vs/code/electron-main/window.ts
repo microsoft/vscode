@@ -874,7 +874,11 @@ export class CodeWindow implements ICodeWindow {
 					break;
 				case 'Maximize':
 				default:
-					this.win.maximize();
+					if (this.win.isMaximized()) {
+						this.win.unmaximize();
+					} else {
+						this.win.maximize();
+					}
 			}
 		}
 

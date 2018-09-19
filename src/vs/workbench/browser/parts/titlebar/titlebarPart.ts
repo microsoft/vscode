@@ -29,7 +29,7 @@ import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, getComputedStyle } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
@@ -123,14 +123,12 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (isWindows || isLinux) {
 			// Hide title when toggling menu bar
 			if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
-				this.title.style.visibility = 'hidden';
-
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 				hide(this.dragRegion);
 				setTimeout(() => show(this.dragRegion), 50);
-			} else {
-				this.title.style.visibility = null;
 			}
+
+			this.adjustTitleMarginToCenter();
 		}
 	}
 
@@ -195,6 +193,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		} else {
 			this.pendingTitle = title;
 		}
+
+		this.adjustTitleMarginToCenter();
 	}
 
 	private getWindowTitle(): string {
@@ -415,6 +415,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				show(this.resizer);
 			}
 		}
+
+		this.adjustTitleMarginToCenter();
 	}
 
 	protected updateStyles(): void {
@@ -492,6 +494,28 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		return actions;
+	}
+
+	private adjustTitleMarginToCenter(): void {
+		setTimeout(() => {
+			// Center the title in the window
+			const currentAppIconWidth = this.appIcon ? parseInt(getComputedStyle(this.appIcon).width, 10) : 0;
+			let currentMenubarWidth = parseInt(getComputedStyle(this.menubar).width, 10);
+			currentMenubarWidth = isNaN(currentMenubarWidth) ? 0 : currentMenubarWidth;
+			const currentTotalWidth = parseInt(getComputedStyle(document.body).width, 10);
+			const currentTitleWidth = parseInt(getComputedStyle(this.title).width, 10);
+			const currentWindowControlsWidth = this.windowControls ? parseInt(getComputedStyle(this.windowControls).width, 10) : 0;
+
+			let leftMargin = (currentTotalWidth / 2) - (currentTitleWidth / 2) - (currentMenubarWidth + currentAppIconWidth);
+			let rightMargin = currentTotalWidth - (currentAppIconWidth + currentMenubarWidth + leftMargin + currentTitleWidth + currentWindowControlsWidth);
+
+			// Center if we can, leaving some space on both sides
+			if (leftMargin >= 20 && rightMargin >= 20) {
+				this.title.style.marginLeft = `${leftMargin}px`;
+			} else {
+				this.title.style.marginLeft = null;
+			}
+		}, 0); // delay so that we can get accurate information about the widths
 	}
 
 	private updateLayout(dimension: Dimension) {

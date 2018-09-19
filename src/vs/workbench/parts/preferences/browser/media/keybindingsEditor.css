@@ -130,7 +130,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
-	flex: 0.25;
+	flex: 0 0 100px;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {

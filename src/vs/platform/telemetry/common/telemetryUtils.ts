@@ -86,7 +86,6 @@ export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => str
  * Only add settings that cannot contain any personal/private information of users (PII).
  */
 const configurationValueWhitelist = [
-	'editor.tabCompletion',
 	'editor.fontFamily',
 	'editor.fontWeight',
 	'editor.fontSize',
@@ -130,6 +129,7 @@ const configurationValueWhitelist = [
 	'editor.suggestSelection',
 	'editor.suggestFontSize',
 	'editor.suggestLineHeight',
+	'editor.tabCompletion',
 	'editor.selectionHighlight',
 	'editor.occurrencesHighlight',
 	'editor.overviewRulerLanes',

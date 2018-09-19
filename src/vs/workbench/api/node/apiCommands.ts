@@ -77,7 +77,7 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 
 export class OpenAPICommand {
 	public static ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Thenable<any> {
+	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Thenable<any> {
 		let options: ITextEditorOptions;
 		let position: EditorViewColumn;
 
@@ -93,7 +93,8 @@ export class OpenAPICommand {
 		return executor.executeCommand('_workbench.open', [
 			resource,
 			options,
-			position
+			position,
+			label
 		]);
 	}
 }

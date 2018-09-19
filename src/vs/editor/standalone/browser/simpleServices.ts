@@ -602,7 +602,7 @@ export class SimpleUriLabelService implements ILabelService {
 	private readonly _onDidRegisterFormatter: Emitter<RegisterFormatterEvent> = new Emitter<RegisterFormatterEvent>();
 	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
 
-	public getUriLabel(resource: URI, relative?: boolean): string {
+	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
 			return resource.fsPath;
 		}
