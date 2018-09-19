@@ -2904,6 +2904,10 @@ declare namespace monaco.editor {
 		 */
 		suggestLineHeight?: number;
 		/**
+		 * Enable tab completion.
+		 */
+		tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
+		/**
 		 * Enable selection highlight.
 		 * Defaults to true.
 		 */
@@ -3246,6 +3250,7 @@ declare namespace monaco.editor {
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
