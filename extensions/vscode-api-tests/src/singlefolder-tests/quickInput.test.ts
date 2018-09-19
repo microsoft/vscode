@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { window, commands } from 'vscode';
+import { window, commands, QuickPickItem } from 'vscode';
 import { closeAllEditors } from '../utils';
 
 interface QuickPickExpected {
@@ -98,6 +98,31 @@ suite('window namespace tests', function () {
 				await commands.executeCommand('workbench.action.quickPickManyToggle');
 				await commands.executeCommand('workbench.action.quickOpenSelectNext');
 				await commands.executeCommand('workbench.action.quickPickManyToggle');
+				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			})()
+				.catch(err => done(err));
+		});
+
+		test('createQuickPick, always show', function (_done) {
+			let done = (err?: any) => {
+				done = () => { };
+				_done(err);
+			};
+			const quickPick = createQuickPick({
+				events: ['active', 'selection', 'accept', 'hide'],
+				activeItems: [['shleem']],
+				selectionItems: [['shleem']],
+				acceptedItems: {
+					active: [['shleem']],
+					selection: [['shleem']]
+				},
+			}, (err?: any) => done(err));
+			let items: QuickPickItem[] = ['plumbus', 'pleeb', 'shleem', 'gazorpazorp'].map(label => ({ label }));
+			items[2].shouldAlwaysShow = true;
+			quickPick.items = items;
+			quickPick.value = "obscure query to show only shleem";
+			quickPick.show();
+			(async () => {
 				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 			})()
 				.catch(err => done(err));
