@@ -269,7 +269,7 @@ export function createApiFactory(
 			getLanguages(): Thenable<string[]> {
 				return extHostLanguages.getLanguages();
 			},
-			changeLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
+			setTextDocumentLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
 				checkProposedApiEnabled(extension);
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},

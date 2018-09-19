@@ -11,13 +11,17 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - https://github.com/Microsoft/vscode/issues/1800
+
 	export namespace languages {
 
 		/**
 		 *
 		 */
-		export function changeLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
+		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
 	}
+
+	//#endregion
 
 	//#region Joh - read/write in chunks
 
