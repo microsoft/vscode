@@ -138,7 +138,7 @@ export function createApiFactory(
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
 	const extHostOutputService = new ExtHostOutputService(initData.logsLocation, rpcProtocol);
-	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
+	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
 	extHostOutputService.createOutputChannelFromLogFile(localize('extensionsLog', "Extension Host"), extHostLogService.logFile);
@@ -269,7 +269,7 @@ export function createApiFactory(
 			getLanguages(): Thenable<string[]> {
 				return extHostLanguages.getLanguages();
 			},
-			changeLanguage(document: vscode.TextDocument, languageId: string): Thenable<void> {
+			changeLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
 				checkProposedApiEnabled(extension);
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
