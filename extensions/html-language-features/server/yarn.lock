@@ -194,19 +194,19 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-css-languageservice@^3.0.10:
-  version "3.0.10"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.10.tgz#71ece7e0d19227e9f21bcd5d5d928f817a7d701e"
+vscode-css-languageservice@^3.0.11:
+  version "3.0.11"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-3.0.11.tgz#0e75e1870d59fddbfb6021efd5d80df08c9faaeb"
   dependencies:
-    vscode-languageserver-types "^3.12.0"
-    vscode-nls "^3.2.5"
+    vscode-languageserver-types "^3.13.0"
+    vscode-nls "^4.0.0"
 
-vscode-html-languageservice@^2.1.7:
-  version "2.1.7"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.7.tgz#0177c01f0946ea42aae1068bc0b7ef09e3959daa"
+vscode-html-languageservice@^2.1.8:
+  version "2.1.8"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.8.tgz#1f3c8826b68f41f4f8ef3b683607f66499347fd1"
   dependencies:
-    vscode-languageserver-types "^3.12.0"
-    vscode-nls "^3.2.5"
+    vscode-languageserver-types "^3.13.0"
+    vscode-nls "^4.0.0"
     vscode-uri "^1.0.6"
 
 vscode-jsonrpc@^3.6.2:
@@ -220,13 +220,9 @@ vscode-languageserver-protocol@^3.13.0-next.1:
     vscode-jsonrpc "^3.6.2"
     vscode-languageserver-types "^3.13.0-next.1"
 
-vscode-languageserver-types@^3.10.0:
-  version "3.10.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.0.tgz#944e5308f3b36a3f372c766f1a344e903ec9c389"
-
-vscode-languageserver-types@^3.12.0:
-  version "3.12.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.12.0.tgz#f96051381b6a050b7175b37d6cb5d2f2eb64b944"
+vscode-languageserver-types@^3.13.0:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0.tgz#b704b024cef059f7b326611c99b9c8753c0a18b4"
 
 vscode-languageserver-types@^3.13.0-next.1:
   version "3.13.0-next.1"
@@ -238,10 +234,6 @@ vscode-languageserver@^5.1.0-next.5:
   dependencies:
     vscode-languageserver-protocol "^3.13.0-next.1"
     vscode-uri "^1.0.5"
-
-vscode-nls@^3.2.5:
-  version "3.2.5"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.5.tgz#25520c1955108036dec607c85e00a522f247f1a4"
 
 vscode-nls@^4.0.0:
   version "4.0.0"

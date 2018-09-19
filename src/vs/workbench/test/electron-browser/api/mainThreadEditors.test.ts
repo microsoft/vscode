@@ -29,6 +29,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { LabelService } from 'vs/platform/label/common/label';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 suite('MainThreadEditors', () => {
 
@@ -108,6 +109,14 @@ suite('MainThreadEditors', () => {
 			null,
 			editorGroupService,
 			bulkEditService,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				onDidPanelOpen = Event.None;
+				onDidPanelClose = Event.None;
+				getActivePanel() {
+					return null;
+				}
+			}
 		);
 
 		editors = new MainThreadTextEditors(

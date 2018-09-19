@@ -22,8 +22,7 @@ module.exports = withDefaults({
 		libraryTarget: "commonjs",
 	},
 	externals: {
-		'typescript': 'commonjs typescript',
-		"vscode-nls": 'commonjs vscode-nls',
+		'typescript': 'commonjs typescript'
 	},
 	plugins: [
 		new webpack.NormalModuleReplacementPlugin(

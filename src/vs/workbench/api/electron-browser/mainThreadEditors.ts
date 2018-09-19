@@ -247,11 +247,17 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const diffEditors = this._codeEditorService.listDiffEditors();
 		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
 
-		if (!diffEditor) {
-			return TPromise.as([]);
+		if (diffEditor) {
+			return TPromise.as(diffEditor.getLineChanges());
 		}
 
-		return TPromise.as(diffEditor.getLineChanges());
+		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
+
+		if (dirtyDiffContribution) {
+			return TPromise.as((dirtyDiffContribution as any).getChanges());
+		}
+
+		return TPromise.as([]);
 	}
 }
 

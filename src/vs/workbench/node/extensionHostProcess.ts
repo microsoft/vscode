@@ -14,6 +14,7 @@ import { createConnection } from 'net';
 import { Event, filterEvent } from 'vs/base/common/event';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
 import * as nativeWatchdog from 'native-watchdog';
+import product from 'vs/platform/node/product';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -88,6 +89,16 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 			first.dispose();
 
 			const initData = <IInitData>JSON.parse(raw.toString());
+
+			const rendererCommit = initData.commit;
+			const myCommit = product.commit;
+
+			if (rendererCommit && myCommit) {
+				// Running in the built version where commits are defined
+				if (rendererCommit !== myCommit) {
+					exit(55);
+				}
+			}
 
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection

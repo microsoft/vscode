@@ -38,6 +38,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { CommentNode } from 'vs/workbench/parts/comments/electron-browser/commentNode';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-x';
@@ -83,6 +84,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		private themeService: IThemeService,
 		private commentService: ICommentService,
 		private openerService: IOpenerService,
+		private dialogService: IDialogService,
 		editor: ICodeEditor,
 		owner: number,
 		commentThread: modes.CommentThread,
@@ -212,17 +214,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				lastCommentElement = oldCommentNode[0].domNode;
 				newCommentNodeList.unshift(oldCommentNode[0]);
 			} else {
-				let newElement = new CommentNode(
-					currentComment,
-					this.owner,
-					this.editor.getModel().uri,
-					this._markdownRenderer,
-					this.themeService,
-					this.instantiationService,
-					this.commentService,
-					this.modelService,
-					this.modeService);
-				this._disposables.push(newElement);
+				const newElement = this.createNewCommentNode(currentComment);
 
 				newCommentNodeList.unshift(newElement);
 				if (lastCommentElement) {
@@ -260,16 +252,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentElements = [];
 		for (let i = 0; i < this._commentThread.comments.length; i++) {
-			let newCommentNode = new CommentNode(this._commentThread.comments[i],
-				this.owner,
-				this.editor.getModel().uri,
-				this._markdownRenderer,
-				this.themeService,
-				this.instantiationService,
-				this.commentService,
-				this.modelService,
-				this.modeService);
-			this._disposables.push(newCommentNode);
+			const newCommentNode = this.createNewCommentNode(this._commentThread.comments[i]);
+
 			this._commentElements.push(newCommentNode);
 			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
@@ -355,6 +339,43 @@ export class ReviewZoneWidget extends ZoneWidget {
 		if (this._commentThread.reply && !this._commentThread.comments.length) {
 			this._commentEditor.focus();
 		}
+	}
+
+	private createNewCommentNode(comment: modes.Comment): CommentNode {
+		let newCommentNode = new CommentNode(
+			comment,
+			this.owner,
+			this.editor.getModel().uri,
+			this._markdownRenderer,
+			this.themeService,
+			this.instantiationService,
+			this.commentService,
+			this.modelService,
+			this.modeService,
+			this.dialogService);
+
+		this._disposables.push(newCommentNode);
+		this._disposables.push(newCommentNode.onDidDelete(deletedNode => {
+			const deletedNodeId = deletedNode.comment.commentId;
+			const deletedElementIndex = arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.commentId === deletedNodeId);
+			if (deletedElementIndex > -1) {
+				this._commentElements.splice(deletedElementIndex, 1);
+			}
+
+			const deletedCommentIndex = arrays.firstIndex(this._commentThread.comments, comment => comment.commentId === deletedNodeId);
+			if (deletedCommentIndex > -1) {
+				this._commentThread.comments.splice(deletedCommentIndex, 1);
+			}
+
+			this._commentsElement.removeChild(deletedNode.domNode);
+			deletedNode.dispose();
+
+			if (this._commentThread.comments.length === 0) {
+				this.dispose();
+			}
+		}));
+
+		return newCommentNode;
 	}
 
 	private async createComment(lineNumber: number): Promise<void> {

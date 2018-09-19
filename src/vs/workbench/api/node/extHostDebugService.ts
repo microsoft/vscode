@@ -16,7 +16,7 @@ import {
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/node/extHost.protocol';
 import * as vscode from 'vscode';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer } from 'vs/workbench/api/node/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable } from 'vs/workbench/api/node/extHostTypes';
 import { generateUuid } from 'vs/base/common/uuid';
 import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -32,6 +32,7 @@ import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalSer
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -66,6 +67,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
+	private _aexCommands: Map<string, string>;
 	private _debugAdapters: Map<number, IDebugAdapter>;
 
 	private _variableResolver: IConfigurationResolverService;
@@ -79,9 +81,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		private _extensionService: ExtHostExtensionService,
 		private _editorsService: ExtHostDocumentsAndEditors,
 		private _configurationService: ExtHostConfiguration,
-		private _terminalService: ExtHostTerminalService
+		private _terminalService: ExtHostTerminalService,
+		private _commandService: ExtHostCommands
 	) {
-
+		this._aexCommands = new Map();
 		this._handleCounter = 0;
 		this._providerByHandle = new Map();
 		this._providerByType = new Map();
@@ -116,6 +119,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						// only debugger contributions with a "label" are considered a "main" debugger contribution
 						if (dbg.type && dbg.label) {
 							debugTypes.push(dbg.type);
+							if (dbg.adapterExecutableCommand) {
+								this._aexCommands.set(dbg.type, dbg.adapterExecutableCommand);
+							}
 						}
 					}
 				}
@@ -526,21 +532,34 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	// private & dto helpers
 
 	private getAdapterDescriptor(debugConfigProvider, sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Thenable<vscode.DebugAdapterDescriptor> {
+
+		// a "debugServer" attribute in the launch config takes precedence
+		if (typeof config.debugServer === 'number') {
+			return TPromise.wrap(new DebugAdapterServer(config.debugServer));
+		}
+
 		if (debugConfigProvider) {
+			// try the proposed "provideDebugAdapter" API
 			if (debugConfigProvider.provideDebugAdapter) {
 				const adapterExecutable = DebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), config.type);
 				return asThenable(() => debugConfigProvider.provideDebugAdapter(this.getSession(sessionDto), this.getFolder(folderUri), adapterExecutable, config, CancellationToken.None));
 			}
-			// deprecated
+			// try the deprecated "debugAdapterExecutable" API
 			if (debugConfigProvider.debugAdapterExecutable) {
 				return asThenable(() => debugConfigProvider.debugAdapterExecutable(this.getFolder(folderUri), CancellationToken.None));
 			}
 		}
-		// fallback: use serverport or executable information from package.json
-		// TODO@AW support legacy command based mechanism
-		if (typeof config.debugServer === 'number') {
-			return TPromise.wrap(new DebugAdapterServer(config.debugServer));
+
+		// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
+		const aex = this._aexCommands.get(config.type);
+		if (aex) {
+			const rootFolder = folderUri ? URI.revive(folderUri).toString() : undefined;
+			return this._commandService.executeCommand(aex, rootFolder).then((ae: { command: string, args: string[] }) => {
+				return new DebugAdapterExecutable(ae.command, ae.args || []);
+			});
 		}
+
+		// fallback: use executable information from package.json
 		return TPromise.wrap(DebugAdapter.platformAdapterExecutable(this._extensionService.getAllExtensionDescriptions(), config.type));
 	}
 

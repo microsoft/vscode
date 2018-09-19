@@ -57,10 +57,9 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.getColorPresentations(embedded, cssStylesheets.get(embedded), color, range);
 		},
-		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
+		getFoldingRanges(document: TextDocument): FoldingRange[] {
 			let embedded = embeddedCSSDocuments.get(document);
-			let ranges = cssLanguageService.getFoldingRanges(embedded, {});
-			return ranges.filter(r => r.startLine >= range.start.line && r.endLine < range.end.line);
+			return cssLanguageService.getFoldingRanges(embedded, {});
 		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);

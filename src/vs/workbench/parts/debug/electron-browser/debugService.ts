@@ -411,7 +411,7 @@ export class DebugService implements IDebugService {
 
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<any> {
 
-		const session = <IDebugSession>this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
+		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
 		this.allSessions.set(session.getId(), session);
 
 		// register listeners as the very first thing!
@@ -455,7 +455,7 @@ export class DebugService implements IDebugService {
 			}).then(() => session, (error: Error | string) => {
 
 				if (session) {
-					session.dispose();
+					session.shutdown();
 				}
 
 				if (errors.isPromiseCanceledError(error)) {
@@ -481,7 +481,7 @@ export class DebugService implements IDebugService {
 		}).then(undefined, error => {
 
 			if (session) {
-				session.dispose();
+				session.shutdown();
 			}
 
 			if (errors.isPromiseCanceledError(error)) {
@@ -522,7 +522,7 @@ export class DebugService implements IDebugService {
 					this.notificationService.error(err)
 				);
 			}
-			session.dispose();
+			session.shutdown();
 			this._onDidEndSession.fire(session);
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -1012,11 +1012,11 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		return this.sendToOneOrAllSessions(session, s => {
-			return s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
+			return s.capabilities.supportsFunctionBreakpoints ? s.sendFunctionBreakpoints(breakpointsToSend).then(data => {
 				if (data) {
 					this.model.setBreakpointSessionData(s.getId(), data);
 				}
-			});
+			}) : TPromise.as(undefined);
 		});
 	}
 

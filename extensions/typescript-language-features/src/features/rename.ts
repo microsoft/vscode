@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
 
@@ -28,6 +30,14 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		if (!renameInfo.canRename) {
 			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
 		}
+
+		if (this.client.apiVersion.gte(API.v310)) {
+			const triggerSpan = (renameInfo as any).triggerSpan;
+			if (triggerSpan) {
+				return typeConverters.Range.fromTextSpan(triggerSpan);
+			}
+		}
+
 		return null;
 	}
 
@@ -46,7 +56,15 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		if (!renameInfo.canRename) {
 			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
 		}
-		return this.toWorkspaceEdit(body.locs, newName);
+
+		const edit = new vscode.WorkspaceEdit();
+		if (this.client.apiVersion.gte(API.v310)) {
+			if (renameInfo.fileToRename) {
+				this.renameFile(edit, renameInfo.fileToRename, newName);
+			}
+		}
+		this.updateLocs(edit, body.locs, newName);
+		return edit;
 	}
 
 	public async execRename(
@@ -73,20 +91,37 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		}
 	}
 
-	private toWorkspaceEdit(
+	private updateLocs(
+		edit: vscode.WorkspaceEdit,
 		locations: ReadonlyArray<Proto.SpanGroup>,
 		newName: string
 	) {
-		const result = new vscode.WorkspaceEdit();
 		for (const spanGroup of locations) {
 			const resource = this.client.toResource(spanGroup.file);
 			if (resource) {
 				for (const textSpan of spanGroup.locs) {
-					result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
+					edit.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);
 				}
 			}
 		}
-		return result;
+		return edit;
+	}
+
+	private renameFile(
+		edit: vscode.WorkspaceEdit,
+		fileToRename: string,
+		newName: string,
+	): vscode.WorkspaceEdit {
+		// Make sure we preserve file exension if none provided
+		if (path.extname(newName)) {
+			newName += path.extname(fileToRename);
+		}
+
+		const dirname = path.dirname(fileToRename);
+		const newFilePath = path.join(dirname, newName);
+		edit.renameFile(vscode.Uri.file(fileToRename), vscode.Uri.file(newFilePath));
+
+		return edit;
 	}
 }
 

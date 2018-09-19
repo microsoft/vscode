@@ -341,7 +341,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, true));
+			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, { relative: true }));
 
 		recording.stop();
 

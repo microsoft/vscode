@@ -13,7 +13,7 @@
   },
   "categories": [],
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.18",
+    "vscode-extension-telemetry": "0.0.19",
     "vscode-nls": "^4.0.0",
     "vscode-ripgrep": "1.1.0"
   },

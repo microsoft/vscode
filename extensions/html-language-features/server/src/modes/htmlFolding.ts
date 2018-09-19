@@ -5,26 +5,42 @@
 'use strict';
 import { TextDocument, CancellationToken, Position, Range } from 'vscode-languageserver';
 import { FoldingRange } from 'vscode-languageserver-types';
-import { LanguageModes } from './languageModes';
+import { LanguageModes, LanguageMode } from './languageModes';
 
 export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRange[] {
 	let htmlMode = languageModes.getMode('html');
 	let range = Range.create(Position.create(0, 0), Position.create(document.lineCount, 0));
-	let ranges: FoldingRange[] = [];
+	let result: FoldingRange[] = [];
 	if (htmlMode && htmlMode.getFoldingRanges) {
-		ranges.push(...htmlMode.getFoldingRanges(document, range));
+		result.push(...htmlMode.getFoldingRanges(document));
 	}
+
+	// cache folding ranges per mode
+	let rangesPerMode: { [mode: string]: FoldingRange[] } = Object.create(null);
+	let getRangesForMode = (mode: LanguageMode) => {
+		if (mode.getFoldingRanges) {
+			let ranges = rangesPerMode[mode.getId()];
+			if (!Array.isArray(ranges)) {
+				ranges = mode.getFoldingRanges(document) || [];
+				rangesPerMode[mode.getId()] = ranges;
+			}
+			return ranges;
+		}
+		return [];
+	};
+
 	let modeRanges = languageModes.getModesInRange(document, range);
 	for (let modeRange of modeRanges) {
 		let mode = modeRange.mode;
-		if (mode && mode !== htmlMode && mode.getFoldingRanges && !modeRange.attributeValue) {
-			ranges.push(...mode.getFoldingRanges(document, modeRange));
+		if (mode && mode !== htmlMode && !modeRange.attributeValue) {
+			const ranges = getRangesForMode(mode);
+			result.push(...ranges.filter(r => r.startLine >= modeRange.start.line && r.endLine < modeRange.end.line));
 		}
 	}
-	if (maxRanges && ranges.length > maxRanges) {
-		ranges = limitRanges(ranges, maxRanges);
+	if (maxRanges && result.length > maxRanges) {
+		result = limitRanges(result, maxRanges);
 	}
-	return ranges;
+	return result;
 }
 
 function limitRanges(ranges: FoldingRange[], maxRanges: number) {
