@@ -13,9 +13,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestion, ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestion } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -30,6 +30,7 @@ import { Context as SuggestContext } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 
 class AcceptOnCharacterOracle {
 
@@ -104,6 +105,8 @@ export class SuggestController implements IEditorContribution {
 		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.suggestSelection);
 
 		this._alternatives = new SuggestAlternatives(this._editor, item => this._onDidSelectItem(item, false), this._contextKeyService);
+
+		this._toDispose.push(new WordContextKey(_editor, _contextKeyService));
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
 			if (!this._widget) {
@@ -276,10 +279,27 @@ export class SuggestController implements IEditorContribution {
 		alert(msg);
 	}
 
-	triggerSuggest(onlyFrom?: ISuggestSupport[]): void {
-		this._model.trigger({ auto: false }, false, onlyFrom);
+	triggerSuggest(): void {
+		this._model.trigger({ auto: false }, false);
 		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
 		this._editor.focus();
+	}
+
+	triggerSuggestAndAcceptBest(): void {
+		//todo@joh show UI after 500ms?
+		this._model.trigger({ auto: false });
+		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
+		this._editor.focus();
+		let listener = this._model.onDidSuggest(e => {
+			listener.dispose();
+			if (e.completionModel.items.length === 0) {
+				//todo@joh fallback/default configurable?
+				this._editor.trigger('suggest', Handler.Type, { text: '\t' });
+			} else {
+				// todo@joh suggest memory
+				this._onDidSelectItem({ index: 0, model: e.completionModel, item: e.completionModel.items[0] }, true);
+			}
+		});
 	}
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions?: boolean): void {
@@ -530,5 +550,15 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
+	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'acceptBestCompletion',
+	precondition: ContextKeyExpr.and(WordContextKey.AtEnd, SuggestContext.Visible.toNegated()),
+	handler: x => x.triggerSuggestAndAcceptBest(),
+	kbOpts: {
+		weight,
+		primary: KeyCode.Tab
 	}
 }));
