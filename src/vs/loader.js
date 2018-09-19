@@ -291,6 +291,9 @@ var AMDLoader;
                     options.baseUrl += '/';
                 }
             }
+            if (typeof options.cspNonce !== 'string') {
+                options.cspNonce = '';
+            }
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
             }
@@ -622,6 +625,11 @@ var AMDLoader;
             script.setAttribute('type', 'text/javascript');
             this.attachListeners(script, callback, errorback);
             script.setAttribute('src', scriptSrc);
+            // Propagate CSP nonce to dynamically created script tag.
+            var cspNonce = moduleManager.getConfig().getOptionsLiteral().cspNonce;
+            if (cspNonce) {
+                script.setAttribute('nonce', cspNonce);
+            }
             document.getElementsByTagName('head')[0].appendChild(script);
         };
         return BrowserScriptLoader;
