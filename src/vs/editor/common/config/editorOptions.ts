@@ -568,7 +568,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable tab completion.
 	 */
-	tabCompletion?: boolean;
+	tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -971,7 +971,7 @@ export interface EditorContribOptions {
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
-	readonly tabCompletion: boolean;
+	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 	readonly suggest: InternalSuggestOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
@@ -1869,6 +1869,15 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets', defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
+		if (opts === false) {
+			return 'off';
+		} else if (opts === true) {
+			return 'onlySnippets';
+		} else {
+			return _stringSet<'on' | 'off' | 'onlySnippets'>(opts, defaults, ['on', 'off', 'onlySnippets']);
+		}
+	}
 
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
@@ -2004,7 +2013,7 @@ export class EditorOptionsValidator {
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
-			tabCompletion: _boolean(opts.tabCompletion, defaults.tabCompletion),
+			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
@@ -2597,7 +2606,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
-		tabCompletion: false,
+		tabCompletion: 'off',
 		suggest: {
 			filterGraceful: true,
 			snippets: 'inline',

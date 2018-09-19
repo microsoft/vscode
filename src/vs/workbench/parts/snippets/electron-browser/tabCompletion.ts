@@ -60,7 +60,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 
 	private _update(): void {
-		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion;
+		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion === 'onlySnippets';
 		if (this._enabled !== enabled) {
 			this._enabled = enabled;
 			if (!this._enabled) {

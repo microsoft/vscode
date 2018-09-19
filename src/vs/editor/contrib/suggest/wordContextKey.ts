@@ -6,7 +6,7 @@
 'use strict';
 
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class WordContextKey {
@@ -14,30 +14,55 @@ export class WordContextKey {
 	static readonly AtEnd = new RawContextKey<boolean>('atEndOfWord', false);
 
 	private readonly _ckAtEnd: IContextKey<boolean>;
-	private readonly _listener: IDisposable;
+	private readonly _confListener: IDisposable;
+
+	private _enabled: boolean;
+	private _selectionListener: IDisposable;
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-		this._listener = editor.onDidChangeCursorSelection(e => {
-			const model = editor.getModel();
-			if (!model) {
-				this._ckAtEnd.set(false);
-				return;
-			}
-			let word = model.getWordAtPosition(e.selection.getStartPosition());
-			if (!word) {
-				this._ckAtEnd.set(false);
-				return;
-			}
-			this._ckAtEnd.set(word.endColumn === e.selection.getStartPosition().column);
-		});
+		this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update());
+		this._update();
 	}
 
 	dispose(): void {
+		dispose(this._confListener, this._selectionListener);
 		this._ckAtEnd.reset();
-		this._listener.dispose();
+	}
+
+	private _update(): void {
+		// only update this when tab completions are enabled
+		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion === 'on';
+		if (this._enabled === enabled) {
+			return;
+		}
+		this._enabled = enabled;
+
+		if (this._enabled) {
+			const checkForWordEnd = () => {
+				const model = this._editor.getModel();
+				if (!model) {
+					this._ckAtEnd.set(false);
+					return;
+				}
+				const selection = this._editor.getSelection();
+				const word = model.getWordAtPosition(selection.getStartPosition());
+				if (!word) {
+					this._ckAtEnd.set(false);
+					return;
+				}
+				this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column);
+			};
+			this._selectionListener = this._editor.onDidChangeCursorSelection(checkForWordEnd);
+			checkForWordEnd();
+
+		} else if (this._selectionListener) {
+			this._ckAtEnd.reset();
+			this._selectionListener.dispose();
+			this._selectionListener = undefined;
+		}
 	}
 }

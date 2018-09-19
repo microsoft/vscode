@@ -563,7 +563,13 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'insertBestCompletion',
-	precondition: ContextKeyExpr.and(WordContextKey.AtEnd, SuggestContext.Visible.toNegated(), SuggestAlternatives.OtherSuggestions.toNegated()),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
+		WordContextKey.AtEnd,
+		SuggestContext.Visible.toNegated(),
+		SuggestAlternatives.OtherSuggestions.toNegated(),
+		SnippetController2.InSnippetMode.toNegated()
+	),
 	handler: x => x.triggerSuggestAndAcceptBest('\t'),//todo@joh fallback/default configurable?
 	kbOpts: {
 		weight,
@@ -573,7 +579,12 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'insertNextSuggestion',
-	precondition: ContextKeyExpr.and(SuggestAlternatives.OtherSuggestions, SuggestContext.Visible.toNegated()),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
+		SuggestAlternatives.OtherSuggestions,
+		SuggestContext.Visible.toNegated(),
+		SnippetController2.InSnippetMode.toNegated()
+	),
 	handler: x => x.acceptNextSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -584,7 +595,12 @@ registerEditorCommand(new SuggestCommand({
 
 registerEditorCommand(new SuggestCommand({
 	id: 'insertPrevSuggestion',
-	precondition: ContextKeyExpr.and(SuggestAlternatives.OtherSuggestions, SuggestContext.Visible.toNegated()),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
+		SuggestAlternatives.OtherSuggestions,
+		SuggestContext.Visible.toNegated(),
+		SnippetController2.InSnippetMode.toNegated()
+	),
 	handler: x => x.acceptPrevSuggestion(),
 	kbOpts: {
 		weight: weight,
