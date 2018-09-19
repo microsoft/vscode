@@ -110,6 +110,8 @@ class ConfigAwareContextValuesContainer extends Context {
 					let value = obj[key];
 					switch (typeof value) {
 						case 'boolean':
+						case 'string':
+						case 'number':
 							const configKey = keys.join('.');
 							const oldValue = this._value[configKey];
 							this._value[configKey] = value;
