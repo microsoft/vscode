@@ -459,7 +459,7 @@ export interface IDebugAdapterProvider extends ITerminalLauncher {
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 }
 
-export interface IAdapterExecutable {
+export interface IDebugAdapterExecutable {
 	readonly type: 'executable';
 	readonly command: string;
 	readonly args: string[];
@@ -467,13 +467,18 @@ export interface IAdapterExecutable {
 	readonly env?: { [key: string]: string };
 }
 
-export interface IAdapterServer {
+export interface IDebugAdapterServer {
 	readonly type: 'server';
 	readonly port: number;
 	readonly host?: string;
 }
 
-export type IAdapterDescriptor = IAdapterExecutable | IAdapterServer;
+export interface IDebugAdapterImplementation {
+	readonly type: 'implementation';
+	readonly implementation: any;
+}
+
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImplementation;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;

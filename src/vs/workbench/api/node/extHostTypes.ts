@@ -1914,6 +1914,15 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	}
 }
 
+export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
+	readonly type = 'implementation';
+	readonly implementation: any;
+
+	constructor(transport: any) {
+		this.implementation = transport;
+	}
+}
+
 export enum LogLevel {
 	Trace = 1,
 	Debug = 2,
