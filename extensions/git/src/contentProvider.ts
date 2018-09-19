@@ -116,6 +116,8 @@ export class GitContentProvider {
 			const uriString = fileUri.toString();
 			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
+		} else if (/^~\d$/.test(ref)) {
+			ref = `:${ref[1]}`;
 		}
 
 		try {

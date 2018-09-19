@@ -900,6 +900,18 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async rm(paths: string[]): Promise<void> {
+		const args = ['rm', '--'];
+
+		if (!paths || !paths.length) {
+			return;
+		}
+
+		args.push(...paths);
+
+		await this.run(args);
+	}
+
 	async stage(path: string, data: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
