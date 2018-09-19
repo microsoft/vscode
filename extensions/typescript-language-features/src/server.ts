@@ -322,6 +322,7 @@ export class TypeScriptServer extends Disposable {
 							p.onSuccess(undefined);
 						}
 					} else {
+						this._tracer.traceEvent(event);
 						this._onEvent.fire(event);
 					}
 					break;
