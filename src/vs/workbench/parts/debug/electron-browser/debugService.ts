@@ -544,7 +544,6 @@ export class DebugService implements IDebugService {
 
 	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
 
-
 		return this.textFileService.saveAll().then(() => {
 
 			const unresolvedConfiguration = session.unresolvedConfiguration;
@@ -610,12 +609,7 @@ export class DebugService implements IDebugService {
 		}
 
 		const sessions = this.model.getSessions();
-		if (sessions.length) {
-			return TPromise.join(sessions.map(s => s.terminate()));
-		}
-
-		this._onDidChangeState.fire();	// TODO@AW why state change?
-		return undefined;
+		return TPromise.join(sessions.map(s => s.terminate()));
 	}
 
 	private substituteVariables(launch: ILaunch | undefined, config: IConfig): TPromise<IConfig> {
