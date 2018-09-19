@@ -215,7 +215,7 @@ suite('ExtensionsListView Tests', () => {
 			builtinCheck]);
 	});
 
-	test.only('Test installed query with category', () => {
+	test('Test installed query with category', () => {
 		const installedCategoryWithoutQuotesCheck = testableView.show('@installed category:themes').then(result => {
 			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with category');
 			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');

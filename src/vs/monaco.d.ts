@@ -76,6 +76,7 @@ declare namespace monaco {
 		 */
 		readonly onCancellationRequested: IEvent<any>;
 	}
+
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
 	 * This class is a simple parser which creates the basic component parts
@@ -2904,6 +2905,10 @@ declare namespace monaco.editor {
 		 */
 		suggestLineHeight?: number;
 		/**
+		 * Enable tab completion.
+		 */
+		tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
+		/**
 		 * Enable selection highlight.
 		 * Defaults to true.
 		 */
@@ -3246,6 +3251,7 @@ declare namespace monaco.editor {
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;

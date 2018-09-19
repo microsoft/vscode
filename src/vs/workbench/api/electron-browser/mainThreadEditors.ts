@@ -263,16 +263,16 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
 
-	const [resource, options, position] = args;
+	const [resource, options, position, label] = args;
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
-		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
+		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
 	}
 
 	if (resource && resource.scheme === 'command') {

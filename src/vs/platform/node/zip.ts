@@ -93,11 +93,15 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 			return;
 		}
 
-		istream = createWriteStream(targetFileName, { mode });
-		istream.once('close', () => c(null));
-		istream.once('error', e);
-		stream.once('error', e);
-		stream.pipe(istream);
+		try {
+			istream = createWriteStream(targetFileName, { mode });
+			istream.once('close', () => c(null));
+			istream.once('error', e);
+			stream.once('error', e);
+			stream.pipe(istream);
+		} catch (error) {
+			e(error);
+		}
 	}));
 }
 
@@ -148,14 +152,14 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)));
+				last = createCancelablePromise(token => mkdirp(targetFileName, void 0, token).then(() => readNextEntry(token)).then(null, e));
 				return;
 			}
 
 			const stream = ninvoke(zipfile, zipfile.openReadStream, entry);
 			const mode = modeFromEntry(entry);
 
-			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))));
+			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
 		});
 	});
 }

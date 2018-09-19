@@ -198,12 +198,14 @@ export class Resource implements SourceControlResourceState {
 				return 'U';
 			case Status.IGNORED:
 				return 'I';
+			case Status.DELETED_BY_THEM:
+				return 'D';
+			case Status.DELETED_BY_US:
+				return 'D';
 			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return 'C';
@@ -281,6 +283,7 @@ export const enum Operation {
 	Diff = 'Diff',
 	MergeBase = 'MergeBase',
 	Add = 'Add',
+	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
 	Clean = 'Clean',
@@ -753,6 +756,10 @@ export class Repository implements Disposable {
 
 	async add(resources: Uri[]): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath)));
+	}
+
+	async rm(resources: Uri[]): Promise<void> {
+		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {

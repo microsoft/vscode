@@ -159,8 +159,10 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				// Similar, handle case where we were asked to open a folder in the text editor.
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY && this.openAsFolder(input)) {
-					return;
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
+					this.openAsFolder(input);
+
+					return TPromise.wrapError(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
@@ -180,7 +182,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					let memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
+					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [
@@ -209,7 +211,7 @@ export class TextFileEditor extends BaseTextEditor {
 		this.editorService.openEditor(input, options, this.group);
 	}
 
-	private openAsFolder(input: FileEditorInput): boolean {
+	private openAsFolder(input: FileEditorInput): void {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
 		this.group.closeEditor(this.input).then(() => {
@@ -221,8 +223,6 @@ export class TextFileEditor extends BaseTextEditor {
 				});
 			}
 		});
-
-		return true; // in any case we handled it
 	}
 
 	protected getAriaLabel(): string {

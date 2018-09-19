@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
@@ -16,7 +16,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
-import { Thread, ExpressionContainer, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -49,7 +49,7 @@ export class DebugSession implements IDebugSession {
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
 		public root: IWorkspaceFolder,
-		private model: Model,
+		private model: DebugModel,
 		@INotificationService private notificationService: INotificationService,
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -209,7 +209,7 @@ export class DebugSession implements IDebugSession {
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
 
-	sendBreakpoints(modelUri: uri, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
+	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
 
 		if (!this.raw) {
 			return TPromise.wrapError(new Error('no debug adapter'));
@@ -404,7 +404,7 @@ export class DebugSession implements IDebugSession {
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
 
-	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse> {
+	loadSource(resource: URI): TPromise<DebugProtocol.SourceResponse> {
 
 		if (!this.raw) {
 			return TPromise.wrapError(new Error('no debug adapter'));
@@ -725,6 +725,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		this.model.clearThreads(this.getId(), true);
 		this.model.removeSession(this.getId());
+		this.state = State.Inactive;
 		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();
@@ -734,23 +735,28 @@ export class DebugSession implements IDebugSession {
 
 	//---- sources
 
-	getSourceForUri(modelUri: uri): Source {
-		return this.sources.get(modelUri.toString());
+	getSourceForUri(uri: URI): Source {
+		return this.sources.get(this.getUriKey(uri));
 	}
 
 	getSource(raw: DebugProtocol.Source): Source {
 		let source = new Source(raw, this.getId());
-		if (this.sources.has(source.uri.toString())) {
-			source = this.sources.get(source.uri.toString());
+		const uriKey = this.getUriKey(source.uri);
+		if (this.sources.has(uriKey)) {
+			source = this.sources.get(uriKey);
 			source.raw = mixin(source.raw, raw);
 			if (source.raw && raw) {
 				// Always take the latest presentation hint from adapter #42139
 				source.raw.presentationHint = raw.presentationHint;
 			}
 		} else {
-			this.sources.set(source.uri.toString(), source);
+			this.sources.set(uriKey, source);
 		}
 
 		return source;
+	}
+
+	private getUriKey(uri: URI): string {
+		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
 	}
 }

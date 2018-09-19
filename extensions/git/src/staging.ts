@@ -21,9 +21,12 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 			let fromLine = diff.modifiedStartLineNumber - 1;
 			let fromCharacter = 0;
 
+			// if this is an insertion at the very end of the document,
+			// then we must start the next range after the last character of the
+			// previous line, in order to take the correct eol
 			if (isInsertion && diff.originalStartLineNumber === original.lineCount) {
-				fromLine = original.lineCount - 1;
-				fromCharacter = original.lineAt(fromLine).range.end.character;
+				fromLine -= 1;
+				fromCharacter = modified.lineAt(fromLine).range.end.character;
 			}
 
 			result.push(modified.getText(new Range(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0)));

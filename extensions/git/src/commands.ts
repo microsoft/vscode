@@ -98,6 +98,8 @@ class CreateBranchItem implements QuickPickItem {
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
+	get shouldAlwaysShow(): boolean { return true; }
+
 	async run(repository: Repository): Promise<void> {
 		await this.cc.branch(repository);
 	}
@@ -136,20 +138,22 @@ const ImageMimetypes = [
 	'image/bmp'
 ];
 
-async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[] }> {
+async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
 	const selection = resources.filter(s => s instanceof Resource) as Resource[];
 	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
+	const isAnyDeleted = (s: Resource) => s.type === Status.DELETED_BY_THEM || s.type === Status.DELETED_BY_US;
 	const possibleUnresolved = merge.filter(isBothAddedOrModified);
 	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
 	const unresolvedBothModified = await Promise.all<boolean>(promises);
 	const resolved = possibleUnresolved.filter((s, i) => !unresolvedBothModified[i]);
+	const deletionConflicts = merge.filter(s => isAnyDeleted(s));
 	const unresolved = [
-		...merge.filter(s => !isBothAddedOrModified(s)),
+		...merge.filter(s => !isBothAddedOrModified(s) && !isAnyDeleted(s)),
 		...possibleUnresolved.filter((s, i) => unresolvedBothModified[i])
 	];
 
-	return { merge, resolved, unresolved };
+	return { merge, resolved, unresolved, deletionConflicts };
 }
 
 enum PushType {
@@ -213,7 +217,10 @@ export class CommandCenter {
 				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
 			}
 		} else {
-			left = await this.getLeftResource(resource);
+			if (resource.type !== Status.DELETED_BY_THEM) {
+				left = await this.getLeftResource(resource);
+			}
+
 			right = await this.getRightResource(resource);
 		}
 
@@ -240,7 +247,7 @@ export class CommandCenter {
 		}
 
 		if (!left) {
-			await commands.executeCommand<void>('vscode.open', right, opts);
+			await commands.executeCommand<void>('vscode.open', right, opts, title);
 		} else {
 			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 		}
@@ -308,9 +315,14 @@ export class CommandCenter {
 				return this.getURI(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
-			case Status.DELETED_BY_THEM:
 			case Status.DELETED:
 				return this.getURI(resource.resourceUri, 'HEAD');
+
+			case Status.DELETED_BY_US:
+				return this.getURI(resource.resourceUri, '~3');
+
+			case Status.DELETED_BY_THEM:
+				return this.getURI(resource.resourceUri, '~2');
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
@@ -342,13 +354,18 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
 
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return `${basename} (Working Tree)`;
+
+			case Status.DELETED_BY_US:
+				return `${basename} (Theirs)`;
+
+			case Status.DELETED_BY_THEM:
+				return `${basename} (Ours)`;
 		}
 
 		return '';
@@ -702,7 +719,7 @@ export class CommandCenter {
 		}
 
 		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const { resolved, unresolved } = await categorizeResourceByResolution(selection);
+		const { resolved, unresolved, deletionConflicts } = await categorizeResourceByResolution(selection);
 
 		if (unresolved.length > 0) {
 			const message = unresolved.length > 1
@@ -715,6 +732,20 @@ export class CommandCenter {
 			if (pick !== yes) {
 				return;
 			}
+		}
+
+		try {
+			await this.runByRepository(deletionConflicts.map(r => r.resourceUri), async (repository, resources) => {
+				for (const resource of resources) {
+					await this._stageDeletionConflict(repository, resource);
+				}
+			});
+		} catch (err) {
+			if (/Cancelled/.test(err.message)) {
+				return;
+			}
+
+			throw err;
 		}
 
 		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
@@ -732,7 +763,19 @@ export class CommandCenter {
 	@command('git.stageAll', { repository: true })
 	async stageAll(repository: Repository): Promise<void> {
 		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const { merge, unresolved } = await categorizeResourceByResolution(resources);
+		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
+
+		try {
+			for (const deletionConflict of deletionConflicts) {
+				await this._stageDeletionConflict(repository, deletionConflict.resourceUri);
+			}
+		} catch (err) {
+			if (/Cancelled/.test(err.message)) {
+				return;
+			}
+
+			throw err;
+		}
 
 		if (unresolved.length > 0) {
 			const message = unresolved.length > 1
@@ -748,6 +791,41 @@ export class CommandCenter {
 		}
 
 		await repository.add([]);
+	}
+
+	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
+		const uriString = uri.toString();
+		const resource = repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+
+		if (!resource) {
+			return;
+		}
+
+		if (resource.type === Status.DELETED_BY_THEM) {
+			const keepIt = localize('keep ours', "Keep Our Version");
+			const deleteIt = localize('delete', "Delete File");
+			const result = await window.showInformationMessage(localize('deleted by them', "File '{0}' was deleted by them and modified by us.\n\nWhat would you like to do?", path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
+
+			if (result === keepIt) {
+				await repository.add([uri]);
+			} else if (result === deleteIt) {
+				await repository.rm([uri]);
+			} else {
+				throw new Error('Cancelled');
+			}
+		} else if (resource.type === Status.DELETED_BY_US) {
+			const keepIt = localize('keep theirs', "Keep Their Version");
+			const deleteIt = localize('delete', "Delete File");
+			const result = await window.showInformationMessage(localize('deleted by us', "File '{0}' was deleted by us and modified by them.\n\nWhat would you like to do?", path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
+
+			if (result === keepIt) {
+				await repository.add([uri]);
+			} else if (result === deleteIt) {
+				await repository.rm([uri]);
+			} else {
+				throw new Error('Cancelled');
+			}
+		}
 	}
 
 	@command('git.stageChange')
@@ -1887,6 +1965,11 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.Conflict:
 						message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
+						type = 'warning';
+						options.modal = false;
+						break;
+					case GitErrorCodes.StashConflict:
+						message = localize('stash merge conflicts', "There were merge conflicts while applying the stash.");
 						type = 'warning';
 						options.modal = false;
 						break;

@@ -108,6 +108,18 @@ export class Model {
 				children
 					.filter(child => child !== '.git')
 					.forEach(child => this.openRepository(path.join(root, child)));
+
+				const folderConfig = workspace.getConfiguration('git', folder.uri);
+				const paths = folderConfig.get<string[]>('scanRepositories') || [];
+
+				for (const possibleRepositoryPath of paths) {
+					if (path.isAbsolute(possibleRepositoryPath)) {
+						console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+						continue;
+					}
+
+					this.openRepository(path.join(root, possibleRepositoryPath));
+				}
 			} catch (err) {
 				// noop
 			}

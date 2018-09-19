@@ -141,6 +141,7 @@ export const enum GitErrorCodes {
 	NotAGitRepository = 'NotAGitRepository',
 	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
 	Conflict = 'Conflict',
+	StashConflict = 'StashConflict',
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
 	RemoteConnectionError = 'RemoteConnectionError',

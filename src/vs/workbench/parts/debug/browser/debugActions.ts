@@ -131,7 +131,8 @@ export class StartAction extends AbstractDebugAction {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
-		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidNewSession(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidEndSession(() => this.updateEnablement()));
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 

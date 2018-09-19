@@ -11,7 +11,7 @@ import { editorMarkerNavigationError } from 'vs/editor/contrib/gotoError/gotoErr
 import { overviewRulerModifiedForeground } from 'vs/workbench/parts/scm/electron-browser/dirtydiffDecorator';
 import { STATUS_BAR_DEBUGGING_BACKGROUND } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 import { debugExceptionWidgetBackground } from 'vs/workbench/parts/debug/browser/exceptionWidget';
-import { debugToolBarBackground } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
+import { debugToolBarBackground } from 'vs/workbench/parts/debug/browser/debugToolbar';
 import { buttonBackground } from 'vs/workbench/parts/welcome/page/electron-browser/welcomePage';
 import { embeddedEditorBackground } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
 import { request, asText } from 'vs/base/node/request';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/debugActionsWidget';
+import 'vs/css!./media/debugToolbar';
 import * as errors from 'vs/base/common/errors';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -31,8 +31,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 
-const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
-const DEBUG_ACTIONS_WIDGET_Y_KEY = 'debug.actionswidgety';
+const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
+const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
@@ -45,7 +45,7 @@ export const debugToolBarBorder = registerColor('debugToolBar.border', {
 	hc: null
 }, localize('debugToolBarBorder', "Debug toolbar border color."));
 
-export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
+export class DebugToolbar extends Themable implements IWorkbenchContribution {
 
 	private $el: HTMLElement;
 	private dragArea: HTMLElement;
@@ -71,7 +71,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	) {
 		super(themeService);
 
-		this.$el = dom.$('div.debug-actions-widget');
+		this.$el = dom.$('div.debug-toolbar');
 		this.$el.style.top = `${partService.getTitleBarOffset()}px`;
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area'));
@@ -97,7 +97,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				return this.hide();
 			}
 
-			const actions = DebugActionsWidget.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+			const actions = DebugToolbar.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -173,7 +173,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private storePosition(): void {
 		const position = parseFloat(dom.getComputedStyle(this.$el).left) / window.innerWidth;
-		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.GLOBAL);
+		this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.GLOBAL);
 	}
 
 	protected updateStyles(): void {
@@ -208,7 +208,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		}
 		const widgetWidth = this.$el.clientWidth;
 		if (x === undefined) {
-			const positionPercentage = this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.GLOBAL);
+			const positionPercentage = this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.GLOBAL);
 			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
 		}
 
@@ -216,13 +216,13 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.style.left = `${x}px`;
 
 		if (y === undefined) {
-			y = this.storageService.getInteger(DEBUG_ACTIONS_WIDGET_Y_KEY, StorageScope.GLOBAL, 0);
+			y = this.storageService.getInteger(DEBUG_TOOLBAR_Y_KEY, StorageScope.GLOBAL, 0);
 		}
 		const titleAreaHeight = 35;
 		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
 			const moveToTop = y < titleAreaHeight;
 			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
+			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 
