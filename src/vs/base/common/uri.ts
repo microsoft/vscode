@@ -11,12 +11,26 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
+let _throwOnMissingSchema: boolean = true;
+
+/**
+ * @internal
+ */
+export function setUriThrowOnMissingScheme(value: boolean): boolean {
+	const old = _throwOnMissingSchema;
+	_throwOnMissingSchema = value;
+	return old;
+}
+
 function _validateUri(ret: URI): void {
 
 	// scheme, must be set
 	if (!ret.scheme) {
-		// throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		if (_throwOnMissingSchema) {
+			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		} else {
+			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		}
 	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
