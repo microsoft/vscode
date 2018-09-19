@@ -51,7 +51,14 @@ export class TerminalProcess implements ITerminalChildProcess, IDisposable {
 			rows
 		};
 
-		this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
+		try {
+			this._ptyProcess = pty.spawn(shellLaunchConfig.executable, shellLaunchConfig.args, options);
+		} catch (error) {
+			// The only time this is expected to happen is when the file specified to launch with does not exist.
+			this._exitCode = 2;
+			this._queueProcessExit();
+			return;
+		}
 		this._ptyProcess.on('data', (data) => {
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
