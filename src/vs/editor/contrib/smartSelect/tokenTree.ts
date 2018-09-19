@@ -428,7 +428,7 @@ export function find(node: Node, position: Position): Node {
 		}
 
 	} else if (node instanceof Block) {
-		result = find(node.open, position) || find(node.elements, position) || find(node.close, position);
+		result = find(node.elements, position) || find(node.open, position) || find(node.close, position);
 	}
 
 	return result || node;
