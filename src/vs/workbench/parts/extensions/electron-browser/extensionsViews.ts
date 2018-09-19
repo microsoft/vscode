@@ -357,33 +357,34 @@ export class ExtensionsListView extends ViewletPanel {
 			}
 		}
 
+		let preferredResults: string[] = [];
 		if (text) {
 			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
+			for (let i = 0; i < this.searchExperiments.length; i++) {
+				if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
+					preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
+					break;
+				}
+			}
 		} else {
 			options.source = 'viewlet';
 		}
 
 		const pager = await this.extensionsWorkbenchService.queryGallery(options);
-		this.searchExperiments.forEach(experiment => {
-			if (text
-				&& text.toLowerCase() === experiment.action.properties['searchText']
-				&& Array.isArray(experiment.action.properties['preferredResults'])) {
-				const preferredResults: string[] = experiment.action.properties['preferredResults'];
-				let positionToUpdate = 0;
-				for (let i = 0; i < preferredResults.length; i++) {
-					for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-						if (pager.firstPage[j].id === preferredResults[i]) {
-							if (positionToUpdate !== j) {
-								const preferredExtension = pager.firstPage.splice(j, 1)[0];
-								pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
-								positionToUpdate++;
-							}
-							break;
-						}
+
+		let positionToUpdate = 0;
+		for (let i = 0; i < preferredResults.length; i++) {
+			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
+				if (pager.firstPage[j].id === preferredResults[i]) {
+					if (positionToUpdate !== j) {
+						const preferredExtension = pager.firstPage.splice(j, 1)[0];
+						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
+						positionToUpdate++;
 					}
+					break;
 				}
 			}
-		});
+		}
 		return new PagedModel(pager);
 
 	}
