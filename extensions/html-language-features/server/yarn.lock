@@ -201,9 +201,9 @@ vscode-css-languageservice@^3.0.11:
     vscode-languageserver-types "^3.13.0"
     vscode-nls "^4.0.0"
 
-vscode-html-languageservice@^2.1.8:
-  version "2.1.8"
-  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.8.tgz#1f3c8826b68f41f4f8ef3b683607f66499347fd1"
+vscode-html-languageservice@^2.1.9:
+  version "2.1.9"
+  resolved "https://registry.yarnpkg.com/vscode-html-languageservice/-/vscode-html-languageservice-2.1.9.tgz#906f2f894b023d3a464739ebc5b4eb695ef1cf58"
   dependencies:
     vscode-languageserver-types "^3.13.0"
     vscode-nls "^4.0.0"
