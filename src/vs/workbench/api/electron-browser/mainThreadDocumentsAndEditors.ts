@@ -6,7 +6,7 @@
 
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
@@ -173,7 +173,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IPanelService private readonly _panelService: IPanelService
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
+		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
@@ -191,8 +191,11 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _onDidAddEditor(e: ICodeEditor): void {
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditorText(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable([
+			e.onDidChangeModel(() => this._updateState()),
+			e.onDidFocusEditorText(() => this._updateState()),
+			e.onDidFocusEditorWidget(() => this._updateState(e))
+		]));
 		this._updateState();
 	}
 
@@ -231,7 +234,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		));
 	}
 
-	private _updateState(): void {
+	private _updateState(widgetFocusCandidate?: ICodeEditor): void {
 
 		// models: ignore too large models
 		const models = new Set<ITextModel>();
@@ -256,7 +259,11 @@ class MainThreadDocumentAndEditorStateComputer {
 			) {
 				const apiEditor = new TextEditorSnapshot(editor);
 				editors.set(apiEditor.id, apiEditor);
-				if (editor.hasTextFocus()) {
+				if (editor.hasTextFocus() || (widgetFocusCandidate === editor && editor.hasWidgetFocus())) {
+					// text focus has priority, widget focus is tricky because multiple
+					// editors might claim widget focus at the same time. therefore we use a
+					// candidate (which is the editor that has raised an widget focus event)
+					// in addition to the widget focus check
 					activeEditor = apiEditor.id;
 				}
 			}
