@@ -16,7 +16,7 @@ declare module 'vscode' {
 		/**
 		 *
 		 */
-		export function changeLanguage(document: TextDocument, languageId: string): Thenable<void>;
+		export function changeLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
 	}
 
 	//#region Joh - read/write in chunks
