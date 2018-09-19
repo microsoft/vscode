@@ -147,8 +147,8 @@ export class DebugService implements IDebugService {
 			}
 		}, this));
 
-		this.toDispose.push(this.viewModel.onDidFocusSession(s => {
-			const id = s ? s.getId() : undefined;
+		this.toDispose.push(this.viewModel.onDidFocusStackFrame(sfEvent => {
+			const id = sfEvent && sfEvent.stackFrame ? sfEvent.stackFrame.thread.session.getId() : undefined;
 			this.model.setBreakpointsSessionId(id);
 			this.onStateChange();
 		}));
@@ -494,11 +494,10 @@ export class DebugService implements IDebugService {
 
 	private registerSessionListeners(session: IDebugSession): void {
 
-		this.toDispose.push(session.onDidChangeState((state) => {
-			if (state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
+		this.toDispose.push(session.onDidChangeState(() => {
+			if (session.state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
 				this.focusStackFrame(undefined);
 			}
-			this.onStateChange();
 		}));
 
 		this.toDispose.push(session.onDidEndAdapter(adapterExitEvent => {
