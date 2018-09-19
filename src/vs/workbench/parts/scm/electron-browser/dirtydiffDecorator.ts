@@ -955,8 +955,7 @@ export class DirtyDiffModel {
 		private _editorModel: ITextModel,
 		@ISCMService private scmService: ISCMService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
