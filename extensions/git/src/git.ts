@@ -957,7 +957,7 @@ export class Repository {
 		try {
 			await this.run(args);
 		} catch (err) {
-			if (/Please, commit your changes or stash them/.test(err.stderr || '')) {
+			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			}
 
