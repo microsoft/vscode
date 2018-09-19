@@ -340,7 +340,8 @@ configurationRegistry.registerConfiguration({
 				NavigateRightAction.ID,
 				NavigateLeftAction.ID,
 				TogglePanelAction.ID,
-				'workbench.action.quickOpenView'
+				'workbench.action.quickOpenView',
+				'workbench.action.toggleMaximizedPanel'
 			].sort()
 		},
 		'terminal.integrated.env.osx': {
