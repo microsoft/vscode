@@ -725,6 +725,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		this.model.clearThreads(this.getId(), true);
 		this.model.removeSession(this.getId());
+		this.state = State.Inactive;
 		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();
