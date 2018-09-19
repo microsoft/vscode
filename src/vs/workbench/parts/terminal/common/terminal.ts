@@ -569,6 +569,8 @@ export interface ITerminalInstance {
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
 
+	waitForTitle(): Promise<string>;
+
 	setDimensions(dimensions: ITerminalDimensions): void;
 
 	addDisposable(disposable: IDisposable): void;

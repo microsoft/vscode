@@ -66,6 +66,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _xtermReadyPromise: Promise<void>;
+	private _titleReadyPromise: Promise<string>;
+	private _titleReadyComplete: (title: string) => any;
 
 	private _disposables: lifecycle.IDisposable[];
 	private _messageTitleDisposable: lifecycle.IDisposable;
@@ -153,6 +155,10 @@ export class TerminalInstance implements ITerminalInstance {
 			if (_container) {
 				this._attachToElement(_container);
 			}
+		});
+
+		this._titleReadyPromise = new Promise<string>(c => {
+			this._titleReadyComplete = c;
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
@@ -1031,10 +1037,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 		const didTitleChange = title !== this._title;
+		const oldTitle = this._title;
 		this._title = title;
 		if (didTitleChange) {
+			if (!oldTitle) {
+				this._titleReadyComplete(title);
+			}
 			this._onTitleChanged.fire(title);
 		}
+	}
+
+	public waitForTitle(): Promise<string> {
+		return this._titleReadyPromise;
 	}
 
 	public setDimensions(dimensions: ITerminalDimensions): void {

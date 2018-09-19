@@ -325,6 +325,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$registerOnDataListener(terminalId: number): void;
+	$registerOnTitleChangedListener(terminalId: number): void;
 
 	// Process
 	$sendProcessTitle(terminalId: number, title: string): void;
@@ -879,6 +880,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
 	$acceptTerminalRendererInput(id: number, data: string): void;
+	$acceptTerminalTitleChange(id: number, name: string): void;
 	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;

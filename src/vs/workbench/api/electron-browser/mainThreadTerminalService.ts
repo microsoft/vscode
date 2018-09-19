@@ -17,6 +17,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
 	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
+	private _terminalOnTitleChangeListeners: { [id: number]: IDisposable } = {};
 	private _terminalOnDidAcceptInputListeners: { [id: number]: IDisposable } = {};
 
 	constructor(
@@ -155,12 +156,34 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		terminalInstance.addDisposable(this._terminalOnDidWriteDataListeners[terminalId]);
 	}
 
+	public $registerOnTitleChangedListener(terminalId: number): void {
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (!terminalInstance) {
+			return;
+		}
+
+		// Listener already registered
+		if (this._terminalOnTitleChangeListeners[terminalId]) {
+			return;
+		}
+
+		// Register
+		this._terminalOnTitleChangeListeners[terminalId] = terminalInstance.onTitleChanged(name => {
+			this._onTitleChanged(terminalId, name);
+		});
+		terminalInstance.addDisposable(this._terminalOnTitleChangeListeners[terminalId]);
+	}
+
 	private _onActiveTerminalChanged(terminalId: number | undefined): void {
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	}
+
+	private _onTitleChanged(terminalId: number, name: string): void {
+		this._proxy.$acceptTerminalTitleChange(terminalId, name);
 	}
 
 	private _onTerminalRendererInput(terminalId: number, data: string): void {
@@ -172,7 +195,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+		if (terminalInstance.title) {
+			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title);
+		} else {
+			terminalInstance.waitForTitle().then(title => {
+				this._proxy.$acceptTerminalOpened(terminalInstance.id, title);
+			});
+		}
 	}
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
