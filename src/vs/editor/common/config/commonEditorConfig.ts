@@ -624,7 +624,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'string',
 			default: 'off',
 			enum: ['on', 'off', 'onlySnippets'],
-			markdownEnumDescriptions: [
+			enumDescriptions: [
 				nls.localize('tabCompletion.on', "Tab complete will insert the best matching suggestion when pressing tab."),
 				nls.localize('tabCompletion.off', "Disable tab completions."),
 				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
