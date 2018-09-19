@@ -1892,6 +1892,11 @@ export class CommandCenter {
 						type = 'warning';
 						options.modal = false;
 						break;
+					case GitErrorCodes.StashConflict:
+						message = localize('stash merge conflicts', "There were merge conflicts while applying the stash.");
+						type = 'warning';
+						options.modal = false;
+						break;
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");

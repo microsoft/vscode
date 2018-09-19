@@ -1287,6 +1287,8 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoStashFound;
 			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
+			} else if (/^CONFLICT/m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.StashConflict;
 			}
 
 			throw err;
