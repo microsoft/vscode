@@ -53,6 +53,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
+	private static SETTING_UPDATE_DEBOUNCE: number = 1000;
 
 	private static readonly SUGGESTIONS: string[] = [
 		'@modified', '@tag:usesOnlineServices'
@@ -126,7 +127,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
-		this.settingUpdateDelayer = new Delayer<void>(200);
+		this.settingUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_DEBOUNCE);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -551,6 +552,9 @@ export class SettingsEditor2 extends BaseEditor {
 			this.lastFocusedSettingElement = element.setting.key;
 			this.settingsTree.reveal(element);
 		}));
+		this._register(this.settingsTreeRenderer.onDidBlurSetting(element => {
+			this._onDidBlurSetting(element);
+		}));
 
 		this.settingsTreeDataSource = this.instantiationService.createInstance(SimplePagedDataSource,
 			this.instantiationService.createInstance(SettingsDataSource, this.viewState));
@@ -589,6 +593,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.pendingSettingUpdate = { key, value };
 		this.settingUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+	}
+
+	private _onDidBlurSetting(element: SettingsTreeSettingElement) {
+		this.settingUpdateDelayer.fire();
 	}
 
 	private updateTreeScrollSync(): void {

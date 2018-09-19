@@ -357,6 +357,9 @@ export class SettingsRenderer implements ITreeRenderer {
 	private readonly _onDidFocusSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
 	public readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
+	private readonly _onDidBlurSetting: Emitter<SettingsTreeSettingElement> = new Emitter<SettingsTreeSettingElement>();
+	public readonly onDidBlurSetting: Event<SettingsTreeSettingElement> = this._onDidBlurSetting.event;
+
 	private descriptionMeasureContainer: HTMLElement;
 	private longestSingleLineDescription = 0;
 
@@ -649,6 +652,8 @@ export class SettingsRenderer implements ITreeRenderer {
 			if (template.containerElement.classList.contains('focused')) {
 				template.containerElement.classList.remove('focused');
 			}
+
+			this._onDidBlurSetting.fire(template.context);
 		});
 
 		focusTracker.onDidFocus(() => {
