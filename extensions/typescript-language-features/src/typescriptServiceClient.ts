@@ -384,7 +384,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		try {
-			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.parse(this.forkedTsServer.tsServerLogFile));
+			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(this.forkedTsServer.tsServerLogFile));
 			return true;
 		} catch {
 			vscode.window.showWarningMessage(localize(
