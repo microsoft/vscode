@@ -1151,6 +1151,12 @@
           "scope": "window",
           "description": "%config.ignoredRepositories%"
         },
+        "git.scanRepositories": {
+          "type": "array",
+          "default": [],
+          "scope": "resource",
+          "description": "%config.scanRepositories%"
+        },
         "git.showProgress": {
           "type": "boolean",
           "description": "%config.showProgress%",
