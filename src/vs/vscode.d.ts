@@ -6222,13 +6222,13 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new [output channel](#OutputChannel) with the given name.
-		 * By default the UI will not show the appended data immediately.
-		 * To force UI to show the data immediately pass options with `force` parameter set to `true`.
 		 *
-		 * *NOTE* Default output channels help in improving the performance of VS Code.
+		 * By default, Output channels use a separate transport mechanism when appending data.
+		 * This helps to reduce CPU load on the UI process but also means that the output channel UI updates with a small delay.
+		 * Use the force-flag to enforce immediate updates at the cost of higher CPU usage.
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
-		 * @param options Optional options to control how the channel will be created.
+		 * @param options Options to control how the channel will be created.
 		 */
 		export function createOutputChannel(name: string, options?: { force?: boolean }): OutputChannel;
 
