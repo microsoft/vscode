@@ -42,6 +42,11 @@ export interface IViewletService {
 	getViewlet(id: string): ViewletDescriptor;
 
 	/**
+	 * Returns all viewlets
+	 */
+	getAllViewlets(): ViewletDescriptor[];
+
+	/**
 	 * Returns all enabled viewlets
 	 */
 	getViewlets(): ViewletDescriptor[];

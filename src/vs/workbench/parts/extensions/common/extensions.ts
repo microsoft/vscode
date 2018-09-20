@@ -11,6 +11,7 @@ import { IPager } from 'vs/base/common/paging';
 import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -19,7 +20,7 @@ export interface IExtensionsViewlet extends IViewlet {
 	search(text: string): void;
 }
 
-export enum ExtensionState {
+export const enum ExtensionState {
 	Installing,
 	Installed,
 	Uninstalling,
@@ -52,10 +53,10 @@ export interface IExtension {
 	extensionPack: string[];
 	telemetryData: any;
 	preview: boolean;
-	getManifest(): TPromise<IExtensionManifest>;
-	getReadme(): TPromise<string>;
+	getManifest(token: CancellationToken): TPromise<IExtensionManifest | undefined>;
+	getReadme(token: CancellationToken): TPromise<string>;
 	hasReadme(): boolean;
-	getChangelog(): TPromise<string>;
+	getChangelog(token: CancellationToken): TPromise<string>;
 	hasChangelog(): boolean;
 	local?: ILocalExtension;
 	locals?: ILocalExtension[];
@@ -77,7 +78,7 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 
 export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
-	onChange: Event<void>;
+	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;
@@ -87,7 +88,7 @@ export interface IExtensionsWorkbenchService {
 	uninstall(extension: IExtension): TPromise<void>;
 	reinstall(extension: IExtension): TPromise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): TPromise<void>;
-	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
+	loadDependencies(extension: IExtension, token: CancellationToken): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
 	allowedBadgeProviders: string[];

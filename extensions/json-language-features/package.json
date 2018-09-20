@@ -59,7 +59,7 @@
                 "description": "%json.schemas.fileMatch.desc%"
               },
               "schema": {
-                "$ref": "http://json-schema.org/draft-04/schema#",
+                "$ref": "http://json-schema.org/draft-07/schema#",
                 "description": "%json.schemas.schema.desc%"
               }
             }
@@ -100,9 +100,9 @@
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.0.18",
-    "vscode-languageclient": "^4.4.2",
-    "vscode-nls": "^3.2.4"
+    "vscode-extension-telemetry": "0.0.19",
+    "vscode-languageclient": "^5.1.0",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^8.10.25"

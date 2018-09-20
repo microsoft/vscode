@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
@@ -22,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -119,10 +119,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			.then(results => results.reduce((first, second) => first.concat(second), []));
 	}
 
-	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
-		const providers = this.providers.filter(p => p.type === type && p.debugAdapterExecutable);
+	public provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor | undefined> {
+		const providers = this.providers.filter(p => p.type === config.type && p.provideDebugAdapter);
 		if (providers.length === 1) {
-			return providers[0].debugAdapterExecutable(folderUri);
+			return providers[0].provideDebugAdapter(session, folderUri, config);
+		} else {
+			// TODO@AW handle n > 1 case
 		}
 		return TPromise.as(undefined);
 	}
@@ -140,10 +142,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debugAdapterProviders.get(type);
 	}
 
-	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable, debugPort: number): IDebugAdapter | undefined {
-		let dap = this.getDebugAdapterProvider(debugType);
+	public createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter {
+		let dap = this.getDebugAdapterProvider(config.type);
 		if (dap) {
-			return dap.createDebugAdapter(debugType, adapterExecutable, debugPort);
+			return dap.createDebugAdapter(session, folder, config);
 		}
 		return undefined;
 	}
@@ -350,7 +352,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			const picks = candidates.map(c => ({ label: c.label, debugger: c }));
 			return this.quickInputService.pick<(typeof picks)[0]>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
-					if (picked.debugger) {
+					if (picked && picked.debugger) {
 						return picked.debugger;
 					}
 					if (picked) {
@@ -442,7 +444,7 @@ class Launch implements ILaunch {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+	public openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
 		const resource = this.uri;
 		let created = false;
 
@@ -487,6 +489,7 @@ class Launch implements ILaunch {
 				resource,
 				options: {
 					selection,
+					preserveFocus,
 					pinned: created,
 					revealIfVisible: true
 				},
@@ -521,8 +524,11 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
-		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration }).then(editor => ({ editor, created: false }));
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.editorService.openEditor({
+			resource: this.contextService.getWorkspace().configuration,
+			options: { preserveFocus }
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created: false }));
 	}
 }
 
@@ -555,7 +561,7 @@ class UserLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').user;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
-		return this.preferencesService.openGlobalSettings().then(editor => ({ editor, created: false }));
+	openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.preferencesService.openGlobalSettings(false, { preserveFocus }).then(editor => ({ editor, created: false }));
 	}
 }

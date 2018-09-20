@@ -191,8 +191,8 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta) {
-			// Do not hide hover when Ctrl/Meta is pressed
+		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift) {
+			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
 	}

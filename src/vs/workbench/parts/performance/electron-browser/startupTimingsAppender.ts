@@ -5,15 +5,14 @@
 
 'use strict';
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
+import { ITimerService, didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { nfcall } from 'vs/base/common/async';
-import { appendFile } from 'fs';
+import { nfcall, timeout } from 'vs/base/common/async';
+import { appendFile, } from 'fs';
 import product from 'vs/platform/node/product';
 
 class StartupTimingsAppender implements IWorkbenchContribution {
@@ -22,21 +21,20 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 		@ITimerService timerService: ITimerService,
 		@IWindowsService windowsService: IWindowsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IExtensionService extensionService: IExtensionService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 
 		let appendTo = environmentService.args['prof-append-timers'];
 		if (!appendTo) {
+			// nothing to do
 			return;
 		}
 
 		Promise.all([
-			lifecycleService.when(LifecyclePhase.Eventually),
-			extensionService.whenInstalledExtensionsRegistered()
-		]).then(() => {
-			const { startupMetrics } = timerService;
-			return nfcall(appendFile, appendTo, `${product.nameShort}\t${product.commit || '0000000'}\t${Date.now()}\t${startupMetrics.ellapsed}\n`);
+			timerService.startupMetrics,
+			this._waitWhenNoCachedData(),
+		]).then(([startupMetrics]) => {
+			return nfcall(appendFile, appendTo, `${startupMetrics.ellapsed}\t${product.nameLong}\t${product.commit || '0000000'}\n`);
 		}).then(() => {
 			windowsService.quit();
 		}).catch(err => {
@@ -44,7 +42,14 @@ class StartupTimingsAppender implements IWorkbenchContribution {
 			windowsService.quit();
 		});
 	}
+
+	private _waitWhenNoCachedData(): Promise<void> {
+		// wait 15s for cached data to be produced
+		return !didUseCachedData()
+			? timeout(15000)
+			: Promise.resolve();
+	}
 }
 
 const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupTimingsAppender, LifecyclePhase.Running);
+registry.registerWorkbenchContribution(StartupTimingsAppender, LifecyclePhase.Eventually);

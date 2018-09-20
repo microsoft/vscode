@@ -26,7 +26,7 @@ export function runSelectedScript() {
 	if (script) {
 		runScript(script, document);
 	} else {
-		let message = localize('noScriptFound', 'Could not find an npm script at the selection.');
+		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
 		vscode.window.showErrorMessage(message);
 	}
 }

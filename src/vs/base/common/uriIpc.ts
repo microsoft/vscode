@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;

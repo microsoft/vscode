@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 suite('LanguagesRegistry', () => {
 

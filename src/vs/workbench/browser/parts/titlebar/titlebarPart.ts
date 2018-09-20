@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/titlebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
@@ -27,14 +26,14 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, hide, show, removeClass, addClass, append, $, addDisposableListener, getComputedStyle } from 'vs/base/browser/dom';
 import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template, getBaseLabel } from 'vs/base/common/labels';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { Event } from 'vs/base/common/event';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -47,15 +46,15 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static readonly TITLE_DIRTY = '\u25cf ';
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
-	private titleContainer: Builder;
-	private title: Builder;
-	private dragRegion: Builder;
-	private windowControls: Builder;
-	private maxRestoreControl: Builder;
-	private appIcon: Builder;
+	private titleContainer: HTMLElement;
+	private title: HTMLElement;
+	private dragRegion: HTMLElement;
+	private windowControls: HTMLElement;
+	private maxRestoreControl: HTMLElement;
+	private appIcon: HTMLElement;
 	private menubarPart: MenubarControl;
-	private menubar: Builder;
-	private resizer: Builder;
+	private menubar: HTMLElement;
+	private resizer: HTMLElement;
 
 	private pendingTitle: string;
 	private representedFileName: string;
@@ -84,7 +83,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -95,13 +94,13 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
-		this._register(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
+		this._register(this.windowService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
-		this._register(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.doUpdateTitle()));
+		this._register(this.contextService.onDidChangeWorkspaceName(() => this.doUpdateTitle()));
+		this._register(this.labelService.onDidRegisterFormatter(() => this.doUpdateTitle()));
 	}
 
 	private onBlur(): void {
@@ -116,7 +115,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('window.title')) {
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 	}
 
@@ -124,13 +123,21 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (isWindows || isLinux) {
 			// Hide title when toggling menu bar
 			if (this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle' && visible) {
-				this.title.style('visibility', 'hidden');
-
 				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
-				this.dragRegion.hide();
-				this.dragRegion.showDelayed(50);
+				hide(this.dragRegion);
+				setTimeout(() => show(this.dragRegion), 50);
+			}
+
+			this.adjustTitleMarginToCenter();
+		}
+	}
+
+	private onMenubarFocusChanged(focused: boolean) {
+		if (isWindows || isLinux) {
+			if (focused) {
+				hide(this.dragRegion);
 			} else {
-				this.title.style('visibility', null);
+				show(this.dragRegion);
 			}
 		}
 	}
@@ -146,18 +153,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.activeEditorListeners = [];
 
 		// Calculate New Window Title
-		this.setTitle(this.getWindowTitle());
+		this.doUpdateTitle();
 
 		// Apply listener for dirty and label changes
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor instanceof EditorInput) {
-			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => {
-				this.setTitle(this.getWindowTitle());
-			}));
-
-			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => {
-				this.setTitle(this.getWindowTitle());
-			}));
+			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => this.doUpdateTitle()));
+			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => this.doUpdateTitle()));
 		}
 
 		// Represented File Name
@@ -175,23 +177,39 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.representedFileName = path;
 	}
 
-	private getWindowTitle(): string {
-		let title = this.doGetWindowTitle();
-		if (!trim(title)) {
-			title = this.environmentService.appNameLong;
+	private doUpdateTitle(): void {
+		const title = this.getWindowTitle();
+
+		// Always set the native window title to identify us properly to the OS
+		let nativeTitle = title;
+		if (!trim(nativeTitle)) {
+			nativeTitle = this.environmentService.appNameLong;
+		}
+		window.document.title = nativeTitle;
+
+		// Apply custom title if we can
+		if (this.title) {
+			this.title.innerText = title;
+		} else {
+			this.pendingTitle = title;
 		}
 
+		this.adjustTitleMarginToCenter();
+	}
+
+	private getWindowTitle(): string {
+		let title = this.doGetWindowTitle();
+
 		if (this.properties.isAdmin) {
-			title = `${title} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
+			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
 
 		if (!this.properties.isPure) {
-			title = `${title} ${TitlebarPart.NLS_UNSUPPORTED}`;
+			title = `${title || this.environmentService.appNameLong} ${TitlebarPart.NLS_UNSUPPORTED}`;
 		}
 
-		// Extension Development Host gets a special title to identify itself
 		if (this.environmentService.isExtensionDevelopment) {
-			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title}`;
+			title = `${TitlebarPart.NLS_EXTENSION_HOST} - ${title || this.environmentService.appNameLong}`;
 		}
 
 		return title;
@@ -205,7 +223,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.properties.isAdmin = isAdmin;
 			this.properties.isPure = isPure;
 
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 	}
 
@@ -243,10 +261,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
-		const rootName = workspace.name;
-		const rootPath = root ? this.uriLabelService.getLabel(root) : '';
+		const rootName = this.labelService.getWorkspaceLabel(workspace);
+		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
-		const folderPath = folder ? this.uriLabelService.getLabel(folder.uri) : '';
+		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
@@ -267,83 +285,94 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
-		this.titleContainer = $(parent);
+		this.titleContainer = parent;
 
 		// Draggable region that we can manipulate for #52522
-		this.dragRegion = $(this.titleContainer).div({ class: 'titlebar-drag-region' });
+		this.dragRegion = append(this.titleContainer, $('div.titlebar-drag-region'));
 
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			this.appIcon = $(this.titleContainer).div({ class: 'window-appicon' });
+			this.appIcon = append(this.titleContainer, $('div.window-appicon'));
 		}
 
 		// Menubar: the menubar part which is responsible for populating both the custom and native menubars
-		this.menubarPart = this.instantiationService.createInstance(MenubarControl, 'workbench.parts.titlebar.menubar');
-		this.menubar = $(this.titleContainer).div({
-			'class': ['menubar'],
-			id: 'workbench.parts.titlebar.menubar',
-			role: 'menubar'
-		});
+		this.menubarPart = this.instantiationService.createInstance(MenubarControl);
+		this.menubar = append(this.titleContainer, $('div.menubar'));
+		this.menubar.setAttribute('role', 'menubar');
 
-		this.menubarPart.create(this.menubar.getHTMLElement());
+		this.menubarPart.create(this.menubar);
 
 		if (!isMacintosh) {
 			this._register(this.menubarPart.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+			this._register(this.menubarPart.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
 		}
 
 		// Title
-		this.title = $(this.titleContainer).div({ class: 'window-title' });
+		this.title = append(this.titleContainer, $('div.window-title'));
 		if (this.pendingTitle) {
-			this.title.text(this.pendingTitle);
+			this.title.innerText = this.pendingTitle;
 		} else {
-			this.setTitle(this.getWindowTitle());
+			this.doUpdateTitle();
 		}
 
 		// Maximize/Restore on doubleclick
 		if (isMacintosh) {
-			this.titleContainer.on(EventType.DBLCLICK, (e) => {
+			this._register(addDisposableListener(this.titleContainer, EventType.DBLCLICK, e => {
 				EventHelper.stop(e);
 
 				this.onTitleDoubleclick();
-			});
+			}));
 		}
 
 		// Context menu on title
-		this.title.on([EventType.CONTEXT_MENU, EventType.MOUSE_DOWN], (e: MouseEvent) => {
-			if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
-				EventHelper.stop(e);
+		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
+			this._register(addDisposableListener(this.title, event, e => {
+				if (e.type === EventType.CONTEXT_MENU || e.metaKey) {
+					EventHelper.stop(e);
 
-				this.onContextMenu(e);
-			}
+					this.onContextMenu(e);
+				}
+			}));
 		});
 
 		// Window Controls (Windows/Linux)
 		if (!isMacintosh) {
-			this.windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
+			this.windowControls = append(this.titleContainer, $('div.window-controls-container'));
+
 
 			// Minimize
-			$($(this.windowControls).div({ class: 'window-icon-bg' })).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
-				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
-			});
+			const minimizeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
+			const minimizeIcon = append(minimizeIconContainer, $('div.window-icon'));
+			addClass(minimizeIcon, 'window-minimize');
+			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
+				this.windowService.minimizeWindow();
+			}));
 
 			// Restore
-			this.maxRestoreControl = $($(this.windowControls).div({ class: 'window-icon-bg' })).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
+			const restoreIconContainer = append(this.windowControls, $('div.window-icon-bg'));
+			this.maxRestoreControl = append(restoreIconContainer, $('div.window-icon'));
+			addClass(this.maxRestoreControl, 'window-max-restore');
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, e => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
 					}
 
 					return this.windowService.maximizeWindow();
-				}).then(null, errors.onUnexpectedError);
-			});
+				});
+			}));
 
 			// Close
-			$($(this.windowControls).div({ class: 'window-icon-bg window-close-bg' })).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
-				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
-			});
+			const closeIconContainer = append(this.windowControls, $('div.window-icon-bg'));
+			addClass(closeIconContainer, 'window-close-bg');
+			const closeIcon = append(closeIconContainer, $('div.window-icon'));
+			addClass(closeIcon, 'window-close');
+			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
+				this.windowService.closeWindow();
+			}));
 
 			// Resizer
-			this.resizer = $(this.titleContainer).div({ class: 'resizer' });
+			this.resizer = append(this.titleContainer, $('div.resizer'));
 
 			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
@@ -352,36 +381,42 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
 		// currently active element. So we restore focus after a timeout back to where it was.
-		this.titleContainer.on([EventType.MOUSE_DOWN], () => {
+		this._register(addDisposableListener(this.titleContainer, EventType.MOUSE_DOWN, e => {
+			if (e.target && isAncestor(e.target as HTMLElement, this.menubar)) {
+				return;
+			}
+
 			const active = document.activeElement;
 			setTimeout(() => {
 				if (active instanceof HTMLElement) {
 					active.focus();
 				}
 			}, 0 /* need a timeout because we are in capture phase */);
-		}, void 0, true /* use capture to know the currently active element properly */);
+		}, true /* use capture to know the currently active element properly */));
 
-		return this.titleContainer.getHTMLElement();
+		return this.titleContainer;
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				this.maxRestoreControl.removeClass('window-maximize');
-				this.maxRestoreControl.addClass('window-unmaximize');
+				removeClass(this.maxRestoreControl, 'window-maximize');
+				addClass(this.maxRestoreControl, 'window-unmaximize');
 			} else {
-				this.maxRestoreControl.removeClass('window-unmaximize');
-				this.maxRestoreControl.addClass('window-maximize');
+				removeClass(this.maxRestoreControl, 'window-unmaximize');
+				addClass(this.maxRestoreControl, 'window-maximize');
 			}
 		}
 
 		if (this.resizer) {
 			if (maximized) {
-				this.resizer.hide();
+				hide(this.resizer);
 			} else {
-				this.resizer.show();
+				show(this.resizer);
 			}
 		}
+
+		this.adjustTitleMarginToCenter();
 	}
 
 	protected updateStyles(): void {
@@ -390,24 +425,24 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Part container
 		if (this.titleContainer) {
 			if (this.isInactive) {
-				this.titleContainer.addClass('inactive');
+				addClass(this.titleContainer, 'inactive');
 			} else {
-				this.titleContainer.removeClass('inactive');
+				removeClass(this.titleContainer, 'inactive');
 			}
 
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
-			this.titleContainer.style('background-color', titleBackground);
+			this.titleContainer.style.backgroundColor = titleBackground;
 			if (Color.fromHex(titleBackground).isLighter()) {
-				this.titleContainer.addClass('light');
+				addClass(this.titleContainer, 'light');
 			} else {
-				this.titleContainer.removeClass('light');
+				removeClass(this.titleContainer, 'light');
 			}
 
 			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
-			this.titleContainer.style('color', titleForeground);
+			this.titleContainer.style.color = titleForeground;
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			this.titleContainer.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
+			this.titleContainer.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : null;
 		}
 	}
 
@@ -461,87 +496,85 @@ export class TitlebarPart extends Part implements ITitleService {
 		return actions;
 	}
 
-	setTitle(title: string): void {
+	private adjustTitleMarginToCenter(): void {
+		setTimeout(() => {
+			// Center the title in the window
+			const currentAppIconWidth = this.appIcon ? parseInt(getComputedStyle(this.appIcon).width, 10) : 0;
+			let currentMenubarWidth = parseInt(getComputedStyle(this.menubar).width, 10);
+			currentMenubarWidth = isNaN(currentMenubarWidth) ? 0 : currentMenubarWidth;
+			const currentTotalWidth = parseInt(getComputedStyle(document.body).width, 10);
+			const currentTitleWidth = parseInt(getComputedStyle(this.title).width, 10);
+			const currentWindowControlsWidth = this.windowControls ? parseInt(getComputedStyle(this.windowControls).width, 10) : 0;
 
-		// Always set the native window title to identify us properly to the OS
-		window.document.title = title;
+			let leftMargin = (currentTotalWidth / 2) - (currentTitleWidth / 2) - (currentMenubarWidth + currentAppIconWidth);
+			let rightMargin = currentTotalWidth - (currentAppIconWidth + currentMenubarWidth + leftMargin + currentTitleWidth + currentWindowControlsWidth);
 
-		// Apply if we can
-		if (this.title) {
-			this.title.text(title);
-		} else {
-			this.pendingTitle = title;
-		}
+			// Center if we can, leaving some space on both sides
+			if (leftMargin >= 20 && rightMargin >= 20) {
+				this.title.style.marginLeft = `${leftMargin}px`;
+			} else {
+				this.title.style.marginLeft = null;
+			}
+		}, 0); // delay so that we can get accurate information about the widths
 	}
 
 	private updateLayout(dimension: Dimension) {
 		// Store initital title sizing if we need to prevent zooming
 		if (typeof this.initialSizing.titleFontSize !== 'number') {
-			this.initialSizing.titleFontSize = parseInt(this.title.getComputedStyle().fontSize, 10);
+			this.initialSizing.titleFontSize = parseInt(getComputedStyle(this.title).fontSize, 10);
 		}
 
 		if (typeof this.initialSizing.titlebarHeight !== 'number') {
-			this.initialSizing.titlebarHeight = parseInt(this.title.getComputedStyle().height, 10);
+			this.initialSizing.titlebarHeight = parseInt(getComputedStyle(this.title).height, 10);
 		}
 
 		// Only prevent zooming behavior on macOS or when the menubar is not visible
 		if (isMacintosh || this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'hidden') {
 			// To prevent zooming we need to adjust the font size with the zoom factor
 			const newHeight = this.initialSizing.titlebarHeight / getZoomFactor();
-			this.title.style({
-				fontSize: `${this.initialSizing.titleFontSize / getZoomFactor()}px`,
-				'line-height': `${newHeight}px`
-			});
+			this.title.style.fontSize = `${this.initialSizing.titleFontSize / getZoomFactor()}px`;
+			this.title.style.lineHeight = `${newHeight}px`;
 
 			// Windows/Linux specific layout
 			if (isWindows || isLinux) {
 				if (typeof this.initialSizing.controlsWidth !== 'number') {
-					this.initialSizing.controlsWidth = parseInt(this.windowControls.getComputedStyle().width, 10);
+					this.initialSizing.controlsWidth = parseInt(getComputedStyle(this.windowControls).width, 10);
 				}
 
+				const appIconComputedStyles = getComputedStyle(this.appIcon);
 				if (typeof this.initialSizing.appIconWidth !== 'number') {
-					this.initialSizing.appIconWidth = parseInt(this.appIcon.getComputedStyle().width, 10);
+					this.initialSizing.appIconWidth = parseInt(appIconComputedStyles.width, 10);
 				}
 
 				if (typeof this.initialSizing.appIconSize !== 'number') {
-					this.initialSizing.appIconSize = parseInt(this.appIcon.getComputedStyle().backgroundSize, 10);
+					this.initialSizing.appIconSize = parseInt(appIconComputedStyles.backgroundSize, 10);
 				}
 
-				const currentAppIconHeight = parseInt(this.appIcon.getComputedStyle().height, 10);
+				const currentAppIconHeight = parseInt(appIconComputedStyles.height, 10);
 				const newControlsWidth = this.initialSizing.controlsWidth / getZoomFactor();
 				const newAppIconWidth = this.initialSizing.appIconWidth / getZoomFactor();
 				const newAppIconSize = this.initialSizing.appIconSize / getZoomFactor();
 
 				// Adjust app icon mimic menubar
-				this.appIcon.style({
-					'width': `${newAppIconWidth}px`,
-					'background-size': `${newAppIconSize}px`,
-					'padding-top': `${(newHeight - currentAppIconHeight) / 2.0}px`,
-					'padding-bottom': `${(newHeight - currentAppIconHeight) / 2.0}px`
-				});
+				this.appIcon.style.width = `${newAppIconWidth}px`;
+				this.appIcon.style.backgroundSize = `${newAppIconSize}px`;
+				this.appIcon.style.paddingTop = `${(newHeight - currentAppIconHeight) / 2.0}px`;
+				this.appIcon.style.paddingBottom = `${(newHeight - currentAppIconHeight) / 2.0}px`;
 
 				// Adjust windows controls
-				this.windowControls.style({
-					'width': `${newControlsWidth}px`
-				});
+				this.windowControls.style.width = `${newControlsWidth}px`;
 			}
 		} else {
 			// We need to undo zoom prevention
-			this.title.style({
-				fontSize: null,
-				'line-height': null
-			});
+			this.title.style.fontSize = null;
+			this.title.style.lineHeight = null;
 
-			this.appIcon.style({
-				'width': null,
-				'background-size': null,
-				'padding-top': null,
-				'padding-bottom': null
-			});
+			this.appIcon.style.width = null;
+			this.appIcon.style.backgroundSize = null;
+			this.appIcon.style.paddingTop = null;
+			this.appIcon.style.paddingBottom = null;
 
-			this.windowControls.style({
-				'width': null
-			});
+			this.windowControls.style.width = null;
 		}
 
 		if (this.menubarPart) {

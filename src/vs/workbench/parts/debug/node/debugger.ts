@@ -8,15 +8,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,7 +24,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-export class Debugger {
+export class Debugger implements IDebugger {
 
 	private mergedExtensionDescriptions: IExtensionDescription[];
 
@@ -39,36 +39,56 @@ export class Debugger {
 
 	public hasConfigurationProvider = false;
 
-	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter> {
-		return this.getAdapterExecutable(root).then(adapterExecutable => {
-			if (this.inEH()) {
-				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable, debugPort);
-			} else {
-				if (debugPort) {
-					return new SocketDebugAdapter(debugPort);
-				} else {
-					return new DebugAdapter(this.type, adapterExecutable, this.mergedExtensionDescriptions, outputService);
+	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter> {
+		if (this.inEH()) {
+			return TPromise.as(this.configurationManager.createDebugAdapter(session, root, config));
+		} else {
+			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
+				switch (adapterDescriptor.type) {
+					case 'server':
+						return new SocketDebugAdapter(adapterDescriptor);
+					case 'executable':
+						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
+					case 'implementation':
+						return undefined;	// seeing 'direct' here is an error
+					default:
+						return undefined;
 				}
-			}
-		});
+			});
+		}
 	}
 
-	public getAdapterExecutable(root: IWorkspaceFolder): TPromise<IAdapterExecutable | null> {
+	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): TPromise<IAdapterDescriptor> {
 
-		// first try to get an executable from DebugConfigurationProvider
-		return this.configurationManager.debugAdapterExecutable(root ? root.uri : undefined, this.type).then(adapterExecutable => {
+		// a "debugServer" attribute in the launch config takes precedence
+		if (typeof config.debugServer === 'number') {
+			return TPromise.wrap(<IDebugAdapterServer>{
+				type: 'server',
+				port: config.debugServer
+			});
+		}
 
-			if (adapterExecutable) {
-				return adapterExecutable;
+		// try the proposed and the deprecated "provideDebugAdapter" API
+		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+
+			if (adapter) {
+				return adapter;
 			}
 
-			// try deprecated command based extension API to receive an executable
+			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
 			if (this.debuggerContribution.adapterExecutableCommand) {
-				return this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
+				const rootFolder = root ? root.uri.toString() : undefined;
+				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
+					return <IAdapterDescriptor>{
+						type: 'executable',
+						command: ae.command,
+						args: ae.args || []
+					};
+				});
 			}
 
-			// give up and let DebugAdapter determine executable based on package.json contribution
-			return TPromise.as(null);
+			// fallback: use executable information from package.json
+			return ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
 		});
 	}
 
@@ -173,7 +193,7 @@ export class Debugger {
 			return telemetryInfo;
 		}).then(data => {
 			const client = new TelemetryClient(
-				getPathFromAmdModule(require, 'bootstrap'),
+				getPathFromAmdModule(require, 'bootstrap-fork'),
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,

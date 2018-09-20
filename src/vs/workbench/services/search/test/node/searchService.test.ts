@@ -10,9 +10,9 @@ import * as path from 'path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
+import { IProgress, ISearchEngineStats, IFileSearchStats } from 'vs/platform/search/common/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/node/search';
+import { IFolderSearch, IRawFileMatch, IRawSearch, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, ISearchEngineSuccess } from 'vs/workbench/services/search/node/search';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
 const TEST_FOLDER_QUERIES = [
@@ -25,13 +25,10 @@ const MULTIROOT_QUERIES: IFolderSearch[] = [
 	{ folder: path.join(TEST_FIXTURES, 'more') }
 ];
 
-const stats: IUncachedSearchStats = {
-	fromCache: false,
-	resultCount: 4,
+const stats: ISearchEngineStats = {
 	traversal: 'node',
-	errors: [],
-	fileWalkStartTime: 0,
-	fileWalkResultTime: 1,
+	fileWalkTime: 0,
+	cmdTime: 1,
 	directoriesWalked: 2,
 	filesWalked: 3
 };
@@ -46,13 +43,12 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 		TestSearchEngine.last = this;
 	}
 
-	public search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchSuccess) => void): void {
+	public search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISearchEngineSuccess) => void): void {
 		const self = this;
 		(function next() {
 			process.nextTick(() => {
 				if (self.isCanceled) {
 					done(null, {
-						type: 'success',
 						limitHit: false,
 						stats: stats
 					});
@@ -61,7 +57,6 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 				const result = self.result();
 				if (!result) {
 					done(null, {
-						type: 'success',
 						limitHit: false,
 						stats: stats
 					});
@@ -302,7 +297,7 @@ suite('SearchService', () => {
 			sortByScore: true,
 			cacheKey: 'x'
 		}, cb, undefined, -1).then(complete => {
-			assert.strictEqual(complete.stats.fromCache, false);
+			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
 		}).then(() => {
 			const results = [];
@@ -319,7 +314,7 @@ suite('SearchService', () => {
 				sortByScore: true,
 				cacheKey: 'x'
 			}, cb, undefined, -1).then(complete => {
-				assert.ok(complete.stats.fromCache);
+				assert.ok((<IFileSearchStats>complete.stats).fromCache);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc')]);
 			}, null);
 		}).then(() => {
@@ -345,7 +340,7 @@ suite('SearchService', () => {
 				sortByScore: true,
 				cacheKey: 'x'
 			}, cb, undefined, -1).then(complete => {
-				assert.strictEqual(complete.stats.fromCache, false);
+				assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
 			});
 		});

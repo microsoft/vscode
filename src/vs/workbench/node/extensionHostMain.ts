@@ -13,18 +13,21 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
-import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
-import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { IInitData, IEnvironment, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from 'vs/workbench/api/node/extHost.protocol';
 import * as errors from 'vs/base/common/errors';
-import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import URI from 'vs/base/common/uri';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
+import { Counter } from 'vs/base/common/numbers';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+
+// we don't (yet) throw when extensions parse
+// uris that have no scheme
+setUriThrowOnMissingScheme(false);
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -44,30 +47,7 @@ function patchProcess(allowExit: boolean) {
 }
 
 export function exit(code?: number) {
-	// See https://github.com/Microsoft/vscode/issues/32990
-	// calling process.exit() does not exit the process when the process is being debugged
-	// It waits for the debugger to disconnect, but in our version, the debugger does not
-	// receive an event that the process desires to exit such that it can disconnect.
-
-	let watchdog: { exit: (exitCode: number) => void; } = null;
-	try {
-		watchdog = require.__$__nodeRequire('native-watchdog');
-	} catch (err) {
-		nativeExit(code);
-		return;
-	}
-
-	// Do exactly what node.js would have done, minus the wait for the debugger part
-
-	if (code || code === 0) {
-		process.exitCode = code;
-	}
-
-	if (!(<any>process)._exiting) {
-		(<any>process)._exiting = true;
-		process.emit('exit', process.exitCode || 0);
-	}
-	watchdog.exit(process.exitCode || 0);
+	nativeExit(code);
 }
 
 interface ITestRunner {
@@ -76,8 +56,9 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
+	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 5000;
+
 	private _isTerminating: boolean = false;
-	private _diskSearch: DiskSearch;
 	private _workspace: IWorkspaceData;
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
@@ -85,21 +66,26 @@ export class ExtensionHostMain {
 	private _extHostLogService: ExtHostLogService;
 	private disposables: IDisposable[] = [];
 
+	private _searchRequestIdProvider: Counter;
+	private _mainThreadWorkspace: MainThreadWorkspaceShape;
+
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
+		const rpcProtocol = new RPCProtocol(protocol);
+
+		// ensure URIs are transformed and revived
+		initData = this.transform(initData, rpcProtocol);
 		this._environment = initData.environment;
+		this._workspace = initData.workspace;
 
 		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
 
 		// services
-		const rpcProtocol = new RPCProtocol(protocol);
-		this._workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
-		// ensure URIs are revived
-		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
-
-		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, initData.logsPath);
+		this._extHostLogService = new ExtHostLogService(initData.logLevel, initData.logsLocation.fsPath);
 		this.disposables.push(this._extHostLogService);
-		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService);
+
+		this._searchRequestIdProvider = new Counter();
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService, this._searchRequestIdProvider);
 
 		this._extHostLogService.info('extension host started');
 		this._extHostLogService.trace('initData', initData);
@@ -139,6 +125,8 @@ export class ExtensionHostMain {
 				mainThreadErrors.$onUnexpectedError(data);
 			}
 		});
+
+		this._mainThreadWorkspace = rpcProtocol.getProxy(MainContext.MainThreadWorkspace);
 	}
 
 	start(): TPromise<void> {
@@ -180,7 +168,7 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			TPromise.any<void>([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).then(() => exit(), () => exit());
 		}, 1000);
 	}
 
@@ -243,7 +231,7 @@ export class ExtensionHostMain {
 				// the file was found
 				return (
 					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
-						.done(null, err => console.error(err))
+						.then(null, err => console.error(err))
 				);
 			}
 		}
@@ -258,36 +246,32 @@ export class ExtensionHostMain {
 			return TPromise.as(void 0);
 		}
 
-		if (!this._diskSearch) {
-			// Shut down this search process after 1s
-			this._diskSearch = new DiskSearch(false, 1000);
+		const tokenSource = new CancellationTokenSource();
+		const searchP = this._mainThreadWorkspace.$checkExists(globPatterns, tokenSource.token);
+
+		const timer = setTimeout(async () => {
+			tokenSource.cancel();
+			this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContainsTimeout:${globPatterns.join(',')}`))
+				.then(null, err => console.error(err));
+		}, ExtensionHostMain.WORKSPACE_CONTAINS_TIMEOUT);
+
+		let exists: boolean;
+		try {
+			exists = await searchP;
+		} catch (err) {
+			if (!errors.isPromiseCanceledError(err)) {
+				console.error(err);
+			}
 		}
 
-		const includes: glob.IExpression = {};
-		globPatterns.forEach((globPattern) => {
-			includes[globPattern] = true;
-		});
+		tokenSource.dispose();
+		clearTimeout(timer);
 
-		const folderQueries = this._workspace.folders.map(folder => ({ folder: URI.revive(folder.uri) }));
-		const config = this._extHostConfiguration.getConfiguration('search');
-		const useRipgrep = config.get('useRipgrep', true);
-		const followSymlinks = config.get('followSymlinks', true);
-
-		const query: ISearchQuery = {
-			folderQueries,
-			type: QueryType.File,
-			exists: true,
-			includePattern: includes,
-			useRipgrep,
-			ignoreSymlinks: !followSymlinks
-		};
-
-		const result = await this._diskSearch.search(query);
-		if (result.limitHit) {
+		if (exists) {
 			// a file was found matching one of the glob patterns
 			return (
 				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
-					.done(null, err => console.error(err))
+					.then(null, err => console.error(err))
 			);
 		}
 
@@ -295,7 +279,7 @@ export class ExtensionHostMain {
 	}
 
 	private handleExtensionTests(): TPromise<void> {
-		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentPath) {
+		if (!this._environment.extensionTestsPath || !this._environment.extensionDevelopmentLocationURI) {
 			return TPromise.as(null);
 		}
 
@@ -330,6 +314,16 @@ export class ExtensionHostMain {
 		}
 
 		return TPromise.wrapError<void>(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", this._environment.extensionTestsPath)));
+	}
+
+	private transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
+		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(ext.extensionLocation));
+		initData.environment.appRoot = URI.revive(initData.environment.appRoot);
+		initData.environment.appSettingsHome = URI.revive(initData.environment.appSettingsHome);
+		initData.environment.extensionDevelopmentLocationURI = URI.revive(initData.environment.extensionDevelopmentLocationURI);
+		initData.logsLocation = URI.revive(initData.logsLocation);
+		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
+		return initData;
 	}
 
 	private gracefulExit(code: number): void {

@@ -2031,4 +2031,22 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('issue #27083. search scope works even if it is a single line', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 8, 1) }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
 });

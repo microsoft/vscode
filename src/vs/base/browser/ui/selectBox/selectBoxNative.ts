@@ -34,6 +34,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this._onDidSelect = new Emitter<ISelectData>();
+		this.toDispose.push(this._onDidSelect);
 
 		this.styles = styles;
 
@@ -111,6 +112,10 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	public setAriaLabel(label: string): void {
 		this.selectBoxOptions.ariaLabel = label;
 		this.selectElement.setAttribute('aria-label', label);
+	}
+
+	public setDetailsProvider(provider: any): void {
+		console.error('details are not available for native select boxes');
 	}
 
 	public focus(): void {

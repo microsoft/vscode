@@ -26,7 +26,7 @@ import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platfor
 import * as platform from 'vs/base/common/platform';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as browser from 'vs/base/browser/browser';
 import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';

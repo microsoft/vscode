@@ -127,36 +127,41 @@ path-is-absolute@^1.0.0:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/path-is-absolute/-/path-is-absolute-1.0.1.tgz#174b9268735534ffbc7ace6bf53a5a9e1b5c5f5f"
 
+semver@^5.5.0:
+  version "5.5.1"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.1.tgz#7dfdd8814bdb7cabc7be0fb1d734cfb66c940477"
+
 supports-color@5.4.0:
   version "5.4.0"
   resolved "https://registry.yarnpkg.com/supports-color/-/supports-color-5.4.0.tgz#1c6b337402c2137605efe19f10fec390f6faab54"
   dependencies:
     has-flag "^3.0.0"
 
-vscode-jsonrpc@^3.6.2:
-  version "3.6.2"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
+vscode-jsonrpc@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-4.0.0.tgz#a7bf74ef3254d0a0c272fab15c82128e378b3be9"
 
-vscode-languageclient@^4.4.0:
-  version "4.4.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.4.0.tgz#b05868f6477b6f0c9910b24daae4f3e8c4b65902"
+vscode-languageclient@^5.1.0:
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0.tgz#650ab0dc9fd0daaade058a8471aaff5bc3f9580e"
   dependencies:
-    vscode-languageserver-protocol "^3.10.0"
+    semver "^5.5.0"
+    vscode-languageserver-protocol "3.13.0"
 
-vscode-languageserver-protocol@^3.10.0:
-  version "3.10.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.10.0.tgz#f8dcdf987687f64a26e7c32d498fc781a0e886dc"
+vscode-languageserver-protocol@3.13.0:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0.tgz#710d8e42119bb3affb1416e1e104bd6b4d503595"
   dependencies:
-    vscode-jsonrpc "^3.6.2"
-    vscode-languageserver-types "^3.10.0"
+    vscode-jsonrpc "^4.0.0"
+    vscode-languageserver-types "3.13.0"
 
-vscode-languageserver-types@^3.10.0:
-  version "3.10.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.10.0.tgz#944e5308f3b36a3f372c766f1a344e903ec9c389"
+vscode-languageserver-types@3.13.0:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0.tgz#b704b024cef059f7b326611c99b9c8753c0a18b4"
 
-vscode-nls@^3.2.4:
-  version "3.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.4.tgz#2166b4183c8aea884d20727f5449e62be69fd398"
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
 
 wrappy@1:
   version "1.0.2"

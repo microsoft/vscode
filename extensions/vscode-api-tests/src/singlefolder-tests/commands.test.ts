@@ -78,7 +78,7 @@ suite('commands namespace tests', () => {
 
 	});
 
-	test('api-command: vscode.previewHtm', function () {
+	test('api-command: vscode.previewHtml', function () {
 
 		let registration = workspace.registerTextDocumentContentProvider('speciale', {
 			provideTextDocumentContent(uri) {

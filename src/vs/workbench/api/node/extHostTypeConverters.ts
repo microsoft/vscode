@@ -12,7 +12,7 @@ import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -530,6 +530,7 @@ export namespace Suggest {
 		result.sortText = suggestion.sortText;
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
+		result.commitCharacters = suggestion.commitCharacters;
 
 		// 'overwrite[Before|After]'-logic
 		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
@@ -541,7 +542,7 @@ export namespace Suggest {
 		result.range = new types.Range(startPosition, endPosition);
 
 		// 'inserText'-logic
-		if (suggestion.snippetType === 'textmate') {
+		if (suggestion.insertTextIsSnippet) {
 			result.insertText = new types.SnippetString(suggestion.insertText);
 		} else {
 			result.insertText = suggestion.insertText;

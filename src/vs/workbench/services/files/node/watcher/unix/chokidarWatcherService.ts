@@ -113,7 +113,8 @@ export class ChokidarWatcherService implements IWatcherService {
 		};
 
 		// if there's only one request, use the built-in ignore-filterering
-		if (requests.length === 1) {
+		const isSingleFolder = requests.length === 1;
+		if (isSingleFolder) {
 			watcherOpts.ignored = requests[0].ignored;
 		}
 
@@ -194,15 +195,19 @@ export class ChokidarWatcherService implements IWatcherService {
 					return;
 			}
 
-			if (isIgnored(path, watcher.requests)) {
-				return;
+			// if there's more than one request we need to do
+			// extra filtering due to potentially overlapping roots
+			if (!isSingleFolder) {
+				if (isIgnored(path, watcher.requests)) {
+					return;
+				}
 			}
 
 			let event = { type: eventType, path };
 
 			// Logging
 			if (this._options.verboseLogging) {
-				console.log(eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', path);
+				console.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
 			// Check for spam
@@ -230,7 +235,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				// Logging
 				if (this._options.verboseLogging) {
 					res.forEach(r => {
-						console.log(' >> normalized', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+						console.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 					});
 				}
 

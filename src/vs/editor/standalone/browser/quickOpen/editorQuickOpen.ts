@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./editorQuickOpen';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -69,7 +70,13 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 			}
 
 			this.lastKnownEditorSelection = null;
-			this.editor.focus();
+
+			// Return focus to the editor if
+			// - focus is back on the <body> element because no other focusable element was clicked
+			// - a command was picked from the picker which indicates the editor should get focused
+			if (document.activeElement === document.body || !canceled) {
+				this.editor.focus();
+			}
 		};
 
 		this.widget = new QuickOpenEditorWidget(

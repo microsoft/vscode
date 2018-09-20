@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 

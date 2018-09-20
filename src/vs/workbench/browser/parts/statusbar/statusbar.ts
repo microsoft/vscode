@@ -6,15 +6,13 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as statusbarService from 'vs/platform/statusbar/common/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IStatusbarItem {
 	render(element: HTMLElement): IDisposable;
 }
-
-export import StatusbarAlignment = statusbarService.StatusbarAlignment;
 
 export class StatusbarItemDescriptor {
 	syncDescriptor: SyncDescriptor0<IStatusbarItem>;

@@ -19,7 +19,13 @@ export interface ITerminalChildProcess {
 	onProcessIdReady: Event<number>;
 	onProcessTitleChanged: Event<string>;
 
-	shutdown(): void;
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
 	input(data: string): void;
 	resize(cols: number, rows: number): void;
 }

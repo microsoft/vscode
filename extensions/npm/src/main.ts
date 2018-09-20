@@ -56,6 +56,9 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		watcher.onDidCreate((_e) => invalidateScriptCaches());
 		context.subscriptions.push(watcher);
 
+		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
+		context.subscriptions.push(workspaceWatcher);
+
 		let provider: vscode.TaskProvider = new NpmTaskProvider(context);
 		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
 		context.subscriptions.push(disposable);

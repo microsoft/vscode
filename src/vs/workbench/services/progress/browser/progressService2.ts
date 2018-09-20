@@ -13,7 +13,8 @@ import { IProgress, emptyProgress, Progress } from 'vs/platform/progress/common/
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';

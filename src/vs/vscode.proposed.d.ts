@@ -11,6 +11,37 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - https://github.com/Microsoft/vscode/issues/1800
+
+	export namespace languages {
+
+		/**
+		 * Set (and change) the [language](#TextDocument.languageId) that is associated
+		 * with the given document.
+		 *
+		 * *Note* that calling this function will trigger the [`onDidCloseTextDocument`](#languages.onDidCloseTextDocument) event
+		 * followed by the [`onDidOpenTextDocument`](#languages.onDidOpenTextDocument) event.
+		 *
+		 * @param document The document which language is to be changed
+		 * @param languageId The new language identifier.
+		 * @returns A thenable that resolves with the updated document.
+		 */
+		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
+	}
+
+	//#endregion
+
+	//#region Joh - read/write in chunks
+
+	export interface FileSystemProvider {
+		open?(resource: Uri): number | Thenable<number>;
+		close?(fd: number): void | Thenable<void>;
+		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+	}
+
+	//#endregion
+
 	//#region Rob: search provider
 
 	/**
@@ -78,6 +109,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options to specify the size of the result text preview.
+	 * These options don't affect the size of the match itself, just the amount of preview text.
+	 */
+	export interface TextSearchPreviewOptions {
+		/**
+		 * The maximum number of lines in the preview.
+		 * Only search providers that support multiline search will ever return more than one line in the match.
+		 */
+		maxLines: number;
+
+		/**
+		 * The maximum number of characters included before the start of the match.
+		 */
+		leadingChars: number;
+
+		/**
+		 * The maximum number of characters included per line.
+		 */
+		totalChars: number;
+	}
+
+	/**
 	 * Options that apply to text search.
 	 */
 	export interface TextSearchOptions extends SearchOptions {
@@ -87,9 +140,9 @@ declare module 'vscode' {
 		maxResults: number;
 
 		/**
-		 *  TODO@roblou - total length? # of context lines? leading and trailing # of chars?
+		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: any;
+		previewOptions?: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
@@ -101,6 +154,20 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+	}
+
+	/**
+	 * Information collected when text search is complete.
+	 */
+	export interface TextSearchComplete {
+		/**
+		 * Whether the search hit the limit on the maximum number of search results.
+		 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
+		 * - If exactly that number of matches exist, this should be false.
+		 * - If `maxResults` matches are returned and more exist, this should be true.
+		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
+		 */
+		limitHit?: boolean;
 	}
 
 	/**
@@ -128,6 +195,9 @@ declare module 'vscode' {
 	 */
 	export interface FileIndexOptions extends SearchOptions { }
 
+	/**
+	 * A preview of the text result.
+	 */
 	export interface TextSearchResultPreview {
 		/**
 		 * The matching line of text, or a portion of the matching line that contains the match.
@@ -156,7 +226,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * A preview of the matching line
+		 * A preview of the text result.
 		 */
 		preview: TextSearchResultPreview;
 	}
@@ -214,7 +284,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<TextSearchComplete>;
 	}
 
 	/**
@@ -257,6 +327,11 @@ declare module 'vscode' {
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+		/**
+		 * Options to specify the size of the result text preview.
+		 */
+		previewOptions?: TextSearchPreviewOptions;
 	}
 
 	export namespace workspace {
@@ -305,7 +380,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 
 		/**
 		 * Search text in files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
@@ -315,7 +390,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
 	}
 
 	//#endregion
@@ -388,6 +463,9 @@ declare module 'vscode' {
 	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
 	export class DebugAdapterExecutable {
+
+		readonly type: 'executable';
+
 		/**
 		 * The command path of the debug adapter executable.
 		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
@@ -401,18 +479,96 @@ declare module 'vscode' {
 		readonly args: string[];
 
 		/**
-		 * Create a new debug adapter specification.
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
 		 */
-		constructor(command: string, args?: string[]);
+		readonly env?: { [key: string]: string };
+
+		/**
+		 * The working directory for the debug adapter.
+		 */
+		readonly cwd?: string;
+
+		/**
+		 * Create a description for a debug adapter based on an executable program.
+		 */
+		constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string);
 	}
+
+	/**
+	 * Represents a debug adapter running as a socket based server.
+	 */
+	export class DebugAdapterServer {
+
+		readonly type: 'server';
+
+		/**
+		 * The port.
+		 */
+		readonly port: number;
+
+		/**
+		 * The host.
+		 */
+		readonly host?: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(port: number, host?: string);
+	}
+
+	/**
+	 * Represents a debug adapter that is implemented in the extension.
+	 */
+	export class DebugAdapterImplementation {
+
+		readonly type: 'implementation';
+
+		readonly implementation: any;
+
+		/**
+		 * Create a description for a debug adapter directly implemented in the extension.
+		 * The implementation's "type": TBD
+		 */
+		constructor(implementation: any);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
 
 	export interface DebugConfigurationProvider {
 		/**
+		 * The optional method 'provideDebugAdapter' is called at the start of a debug session to provide details about the debug adapter to use.
+		 * These details must be returned as objects of type DebugAdapterDescriptor.
+		 * Currently two types of debug adapters are supported:
+		 * - a debug adapter executable specified as a command path and arguments (see DebugAdapterExecutable),
+		 * - a debug adapter server reachable via a communication port (see DebugAdapterServer).
+		 * If the method is not implemented the default behavior is this:
+		 *   provideDebugAdapter(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable, config: DebugConfiguration, token?: CancellationToken) {
+		 *      if (typeof config.debugServer === 'number') {
+		 *         return new DebugAdapterServer(config.debugServer);
+		 *      }
+		 * 		return executable;
+		 *   }
+		 * Registering more than one provideDebugAdapter for a type results in an error.
+		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
+		 * @param config The resolved debug configuration.
+		 * @param token A cancellation token.
+		 * @return a [debug adapter's descriptor](#DebugAdapterDescriptor) or undefined.
+		 */
+		provideDebugAdapter?(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
+
+		/**
+		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
 		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
 		 * Registering more than one debugAdapterExecutable for a type results in an error.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
 		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
+		 * @deprecated Use DebugConfigurationProvider.provideDebugAdapter instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
@@ -434,39 +590,16 @@ declare module 'vscode' {
 		Off = 7
 	}
 
-	/**
-	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
-	 */
-	export interface Logger {
-		trace(message: string, ...args: any[]): void;
-		debug(message: string, ...args: any[]): void;
-		info(message: string, ...args: any[]): void;
-		warn(message: string, ...args: any[]): void;
-		error(message: string | Error, ...args: any[]): void;
-		critical(message: string | Error, ...args: any[]): void;
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * This extension's logger
-		 */
-		logger: Logger;
-
-		/**
-		 * Path where an extension can write log files.
-		 *
-		 * Extensions must create this directory before writing to it. The parent directory will always exist.
-		 */
-		readonly logDirectory: string;
-	}
-
 	export namespace env {
 		/**
 		 * Current logging level.
-		 *
-		 * @readonly
 		 */
 		export const logLevel: LogLevel;
+
+		/**
+		 * An [event](#Event) that fires when the log level has changed.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion
@@ -568,10 +701,45 @@ declare module 'vscode' {
 	}
 
 	interface Comment {
+		/**
+		 * The id of the comment
+		 */
 		commentId: string;
+
+		/**
+		 * The text of the comment
+		 */
 		body: MarkdownString;
+
+		/**
+		 * The display name of the user who created the comment
+		 */
 		userName: string;
+
+		/**
+		 * The avatar src of the user who created the comment
+		 */
 		gravatar: string;
+
+		/**
+		 * Whether the current user has permission to edit the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `editComment` method is given.
+		 */
+		canEdit?: boolean;
+
+		/**
+		 * Whether the current user has permission to delete the comment.
+		 *
+		 * This will be treated as false if the comment is provided by a `WorkspaceCommentProvider`, or
+		 * if it is provided by a `DocumentCommentProvider` and  no `deleteComment` method is given.
+		 */
+		canDelete?: boolean;
+
+		/**
+		 * The command to be executed if the comment is selected in the Comments Panel
+		 */
 		command?: Command;
 	}
 
@@ -593,18 +761,48 @@ declare module 'vscode' {
 	}
 
 	interface DocumentCommentProvider {
+		/**
+		 * Provide the commenting ranges and comment threads for the given document. The comments are displayed within the editor.
+		 */
 		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+
+		/**
+		 * Called when a user adds a new comment thread in the document at the specified range, with body text.
+		 */
+		createNewCommentThread(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		/**
+		 * Called when a user replies to a new comment thread in the document at the specified range, with body text.
+		 */
+		replyToCommentThread(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		/**
+		 * Called when a user edits the comment body to the be new text text.
+		 */
+		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<Comment>;
+
+		/**
+		 * Called when a user deletes the comment.
+		 */
+		deleteComment?(document: TextDocument, comment: Comment, token: CancellationToken): Promise<void>;
+
+		/**
+		 * Notify of updates to comment threads.
+		 */
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	interface WorkspaceCommentProvider {
+		/**
+		 * Provide all comments for the workspace. Comments are shown within the comments panel. Selecting a comment
+		 * from the panel runs the comment's command.
+		 */
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 
-		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+		/**
+		 * Notify of updates to comment threads.
+		 */
+		onDidChangeCommentThreads: Event<CommentThreadChangedEvent>;
 	}
 
 	namespace workspace {
@@ -783,6 +981,63 @@ declare module 'vscode' {
 	export namespace workspace {
 		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
+	}
+	//#endregion
+
+	//#region Signature Help
+	/**
+	 * How a [Signature provider](#SignatureHelpProvider) was triggered
+	 */
+	export enum SignatureHelpTriggerReason {
+		/**
+		 * Signature help was invoked manually by the user or by a command.
+		 */
+		Invoke = 1,
+
+		/**
+		 * Signature help was triggered by a trigger character.
+		 */
+		TriggerCharacter = 2,
+
+		/**
+		 * Signature help was retriggered.
+		 *
+		 * Retriggers occur when the signature help is already active and can be caused by typing a trigger character
+		 * or by a cursor move.
+		 */
+		Retrigger = 3,
+	}
+
+	/**
+	 * Contains additional information about the context in which a
+	 * [signature help provider](#SignatureHelpProvider.provideSignatureHelp) is triggered.
+	 */
+	export interface SignatureHelpContext {
+		/**
+		 * Action that caused signature help to be requested.
+		 */
+		readonly triggerReason: SignatureHelpTriggerReason;
+
+		/**
+		 * Character that caused signature help to be requested.
+		 *
+		 * This is `undefined` for manual triggers or retriggers for a cursor move.
+		 */
+		readonly triggerCharacter?: string;
+	}
+
+	export interface SignatureHelpProvider {
+		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+	}
+
+	//#endregion
+
+	//#region Alex - OnEnter enhancement
+	export interface OnEnterRule {
+		/**
+		 * This rule will only execute if the text above the this line matches this regular expression.
+		 */
+		oneLineAboveText?: RegExp;
 	}
 	//#endregion
 }

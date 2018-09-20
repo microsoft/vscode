@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import { MainContext, MainThreadTextEditorsShape, WorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';

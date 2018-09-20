@@ -19,7 +19,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -64,7 +64,7 @@ class DiffMenuItemActionItem extends MenuItemActionItem {
 		event.stopPropagation();
 
 		this.actionRunner.run(this._commandAction, this._context)
-			.done(undefined, err => this._notificationService.error(err));
+			.then(undefined, err => this._notificationService.error(err));
 	}
 }
 
@@ -277,8 +277,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
+		const actionRunner = new DiffActionRunner();
+
+		// close widget on successful action
+		actionRunner.onDidRun(e => {
+			if (!(e.action instanceof UIEditorAction) && !e.error) {
+				this.dispose();
+			}
+		});
+
 		return {
-			actionRunner: new DiffActionRunner(),
+			actionRunner,
 			actionItemProvider: action => this.getActionItem(action),
 			orientation: ActionsOrientation.HORIZONTAL_REVERSE
 		};
@@ -469,7 +478,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
-		outerEditor.revealPosition(position);
+		outerEditor.revealPositionInCenter(position);
 	}
 }
 registerEditorAction(MoveToPreviousChangeAction);
@@ -511,7 +520,7 @@ export class MoveToNextChangeAction extends EditorAction {
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
-		outerEditor.revealPosition(position);
+		outerEditor.revealPositionInCenter(position);
 	}
 }
 registerEditorAction(MoveToNextChangeAction);
@@ -712,7 +721,7 @@ export class DirtyDiffController implements IEditorContribution {
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX < 0 || gutterOffsetX > 10) {
+		if (gutterOffsetX < -3 || gutterOffsetX > 6) { // dirty diff decoration on hover is 9px wide
 			return;
 		}
 
@@ -766,6 +775,20 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 	}
 
+	getChanges(): IChange[] {
+		if (!this.modelRegistry) {
+			return [];
+		}
+
+		const model = this.modelRegistry.getModel(this.editor.getModel());
+
+		if (!model) {
+			return [];
+		}
+
+		return model.changes;
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
@@ -808,7 +831,6 @@ class DirtyDiffDecorator {
 		if (options.overview) {
 			decorationOptions.overviewRuler = {
 				color: themeColorFromId(foregroundColor),
-				darkColor: themeColorFromId(foregroundColor),
 				position: OverviewRulerLane.Left
 			};
 		}
@@ -933,8 +955,7 @@ export class DirtyDiffModel {
 		private _editorModel: ITextModel,
 		@ISCMService private scmService: ISCMService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
-		@ITextModelService private textModelResolverService: ITextModelService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
@@ -995,9 +1016,7 @@ export class DirtyDiffModel {
 				return TPromise.as([]); // Files too large
 			}
 
-			const ignoreTrimWhitespace = this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
-
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, ignoreTrimWhitespace);
+			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, false);
 		});
 	}
 

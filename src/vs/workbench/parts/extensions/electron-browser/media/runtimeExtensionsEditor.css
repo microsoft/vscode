@@ -53,6 +53,14 @@
 	padding: 10px 14px 10px 0;
 }
 
+.monaco-action-bar .debug-extension-host {
+	background: url('start.svg') center center no-repeat;
+}
+.vs-dark .monaco-action-bar .debug-extension-host,
+.hc-black .monaco-action-bar .debug-extension-host {
+	background: url('start-inverse.svg') center center no-repeat;
+}
+
 .monaco-action-bar .extension-host-profile-start {
 	background: url('profile-start.svg') center center no-repeat;
 }

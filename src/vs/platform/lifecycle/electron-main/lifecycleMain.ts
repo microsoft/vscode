@@ -18,7 +18,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-export enum UnloadReason {
+export const enum UnloadReason {
 	CLOSE = 1,
 	QUIT = 2,
 	RELOAD = 3,
@@ -199,7 +199,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Otherwise prevent unload and handle it from window
 			e.preventDefault();
-			this.unload(window, UnloadReason.CLOSE).done(veto => {
+			this.unload(window, UnloadReason.CLOSE).then(veto => {
 				if (!veto) {
 					this.windowToCloseRequest[windowId] = true;
 

@@ -7,9 +7,9 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { ThrottledDelayer, always } from 'vs/base/common/async';
+import { ThrottledDelayer, always, timeout } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isPromiseCanceledError, onUnexpectedError, create as createError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event as EventOf, Emitter } from 'vs/base/common/event';
@@ -55,7 +55,7 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
-import { SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -323,6 +323,8 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			provideResults: (query) => Query.suggestions(query)
 		}, placeholder, 'extensions:searchinput', { placeholderText: placeholder });
 
+		this.disposables.push(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
+
 		this.disposables.push(this.searchBox);
 
 		const _searchChange = new Emitter<string>();
@@ -338,18 +340,12 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return super.create(this.extensionsBox);
 	}
 
-	public updateStyles(): void {
-		super.updateStyles();
-		this.searchBox.updateStyles();
-	}
-
 	setVisible(visible: boolean): TPromise<void> {
 		const isVisibilityChanged = this.isVisible() !== visible;
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
 				if (visible) {
 					this.searchBox.focus();
-					this.searchBox.selectAll();
 				}
 			}
 		});
@@ -420,7 +416,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private triggerSearch(immediate = false): void {
-		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).done(null, err => this.onError(err));
+		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.getValue() ? 0 : 500).then(null, err => this.onError(err));
 	}
 
 	private normalizedQuery(): string {
@@ -484,7 +480,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				return TPromise.join(promises);
 			});
 
-			TPromise.join(promises).done(null, onUnexpectedError);
+			TPromise.join(promises);
 		}
 	}
 
@@ -569,7 +565,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 	private loopCheckForMaliciousExtensions(): void {
 		this.checkForMaliciousExtensions()
-			.then(() => TPromise.timeout(1000 * 60 * 5)) // every five minutes
+			.then(() => timeout(1000 * 60 * 5)) // every five minutes
 			.then(() => this.loopCheckForMaliciousExtensions());
 	}
 

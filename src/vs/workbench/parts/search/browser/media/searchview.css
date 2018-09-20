@@ -252,6 +252,11 @@
 	height: 16px;
 }
 
+/* Adjusts spacing in high contrast mode so that actions are vertically centered */
+.hc-black .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+	margin-top: 2px;
+}
+
 .search-view .action-remove {
 	background: url("action-remove.svg") center center no-repeat;
 }

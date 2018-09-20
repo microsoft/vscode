@@ -16,7 +16,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/node/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -27,22 +27,25 @@ import { RequestService } from 'vs/platform/request/electron-browser/requestServ
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
+import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IWindowsService, ActiveWindowManager } from 'vs/platform/windows/common/windows';
-import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
+import { WindowsChannelClient } from 'vs/platform/windows/node/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/sharedProcess/contrib/contributions';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/node/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { LocalizationsChannel } from 'vs/platform/localizations/common/localizationsIpc';
-import { DialogChannelClient } from 'vs/platform/dialogs/common/dialogIpc';
+import { LocalizationsChannel } from 'vs/platform/localizations/node/localizationsIpc';
+import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -84,15 +87,19 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	const activeWindowManager = new ActiveWindowManager(windowsService);
 	const route = () => activeWindowManager.getActiveClientId();
+
 	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
+
+	const downloadChannel = server.getChannel('download', { routeCall: route, routeEvent: route });
+	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, DefaultURITransformer));
 
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
@@ -102,7 +109,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		}
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
 
-		if (!extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
+		if (!extensionDevelopmentLocationURI && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
 				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
@@ -138,11 +145,11 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	});
 }
 
-function setupIPC(hook: string): TPromise<Server> {
-	function setup(retry: boolean): TPromise<Server> {
+function setupIPC(hook: string): Thenable<Server> {
+	function setup(retry: boolean): Thenable<Server> {
 		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 
 			// should retry, not windows and eaddrinuse
@@ -151,7 +158,7 @@ function setupIPC(hook: string): TPromise<Server> {
 				client => {
 					// we could connect to a running instance. this is not good, abort
 					client.dispose();
-					return TPromise.wrapError(new Error('There is an instance already running.'));
+					return Promise.reject(new Error('There is an instance already running.'));
 				},
 				err => {
 					// it happens on Linux and OS X that the pipe is left behind
@@ -160,7 +167,7 @@ function setupIPC(hook: string): TPromise<Server> {
 					try {
 						fs.unlinkSync(hook);
 					} catch (e) {
-						return TPromise.wrapError(new Error('Error deleting the shared ipc hook.'));
+						return Promise.reject(new Error('Error deleting the shared ipc hook.'));
 					}
 
 					return setup(false);

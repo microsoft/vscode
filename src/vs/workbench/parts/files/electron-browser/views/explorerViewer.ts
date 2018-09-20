@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import * as path from 'path';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { once } from 'vs/base/common/functional';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -56,7 +56,6 @@ import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage }
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -408,7 +407,6 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
@@ -540,9 +538,6 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 				if (wasCancelled) {
 					tree.domFocus();
 				}
-			},
-			getKeyBinding: (action) => {
-				return this.keybindingService.lookupKeybinding(action.id);
 			},
 			getActionsContext: () => selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)
@@ -871,6 +866,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return true; // Can not move anything onto itself
 				}
 
+				if (source.isRoot && target instanceof ExplorerItem && target.isRoot) {
+					// Disable moving workspace roots in one another
+					return false;
+				}
+
 				if (!isCopy && resources.dirname(source.resource).toString() === target.resource.toString()) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
@@ -908,19 +908,16 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): void {
-		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			promise = this.handleExternalDrop(tree, data, target, originalEvent);
+			this.handleExternalDrop(tree, data, target, originalEvent);
 		}
 
 		// In-Explorer DND (Move/Copy file)
 		else {
-			promise = this.handleExplorerDrop(tree, data, target, originalEvent);
+			this.handleExplorerDrop(tree, data, target, originalEvent);
 		}
-
-		promise.done(null, errors.onUnexpectedError);
 	}
 
 	private handleExternalDrop(tree: ITree, data: DesktopDragAndDropData, target: ExplorerItem | Model, originalEvent: DragMouseEvent): TPromise<void> {

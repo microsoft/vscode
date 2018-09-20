@@ -1,3 +1,8 @@
 test/**
 src/**
 tsconfig.json
+out/test/**
+out/**
+extension.webpack.config.js
+OSSREADME.json
+yarn.lock

@@ -13,6 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -24,29 +25,28 @@ export interface IWorkbenchActionRegistry {
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable;
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable;
 }
 
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable {
-		return this._registerWorkbenchCommandFromAction(descriptor, alias, category);
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+		return this._registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private _registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string): IDisposable {
+	private _registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
 		let registrations: IDisposable[] = [];
 
 		// command
 		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this._createCommandHandler(descriptor)));
 
 		// keybinding
-		const when = descriptor.keybindingContext;
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
 		const keybindings = descriptor.keybindings;
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: when,
+			when: descriptor.keybindingContext,
 			primary: keybindings && keybindings.primary,
 			secondary: keybindings && keybindings.secondary,
 			win: keybindings && keybindings.win,
@@ -74,7 +74,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 			MenuRegistry.addCommand(command);
 
-			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command }));
+			registrations.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
 		}
 
 		// TODO@alex,joh

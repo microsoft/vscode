@@ -124,7 +124,7 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		if (this._lightBulbWidget.model.actions) {
+		if (this._lightBulbWidget.model && this._lightBulbWidget.model.actions) {
 			this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
 		}
 	}

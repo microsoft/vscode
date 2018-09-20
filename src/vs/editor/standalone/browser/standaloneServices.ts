@@ -44,7 +44,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -122,7 +123,7 @@ export module StaticServices {
 
 	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
-	export const uriLabelService = define(IUriLabelService, () => new SimpleUriLabelService());
+	export const labelService = define(ILabelService, () => new SimpleUriLabelService());
 
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 
@@ -165,6 +166,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const configurationService = this.get(IConfigurationService);
 		const notificationService = this.get(INotificationService);
 		const telemetryService = this.get(ITelemetryService);
+		const themeService = this.get(IThemeService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T = null;
@@ -184,11 +186,11 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
-		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
+		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(domElement, telemetryService, new NullLogService())));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService)));
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
 
 		ensure(IMenuService, () => new SimpleMenuService(commandService));
 

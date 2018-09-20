@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -650,7 +650,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
 				_onDidSelectItem(item: ISelectedSuggestion) {
-					super._onDidSelectItem(item);
+					super._onDidSelectItem(item, false, true);
 				}
 			}
 			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);

@@ -60,7 +60,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const RENDERER_PROCESS_HINT = /--disable-blink-features=Auxclick/;
+			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
 			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
@@ -91,7 +91,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			let matches = TYPE.exec(cmd);
 			if (matches && matches.length === 2) {
 				if (matches[1] === 'renderer') {
-					if (!RENDERER_PROCESS_HINT.exec(cmd)) {
+					if (SHARED_PROCESS_HINT.exec(cmd)) {
 						return 'shared-process';
 					}
 

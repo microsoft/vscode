@@ -309,7 +309,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(actions),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => this.focus()
 		});
 	}
@@ -722,6 +721,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region openEditor()
 
 	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
+
+		// Guard against invalid inputs
+		if (!editor) {
+			return TPromise.as(void 0);
+		}
 
 		// Editor opening event allows for prevention
 		const event = new EditorOpeningEvent(this._group.id, editor, options);

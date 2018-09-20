@@ -70,6 +70,10 @@
 	cursor: pointer;
 }
 
+.monaco-shell .context-view {
+	-webkit-app-region: no-drag;
+}
+
 .monaco-shell .monaco-menu .monaco-action-bar.vertical {
 	padding: .5em 0;
 }
@@ -96,8 +100,14 @@
 }
 
 .monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	font-size: inherit;
-	padding: 0 1em;
+	font-size: 60%;
+	padding: 0 1.8em;
+}
+
+.monaco-shell .linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	height: 100%;
+	-webkit-mask-size: 10px 10px;
+	mask-size: 10px 10px;
 }
 
 .monaco-shell .monaco-menu .action-item {

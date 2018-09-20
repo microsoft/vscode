@@ -7,7 +7,7 @@
 
 import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache } from 'vs/base/common/map';
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IteratorResult } from 'vs/base/common/iterator';
 
 suite('Map', () => {

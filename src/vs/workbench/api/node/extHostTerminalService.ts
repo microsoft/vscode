@@ -77,7 +77,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
-		this._proxy.$registerOnDataListener(this._id);
+		this._idPromise.then(c => {
+			this._proxy.$registerOnDataListener(this._id);
+		});
 		return this._onData && this._onData.event;
 	}
 
@@ -226,6 +228,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _terminals: ExtHostTerminal[] = [];
 	private _terminalProcesses: { [id: number]: TerminalProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
+	private _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
 
 	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
@@ -289,11 +292,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
-		// TODO: Queue requests, currently the first 100ms of data may get missed
-		const terminal = this._getTerminalById(id);
-		if (terminal) {
-			terminal._fireOnData(data);
-		}
+		this._getTerminalByIdEventually(id).then(terminal => {
+			if (terminal) {
+				terminal._fireOnData(data);
+			}
+		});
 	}
 
 	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
@@ -370,7 +373,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 
 		// TODO: Base the cwd on the last active workspace root
-		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		// const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		// this.initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, lastActiveWorkspaceRootUri, this._configHelper);
 		const initialCwd = os.homedir();
 
@@ -389,7 +392,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		const locale = terminalConfig.get('setLocaleVariables') ? platform.locale : undefined;
-		terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+		terminalEnvironment.addTerminalEnvironmentKeys(env, platform.isWindows, locale);
 
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
@@ -415,8 +418,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 	}
 
-	public $acceptProcessShutdown(id: number): void {
-		this._terminalProcesses[id].shutdown();
+	public $acceptProcessShutdown(id: number, immediate: boolean): void {
+		this._terminalProcesses[id].shutdown(immediate);
 	}
 
 	private _onProcessExit(id: number, exitCode: number): void {
@@ -431,6 +434,23 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
+		if (!this._getTerminalPromises[id]) {
+			this._getTerminalPromises[id] = this._createGetTerminalPromise(id, retries);
+		} else {
+			this._getTerminalPromises[id].then(c => {
+				return this._createGetTerminalPromise(id, retries);
+			});
+		}
+		return this._getTerminalPromises[id];
+	}
+
+	private _delay(timeout: number, result: any) {
+		return new Promise(c => {
+			setTimeout(c(result), timeout);
+		});
+	}
+
+	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
 				c(undefined);
@@ -443,9 +463,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				setTimeout(() => {
-					c(this._getTerminalByIdEventually(id, retries - 1));
-				}, 200);
+				this._delay(200, c(this._getTerminalByIdEventually(id, retries - 1)));
 			}
 		});
 	}

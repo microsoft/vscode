@@ -10,7 +10,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/node/product';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';

@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import product from 'vs/platform/node/product';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -23,7 +23,7 @@ import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorksp
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class WindowsService implements IWindowsService, IURLHandler, IDisposable {
@@ -35,14 +35,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	private _activeWindowId: number | undefined;
 
 	readonly onWindowOpen: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 	readonly onWindowFocus: Event<number> = anyEvent(
 		mapEvent(filterEvent(mapEvent(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), w => !!w), w => w.id),
 		filterEvent(fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id))
 	);
-
-	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
-	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 
 	readonly onRecentlyOpenedChange: Event<void> = this.historyService.onRecentlyOpenedChange;
 
@@ -505,9 +504,15 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		this.logService.trace('windowsService#openAboutDialog');
 		const lastActiveWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 
+		let version = app.getVersion();
+
+		if (product.target) {
+			version = `${version} (${product.target} setup)`;
+		}
+
 		const detail = nls.localize('aboutDetail',
 			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nArchitecture: {7}",
-			app.getVersion(),
+			version,
 			product.commit || 'Unknown',
 			product.date || 'Unknown',
 			process.versions['electron'],
@@ -517,9 +522,13 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			process.arch
 		);
 
-		const buttons = [nls.localize('okButton', "OK")];
-		if (isWindows) {
-			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
+		const ok = nls.localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		let buttons: string[];
+		if (isLinux) {
+			buttons = [copy, ok];
+		} else {
+			buttons = [ok, copy];
 		}
 
 		this.windowsMainService.showMessageBox({
@@ -528,9 +537,10 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
-			noLink: true
+			noLink: true,
+			defaultId: buttons.indexOf(ok)
 		}, lastActiveWindow).then(result => {
-			if (isWindows && result.button === 1) {
+			if (buttons[result.button] === copy) {
 				clipboard.writeText(detail);
 			}
 		});

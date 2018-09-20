@@ -353,6 +353,12 @@ suite('SnippetParser', () => {
 		assertText('${1||}', '${1||}');
 	});
 
+	test('Backslash character escape in choice tabstop doesn\'t work #58494', function () {
+
+		const { placeholders } = new SnippetParser().parse('${1|\\,,},$,\\|,\\\\|}');
+		assert.equal(placeholders.length, 1);
+		assert.ok(placeholders[0].choice instanceof Choice);
+	});
 
 	test('Parser, only textmate', () => {
 		const p = new SnippetParser();
@@ -667,6 +673,11 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
 	});
 
+	test('Snippet variable transformation doesn\'t work if regex is complicated and snippet body contains \'$$\' #55627', function () {
+		const snippet = new SnippetParser().parse('const fileName = "${TM_FILENAME/(.*)\\..+$/$1/}"');
+		assert.equal(snippet.toTextmateString(), 'const fileName = "${TM_FILENAME/(.*)\\..+$/${1}/}"');
+	});
+
 	test('[BUG] HTML attribute suggestions: Snippet session does not have end-position set, #33147', function () {
 
 		const { placeholders } = new SnippetParser().parse('src="$1"', true);
@@ -711,5 +722,31 @@ suite('SnippetParser', () => {
 
 	test('snippets variable not resolved in JSON proposal #52931', function () {
 		assertTextAndMarker('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Placeholder);
+	});
+
+	test('Mirroring sequence of nested placeholders not selected properly on backjumping #58736', function () {
+		let snippet = new SnippetParser().parse('${3:nest1 ${1:nest2 ${2:nest3}}} $3');
+		assert.equal(snippet.children.length, 3);
+		assert.ok(snippet.children[0] instanceof Placeholder);
+		assert.ok(snippet.children[1] instanceof Text);
+		assert.ok(snippet.children[2] instanceof Placeholder);
+
+		function assertParent(marker: Marker) {
+			marker.children.forEach(assertParent);
+			if (!(marker instanceof Placeholder)) {
+				return;
+			}
+			let found = false;
+			let m: Marker = marker;
+			while (m && !found) {
+				if (m.parent === snippet) {
+					found = true;
+				}
+				m = m.parent;
+			}
+			assert.ok(found);
+		}
+		let [, , clone] = snippet.children;
+		assertParent(clone);
 	});
 });

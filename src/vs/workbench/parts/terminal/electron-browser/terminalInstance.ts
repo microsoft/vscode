@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -305,7 +305,10 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+			this.processReady.then(() => {
+				this._linkHandler.initialCwd = this._processManager.initialCwd;
+			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
 
@@ -550,12 +553,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.selectAll();
 	}
 
-	public findNext(term: string): boolean {
-		return this._xterm.findNext(term);
+	public findNext(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findNext(term, searchOptions);
 	}
 
-	public findPrevious(term: string): boolean {
-		return this._xterm.findPrevious(term);
+	public findPrevious(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findPrevious(term, searchOptions);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {
@@ -563,7 +566,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalFocusContextKey.set(terminalFocused);
 	}
 
-	public dispose(): void {
+	public dispose(isShuttingDown?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
 		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
@@ -588,7 +591,9 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.dispose();
 			this._xterm = null;
 		}
-		this._processManager = lifecycle.dispose(this._processManager);
+		if (this._processManager) {
+			this._processManager.dispose(isShuttingDown);
+		}
 		if (!this._isDisposed) {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);
@@ -597,15 +602,17 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public focus(force?: boolean): void {
-		this._xtermReadyPromise.then(() => {
-			if (!this._xterm) {
-				return;
-			}
-			const text = window.getSelection().toString();
-			if (!text || force) {
-				this._xterm.focus();
-			}
-		});
+		if (!this._xterm) {
+			return;
+		}
+		const text = window.getSelection().toString();
+		if (!text || force) {
+			this._xterm.focus();
+		}
+	}
+
+	public focusWhenReady(force?: boolean): Promise<void> {
+		return this._xtermReadyPromise.then(() => this.focus(force));
 	}
 
 	public paste(): void {
@@ -713,8 +720,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
-
 		this._processManager.onProcessData(data => this._onData.fire(data));
 
 		if (this._shellLaunchConfig.name) {
@@ -734,6 +739,12 @@ export class TerminalInstance implements ITerminalInstance {
 				});
 			});
 		}
+
+		// Create the process asynchronously to allow the terminal's container
+		// to be created so dimensions are accurate
+		setTimeout(() => {
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+		}, 0);
 	}
 
 	private _onProcessData(data: string): void {

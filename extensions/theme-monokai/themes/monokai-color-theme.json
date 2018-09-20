@@ -33,7 +33,7 @@
 		"editorIndentGuide.activeBackground": "#767771",
 		"editorGroupHeader.tabsBackground": "#1e1f1c",
 		"editorGroup.dropBackground": "#41433980",
-		"tab.inactiveBackground": "#414339",
+		"tab.inactiveBackground": "#34352f",
 		"tab.border": "#1e1f1c",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"widget.shadow": "#000000",
@@ -72,7 +72,7 @@
 		"editorHoverWidget.border": "#75715E",
 		"editorSuggestWidget.background": "#272822",
 		"editorSuggestWidget.border": "#75715E",
-		"editorGroup.border": "#414339",
+		"editorGroup.border": "#34352f",
 		"peekView.border": "#75715E",
 		"peekViewEditor.background": "#272822",
 		"peekViewResult.background": "#1e1f1c",
