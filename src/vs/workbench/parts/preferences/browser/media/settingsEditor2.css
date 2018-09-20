@@ -117,7 +117,6 @@
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
-	width: calc(100% - 11px);
 	margin-left: 0px;
 }
 
@@ -127,22 +126,11 @@
 	margin-left: 0px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/** 11px for scrollbar + 208px for TOC margin */
-	width: calc(100% - 31px);
+	/* 20 from monaco-tree-row */
 	padding-left: 20px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/* 20 from monaco-tree-wrapper + 20 from monaco-tree-row */
-	padding-left: 40px;
-	width: calc(100% - 53px);
+	width: calc(100% - 33px);
 	border: 1px solid transparent;
-}
-
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-rows {
-	width: calc(100% - 20px);
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row > .content::before {
@@ -206,7 +194,6 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 160px;
 	margin-top: 16px;
-	padding-left: 5px;
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-toc-container,
@@ -261,10 +248,16 @@
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
+	margin-left: 20px;
 	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
+}
+
+.settings-editor.no-toc-search > .settings-body .settings-tree-container,
+.settings-editor.narrow > .settings-body .settings-tree-container {
+	margin-left: 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree-row {
