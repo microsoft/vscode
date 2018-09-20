@@ -13,6 +13,13 @@ export interface InputBox {
 	value: string;
 }
 
+export interface SourceControl {
+	readonly id: string;
+	readonly rootUri: Uri | undefined;
+	readonly selected: boolean;
+	readonly onDidChangeSelection: Event<boolean>;
+}
+
 export const enum RefType {
 	Head,
 	RemoteHead,
@@ -79,6 +86,7 @@ export interface Repository {
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
+	readonly sourceControl: SourceControl;
 
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
