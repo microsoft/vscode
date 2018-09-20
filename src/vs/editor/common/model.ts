@@ -78,6 +78,11 @@ export interface IModelDecorationOptions {
 	 */
 	showIfCollapsed?: boolean;
 	/**
+	 * Collapse the decoration if its entire range is being replaced via an edit.
+	 * @internal
+	 */
+	collapseOnReplaceEdit?: boolean;
+	/**
 	 * Specifies the stack order of a decoration.
 	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
 	 */
