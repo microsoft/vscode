@@ -90,6 +90,10 @@ class Survey {
 		return false;
 	}
 
+	public willShow() {
+		this._hasShownInThisSession = true;
+	}
+
 	public markComplete() {
 		this._hasShownInThisSession = true;
 		this.memento.update(this.isCompletedMementoKey, true);
@@ -131,6 +135,7 @@ export class Surveyor {
 	public surveyReady(surveyId: string): void {
 		const survey = this.tryGetActiveSurvey(surveyId);
 		if (survey && survey.trigger()) {
+			survey.willShow();
 			this.showSurveyToUser(survey);
 		}
 	}
