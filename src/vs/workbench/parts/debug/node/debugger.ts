@@ -40,7 +40,7 @@ export class Debugger implements IDebugger {
 	public hasConfigurationProvider = false;
 
 	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter> {
-		if (this.inEH()) {
+		if (this.inExtHost()) {
 			return TPromise.as(this.configurationManager.createDebugAdapter(session, root, config));
 		} else {
 			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
@@ -91,7 +91,7 @@ export class Debugger implements IDebugger {
 	}
 
 	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-		if (this.inEH()) {
+		if (this.inExtHost()) {
 			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
 				return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
 			});
@@ -102,12 +102,12 @@ export class Debugger implements IDebugger {
 
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		return this.configurationManager.runInTerminal(this.inEH() ? this.type : '*', args, config);
+		return this.configurationManager.runInTerminal(this.inExtHost() ? this.type : '*', args, config);
 	}
 
-	private inEH(): boolean {
+	private inExtHost(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter || this.extensionDescription.extensionLocation.scheme !== 'file';
+		return debugConfigs.extensionHostDebugAdapter || this.configurationManager.needsToRunInExtHost(this.type) || this.extensionDescription.extensionLocation.scheme !== 'file';
 	}
 
 	public get label(): string {

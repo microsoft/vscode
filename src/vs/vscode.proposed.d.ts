@@ -517,6 +517,21 @@ declare module 'vscode' {
 
 	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
 
+	/**
+	 * A Debug Adapter Tracker is a means to track the communication between VS Code and a Debug Adapter.
+	 */
+	export interface IDebugAdapterTracker {
+		// VS Code -> Debug Adapter
+		startDebugAdapter?(): void;
+		toDebugAdapter?(message: any): void;
+		stopDebugAdapter?(): void;
+
+		// Debug Adapter -> VS Code
+		fromDebugAdapter?(message: any): void;
+		debugAdapterError?(error: Error): void;
+		debugAdapterExit?(code?: number, signal?: string): void;
+	}
+
 	export interface DebugConfigurationProvider {
 		/**
 		 * The optional method 'provideDebugAdapter' is called at the start of a debug session to provide details about the debug adapter to use.
@@ -541,6 +556,15 @@ declare module 'vscode' {
 		 * @return a [debug adapter's descriptor](#DebugAdapterDescriptor) or undefined.
 		 */
 		provideDebugAdapter?(session: DebugSession, folder: WorkspaceFolder | undefined, executable: DebugAdapterExecutable | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugAdapterDescriptor>;
+
+		/**
+		 * The optional method 'provideDebugAdapterTracker' is called at the start of a debug session to provide a tracker that gives access to the communication between VS Code and a Debug Adapter.
+		 * @param session The [debug session](#DebugSession) for which the tracker will be used.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
+		 * @param config The resolved debug configuration.
+		 * @param token A cancellation token.
+		 */
+		provideDebugAdapterTracker?(session: DebugSession, folder: WorkspaceFolder | undefined, config: DebugConfiguration, token?: CancellationToken): ProviderResult<IDebugAdapterTracker>;
 
 		/**
 		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
