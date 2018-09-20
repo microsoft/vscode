@@ -133,9 +133,9 @@ anymatch@^2.0.0:
     micromatch "^3.1.4"
     normalize-path "^2.1.1"
 
-"applicationinsights@git://github.com/Microsoft/ApplicationInsights-node.js.git#e5160c1c29c00e430d414b381077212d4e5bd8b4":
+"applicationinsights@git://github.com/Microsoft/ApplicationInsights-node.js#e5160c1c29c00e430d414b381077212d4e5bd8b4":
   version "1.0.4"
-  resolved "git://github.com/Microsoft/ApplicationInsights-node.js.git#e5160c1c29c00e430d414b381077212d4e5bd8b4"
+  resolved "git://github.com/Microsoft/ApplicationInsights-node.js#e5160c1c29c00e430d414b381077212d4e5bd8b4"
   dependencies:
     diagnostic-channel "0.2.0"
     diagnostic-channel-publishers "0.2.1"
