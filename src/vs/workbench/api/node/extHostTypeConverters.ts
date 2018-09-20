@@ -19,12 +19,12 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
-import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { isString, isNumber } from 'vs/base/common/types';
 
 export interface PositionLike {
 	line: number;
@@ -108,7 +108,7 @@ export namespace Diagnostic {
 			...Range.from(value.range),
 			message: value.message,
 			source: value.source,
-			code: String(value.code),
+			code: isString(value.code) || isNumber(value.code) ? String(value.code) : void 0,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
@@ -744,7 +744,11 @@ export namespace TextEditorOptions {
 
 export namespace GlobPattern {
 
-	export function from(pattern: vscode.GlobPattern): string | IRelativePattern {
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern {
+		if (pattern instanceof types.RelativePattern) {
+			return pattern;
+		}
+
 		if (typeof pattern === 'string') {
 			return pattern;
 		}

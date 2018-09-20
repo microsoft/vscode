@@ -247,4 +247,22 @@ suite('SnippetsService', function () {
 		result = await provider.provideCompletionItems(model, new Position(1, 3), { triggerCharacter: '-', triggerKind: SuggestTriggerKind.TriggerCharacter });
 		assert.equal(result.suggestions.length, 1);
 	});
+
+	test('No snippets suggestion on long lines beyond character 100 #58807', async function () {
+		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
+			'bug',
+			'bug',
+			'',
+			'second',
+			''
+		)]);
+
+		const provider = new SnippetSuggestProvider(modeService, snippetService);
+
+		let model = TextModel.createFromString('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let result = await provider.provideCompletionItems(model, new Position(1, 158), suggestContext);
+
+		assert.equal(result.suggestions.length, 1);
+	});
 });

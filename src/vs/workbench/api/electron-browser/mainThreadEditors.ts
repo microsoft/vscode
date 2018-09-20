@@ -247,26 +247,32 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const diffEditors = this._codeEditorService.listDiffEditors();
 		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
 
-		if (!diffEditor) {
-			return TPromise.as([]);
+		if (diffEditor) {
+			return TPromise.as(diffEditor.getLineChanges());
 		}
 
-		return TPromise.as(diffEditor.getLineChanges());
+		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
+
+		if (dirtyDiffContribution) {
+			return TPromise.as((dirtyDiffContribution as any).getChanges());
+		}
+
+		return TPromise.as([]);
 	}
 }
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
 
-	const [resource, options, position] = args;
+	const [resource, options, position, label] = args;
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
-		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
+		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
 	}
 
 	if (resource && resource.scheme === 'command') {

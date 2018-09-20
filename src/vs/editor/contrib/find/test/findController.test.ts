@@ -11,9 +11,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import * as platform from 'vs/base/common/platform';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction, NextSelectionMatchFindAction } from 'vs/editor/contrib/find/findController';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction, NextSelectionMatchFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -26,6 +27,8 @@ export class TestFindController extends CommonFindController {
 	public delayUpdateHistory: boolean = false;
 	public delayedUpdateHistoryPromise: TPromise<void>;
 
+	private _findInputFocused: IContextKey<boolean>;
+
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -33,6 +36,7 @@ export class TestFindController extends CommonFindController {
 		@IClipboardService clipboardService: IClipboardService
 	) {
 		super(editor, contextKeyService, storageService, clipboardService);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
 
@@ -42,6 +46,9 @@ export class TestFindController extends CommonFindController {
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
 			this.hasFocus = true;
 		}
+
+		let inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
+		this._findInputFocused.set(inputFocused);
 	}
 }
 
@@ -243,6 +250,34 @@ suite('FindController', () => {
 
 			nextMatchFindAction.run(null, editor);
 			assert.deepEqual(fromRange(editor.getSelection()), [1, 9, 1, 13]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #41027: Don\'t replace find input value on replace action if find input is active', () => {
+		withTestCodeEditor([
+			'test',
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			let testRegexString = 'tes.';
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let nextMatchFindAction = new NextMatchFindAction();
+			let startFindReplaceAction = new StartFindReplaceAction();
+
+			findController.toggleRegex();
+			findController.setSearchString(testRegexString);
+			findController.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
+				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldAnimate: false,
+				updateSearchScope: false
+			});
+			nextMatchFindAction.run(null, editor);
+			startFindReplaceAction.run(null, editor);
+
+			assert.equal(findController.getState().searchString, testRegexString);
 
 			findController.dispose();
 		});

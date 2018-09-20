@@ -16,7 +16,6 @@ interface QuickPickExpected {
 	acceptedItems: {
 		active: string[][];
 		selection: string[][];
-		dispose: boolean[];
 	};
 }
 
@@ -37,8 +36,7 @@ suite('window namespace tests', function () {
 				selectionItems: [['zwei']],
 				acceptedItems: {
 					active: [['zwei']],
-					selection: [['zwei']],
-					dispose: [true]
+					selection: [['zwei']]
 				},
 			}, (err?: any) => done(err));
 			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
@@ -63,8 +61,7 @@ suite('window namespace tests', function () {
 				selectionItems: [['zwei']],
 				acceptedItems: {
 					active: [['zwei']],
-					selection: [['zwei']],
-					dispose: [true]
+					selection: [['zwei']]
 				},
 			}, (err?: any) => done(err));
 			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
@@ -89,8 +86,7 @@ suite('window namespace tests', function () {
 				selectionItems: [['eins'], ['eins', 'zwei']],
 				acceptedItems: {
 					active: [['zwei']],
-					selection: [['eins', 'zwei']],
-					dispose: [true]
+					selection: [['eins', 'zwei']]
 				},
 			}, (err?: any) => done(err));
 			quickPick.canSelectMany = true;
@@ -105,31 +101,6 @@ suite('window namespace tests', function () {
 				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 			})()
 				.catch(err => done(err));
-		});
-
-		test('createQuickPick, selection events', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
-
-			const quickPick = createQuickPick({
-				events: ['active', 'selection', 'accept', 'selection', 'accept', 'hide'],
-				activeItems: [['eins']],
-				selectionItems: [['zwei'], ['drei']],
-				acceptedItems: {
-					active: [['eins'], ['eins']],
-					selection: [['zwei'], ['drei']],
-					dispose: [false, true]
-				},
-			}, (err?: any) => done(err));
-			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
-			quickPick.show();
-
-			quickPick.selectedItems = [quickPick.items[1]];
-			setTimeout(() => {
-				quickPick.selectedItems = [quickPick.items[2]];
-			}, 0);
 		});
 	});
 });
@@ -163,9 +134,7 @@ function createQuickPick(expected: QuickPickExpected, done: (err?: any) => void)
 			assert.deepEqual(quickPick.activeItems.map(item => item.label), expectedActive);
 			const expectedSelection = expected.acceptedItems.selection.shift();
 			assert.deepEqual(quickPick.selectedItems.map(item => item.label), expectedSelection);
-			if (expected.acceptedItems.dispose.shift()) {
-				quickPick.dispose();
-			}
+			quickPick.dispose();
 		} catch (err) {
 			done(err);
 		}

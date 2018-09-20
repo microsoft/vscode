@@ -198,15 +198,17 @@ export class FocusSessionActionItem extends SelectActionItem {
 
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.debugService.getViewModel().onDidFocusStackFrame(() => {
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session) {
 				const index = this.debugService.getModel().getSessions().indexOf(session);
 				this.select(index);
 			}
-		});
+		}));
 
-		this.debugService.getModel().onDidChangeCallStack(() => this.update());
+		this.toDispose.push(this.debugService.onDidNewSession(() => this.update()));
+		this.toDispose.push(this.debugService.onDidEndSession(() => this.update()));
+
 		this.update();
 	}
 

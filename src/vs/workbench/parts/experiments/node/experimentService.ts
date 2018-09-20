@@ -70,7 +70,8 @@ interface IExperimentAction {
 export enum ExperimentActionType {
 	Custom = 'Custom',
 	Prompt = 'Prompt',
-	AddToRecommendations = 'AddToRecommendations'
+	AddToRecommendations = 'AddToRecommendations',
+	ExtensionSearchResults = 'ExtensionSearchResults'
 }
 
 export interface IExperimentActionPromptProperties {
@@ -230,6 +231,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 								this._curatedMapping[experiment.id] = x;
 							}
 						});
+					}
+					if (!processedExperiment.action.properties) {
+						processedExperiment.action.properties = {};
 					}
 				}
 				this._experiments.push(processedExperiment);

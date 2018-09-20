@@ -302,7 +302,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			description = this.labelService.getUriLabel(resources.dirname(resource), true);
+			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
 		}
 
 		this.setLabel({ resource, name, description }, options);

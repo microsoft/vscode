@@ -71,6 +71,8 @@ function extractDomain(url: string): string {
 		let match = url.match(SshProtocolMatcher);
 		if (match) {
 			return stripLowLevelDomains(match[2]);
+		} else {
+			return null;
 		}
 	}
 	try {

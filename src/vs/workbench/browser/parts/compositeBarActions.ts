@@ -588,8 +588,14 @@ export class CompositeActionItem extends ActivityActionItem {
 			actions.push(...otherActions);
 		}
 
+		const elementPosition = dom.getDomNodePagePosition(container);
+		const anchor = {
+			x: Math.floor(elementPosition.left + (elementPosition.width / 2)),
+			y: elementPosition.top + elementPosition.height
+		};
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => container,
+			getAnchor: () => anchor,
 			getActionsContext: () => this.activity.id,
 			getActions: () => TPromise.as(actions)
 		});

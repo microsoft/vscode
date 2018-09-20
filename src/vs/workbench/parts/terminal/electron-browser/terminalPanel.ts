@@ -45,11 +45,11 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService protected readonly _themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
-		super(TERMINAL_PANEL_ID, telemetryService, themeService);
+		super(TERMINAL_PANEL_ID, telemetryService, _themeService);
 	}
 
 	public create(parent: HTMLElement): TPromise<any> {
@@ -61,7 +61,7 @@ export class TerminalPanel extends Panel {
 		this._terminalContainer = document.createElement('div');
 		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget);
+		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
 		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
 
@@ -183,7 +183,7 @@ export class TerminalPanel extends Panel {
 
 	public focusFindWidget() {
 		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection.indexOf('\n') === -1) {
+		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
 			this._findWidget.reveal(activeInstance.selection);
 		} else {
 			this._findWidget.reveal();
@@ -192,6 +192,19 @@ export class TerminalPanel extends Panel {
 
 	public hideFindWidget() {
 		this._findWidget.hide();
+	}
+
+	public showFindWidget() {
+		const activeInstance = this._terminalService.getActiveInstance();
+		if (activeInstance && activeInstance.hasSelection() && (activeInstance.selection.indexOf('\n') === -1)) {
+			this._findWidget.show(activeInstance.selection);
+		} else {
+			this._findWidget.show();
+		}
+	}
+
+	public getFindWidget(): TerminalFindWidget {
+		return this._findWidget;
 	}
 
 	private _attachEventListeners(): void {

@@ -4,3 +4,5 @@ out/**
 tsconfig.json
 build/**
 extension.webpack.config.js
+OSSREADME.json
+yarn.lock

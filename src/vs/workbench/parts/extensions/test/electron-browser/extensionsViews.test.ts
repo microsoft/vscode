@@ -38,7 +38,7 @@ import { URI } from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
-import { IExperimentService, ExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -50,8 +50,11 @@ suite('ExtensionsListView Tests', () => {
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-	const localEnabled = aLocalExtension('first-extension');
-	const localDisabled = aLocalExtension('second-extension');
+	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] });
+	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] });
+	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] });
+	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] });
+	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] });
 	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, {}, LocalExtensionType.System);
 	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, {}, LocalExtensionType.System);
 
@@ -112,16 +115,24 @@ suite('ExtensionsListView Tests', () => {
 	});
 
 	setup(async () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabled, localDisabled, builtInTheme, builtInBasic]);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
-				return TPromise.wrap([{ id: localEnabled.galleryIdentifier.id }, { id: builtInTheme.galleryIdentifier.id }, { id: builtInBasic.galleryIdentifier.id }]);
+				return TPromise.wrap([
+					{ id: localEnabledTheme.galleryIdentifier.id },
+					{ id: localEnabledLanguage.galleryIdentifier.id },
+					{ id: localRandom.galleryIdentifier.id },
+					{ id: builtInTheme.galleryIdentifier.id },
+					{ id: builtInBasic.galleryIdentifier.id }
+				]);
 			}
 		});
-		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabled, EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabledTheme, EnablementState.Disabled);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement(localDisabledLanguage, EnablementState.Disabled);
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		testableView = instantiationService.createInstance(ExtensionsListView, {});
@@ -146,24 +157,31 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test installed query results', () => {
 		const allInstalledCheck = testableView.show('@installed').then(result => {
-			assert.equal(result.length, 2, 'Unexpected number of results for @installed query');
-			assert.equal(result.get(0).name, localEnabled.manifest.name, 'Unexpected extension for @installed query.');
-			assert.equal(result.get(1).name, localDisabled.manifest.name, 'Unexpected extension for @installed query.');
+			assert.equal(result.length, 5, 'Unexpected number of results for @installed query');
+			const actual = [result.get(0).name, result.get(1).name, result.get(2).name, result.get(3).name, result.get(4).name].sort();
+			const expected = [localDisabledTheme.manifest.name, localEnabledTheme.manifest.name, localRandom.manifest.name, localDisabledLanguage.manifest.name, localEnabledLanguage.manifest.name];
+			for (let i = 0; i < result.length; i++) {
+				assert.equal(actual[i], expected[i], 'Unexpected extension for @installed query.');
+			}
 		});
 
 		const installedCheck = testableView.show('@installed first').then(result => {
-			assert.equal(result.length, 1, 'Unexpected number of results for @installed query');
-			assert.equal(result.get(0).name, localEnabled.manifest.name, 'Unexpected extension for @installed query.');
+			assert.equal(result.length, 2, 'Unexpected number of results for @installed query');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
+			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
 		});
 
 		const allDisabledCheck = testableView.show('@disabled').then(result => {
-			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query');
-			assert.equal(result.get(0).name, localDisabled.manifest.name, 'Unexpected extension for @disabled query.');
+			assert.equal(result.length, 2, 'Unexpected number of results for @disabled query');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query.');
+			assert.equal(result.get(1).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query.');
 		});
 
 		const allEnabledCheck = testableView.show('@enabled').then(result => {
-			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query');
-			assert.equal(result.get(0).name, localEnabled.manifest.name, 'Unexpected extension for @enabled query.');
+			assert.equal(result.length, 3, 'Unexpected number of results for @enabled query');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query.');
+			assert.equal(result.get(1).name, localRandom.manifest.name, 'Unexpected extension for @enabled query.');
+			assert.equal(result.get(2).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query.');
 		});
 
 		const allBuiltinThemesCheck = testableView.show('@builtin:themes').then(result => {
@@ -187,7 +205,85 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
 
-		return TPromise.join([allInstalledCheck, allDisabledCheck, allEnabledCheck, allBuiltinThemesCheck, allBuiltinBasicsCheck, allBuiltinCheck, installedCheck, builtinCheck]);
+		return TPromise.join([
+			allInstalledCheck,
+			installedCheck,
+			allDisabledCheck,
+			allEnabledCheck,
+			allBuiltinThemesCheck,
+			allBuiltinBasicsCheck,
+			allBuiltinCheck,
+			builtinCheck]);
+	});
+
+	test('Test installed query with category', () => {
+		const installedCategoryWithoutQuotesCheck = testableView.show('@installed category:themes').then(result => {
+			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with category');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
+			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
+		});
+
+		const installedCategoryWithQuotesCheck = testableView.show('@installed category:"themes"').then(result => {
+			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with quoted category');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
+			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
+		});
+
+		const installedCategoryWithSpaceCheck = testableView.show('@installed category:"programming languages"').then(result => {
+			assert.equal(result.length, 2, 'Unexpected number of results for @installed query with quoted category including space');
+			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category inlcuding space.');
+			assert.equal(result.get(1).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category including space.');
+		});
+
+		const installedMultipleCategoryCheck = testableView.show('@installed category:themes category:random').then(result => {
+			assert.equal(result.length, 3, 'Unexpected number of results for @installed query with multiple category');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
+			assert.equal(result.get(1).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
+			assert.equal(result.get(2).name, localRandom.manifest.name, 'Unexpected extension for @installed query with multiple category.');
+		});
+
+		const enabledCategoryWithoutQuotesCheck = testableView.show('@enabled category:themes').then(result => {
+			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with category');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with category.');
+		});
+
+		const enabledCategoryWithQuotesCheck = testableView.show('@enabled category:"themes"').then(result => {
+			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with quoted category');
+			assert.equal(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with quoted category.');
+		});
+
+		const enabledCategoryWithSpaceCheck = testableView.show('@enabled category:"programming languages"').then(result => {
+			assert.equal(result.length, 1, 'Unexpected number of results for @enabled query with quoted category inlcuding space');
+			assert.equal(result.get(0).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query with quoted category including space.');
+		});
+
+		const disabledCategoryWithoutQuotesCheck = testableView.show('@disabled category:themes').then(result => {
+			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with category');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with category.');
+		});
+
+		const disabledCategoryWithQuotesCheck = testableView.show('@disabled category:"themes"').then(result => {
+			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with quoted category');
+			assert.equal(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with quoted category.');
+		});
+
+		const disabledCategoryWithSpaceCheck = testableView.show('@disabled category:"programming languages"').then(result => {
+			assert.equal(result.length, 1, 'Unexpected number of results for @disabled query with quoted category inlcuding space');
+			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
+		});
+
+		return TPromise.join([
+			installedCategoryWithoutQuotesCheck,
+			installedCategoryWithQuotesCheck,
+			installedCategoryWithSpaceCheck,
+			installedMultipleCategoryCheck,
+			enabledCategoryWithoutQuotesCheck,
+			enabledCategoryWithQuotesCheck,
+			enabledCategoryWithSpaceCheck,
+			disabledCategoryWithoutQuotesCheck,
+			disabledCategoryWithQuotesCheck,
+			disabledCategoryWithSpaceCheck
+		]);
 	});
 
 	test('Test @recommended:workspace query', () => {
@@ -275,6 +371,76 @@ suite('ExtensionsListView Tests', () => {
 				assert.equal(result.get(i).id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
+		});
+	});
+
+	test('Test search', () => {
+		const searchText = 'search-me';
+		const results = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...results));
+		return testableView.show('search-me').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, results.length);
+			for (let i = 0; i < results.length; i++) {
+				assert.equal(result.get(i).id, results[i].identifier.id);
+			}
+		});
+	});
+
+	test('Test preferred search experiment', () => {
+		const searchText = 'search-me';
+		const realResults = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+		const preferredResults = [
+			workspaceRecommendationA,
+			workspaceRecommendationB,
+			fileBasedRecommendationA,
+			otherRecommendationA
+		];
+
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
+			id: 'someId',
+			enabled: true,
+			state: ExperimentState.Run,
+			action: {
+				type: ExperimentActionType.ExtensionSearchResults,
+				properties: {
+					searchText: 'search-me',
+					preferredResults: [
+						workspaceRecommendationA.identifier.id,
+						'something-that-wasnt-in-first-page',
+						workspaceRecommendationB.identifier.id
+					]
+				}
+			}
+		}]);
+
+		testableView.dispose();
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
+
+		return testableView.show('search-me').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(experimentTarget.calledOnce);
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, preferredResults.length);
+			for (let i = 0; i < preferredResults.length; i++) {
+				assert.equal(result.get(i).id, preferredResults[i].identifier.id);
+			}
 		});
 	});
 

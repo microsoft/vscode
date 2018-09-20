@@ -55,12 +55,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private lastStart: number;
 	private numberRestarts: number;
 	private isRestarting: boolean = false;
+	private _tsServerLoading: { resolve: () => void, reject: () => void } | undefined;
 
 	public readonly telemetryReporter: TelemetryReporter;
 	/**
 	 * API version obtained from the version picker after checking the corresponding path exists.
 	 */
 	private _apiVersion: API;
+
 	/**
 	 * Version reported by currently-running tsserver.
 	 */
@@ -144,6 +146,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (this.forkedTsServer) {
 			this.forkedTsServer.kill();
 		}
+
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+			this._tsServerLoading = undefined;
+		}
 	}
 
 	public restartTsServer(): void {
@@ -180,6 +187,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private readonly _onTypesInstallerInitializationFailed = this._register(new vscode.EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>());
 	public readonly onTypesInstallerInitializationFailed = this._onTypesInstallerInitializationFailed.event;
+
+	private readonly _onSurveyReady = this._register(new vscode.EventEmitter<Proto.SurveyReadyEventBody>());
+	public readonly onSurveyReady = this._onSurveyReady.event;
 
 	public get apiVersion(): API {
 		return this._apiVersion;
@@ -309,7 +319,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.forkedTsServer = handle;
 		this._onTsServerStarted.fire(currentVersion.version);
 
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+		}
+		if (this._apiVersion.gte(API.v300)) {
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: localize('serverLoading.progress', "Initializing JS/TS language features"),
+			}, () => new Promise((resolve, reject) => {
+				this._tsServerLoading = { resolve, reject };
+			}));
+		}
+
 		this.serviceStarted(resendModels);
+
 		return handle;
 	}
 
@@ -364,7 +387,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		try {
-			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.parse(this.forkedTsServer.tsServerLogFile));
+			await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(this.forkedTsServer.tsServerLogFile));
 			return true;
 		} catch {
 			vscode.window.showWarningMessage(localize(
@@ -406,6 +429,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private serviceExited(restart: boolean): void {
+		if (this._tsServerLoading) {
+			this._tsServerLoading.reject();
+			this._tsServerLoading = undefined;
+		}
+
 		enum MessageAction {
 			reportIssue
 		}
@@ -604,6 +632,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					const resources = body.openFiles.map(vscode.Uri.file);
 					this.bufferSyncSupport.getErr(resources);
 				}
+
+				// This event also roughly signals that project has been loaded successfully
+				if (this._tsServerLoading) {
+					this._tsServerLoading.resolve();
+					this._tsServerLoading = undefined;
+				}
 				break;
 
 			case 'beginInstallTypes':
@@ -621,6 +655,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'typesInstallerInitializationFailed':
 				if (event.body) {
 					this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
+				}
+				break;
+
+			case 'surveyReady':
+				if (event.body) {
+					this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
 				}
 				break;
 		}

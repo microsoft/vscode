@@ -5017,10 +5017,6 @@ nan@^2.0.0:
   version "2.9.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.9.2.tgz#f564d75f5f8f36a6d9456cca7a6c4fe488ab7866"
 
-nan@^2.0.9:
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.4.0.tgz#fb3c59d45fe4effe215f0b890f8adf6eb32d2232"
-
 nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
@@ -5360,10 +5356,10 @@ onetime@^2.0.0:
     mimic-fn "^1.0.0"
 
 oniguruma@^7.0.0:
-  version "7.0.0"
-  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.0.tgz#cf258a8b1a2ec1d0d68964d6336df264008ebf4c"
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.2.tgz#a5c922cf7066da1dbcc60f6385a90437a83f8d0b"
   dependencies:
-    nan "^2.0.9"
+    nan "^2.10.0"
 
 optimist@0.3.5:
   version "0.3.5"
@@ -7903,9 +7899,9 @@ vscode-chokidar@1.6.4:
   optionalDependencies:
     vscode-fsevents "0.3.9"
 
-vscode-debugprotocol@1.32.0-pre.0:
-  version "1.32.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0-pre.0.tgz#14b3c07b8d7016f91b6984ec18292c18a42d2705"
+vscode-debugprotocol@1.32.0:
+  version "1.32.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0.tgz#cca9eccb3f73ded5e525e01621a72ca2bb577dc3"
 
 vscode-fsevents@0.3.9:
   version "0.3.9"

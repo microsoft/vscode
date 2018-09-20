@@ -10,9 +10,13 @@ export default {
 	MARKER_COPY_ACTION_ID: 'problems.action.copy',
 	MARKER_COPY_MESSAGE_ACTION_ID: 'problems.action.copyMessage',
 	RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID: 'problems.action.copyRelatedInformationMessage',
+	FOCUS_PROBLEMS_FROM_FILTER: 'problems.action.focusProblemsFromFilter',
+	MARKERS_PANEL_FOCUS_FILTER: 'problems.action.focusFilter',
 	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
 	MARKER_SHOW_PANEL_ID: 'workbench.action.showErrorsWarnings',
 
+	MarkerPanelFocusContextKey: new RawContextKey<boolean>('problemsViewFocus', true),
 	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', true),
+	MarkerPanelFilterFocusContextKey: new RawContextKey<boolean>('problemsFilterFocus', true),
 	RelatedInformationFocusContextKey: new RawContextKey<boolean>('relatedInformationFocus', true)
 };

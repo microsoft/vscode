@@ -7,8 +7,8 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change } from './git';
-import { Event, SourceControlInputBox, Uri } from 'vscode';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 
 class ApiInputBox implements InputBox {
@@ -39,11 +39,21 @@ export class ApiRepositoryState implements RepositoryState {
 	constructor(private _repository: BaseRepository) { }
 }
 
+export class ApiRepositoryUIState implements RepositoryUIState {
+
+	get selected(): boolean { return this._sourceControl.selected; }
+
+	readonly onDidChange: Event<void> = mapEvent<boolean, void>(this._sourceControl.onDidChangeSelection, () => null);
+
+	constructor(private _sourceControl: SourceControl) { }
+}
+
 export class ApiRepository implements Repository {
 
 	readonly rootUri: Uri = Uri.file(this._repository.root);
 	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
 	readonly state: RepositoryState = new ApiRepositoryState(this._repository);
+	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this._repository.sourceControl);
 
 	constructor(private _repository: BaseRepository) { }
 

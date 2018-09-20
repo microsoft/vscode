@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, listActiveSelectionForeground, listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -423,42 +423,6 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 	light: null,
 	hc: activeContrastBorder
 }, nls.localize('menubarSelectionBorder', "Border color of the selected menu item in the menubar."));
-
-export const MENU_FOREGROUND = registerColor('menu.foreground', {
-	dark: SIDE_BAR_FOREGROUND,
-	light: SIDE_BAR_FOREGROUND,
-	hc: SIDE_BAR_FOREGROUND
-}, nls.localize('menuForeground', "Foreground color of menu items."));
-
-export const MENU_BACKGROUND = registerColor('menu.background', {
-	dark: SIDE_BAR_BACKGROUND,
-	light: SIDE_BAR_BACKGROUND,
-	hc: SIDE_BAR_BACKGROUND
-}, nls.localize('menuBackground', "Background color of menu items."));
-
-export const MENU_SELECTION_FOREGROUND = registerColor('menu.selectionForeground', {
-	dark: listActiveSelectionForeground,
-	light: listActiveSelectionForeground,
-	hc: listActiveSelectionForeground
-}, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
-
-export const MENU_SELECTION_BACKGROUND = registerColor('menu.selectionBackground', {
-	dark: listActiveSelectionBackground,
-	light: listActiveSelectionBackground,
-	hc: listActiveSelectionBackground
-}, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
-
-export const MENU_SELECTION_BORDER = registerColor('menu.selectionBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
-
-export const MENUBAR_SEPARATOR_BACKGROUND = registerColor('menu.separatorBackground', {
-	dark: '#BBBBBB',
-	light: '#888888',
-	hc: contrastBorder
-}, nls.localize('menuSeparatorBackground', "Color of a separator menu item in menus."));
 
 // < --- Notifications --- >
 

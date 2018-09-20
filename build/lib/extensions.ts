@@ -48,6 +48,7 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string): 
 		}
 	}
 
+
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
 			.map(fileName => path.join(extensionPath, fileName))
@@ -145,7 +146,11 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string): 
 			// }))
 			.pipe(result);
 
-	}).catch(err => result.emit('error', err));
+	}).catch(err => {
+		console.error(extensionPath);
+		console.error(packagedDependencies);
+		result.emit('error', err);
+	});
 
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }

@@ -74,11 +74,17 @@ export interface RepositoryState {
 	readonly onDidChange: Event<void>;
 }
 
+export interface RepositoryUIState {
+	readonly selected: boolean;
+	readonly onDidChange: Event<void>;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
+	readonly ui: RepositoryUIState;
 
 	getConfigs(): Promise<{ key: string; value: string; }[]>;
 	getConfig(key: string): Promise<string>;
@@ -141,6 +147,7 @@ export const enum GitErrorCodes {
 	NotAGitRepository = 'NotAGitRepository',
 	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
 	Conflict = 'Conflict',
+	StashConflict = 'StashConflict',
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
 	RemoteConnectionError = 'RemoteConnectionError',

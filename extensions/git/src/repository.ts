@@ -198,12 +198,14 @@ export class Resource implements SourceControlResourceState {
 				return 'U';
 			case Status.IGNORED:
 				return 'I';
+			case Status.DELETED_BY_THEM:
+				return 'D';
+			case Status.DELETED_BY_US:
+				return 'D';
 			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
 			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return 'C';
@@ -281,6 +283,7 @@ export const enum Operation {
 	Diff = 'Diff',
 	MergeBase = 'MergeBase',
 	Add = 'Add',
+	Remove = 'Remove',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
 	Clean = 'Clean',
@@ -456,8 +459,6 @@ class ProgressManager {
 
 export class Repository implements Disposable {
 
-	private static readonly InputValidationLength = 72;
-
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
 
@@ -555,6 +556,7 @@ export class Repository implements Disposable {
 
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
+	private isFreshRepository: boolean | undefined = undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -669,19 +671,20 @@ export class Repository implements Disposable {
 		end = match ? match.index : text.length;
 
 		const line = text.substring(start, end);
+		const threshold = Math.max(config.get<number>('inputValidationLength') || 72, 0) || 72;
 
-		if (line.length <= Repository.InputValidationLength) {
+		if (line.length <= threshold) {
 			if (setting !== 'always') {
 				return;
 			}
 
 			return {
-				message: localize('commitMessageCountdown', "{0} characters left in current line", Repository.InputValidationLength - line.length),
+				message: localize('commitMessageCountdown', "{0} characters left in current line", threshold - line.length),
 				type: SourceControlInputBoxValidationType.Information
 			};
 		} else {
 			return {
-				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - Repository.InputValidationLength, Repository.InputValidationLength),
+				message: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - threshold, threshold),
 				type: SourceControlInputBoxValidationType.Warning
 			};
 		}
@@ -754,6 +757,10 @@ export class Repository implements Disposable {
 
 	async add(resources: Uri[]): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath)));
+	}
+
+	async rm(resources: Uri[]): Promise<void> {
+		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
 	async stage(resource: Uri, contents: string): Promise<void> {
@@ -1300,7 +1307,12 @@ export class Repository implements Disposable {
 
 		// Disable `Discard All Changes` for "fresh" repositories
 		// https://github.com/Microsoft/vscode/issues/43066
-		commands.executeCommand('setContext', 'gitFreshRepository', !this._HEAD || !this._HEAD.commit);
+		const isFreshRepository = !this._HEAD || !this._HEAD.commit;
+
+		if (this.isFreshRepository !== isFreshRepository) {
+			commands.executeCommand('setContext', 'gitFreshRepository', isFreshRepository);
+			this.isFreshRepository = isFreshRepository;
+		}
 
 		this._onDidChangeStatus.fire();
 	}

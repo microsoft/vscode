@@ -11,7 +11,6 @@ import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
@@ -56,7 +55,7 @@ suite('ExtHostDocumentData', () => {
 			$trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
-				return TPromise.as(true);
+				return Promise.resolve(true);
 			}
 		}, URI.parse('foo:bar'), [], '\n', 'text', 1, true);
 

@@ -1,7 +1,6 @@
 test/**
 .vscode/**
 server/.vscode/**
-node_modules/**
 server/node_modules/**
 client/src/**
 server/src/**
@@ -17,5 +16,4 @@ server/.npmignore
 yarn.lock
 server/extension.webpack.config.js
 extension.webpack.config.js
-!node_modules/vscode-nls/**
-!server/node_modules/vscode-nls/**
+CONTRIBUTING.md

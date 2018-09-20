@@ -137,27 +137,27 @@ supports-color@5.4.0:
   dependencies:
     has-flag "^3.0.0"
 
-vscode-jsonrpc@^3.7.0-next.1:
-  version "3.7.0-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.7.0-next.1.tgz#e7521cd8135006ba8bf57ebcedbf5b03ce17b23e"
+vscode-jsonrpc@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-4.0.0.tgz#a7bf74ef3254d0a0c272fab15c82128e378b3be9"
 
-vscode-languageclient@^5.1.0-next.9:
-  version "5.1.0-next.9"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0-next.9.tgz#fe56c523637c118f7b262952b889f760223ab75a"
+vscode-languageclient@^5.1.0:
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-5.1.0.tgz#650ab0dc9fd0daaade058a8471aaff5bc3f9580e"
   dependencies:
     semver "^5.5.0"
-    vscode-languageserver-protocol "^3.13.0-next.2"
+    vscode-languageserver-protocol "3.13.0"
 
-vscode-languageserver-protocol@^3.13.0-next.2:
-  version "3.13.0-next.2"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0-next.2.tgz#7083e50d0d2096ba52de448082445b9c39081fdb"
+vscode-languageserver-protocol@3.13.0:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.13.0.tgz#710d8e42119bb3affb1416e1e104bd6b4d503595"
   dependencies:
-    vscode-jsonrpc "^3.7.0-next.1"
-    vscode-languageserver-types "^3.13.0-next.1"
+    vscode-jsonrpc "^4.0.0"
+    vscode-languageserver-types "3.13.0"
 
-vscode-languageserver-types@^3.13.0-next.1:
-  version "3.13.0-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0-next.1.tgz#dd91b78b13a2a6c7131e8291e3db3183cf566280"
+vscode-languageserver-types@3.13.0:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.13.0.tgz#b704b024cef059f7b326611c99b9c8753c0a18b4"
 
 vscode-nls@^4.0.0:
   version "4.0.0"

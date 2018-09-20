@@ -116,7 +116,8 @@ const AssetType = {
 const PropertyType = {
 	Dependency: 'Microsoft.VisualStudio.Code.ExtensionDependencies',
 	ExtensionPack: 'Microsoft.VisualStudio.Code.ExtensionPack',
-	Engine: 'Microsoft.VisualStudio.Code.Engine'
+	Engine: 'Microsoft.VisualStudio.Code.Engine',
+	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages'
 };
 
 interface ICriterium {
@@ -274,6 +275,12 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
+function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.LocalizedLanguages) : [];
+	const value = (values.length > 0 && values[0].value) || '';
+	return value ? value.split(',') : [];
+}
+
 function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
@@ -310,7 +317,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		properties: {
 			dependencies: getExtensions(version, PropertyType.Dependency),
 			extensionPack: getExtensions(version, PropertyType.ExtensionPack),
-			engine: getEngine(version)
+			engine: getEngine(version),
+			localizedLanguages: getLocalizedLanguages(version)
 		},
 		/* __GDPR__FRAGMENT__
 			"GalleryExtensionTelemetryData2" : {
@@ -594,6 +602,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						if (rawVersion) {
 							extension.properties.dependencies = getExtensions(rawVersion, PropertyType.Dependency);
 							extension.properties.engine = getEngine(rawVersion);
+							extension.properties.localizedLanguages = getLocalizedLanguages(rawVersion);
 							extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
 							extension.version = rawVersion.version;
 							return extension;

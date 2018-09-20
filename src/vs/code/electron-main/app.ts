@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -41,7 +41,7 @@ import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
@@ -362,10 +362,41 @@ export class CodeApplication {
 				this.toDispose.push(authHandler);
 
 				// Open Windows
-				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+				const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
 
 				// Post Open Windows Tasks
 				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+
+				// Tracing: Stop tracing after windows are ready if enabled
+				if (this.environmentService.args.trace) {
+					this.logService.info(`Tracing: waiting for windows to get ready...`);
+
+					let recordingStopped = false;
+					const stopRecording = (timeout) => {
+						if (recordingStopped) {
+							return;
+						}
+
+						recordingStopped = true; // only once
+
+						contentTracing.stopRecording('', path => {
+							if (timeout) {
+								this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+							} else {
+								this.logService.info(`Tracing: data recorded to ${path}`);
+							}
+						});
+					};
+
+					// Wait up to 30s before creating the trace anyways
+					const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
+
+					// Wait for all windows to get ready and stop tracing then
+					TPromise.join(windows.map(window => window.ready())).then(() => {
+						clearTimeout(timeoutHandle);
+						stopRecording(false);
+					});
+				}
 			});
 		});
 	}
@@ -418,7 +449,7 @@ export class CodeApplication {
 		return this.instantiationService.createChild(services);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor): void {
+	private openFirstWindow(accessor: ServicesAccessor): ICodeWindow[] {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
 		// Register more Main IPC services
@@ -508,12 +539,14 @@ export class CodeApplication {
 		const hasFileURIs = hasArgs(args['file-uri']);
 
 		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
-		} else if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
-			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
-		} else {
-			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+			return this.windowsMainService.open({ context, cli: args, forceNewWindow: true, forceEmpty: true, initialStartup: true }); // new window if "-n" was used without paths
 		}
+
+		if (macOpenFiles && macOpenFiles.length && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+			return this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, urisToOpen: macOpenFiles.map(file => URI.file(file)), initialStartup: true }); // mac: open-file event received on startup
+		}
+
+		return this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {

@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
-import { Thread, StackFrame, ThreadAndSessionIds, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, StackFrame, ThreadAndSessionIds, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -313,14 +313,14 @@ class CallStackDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
+		return element instanceof DebugModel || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
 			return this.getThreadChildren(element);
 		}
-		if (element instanceof Model) {
+		if (element instanceof DebugModel) {
 			return TPromise.as(element.getSessions());
 		}
 

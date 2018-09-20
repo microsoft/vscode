@@ -75,10 +75,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
-						return TPromise.wrapError(new Error(id + ' NOT known'));
+						return Promise.reject(new Error(id + ' NOT known'));
 					}
 					let { handler } = CommandsRegistry.getCommands()[id];
-					return TPromise.as(instantiationService.invokeFunction(handler, args));
+					return Promise.resolve(instantiationService.invokeFunction(handler, args));
 				}
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());

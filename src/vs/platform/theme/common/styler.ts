@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -294,4 +294,35 @@ export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
 
 export function attachBreadcrumbsStyler(widget: IThemable, themeService: IThemeService, style?: IBreadcrumbsWidgetStyleOverrides): IDisposable {
 	return attachStyler(themeService, { ...defaultBreadcrumbsStyles, ...style }, widget);
+}
+
+export interface IMenuStyleOverrides extends IColorMapping {
+	shadowColor?: ColorIdentifier;
+	borderColor?: ColorIdentifier;
+	foregroundColor?: ColorIdentifier;
+	backgroundColor?: ColorIdentifier;
+	selectionForegroundColor?: ColorIdentifier;
+	selectionBackgroundColor?: ColorIdentifier;
+	selectionBorderColor?: ColorIdentifier;
+	separatorColor?: ColorIdentifier;
+}
+
+export const defaultMenuStyles = <IMenuStyleOverrides>{
+	shadowColor: widgetShadow,
+	borderColor: menuBorder,
+	foregroundColor: menuForeground,
+	backgroundColor: menuBackground,
+	selectionForegroundColor: menuSelectionForeground,
+	selectionBackgroundColor: menuSelectionBackground,
+	selectionBorderColor: menuSelectionBorder,
+	separatorColor: menuSeparatorBackground
+};
+
+export function attachMenuStyler(widget: IThemable, themeService, style?: IMenuStyleOverrides): IDisposable {
+	const styles = { ...defaultMenuStyles, ...style };
+	const fallback: IMenuStyleOverrides = {
+		foregroundColor: !!styles.foregroundColor && !!themeService && !!themeService.getTheme().getColor(styles.foregroundColor) ? styles.foregroundColor : foreground
+	};
+
+	return attachStyler(themeService, { ...styles, ...fallback }, widget);
 }

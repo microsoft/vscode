@@ -26,16 +26,19 @@ export interface ICancelEvent {
 
 export interface ITriggerEvent {
 	readonly auto: boolean;
+	readonly shy: boolean;
 }
 
 export interface ISuggestEvent {
 	readonly completionModel: CompletionModel;
 	readonly isFrozen: boolean;
 	readonly auto: boolean;
+	readonly shy: boolean;
 }
 
 export interface SuggestTriggerContext {
 	readonly auto: boolean;
+	readonly shy?: boolean;
 	readonly triggerCharacter?: string;
 }
 
@@ -67,13 +70,15 @@ export class LineContext {
 	readonly leadingLineContent: string;
 	readonly leadingWord: IWordAtPosition;
 	readonly auto: boolean;
+	readonly shy: boolean;
 
-	constructor(model: ITextModel, position: Position, auto: boolean) {
+	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
 		this.auto = auto;
+		this.shy = shy;
 	}
 }
 
@@ -343,7 +348,7 @@ export class SuggestModel implements IDisposable {
 			// refine active suggestion
 			this._triggerRefilter.cancelAndSet(() => {
 				const position = this._editor.getPosition();
-				const ctx = new LineContext(model, position, this._state === State.Auto);
+				const ctx = new LineContext(model, position, this._state === State.Auto, false);
 				this._onNewContext(ctx);
 			}, 25);
 		}
@@ -357,12 +362,12 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 		const auto = context.auto;
-		const ctx = new LineContext(model, this._editor.getPosition(), auto);
+		const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
 		this._state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto });
+		this._onDidTrigger.fire({ auto, shy: context.shy });
 
 		// Capture context when request was sent
 		this._context = ctx;
@@ -405,7 +410,7 @@ export class SuggestModel implements IDisposable {
 				items = items.concat(existingItems).sort(cmpFn);
 			}
 
-			const ctx = new LineContext(model, this._editor.getPosition(), auto);
+			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
 			dispose(this._completionModel);
 			this._completionModel = new CompletionModel(items, this._context.column, {
 				leadingLineContent: ctx.leadingLineContent,
@@ -498,6 +503,7 @@ export class SuggestModel implements IDisposable {
 			this._onDidSuggest.fire({
 				completionModel: this._completionModel,
 				auto: this._context.auto,
+				shy: this._context.shy,
 				isFrozen,
 			});
 		}

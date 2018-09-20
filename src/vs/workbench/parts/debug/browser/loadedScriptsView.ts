@@ -16,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { WorkbenchTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { renderViewTree, twistiePixels } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IAccessibilityProvider, ITree, IRenderer, IDataSource } from 'vs/base/parts/tree/browser/tree';
-import { IDebugSession, IDebugService, IModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IDebugService, IDebugModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -201,7 +201,7 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
+	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
 		super(undefined, 'Root');
 		this._debugModel.getSessions().forEach(session => {
 			this.add(session);

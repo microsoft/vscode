@@ -11,12 +11,12 @@ import * as objects from 'vs/base/common/objects';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IAdapterServer } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings, IDebugger, IDebugSession, IAdapterDescriptor, IDebugAdapterServer } from 'vs/workbench/parts/debug/common/debug';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -48,9 +48,9 @@ export class Debugger implements IDebugger {
 					case 'server':
 						return new SocketDebugAdapter(adapterDescriptor);
 					case 'executable':
-						return new DebugAdapter(adapterDescriptor, this.type, outputService);
+						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
 					default:
-						return undefined;
+						throw new Error('Cannot create debug adapter.');
 				}
 			});
 		}
@@ -58,24 +58,35 @@ export class Debugger implements IDebugger {
 
 	private getAdapterDescriptor(session: IDebugSession, root: IWorkspaceFolder, config: IConfig): TPromise<IAdapterDescriptor> {
 
-		// try deprecated command based extension API to receive an executable
-		if (this.debuggerContribution.adapterExecutableCommand) {
-			const adapterExecutable = this.commandService.executeCommand<IAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, root ? root.uri.toString() : undefined);
-			return TPromise.wrap(adapterExecutable);
+		// a "debugServer" attribute in the launch config takes precedence
+		if (typeof config.debugServer === 'number') {
+			return TPromise.wrap(<IDebugAdapterServer>{
+				type: 'server',
+				port: config.debugServer
+			});
 		}
 
+		// try the proposed and the deprecated "provideDebugAdapter" API
 		return this.configurationManager.provideDebugAdapter(session, root ? root.uri : undefined, config).then(adapter => {
+
 			if (adapter) {
 				return adapter;
 			}
-			if (typeof config.debugServer === 'number') {
-				return <IAdapterServer>{
-					type: 'server',
-					port: config.debugServer
-				};
+
+			// try deprecated command based extension API "adapterExecutableCommand" to determine the executable
+			if (this.debuggerContribution.adapterExecutableCommand) {
+				const rootFolder = root ? root.uri.toString() : undefined;
+				return this.commandService.executeCommand<IDebugAdapterExecutable>(this.debuggerContribution.adapterExecutableCommand, rootFolder).then((ae: { command: string, args: string[] }) => {
+					return <IAdapterDescriptor>{
+						type: 'executable',
+						command: ae.command,
+						args: ae.args || []
+					};
+				});
 			}
-			// fallback: use information from package.json
-			return DebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
+
+			// fallback: use executable information from package.json
+			return ExecutableDebugAdapter.platformAdapterExecutable(this.mergedExtensionDescriptions, this.type);
 		});
 	}
 

@@ -900,6 +900,18 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async rm(paths: string[]): Promise<void> {
+		const args = ['rm', '--'];
+
+		if (!paths || !paths.length) {
+			return;
+		}
+
+		args.push(...paths);
+
+		await this.run(args);
+	}
+
 	async stage(path: string, data: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', path], { stdio: [null, null, null] });
 		child.stdin.end(data, 'utf8');
@@ -945,7 +957,7 @@ export class Repository {
 		try {
 			await this.run(args);
 		} catch (err) {
-			if (/Please, commit your changes or stash them/.test(err.stderr || '')) {
+			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
 			}
 
@@ -1267,12 +1279,12 @@ export class Repository {
 
 	async popStash(index?: number): Promise<void> {
 		const args = ['stash', 'pop'];
-		this.popOrApplyStash(args, index);
+		await this.popOrApplyStash(args, index);
 	}
 
 	async applyStash(index?: number): Promise<void> {
 		const args = ['stash', 'apply'];
-		this.popOrApplyStash(args, index);
+		await this.popOrApplyStash(args, index);
 	}
 
 	private async popOrApplyStash(args: string[], index?: number): Promise<void> {
@@ -1287,12 +1299,13 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.NoStashFound;
 			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
+			} else if (/^CONFLICT/m.test(err.stdout || '')) {
+				err.gitErrorCode = GitErrorCodes.StashConflict;
 			}
 
 			throw err;
 		}
 	}
-
 
 	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {

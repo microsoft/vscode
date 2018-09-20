@@ -101,7 +101,7 @@ export class ProgressBar extends Disposable {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				setTimeout(200, () => this.off());
+				setTimeout(() => this.off(), 200);
 			} else {
 				this.off();
 			}
@@ -111,7 +111,7 @@ export class ProgressBar extends Disposable {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				setTimeout(200, () => this.off());
+				setTimeout(() => this.off(), 200);
 			} else {
 				this.off();
 			}

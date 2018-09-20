@@ -17,7 +17,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IAdapterServer } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugAdapter, IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/parts/debug/common/debug';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -29,6 +29,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private pendingRequests: Map<number, (e: DebugProtocol.Response) => void>;
 	private requestCallback: (request: DebugProtocol.Request) => void;
 	private eventCallback: (request: DebugProtocol.Event) => void;
+	private messageCallback: (message: DebugProtocol.ProtocolMessage) => void;
 
 	protected readonly _onError: Emitter<Error>;
 	protected readonly _onExit: Emitter<number>;
@@ -55,6 +56,13 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 
 	public get onExit(): Event<number> {
 		return this._onExit.event;
+	}
+
+	public onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
+		if (this.eventCallback) {
+			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
+		}
+		this.messageCallback = callback;
 	}
 
 	public onEvent(callback: (event: DebugProtocol.Event) => void): void {
@@ -116,25 +124,29 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	public acceptMessage(message: DebugProtocol.ProtocolMessage): void {
-		switch (message.type) {
-			case 'event':
-				if (this.eventCallback) {
-					this.eventCallback(<DebugProtocol.Event>message);
-				}
-				break;
-			case 'request':
-				if (this.requestCallback) {
-					this.requestCallback(<DebugProtocol.Request>message);
-				}
-				break;
-			case 'response':
-				const response = <DebugProtocol.Response>message;
-				const clb = this.pendingRequests.get(response.request_seq);
-				if (clb) {
-					this.pendingRequests.delete(response.request_seq);
-					clb(response);
-				}
-				break;
+		if (this.messageCallback) {
+			this.messageCallback(message);
+		} else {
+			switch (message.type) {
+				case 'event':
+					if (this.eventCallback) {
+						this.eventCallback(<DebugProtocol.Event>message);
+					}
+					break;
+				case 'request':
+					if (this.requestCallback) {
+						this.requestCallback(<DebugProtocol.Request>message);
+					}
+					break;
+				case 'response':
+					const response = <DebugProtocol.Response>message;
+					const clb = this.pendingRequests.get(response.request_seq);
+					if (clb) {
+						this.pendingRequests.delete(response.request_seq);
+						clb(response);
+					}
+					break;
+			}
 		}
 	}
 
@@ -245,7 +257,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 
 	private socket: net.Socket;
 
-	constructor(private adapterServer: IAdapterServer) {
+	constructor(private adapterServer: IDebugAdapterServer) {
 		super();
 	}
 
@@ -290,11 +302,11 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 /**
  * An implementation that launches the debug adapter as a separate process and communicates via stdin/stdout.
 */
-export class DebugAdapter extends StreamDebugAdapter {
+export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess;
 
-	constructor(private adapterExecutable: IAdapterExecutable, private debugType: string, private outputService?: IOutputService) {
+	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private outputService?: IOutputService) {
 		super();
 	}
 
@@ -445,24 +457,24 @@ export class DebugAdapter extends StreamDebugAdapter {
 		}
 
 		if (contribution.win) {
-			result.win = DebugAdapter.extract(contribution.win, extensionFolderPath);
+			result.win = ExecutableDebugAdapter.extract(contribution.win, extensionFolderPath);
 		}
 		if (contribution.winx86) {
-			result.winx86 = DebugAdapter.extract(contribution.winx86, extensionFolderPath);
+			result.winx86 = ExecutableDebugAdapter.extract(contribution.winx86, extensionFolderPath);
 		}
 		if (contribution.windows) {
-			result.windows = DebugAdapter.extract(contribution.windows, extensionFolderPath);
+			result.windows = ExecutableDebugAdapter.extract(contribution.windows, extensionFolderPath);
 		}
 		if (contribution.osx) {
-			result.osx = DebugAdapter.extract(contribution.osx, extensionFolderPath);
+			result.osx = ExecutableDebugAdapter.extract(contribution.osx, extensionFolderPath);
 		}
 		if (contribution.linux) {
-			result.linux = DebugAdapter.extract(contribution.linux, extensionFolderPath);
+			result.linux = ExecutableDebugAdapter.extract(contribution.linux, extensionFolderPath);
 		}
 		return result;
 	}
 
-	public static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IAdapterExecutable {
+	public static platformAdapterExecutable(extensionDescriptions: IExtensionDescription[], debugType: string): IDebugAdapterExecutable {
 		const result: IDebuggerContribution = Object.create(null);
 		debugType = debugType.toLowerCase();
 
@@ -473,7 +485,7 @@ export class DebugAdapter extends StreamDebugAdapter {
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
+						const extractedDbg = ExecutableDebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
 						objects.mixin(result, extractedDbg, ed.isBuiltin);
