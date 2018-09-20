@@ -100,8 +100,8 @@ class CreateBranchItem implements QuickPickItem {
 
 	get shouldAlwaysShow(): boolean { return true; }
 
-	async run(repository: Repository): Promise<void> {
-		await this.cc.branch(repository);
+	async run(repository: Repository, inputValue: string): Promise<void> {
+		await this.cc.branch(repository, inputValue);
 	}
 }
 
@@ -1370,19 +1370,32 @@ export class CommandCenter {
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
-		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const placeholder = localize('select a ref to checkout', 'Select a ref to checkout');
+		const quickPick = window.createQuickPick();
+		quickPick.items = picks;
+		quickPick.placeholder = placeholder;
+		quickPick.show();
 
-		if (!choice) {
-			return false;
-		}
-
-		await choice.run(repository);
-		return true;
+		return new Promise<boolean>((resolve) => {
+			quickPick.onDidAccept(async () => {
+				const choice = quickPick.activeItems[0];
+				if (!choice) {
+					resolve(false);
+					return;
+				}
+				if (choice.label === createBranch.label) {
+					await (choice as CreateBranchItem).run(repository, quickPick.value);
+				} else {
+					await (choice as CheckoutItem).run(repository);
+				}
+				quickPick.dispose();
+				resolve(true);
+			});
+		});
 	}
 
 	@command('git.branch', { repository: true })
-	async branch(repository: Repository): Promise<void> {
+	async branch(repository: Repository, inputValue: string): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
@@ -1400,6 +1413,7 @@ export class CommandCenter {
 		const result = await window.showInputBox({
 			placeHolder: localize('branch name', "Branch name"),
 			prompt: localize('provide branch name', "Please provide a branch name"),
+			value: inputValue,
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
 				if (validateName.test(sanitize(name))) {
@@ -1937,7 +1951,7 @@ export class CommandCenter {
 						return Promise.resolve();
 					}
 
-					return Promise.resolve(method.apply(this, [repository, ...args]));
+					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
 				});
 			}
 
