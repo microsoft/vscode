@@ -21,6 +21,19 @@ import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsSer
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
+export enum SettingValueType {
+	Null = 'null',
+	Enum = 'enum',
+	String = 'string',
+	Integer = 'integer',
+	Number = 'number',
+	Boolean = 'boolean',
+	Exclude = 'exclude',
+	Complex = 'complex',
+	NullableInteger = 'nullable-integer',
+	NullableNumber = 'nullable-number'
+}
+
 export interface ISettingsGroup {
 	id: string;
 	range: IRange;
@@ -50,7 +63,7 @@ export interface ISetting {
 	deprecationMessage?: string;
 
 	scope?: ConfigurationScope;
-	type?: string | string[];
+	type?: SettingValueType | SettingValueType[];
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;

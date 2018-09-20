@@ -21,7 +21,7 @@ import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPrope
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -616,7 +616,7 @@ export class DefaultSettings extends Disposable {
 					descriptionRanges: [],
 					overrides,
 					scope: prop.scope,
-					type: prop.type,
+					type: prop.type as SettingValueType,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
