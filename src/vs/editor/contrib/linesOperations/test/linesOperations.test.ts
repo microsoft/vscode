@@ -10,12 +10,218 @@ import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction, CopyLinesUpAction, CopyLinesDownAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Contrib - Line Operations', () => {
+	suite('AbstractCopyLinesAction', () => {
+		test('copy first line down', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesDownAction = new CopyLinesDownAction();
+
+					editor.setSelection(new Selection(1, 3, 1, 1));
+					copyLinesDownAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('copy first line up', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesUpAction = new CopyLinesUpAction();
+
+					editor.setSelection(new Selection(1, 3, 1, 1));
+					copyLinesUpAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('copy last line down', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesDownAction = new CopyLinesDownAction();
+
+					editor.setSelection(new Selection(5, 3, 5, 1));
+					copyLinesDownAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('copy last line up', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesUpAction = new CopyLinesUpAction();
+
+					editor.setSelection(new Selection(5, 3, 5, 1));
+					copyLinesUpAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('issue #1322: copy line up', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesUpAction = new CopyLinesUpAction();
+
+					editor.setSelection(new Selection(3, 11, 3, 11));
+					copyLinesUpAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'second line',
+						'third line',
+						'third line',
+						'fourth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('issue #1322: copy last line up', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesUpAction = new CopyLinesUpAction();
+
+					editor.setSelection(new Selection(5, 6, 5, 6));
+					copyLinesUpAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('copy many lines up', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesUpAction = new CopyLinesUpAction();
+
+					editor.setSelection(new Selection(4, 3, 2, 1));
+					copyLinesUpAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line'
+					]);
+				});
+		});
+
+		test('ignore empty selection', function () {
+			withTestCodeEditor(
+				[
+					'first line',
+					'second line',
+					'third line',
+					'fourth line',
+					'fifth line'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let copyLinesUpAction = new CopyLinesUpAction();
+
+					editor.setSelection(new Selection(2, 1, 1, 1));
+					copyLinesUpAction.run(null, editor);
+					assert.deepEqual(model.getLinesContent(), [
+						'first line',
+						'first line',
+						'second line',
+						'third line',
+						'fourth line',
+						'fifth line'
+					]);
+				});
+		});
+
+	});
+
 	suite('SortLinesAscendingAction', () => {
 		test('should sort selected lines in ascending order', function () {
 			withTestCodeEditor(

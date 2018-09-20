@@ -17,7 +17,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -28,7 +27,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 
 // copy lines
 
-abstract class AbstractCopyLinesAction extends EditorAction {
+export abstract class AbstractCopyLinesAction extends EditorAction {
 
 	private down: boolean;
 
@@ -39,20 +38,96 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
+		let model = editor.getModel();
+		let fullResult = [];
+		let positionList: Position[] = [];
+		let textToMove = [];
+		const primaryCursor = editor.getSelection();
 
 		for (let i = 0; i < selections.length; i++) {
-			commands.push(new CopyLinesCommand(selections[i], this.down));
+			textToMove.push(model.getLineContent(selections[i].startLineNumber));
 		}
 
+		textToMove = textToMove.filter(function (item, pos) {
+			return textToMove.indexOf(item) === pos;
+		});
+
+		for (let i = 0; i < textToMove.length; i++) {
+			positionList.push(selections[i].getPosition());
+		}
+
+		for (let i = 0; i < positionList.length; i++) {
+			fullResult.push(new Range(positionList[i].lineNumber, 0, positionList[i].lineNumber, 0));
+		}
+
+		let rangesToMove = this._getRangesToMove(editor);
+
+		let endCursorState = this._getEndCursorState(primaryCursor, rangesToMove, this.down);
+
+		let anotherCount = 0;
+		let edits: IIdentifiedSingleEditOperation[] = fullResult.map(range => {
+			if (this.down) {
+				return EditOperation.replaceMove(range, textToMove[anotherCount++] + '\n');
+			} else {
+				return EditOperation.replace(range, textToMove[anotherCount++] + '\n');
+			}
+		});
+
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		if (this.down) {
+			editor.executeEdits(this.id, edits);
+		} else {
+			editor.executeEdits(this.id, edits, endCursorState);
+		}
 		editor.pushUndoStop();
 	}
+
+	_getEndCursorState(primaryCursor: Range, rangesToMove: Range[], down: boolean): Selection[] {
+		let endPrimaryCursor: Selection;
+		let endCursorState: Selection[] = [];
+
+		for (let i = 0, len = rangesToMove.length; i < len; i++) {
+			let range = rangesToMove[i];
+			let endCursor = null;
+			if (down) {
+				endCursor = new Selection(rangesToMove[i].startLineNumber + 1, rangesToMove[i].startColumn, rangesToMove[i].endLineNumber + 1, rangesToMove[i].endColumn);
+			} else {
+				endCursor = new Selection(rangesToMove[i].startLineNumber, rangesToMove[i].startColumn, rangesToMove[i].endLineNumber, rangesToMove[i].endColumn);
+			}
+
+			if (range.intersectRanges(primaryCursor)) {
+				endPrimaryCursor = endCursor;
+			} else {
+				endCursorState.push(endCursor);
+			}
+		}
+
+		if (endPrimaryCursor) {
+			endCursorState.unshift(endPrimaryCursor);
+		}
+
+		return endCursorState;
+	}
+
+	_getRangesToMove(editor: ICodeEditor): Range[] {
+		let rangesToMove: Range[] = editor.getSelections();
+
+		rangesToMove.sort(Range.compareRangesUsingStarts);
+		rangesToMove = rangesToMove.map(selection => {
+			if (selection.isEmpty()) {
+				return new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+			} else {
+				return selection;
+			}
+		});
+
+		return rangesToMove;
+	}
+
 }
 
-class CopyLinesUpAction extends AbstractCopyLinesAction {
+export class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.copyLinesUpAction',
@@ -75,7 +150,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 	}
 }
 
-class CopyLinesDownAction extends AbstractCopyLinesAction {
+export class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.copyLinesDownAction',
