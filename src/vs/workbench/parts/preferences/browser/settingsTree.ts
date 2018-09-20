@@ -784,8 +784,10 @@ export class SettingsRenderer implements ITreeRenderer {
 			DOM.EventHelper.stop(e);
 		}));
 
+
 		checkbox.domNode.classList.add(SettingsRenderer.CONTROL_CLASS);
-		const toolbar = this.renderSettingToolbar(container);
+		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
+		const toolbar = this.renderSettingToolbar(toolbarContainer);
 		toDispose.push(toolbar);
 
 		const template: ISettingBoolItemTemplate = {
