@@ -114,15 +114,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
 
 		let folderQueries: IFolderQuery[];
-		if (typeof includeFolder === 'string') {
-			folderQueries = [{ folder: URI.file(includeFolder) }]; // if base provided, only search in that folder
+		if (includeFolder) {
+			folderQueries = [{ folder: includeFolder }]; // if base provided, only search in that folder
 		} else {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
 		}
