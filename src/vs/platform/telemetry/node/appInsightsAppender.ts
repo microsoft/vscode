@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// Set the below before requiring applicationinsights
-process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = 'true'; // Skip monkey patching of 3rd party modules by appinsights
-global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
 
 import * as appInsights from 'applicationinsights';
 import { isObject } from 'vs/base/common/types';
