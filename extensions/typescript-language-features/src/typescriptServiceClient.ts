@@ -188,6 +188,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly _onTypesInstallerInitializationFailed = this._register(new vscode.EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>());
 	public readonly onTypesInstallerInitializationFailed = this._onTypesInstallerInitializationFailed.event;
 
+	private readonly _onSurveyReady = this._register(new vscode.EventEmitter<Proto.SurveyReadyEventBody>());
+	public readonly onSurveyReady = this._onSurveyReady.event;
+
 	public get apiVersion(): API {
 		return this._apiVersion;
 	}
@@ -652,6 +655,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'typesInstallerInitializationFailed':
 				if (event.body) {
 					this._onTypesInstallerInitializationFailed.fire((event as Proto.TypesInstallerInitializationFailedEvent).body);
+				}
+				break;
+
+			case 'surveyReady':
+				if (event.body) {
+					this._onSurveyReady.fire((event as Proto.SurveyReadyEvent).body);
 				}
 				break;
 		}

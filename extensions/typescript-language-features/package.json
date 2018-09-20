@@ -587,6 +587,12 @@
           "default": true,
           "description": "%typescript.suggest.enabled%",
           "scope": "resource"
+        },
+        "typescript.surveys.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.surveys.enabled%",
+          "scope": "window"
         }
       }
     },
