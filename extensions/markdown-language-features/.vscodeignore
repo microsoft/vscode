@@ -6,3 +6,5 @@ out/**
 extension.webpack.config.js
 OSSREADME.json
 yarn.lock
+preview-src/**
+webpack.config.js
