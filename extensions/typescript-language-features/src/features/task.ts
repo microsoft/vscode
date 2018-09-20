@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -105,29 +104,25 @@ class TscTaskProvider implements vscode.TaskProvider {
 			return [];
 		}
 
-		try {
-			const res: Proto.ProjectInfoResponse = await this.client.value.execute(
-				'projectInfo',
-				{ file, needFileNameList: false },
-				token);
-
-			if (!res || !res.body) {
-				return [];
-			}
-
-			const { configFileName } = res.body;
-			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-				const normalizedConfigPath = path.normalize(configFileName);
-				const uri = vscode.Uri.file(normalizedConfigPath);
-				const folder = vscode.workspace.getWorkspaceFolder(uri);
-				return [{
-					path: normalizedConfigPath,
-					workspaceFolder: folder
-				}];
-			}
-		} catch (e) {
-			// noop
+		const response = await this.client.value.execute(
+			'projectInfo',
+			{ file, needFileNameList: false },
+			token);
+		if (response.type !== 'response' || !response.body) {
+			return [];
 		}
+
+		const { configFileName } = response.body;
+		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+			const normalizedConfigPath = path.normalize(configFileName);
+			const uri = vscode.Uri.file(normalizedConfigPath);
+			const folder = vscode.workspace.getWorkspaceFolder(uri);
+			return [{
+				path: normalizedConfigPath,
+				workspaceFolder: folder
+			}];
+		}
+
 		return [];
 	}
 

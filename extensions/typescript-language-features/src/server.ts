@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from './protocol';
+import { CancelledResponse, NoContentResponse, ServerResponse } from './typescriptService';
+import API from './utils/api';
+import { TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as electron from './utils/electron';
+import LogDirectoryProvider from './utils/logDirectoryProvider';
 import Logger from './utils/logger';
+import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
+import { TypeScriptServerPlugin } from './utils/plugins';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
-import { Reader } from './utils/wireProtocol';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './utils/versionProvider';
-import API from './utils/api';
-import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
-import { TypeScriptServerPlugin } from './utils/plugins';
-import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import LogDirectoryProvider from './utils/logDirectoryProvider';
+import { Reader } from './utils/wireProtocol';
 
 interface CallbackItem<R> {
 	readonly onSuccess: (value: R) => void;
@@ -28,23 +29,24 @@ interface CallbackItem<R> {
 	readonly isAsync: boolean;
 }
 
-class CallbackMap<R> {
-	private readonly _callbacks = new Map<number, CallbackItem<R>>();
-	private readonly _asyncCallbacks = new Map<number, CallbackItem<R>>();
+class CallbackMap<R extends Proto.Response> {
+	private readonly _callbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
+	private readonly _asyncCallbacks = new Map<number, CallbackItem<ServerResponse<R> | undefined>>();
 
-	public destroy(cause: Error): void {
+	public destroy(cause: string): void {
+		const cancellation = new CancelledResponse(cause);
 		for (const callback of this._callbacks.values()) {
-			callback.onError(cause);
+			callback.onSuccess(cancellation);
 		}
 		this._callbacks.clear();
 
 		for (const callback of this._asyncCallbacks.values()) {
-			callback.onError(cause);
+			callback.onSuccess(cancellation);
 		}
 		this._asyncCallbacks.clear();
 	}
 
-	public add(seq: number, callback: CallbackItem<R>, isAsync: boolean) {
+	public add(seq: number, callback: CallbackItem<ServerResponse<R> | undefined>, isAsync: boolean) {
 		if (isAsync) {
 			this._asyncCallbacks.set(seq, callback);
 		} else {
@@ -53,7 +55,7 @@ class CallbackMap<R> {
 	}
 
 
-	public fetch(seq: number): CallbackItem<R> | undefined {
+	public fetch(seq: number): CallbackItem<ServerResponse<R> | undefined> | undefined {
 		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
 		this.delete(seq);
 		return callback;
@@ -250,7 +252,7 @@ export class TypeScriptServerSpawner {
 export class TypeScriptServer extends Disposable {
 	private readonly _reader: Reader<Proto.Response>;
 	private readonly _requestQueue = new RequestQueue();
-	private readonly _callbacks = new CallbackMap<Proto.Response | undefined>();
+	private readonly _callbacks = new CallbackMap<Proto.Response>();
 	private readonly _pendingResponses = new Set<number>();
 
 	constructor(
@@ -287,7 +289,7 @@ export class TypeScriptServer extends Disposable {
 
 	public dispose() {
 		super.dispose();
-		this._callbacks.destroy(new Error('server disposed'));
+		this._callbacks.destroy('server disposed');
 		this._pendingResponses.clear();
 	}
 
@@ -297,12 +299,12 @@ export class TypeScriptServer extends Disposable {
 
 	private handleExit(error: any) {
 		this._onExit.fire(error);
-		this._callbacks.destroy(new Error('server exited'));
+		this._callbacks.destroy('server exited');
 	}
 
 	private handleError(error: any) {
 		this._onError.fire(error);
-		this._callbacks.destroy(new Error('server errored'));
+		this._callbacks.destroy('server errored');
 	}
 
 	private dispatchMessage(message: Proto.Message) {
@@ -335,7 +337,7 @@ export class TypeScriptServer extends Disposable {
 		}
 	}
 
-	private tryCancelRequest(seq: number): boolean {
+	private tryCancelRequest(seq: number, command: string): boolean {
 		try {
 			if (this._requestQueue.tryCancelPendingRequest(seq)) {
 				this._tracer.logTrace(`TypeScript Server: canceled request with sequence number ${seq}`);
@@ -357,7 +359,7 @@ export class TypeScriptServer extends Disposable {
 		} finally {
 			const callback = this.fetchCallback(seq);
 			if (callback) {
-				callback.onError(new Error(`Cancelled Request ${seq}`));
+				callback.onSuccess(new CancelledResponse(`Cancelled request ${seq} - ${command}`));
 			}
 		}
 	}
@@ -371,6 +373,9 @@ export class TypeScriptServer extends Disposable {
 		this._tracer.traceResponse(response, callback.startTime);
 		if (response.success) {
 			callback.onSuccess(response);
+		} else if (response.message === 'No content available.') {
+			// Special case where response itself is successful but there is not any data to return.
+			callback.onSuccess(new NoContentResponse());
 		} else {
 			callback.onError(response);
 		}
@@ -392,7 +397,7 @@ export class TypeScriptServer extends Disposable {
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
 						wasCancelled = true;
-						this.tryCancelRequest(request.seq);
+						this.tryCancelRequest(request.seq, command);
 					});
 				}
 			}).catch((err: any) => {
