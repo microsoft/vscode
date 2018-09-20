@@ -102,6 +102,9 @@ export class ViewPickerHandler extends QuickOpenHandler {
 			return true;
 		});
 
+		const entryToCategory = {};
+		entries.forEach(e => entryToCategory[e.getLabel()] = e.getCategory());
+
 		let lastCategory: string;
 		entries.forEach((e, index) => {
 			if (lastCategory !== e.getCategory()) {
@@ -109,6 +112,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 				e.setShowBorder(index > 0);
 				e.setGroupLabel(lastCategory);
+
+				// When the entry category has a parent category, set group label as Parent / Child. For example, Views / Explorer.
+				if (entryToCategory[lastCategory]) {
+					e.setGroupLabel(`${entryToCategory[lastCategory]} / ${lastCategory}`);
+				}
 			} else {
 				e.setShowBorder(false);
 				e.setGroupLabel(void 0);
