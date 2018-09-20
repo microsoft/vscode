@@ -131,22 +131,25 @@ class DiagnosticsSet {
 }
 
 class CodeActionSet {
-	private _actions: vscode.CodeAction[] = [];
-	private _fixAllActions = new Set<{}>();
+	private _actions = new Set<vscode.CodeAction>();
+	private _fixAllActions = new Map<{}, vscode.CodeAction>();
 
-	public get values() {
+	public get values(): Iterable<vscode.CodeAction> {
 		return this._actions;
 	}
 
 	public addAction(action: vscode.CodeAction) {
-		this._actions.push(action);
+		this._actions.add(action);
 	}
 
 	public addFixAllAction(fixId: {}, action: vscode.CodeAction) {
-		if (!this.hasFixAllAction(fixId)) {
-			this.addAction(action);
-			this._fixAllActions.add(fixId);
+		const existing = this._fixAllActions.get(fixId);
+		if (existing) {
+			// reinsert action at back
+			this._actions.delete(existing);
 		}
+		this.addAction(action);
+		this._fixAllActions.set(fixId, action);
 	}
 
 	public hasFixAllAction(fixId: {}) {
