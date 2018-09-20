@@ -36,6 +36,7 @@ interface IMarkerTemplateData {
 	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
+	code: HighlightedLabel;
 }
 
 interface IRelatedInformationTemplateData {
@@ -205,6 +206,7 @@ export class Renderer implements IRenderer {
 		data.icon = dom.append(container, dom.$('.icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
@@ -244,6 +246,9 @@ export class Renderer implements IRenderer {
 
 		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
+
+		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
+		templateData.code.set(marker.code || '', element.codeMatches);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 
