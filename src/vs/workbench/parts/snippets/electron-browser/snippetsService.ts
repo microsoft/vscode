@@ -12,8 +12,6 @@ import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { watch } from 'vs/base/node/extfs';
-import { exists, mkdirp, readdir } from 'vs/base/node/pfs';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SuggestContext, SuggestionType } from 'vs/editor/common/modes';
@@ -22,7 +20,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -107,6 +105,24 @@ namespace schema {
 					type: 'string'
 				}
 			}
+		}
+	};
+}
+
+
+function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
+	let listener = service.onFileChanges(e => {
+		for (const change of e.changes) {
+			if (resources.isEqualOrParent(change.resource, resource)) {
+				callback(change.type, change.resource);
+			}
+		}
+	});
+	service.watchFileChanges(resource);
+	return {
+		dispose() {
+			listener.dispose();
+			service.unwatchFileChanges(resource);
 		}
 	};
 }
@@ -212,48 +228,50 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initUserSnippets(): Thenable<any> {
-		const addUserSnippet = (filepath: string) => {
-			const ext = extname(filepath);
+		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
+		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(userSnippetsFolder, this._disposables));
+	}
+
+	private _initFolderSnippets(folder: URI, bucket: IDisposable[]): Thenable<any> {
+		const addUserSnippet = (filepath: URI) => {
+			const ext = extname(filepath.path);
 			if (ext === '.json') {
-				const langName = basename(filepath, '.json');
-				this._files.set(filepath, new SnippetFile(URI.file(filepath), [langName], undefined, this._fileService));
+				const langName = basename(filepath.path, '.json');
+				this._files.set(filepath.toString(), new SnippetFile(filepath, [langName], undefined, this._fileService));
 
 			} else if (ext === '.code-snippets') {
-				this._files.set(filepath, new SnippetFile(URI.file(filepath), undefined, undefined, this._fileService));
+				this._files.set(filepath.toString(), new SnippetFile(filepath, undefined, undefined, this._fileService));
 			}
 		};
 
-		const userSnippetsFolder = join(this._environmentService.appSettingsHome, 'snippets');
-		return mkdirp(userSnippetsFolder).then(() => {
-			return readdir(userSnippetsFolder);
-		}).then(entries => {
-			for (const entry of entries) {
-				addUserSnippet(join(userSnippetsFolder, entry));
+		return this._fileService.resolveFile(folder).then(stat => {
+			for (const entry of stat.children) {
+				addUserSnippet(entry.resource);
 			}
 		}).then(() => {
 			// watch
-			this._disposables.push(watch(userSnippetsFolder, (type, filename) => {
-				if (typeof filename !== 'string') {
-					return;
-				}
-				const filepath = join(userSnippetsFolder, filename);
-				exists(filepath).then(value => {
+			bucket.push(watch(this._fileService, folder, (_type, filename) => {
+
+				this._fileService.existsFile(filename).then(value => {
 					if (value) {
 						// file created or changed
-						if (this._files.has(filepath)) {
-							this._files.get(filepath).reset();
+						if (this._files.has(filename.toString())) {
+							this._files.get(filename.toString()).reset();
 						} else {
-							addUserSnippet(filepath);
+							addUserSnippet(filename);
 						}
 					} else {
 						// file not found
-						this._files.delete(filepath);
+						this._files.delete(filename.toString());
 					}
 				});
-			}, (error: string) => this._logService.error(error)));
+			}));
 
 		}).then(undefined, err => {
-			this._logService.error('Failed to load user snippets', err);
+			if (FileOperationError.isFileOperationError(err) && err.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				return;
+			}
+			this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
 		});
 	}
 }
