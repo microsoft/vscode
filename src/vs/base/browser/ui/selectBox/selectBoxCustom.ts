@@ -150,7 +150,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 
 		this.selected = selected || 0;
 
-		// CDL check
 		if (options) {
 			this.setOptions(options, selected);
 		}
@@ -260,13 +259,19 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			this.options.forEach((option) => {
 				this.selectElement.add(this.createOption(option, i, disabled === i++));
 			});
+
+			if (selected !== undefined) {
+				this.select(selected);
+				// Set current = selected since this is not necessarily a user exit
+				this._currentSelection = this.selected;
+			}
+
+			if (disabled !== undefined) {
+				this.disabledOptionIndex = disabled;
+			}
 		}
 
-		if (selected !== undefined) {
-			this.select(selected);
-			// Set current = selected since this is not necessarily a user exit
-			this._currentSelection = this.selected;
-		}
+
 	}
 
 
@@ -928,6 +933,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 			// Skip disabled options
 			if ((this.selected + 1) === this.disabledOptionIndex && this.options.length > this.selected + 2) {
 				this.selected += 2;
+			} else if ((this.selected + 1) === this.disabledOptionIndex) {
+				return;
 			} else {
 				this.selected++;
 			}

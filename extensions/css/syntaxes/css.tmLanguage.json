@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/octref/language-css/commit/c2c3933bbd62f867acf68042f9e82fa1041c4101",
+	"version": "https://github.com/octref/language-css/commit/e4504ed41711577951892ddcfe3be83a6fe8daa2",
 	"name": "CSS",
 	"scopeName": "source.css",
 	"patterns": [
@@ -1330,7 +1330,7 @@
 			]
 		},
 		"media-query-list": {
-			"begin": "(?=\\s*[^{;])",
+			"begin": "\\s*",
 			"end": "(?=\\s*[{;])",
 			"patterns": [
 				{

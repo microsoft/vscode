@@ -32,14 +32,13 @@ export class DebugSession implements IDebugSession {
 
 	private id: string;
 	private raw: RawDebugSession;
-	private _state: State;
 
 	private sources = new Map<string, Source>();
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler;
 
-	private readonly _onDidChangeState = new Emitter<State>();
+	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
 
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
@@ -56,7 +55,6 @@ export class DebugSession implements IDebugSession {
 		@IOutputService private outputService: IOutputService,
 	) {
 		this.id = generateUuid();
-		this.state = State.Initializing;
 	}
 
 	getId(): string {
@@ -76,14 +74,15 @@ export class DebugSession implements IDebugSession {
 	}
 
 	get state(): State {
-		return this._state;
-	}
-
-	set state(value: State) {
-		if (this._state !== value) {
-			this._state = value;
-			this._onDidChangeState.fire(value);
+		const focusedThread = this.debugService.getViewModel().focusedThread;
+		if (focusedThread && !!this.getThread(focusedThread.threadId)) {
+			return focusedThread.stopped ? State.Stopped : State.Running;
 		}
+		if (this.getAllThreads().some(t => t.stopped)) {
+			return State.Stopped;
+		}
+
+		return !!this.raw ? State.Running : State.Inactive;
 	}
 
 	get capabilities(): DebugProtocol.Capabilities {
@@ -91,8 +90,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	//---- events
-
-	get onDidChangeState(): Event<State> {
+	get onDidChangeState(): Event<void> {
 		return this._onDidChangeState.event;
 	}
 
@@ -146,7 +144,7 @@ export class DebugSession implements IDebugSession {
 						locale: platform.locale
 					}).then(response => {
 						this.model.addSession(this);
-						this.state = State.Running;
+						this._onDidChangeState.fire();
 						this.model.setExceptionBreakpoints(this.raw.capabilities.exceptionBreakpointFilters);
 					});
 				});
@@ -581,7 +579,6 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidStop(event => {
-			this.state = State.Stopped;
 			this.fetchThreads(event.body).then(() => {
 				const thread = this.getThread(event.body.threadId);
 				if (thread) {
@@ -591,7 +588,7 @@ export class DebugSession implements IDebugSession {
 						return !event.body.preserveFocusHint ? this.debugService.tryToAutoFocusStackFrame(thread) : undefined;
 					});
 				}
-			});
+			}).then(() => this._onDidChangeState.fire());
 		}));
 
 		this.rawListeners.push(this.raw.onDidThread(event => {
@@ -623,7 +620,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidContinued(event => {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(this.getId(), false, threadId);
-			this.state = State.Running;
+			this._onDidChangeState.fire();
 		}));
 
 		let outputPromises: TPromise<void>[] = [];
@@ -725,7 +722,7 @@ export class DebugSession implements IDebugSession {
 		dispose(this.rawListeners);
 		this.model.clearThreads(this.getId(), true);
 		this.model.removeSession(this.getId());
-		this.state = State.Inactive;
+		this._onDidChangeState.fire();
 		this.fetchThreadsScheduler = undefined;
 		if (this.raw) {
 			this.raw.disconnect();

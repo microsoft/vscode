@@ -393,6 +393,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, token);
 			if (shouldCompleteFunction) {
 				item.insertText = this.snippetForFunctionCall(item, detail);
+				item.command = { title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' };
 			}
 		}
 

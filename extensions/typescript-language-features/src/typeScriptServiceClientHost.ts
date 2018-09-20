@@ -62,20 +62,18 @@ export default class TypeScriptServiceClientHost extends Disposable {
 				this.triggerAllDiagnostics();
 			}, 1500);
 		};
-		const configFileWatcher = vscode.workspace.createFileSystemWatcher('**/[tj]sconfig.json');
-		this._register(configFileWatcher);
+		const configFileWatcher = this._register(vscode.workspace.createFileSystemWatcher('**/[tj]sconfig.json'));
 		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this._disposables);
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
 		const allModeIds = this.getAllModeIds(descriptions);
-		this.client = new TypeScriptServiceClient(
+		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
 			plugins,
 			logDirectoryProvider,
-			allModeIds);
-		this._register(this.client);
+			allModeIds));
 
 		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
 			this.diagnosticsReceived(kind, resource, diagnostics);
@@ -84,8 +82,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this.versionStatus = new VersionStatus(resource => this.client.toPath(resource));
-		this._register(this.versionStatus);
+		this.versionStatus = this._register(new VersionStatus(resource => this.client.toPath(resource)));
 
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));

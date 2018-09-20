@@ -8,6 +8,7 @@ import * as commands from './commands';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
 import TypeScriptTaskProviderManager from './features/task';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
+import { flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
@@ -16,7 +17,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
-import { flatten } from './utils/arrays';
+import { Surveyor } from './utils/surveyor';
 
 
 export function activate(
@@ -70,6 +71,7 @@ function createLazyClientHost(
 ): Lazy<TypeScriptServiceClientHost> {
 	return lazy(() => {
 		const logDirectoryProvider = new LogDirectoryProvider(context);
+
 		const clientHost = new TypeScriptServiceClientHost(
 			standardLanguageDescriptions,
 			context.workspaceState,
@@ -78,6 +80,11 @@ function createLazyClientHost(
 			logDirectoryProvider);
 
 		context.subscriptions.push(clientHost);
+
+		const surveyor = new Surveyor(context.globalState);
+		context.subscriptions.push(clientHost.serviceClient.onSurveyReady(e => surveyor.surveyReady(e.surveyId)));
+
+
 
 		clientHost.serviceClient.onReady(() => {
 			context.subscriptions.push(

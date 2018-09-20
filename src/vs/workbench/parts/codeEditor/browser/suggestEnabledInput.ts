@@ -250,7 +250,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 	return {
 		fontSize: 13,
-		lineHeight: 22,
+		lineHeight: 20,
 		wordWrap: 'off',
 		scrollbar: { vertical: 'hidden', },
 		roundedSelection: false,

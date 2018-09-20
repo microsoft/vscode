@@ -74,5 +74,6 @@
 	"typescript.updateImportsOnFileMove.enabled.always": "Always update paths automatically.",
 	"typescript.updateImportsOnFileMove.enabled.never": "Never rename paths and don't prompt.",
 	"typescript.autoClosingTags": "Enable/disable automatic closing of JSX tags. Requires using TypeScript 3.0 or newer in the workspace.",
-	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions."
+	"typescript.suggest.enabled": "Enabled/disable autocomplete suggestions.",
+	"configuration.surveys.enabled": "Enabled/disable occasional surveys that help us improve VS Code's JavaScript and TypeScript support."
 }

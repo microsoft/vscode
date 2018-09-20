@@ -7,6 +7,10 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 export const enum TERMINAL_COMMAND_ID {
+	FIND_NEXT = 'workbench.action.terminal.findNext',
+	FIND_NEXT_TERMINAL_FOCUS = 'workbench.action.terminal.findNextTerminalFocus',
+	FIND_PREVIOUS = 'workbench.action.terminal.findPrevious',
+	FIND_PREVIOUS_TERMINAL_FOCUS = 'workbench.action.terminal.findPreviousTerminalFocus',
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
@@ -59,8 +63,10 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE_FIND_REGEX = 'workbench.action.terminal.toggleFindRegex',
 	TOGGLE_FIND_WHOLE_WORD = 'workbench.action.terminal.toggleFindWholeWord',
 	TOGGLE_FIND_CASE_SENSITIVE = 'workbench.action.terminal.toggleFindCaseSensitive',
+	TOGGLE_FIND_REGEX_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindRegexTerminalFocus',
+	TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindWholeWordTerminalFocus',
+	TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS = 'workbench.action.terminal.toggleFindCaseSensitiveTerminalFocus',
 }
-
 
 export function setupTerminalCommands(): void {
 	registerOpenTerminalAtIndexCommands();

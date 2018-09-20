@@ -1821,6 +1821,8 @@ export enum ConfigurationTarget {
 
 export class RelativePattern implements IRelativePattern {
 	base: string;
+	baseFolder?: URI;
+
 	pattern: string;
 
 	constructor(base: vscode.WorkspaceFolder | string, pattern: string) {
@@ -1834,7 +1836,13 @@ export class RelativePattern implements IRelativePattern {
 			throw illegalArgument('pattern');
 		}
 
-		this.base = typeof base === 'string' ? base : base.uri.fsPath;
+		if (typeof base === 'string') {
+			this.base = base;
+		} else {
+			this.baseFolder = base.uri;
+			this.base = base.uri.fsPath;
+		}
+
 		this.pattern = pattern;
 	}
 
@@ -1911,6 +1919,15 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	constructor(port: number, host?: string) {
 		this.port = port;
 		this.host = host;
+	}
+}
+
+export class DebugAdapterImplementation implements vscode.DebugAdapterImplementation {
+	readonly type = 'implementation';
+	readonly implementation: any;
+
+	constructor(transport: any) {
+		this.implementation = transport;
 	}
 }
 

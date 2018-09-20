@@ -38,7 +38,7 @@ import { URI } from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
-import { IExperimentService, ExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { IExperimentService, ExperimentService, ExperimentState, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
 
 
 suite('ExtensionsListView Tests', () => {
@@ -118,6 +118,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
@@ -370,6 +371,76 @@ suite('ExtensionsListView Tests', () => {
 				assert.equal(result.get(i).id, curatedList[i].identifier.id);
 			}
 			assert.equal(curatedKey, 'mykey');
+		});
+	});
+
+	test('Test search', () => {
+		const searchText = 'search-me';
+		const results = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...results));
+		return testableView.show('search-me').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, results.length);
+			for (let i = 0; i < results.length; i++) {
+				assert.equal(result.get(i).id, results[i].identifier.id);
+			}
+		});
+	});
+
+	test('Test preferred search experiment', () => {
+		const searchText = 'search-me';
+		const realResults = [
+			fileBasedRecommendationA,
+			workspaceRecommendationA,
+			otherRecommendationA,
+			workspaceRecommendationB
+		];
+		const preferredResults = [
+			workspaceRecommendationA,
+			workspaceRecommendationB,
+			fileBasedRecommendationA,
+			otherRecommendationA
+		];
+
+		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
+			id: 'someId',
+			enabled: true,
+			state: ExperimentState.Run,
+			action: {
+				type: ExperimentActionType.ExtensionSearchResults,
+				properties: {
+					searchText: 'search-me',
+					preferredResults: [
+						workspaceRecommendationA.identifier.id,
+						'something-that-wasnt-in-first-page',
+						workspaceRecommendationB.identifier.id
+					]
+				}
+			}
+		}]);
+
+		testableView.dispose();
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
+
+		return testableView.show('search-me').then(result => {
+			const options: IQueryOptions = queryTarget.args[0][0];
+
+			assert.ok(experimentTarget.calledOnce);
+			assert.ok(queryTarget.calledOnce);
+			assert.equal(options.text, searchText);
+			assert.equal(result.length, preferredResults.length);
+			for (let i = 0; i < preferredResults.length; i++) {
+				assert.equal(result.get(i).id, preferredResults[i].identifier.id);
+			}
 		});
 	});
 

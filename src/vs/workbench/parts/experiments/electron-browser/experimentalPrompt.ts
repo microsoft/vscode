@@ -64,9 +64,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 					logTelemetry(command.text);
 					if (command.externalLink) {
 						window.open(command.externalLink);
-						return;
-					}
-					if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
+					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
 						this.viewletService.openViewlet('workbench.view.extensions', true)
 							.then(viewlet => viewlet as IExtensionsViewlet)
 							.then(viewlet => {
@@ -74,7 +72,6 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 									viewlet.search('curated:' + command.curatedExtensionsKey);
 								}
 							});
-						return;
 					}
 
 					this.experimentService.markAsCompleted(experiment.id);
@@ -83,7 +80,10 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 			};
 		});
 
-		this.notificationService.prompt(Severity.Info, actionProperties.promptText, choices, logTelemetry);
+		this.notificationService.prompt(Severity.Info, actionProperties.promptText, choices, () => {
+			logTelemetry();
+			this.experimentService.markAsCompleted(experiment.id);
+		});
 	}
 
 	dispose() {

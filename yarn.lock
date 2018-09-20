@@ -5354,8 +5354,8 @@ onetime@^2.0.0:
     mimic-fn "^1.0.0"
 
 oniguruma@^7.0.0:
-  version "7.0.1"
-  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.1.tgz#76230211e96bb27b10cf2a7ccb99a6057ff1b9bf"
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.2.tgz#a5c922cf7066da1dbcc60f6385a90437a83f8d0b"
   dependencies:
     nan "^2.10.0"
 
@@ -7906,9 +7906,9 @@ vscode-chokidar@1.6.4:
   optionalDependencies:
     vscode-fsevents "0.3.9"
 
-vscode-debugprotocol@1.32.0-pre.0:
-  version "1.32.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0-pre.0.tgz#14b3c07b8d7016f91b6984ec18292c18a42d2705"
+vscode-debugprotocol@1.32.0:
+  version "1.32.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0.tgz#cca9eccb3f73ded5e525e01621a72ca2bb577dc3"
 
 vscode-fsevents@0.3.9:
   version "0.3.9"

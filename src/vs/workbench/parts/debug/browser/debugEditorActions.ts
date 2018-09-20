@@ -118,7 +118,7 @@ class RunToCursorAction extends EditorAction {
 		}
 
 		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = debugService.getViewModel().focusedSession.onDidChangeState(state => {
+		const oneTimeListener = debugService.onDidChangeState(state => {
 			if (state === State.Stopped || state === State.Inactive) {
 				if (breakpointToRemove) {
 					debugService.removeBreakpoints(breakpointToRemove.getId());

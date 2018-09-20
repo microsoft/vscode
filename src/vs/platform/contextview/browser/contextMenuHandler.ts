@@ -20,6 +20,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { domEvent } from 'vs/base/browser/event';
 
 export class ContextMenuHandler {
 	private element: HTMLElement;
@@ -88,6 +89,7 @@ export class ContextMenuHandler {
 
 					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
+					domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, menuDisposables);
 
 					menu.focus(!!delegate.autoSelectFirstItem);
 

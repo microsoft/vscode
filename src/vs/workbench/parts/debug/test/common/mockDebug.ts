@@ -158,7 +158,7 @@ export class MockSession implements IDebugSession {
 		return null;
 	}
 
-	get onDidChangeState(): Event<State> {
+	get onDidChangeState(): Event<void> {
 		return null;
 	}
 

@@ -491,11 +491,14 @@ declare module 'vscode' {
 		readonly cwd?: string;
 
 		/**
-		 * Create a new debug adapter specification.
+		 * Create a description for a debug adapter based on an executable program.
 		 */
 		constructor(command: string, args?: string[], env?: { [key: string]: string }, cwd?: string);
 	}
 
+	/**
+	 * Represents a debug adapter running as a socket based server.
+	 */
 	export class DebugAdapterServer {
 
 		readonly type: 'server';
@@ -511,12 +514,28 @@ declare module 'vscode' {
 		readonly host?: string;
 
 		/**
-		 * Create a new debug adapter specification.
+		 * Create a description for a debug adapter running as a socket based server.
 		 */
 		constructor(port: number, host?: string);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer;
+	/**
+	 * Represents a debug adapter that is implemented in the extension.
+	 */
+	export class DebugAdapterImplementation {
+
+		readonly type: 'implementation';
+
+		readonly implementation: any;
+
+		/**
+		 * Create a description for a debug adapter directly implemented in the extension.
+		 * The implementation's "type": TBD
+		 */
+		constructor(implementation: any);
+	}
+
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterImplementation;
 
 	export interface DebugConfigurationProvider {
 		/**

@@ -438,6 +438,8 @@ export class SettingsEditor2 extends BaseEditor {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
 
+		this.createTOC(bodyContainer);
+
 		this.createFocusSink(
 			bodyContainer,
 			e => {
@@ -475,8 +477,6 @@ export class SettingsEditor2 extends BaseEditor {
 			},
 			'settings list focus helper'
 		);
-
-		this.createTOC(bodyContainer);
 	}
 
 	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
