@@ -538,10 +538,10 @@ export class StatusUpdater implements IWorkbenchContribution {
 		}
 
 		const outdatedExtensions = this.extensionsWorkbenchService.local.filter(ext => ext.outdated);
-		const disabledExtensionsCount = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
+		const disabledExtensions = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled);
 
 		if (outdatedExtensions.length > 0) {
-			const badge = new NumberBadge(outdatedExtensions.length, n => CheckForUpdatesAction.GetOutdatedMessage(outdatedExtensions.length, disabledExtensionsCount));
+			const badge = new NumberBadge(outdatedExtensions.length, n => CheckForUpdatesAction.GetOutdatedMessage(outdatedExtensions.length, disabledExtensions.length));
 			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');
 		}
 	}
