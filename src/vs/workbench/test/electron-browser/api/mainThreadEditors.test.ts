@@ -57,15 +57,15 @@ suite('MainThreadEditors', () => {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			models = <any>{
 				onModelSaved: Event.None,
@@ -81,7 +81,7 @@ suite('MainThreadEditors', () => {
 					textEditorModel = modelService.getModel(resource);
 				};
 				textEditorModel.isReadonly = () => false;
-				return TPromise.as(new ImmortalReference(textEditorModel));
+				return Promise.resolve(new ImmortalReference(textEditorModel));
 			}
 		};
 
