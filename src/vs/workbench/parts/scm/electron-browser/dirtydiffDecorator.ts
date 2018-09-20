@@ -819,9 +819,9 @@ export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler
 
 class DirtyDiffDecorator {
 
-	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
-			isWholeLine: true,
+			isWholeLine: options.isWholeLine,
 		};
 
 		if (options.gutter) {
@@ -852,11 +852,11 @@ class DirtyDiffDecorator {
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
 		const gutter = decorations === 'all' || decorations === 'gutter';
 		const overview = decorations === 'all' || decorations === 'overview';
-		const options = { gutter, overview };
+		const options = { gutter, overview, isWholeLine: true };
 
 		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', overviewRulerModifiedForeground, options);
 		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', overviewRulerAddedForeground, options);
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, options);
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, { ...options, isWholeLine: false });
 
 		model.onDidChange(this.onDidChange, this, this.disposables);
 	}
@@ -879,8 +879,8 @@ class DirtyDiffDecorator {
 				case ChangeType.Delete:
 					return {
 						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: startLineNumber, endColumn: 1
+							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
+							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
 						},
 						options: this.deletedOptions
 					};
