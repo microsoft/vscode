@@ -20,7 +20,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,6 +28,7 @@ import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/s
 import { Snippet, SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 namespace schema {
 
@@ -109,7 +110,6 @@ namespace schema {
 	};
 }
 
-
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
 	let listener = service.onFileChanges(e => {
 		for (const change of e.changes) {
@@ -132,18 +132,22 @@ class SnippetsService implements ISnippetsService {
 	readonly _serviceBrand: any;
 
 	private readonly _disposables: IDisposable[] = [];
-	private readonly _initPromise: Promise<any>;
+	private readonly _pendingWork: Thenable<any>[] = [];
 	private readonly _files = new Map<string, SnippetFile>();
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IModeService private readonly _modeService: IModeService,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-		this._initExtensionSnippets();
-		this._initPromise = Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => this._initUserSnippets()));
+		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this._initExtensionSnippets();
+			this._initUserSnippets();
+			this._initWorkspaceSnippets();
+		})));
 
 		setSnippetSuggestSupport(new SnippetSuggestProvider(this._modeService, this));
 	}
@@ -152,12 +156,18 @@ class SnippetsService implements ISnippetsService {
 		dispose(this._disposables);
 	}
 
+	private _joinSnippets(): Promise<any> {
+		const promises = this._pendingWork.slice(0);
+		this._pendingWork.length = 0;
+		return Promise.all(promises);
+	}
+
 	getSnippetFiles(): Promise<SnippetFile[]> {
-		return this._initPromise.then(() => values(this._files));
+		return this._joinSnippets().then(() => values(this._files));
 	}
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
-		return this._initPromise.then(() => {
+		return this._joinSnippets().then(() => {
 			const langName = this._modeService.getLanguageIdentifier(languageId).language;
 			const result: Snippet[] = [];
 			const promises: Promise<any>[] = [];
@@ -227,15 +237,49 @@ class SnippetsService implements ISnippetsService {
 		});
 	}
 
-	private _initUserSnippets(): Thenable<any> {
-		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
-		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(userSnippetsFolder, this._disposables));
+	private _initWorkspaceSnippets(): void {
+		// workspace stuff
+		let disposables: IDisposable[] = [];
+		let updateWorkspaceSnippets = () => {
+			disposables = dispose(disposables);
+			this._pendingWork.push(this._initWorkspaceFolderSnippets(this._contextService.getWorkspace(), disposables));
+		};
+		this._disposables.push({
+			dispose() { dispose(disposables); }
+		});
+		this._disposables.push(this._contextService.onDidChangeWorkspaceFolders(updateWorkspaceSnippets));
+		this._disposables.push(this._contextService.onDidChangeWorkbenchState(updateWorkspaceSnippets));
+		updateWorkspaceSnippets();
 	}
 
-	private _initFolderSnippets(folder: URI, bucket: IDisposable[]): Thenable<any> {
+	private _initWorkspaceFolderSnippets(workspace: IWorkspace, bucket: IDisposable[]): Thenable<any> {
+		let promises = workspace.folders.map(folder => {
+			const snippetFolder = folder.toResource('.vscode');
+			return this._fileService.existsFile(snippetFolder).then(value => {
+				if (value) {
+					this._initFolderSnippets(snippetFolder, true, bucket);
+				} else {
+					// watch
+					bucket.push(watch(this._fileService, snippetFolder, (type) => {
+						if (type === FileChangeType.ADDED) {
+							this._initFolderSnippets(snippetFolder, true, bucket);
+						}
+					}));
+				}
+			});
+		});
+		return Promise.all(promises);
+	}
+
+	private _initUserSnippets(): Thenable<any> {
+		const userSnippetsFolder = URI.file(join(this._environmentService.appSettingsHome, 'snippets'));
+		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(userSnippetsFolder, false, this._disposables));
+	}
+
+	private _initFolderSnippets(folder: URI, onlyCodeSnippets: boolean, bucket: IDisposable[]): Thenable<any> {
 		const addUserSnippet = (filepath: URI) => {
 			const ext = extname(filepath.path);
-			if (ext === '.json') {
+			if (!onlyCodeSnippets && ext === '.json') {
 				const langName = basename(filepath.path, '.json');
 				this._files.set(filepath.toString(), new SnippetFile(filepath, [langName], undefined, this._fileService));
 
@@ -267,10 +311,20 @@ class SnippetsService implements ISnippetsService {
 				});
 			}));
 
+			bucket.push({
+				dispose: () => {
+					// add a disposable that removes all snippets
+					// from this folder. that ensures snippets disappear
+					// when the folder goes away
+					this._files.forEach((value, index) => {
+						if (resources.isEqualOrParent(value.location, folder)) {
+							this._files.delete(index);
+						}
+					});
+				}
+			});
+
 		}).then(undefined, err => {
-			if (FileOperationError.isFileOperationError(err) && err.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return;
-			}
 			this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
 		});
 	}
