@@ -89,7 +89,7 @@ export class ContextMenuHandler {
 
 					menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 					menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-					domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, menuDisposables);
+					domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
 
 					menu.focus(!!delegate.autoSelectFirstItem);
 
