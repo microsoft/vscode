@@ -34,7 +34,9 @@ const options: minimist.Opts = {
 		'export-default-configuration',
 		'install-source',
 		'upload-logs',
-		'driver'
+		'driver',
+		'trace-category-filter',
+		'trace-options'
 	],
 	boolean: [
 		'help',
@@ -67,7 +69,8 @@ const options: minimist.Opts = {
 		'status',
 		'file-write',
 		'file-chmod',
-		'driver-verbose'
+		'driver-verbose',
+		'trace'
 	],
 	alias: {
 		add: 'a',
