@@ -105,25 +105,36 @@ export function submitAllStats(productJson: any, commit: string): Promise<void> 
 			counts[entry.name] = entry.totalCount;
 		}
 
-		appInsights.setup(productJson.aiConfig.asimovKey)
-			.setAutoCollectConsole(false)
-			.setAutoCollectExceptions(false)
-			.setAutoCollectPerformance(false)
-			.setAutoCollectRequests(false)
-			.start();
+        appInsights.setup(productJson.aiConfig.asimovKey)
+            .setAutoCollectConsole(false)
+            .setAutoCollectExceptions(false)
+            .setAutoCollectPerformance(false)
+            .setAutoCollectRequests(false)
+            .setAutoCollectDependencies(false)
+            .setAutoDependencyCorrelation(false)
+            .start();
 
-		const client = appInsights.getClient(productJson.aiConfig.asimovKey);
-		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+        appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
 
-		/* __GDPR__
-			"monacoworkbench/packagemetrics" : {
-				"commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		client.trackEvent(`monacoworkbench/packagemetrics`, { commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) });
-		client.sendPendingData(() => resolve());
+        /* __GDPR__
+            "monacoworkbench/packagemetrics" : {
+                "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+                "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+            }
+        */
+        appInsights.defaultClient.trackEvent({
+            name: 'monacoworkbench/packagemetrics',
+            properties: { commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) }
+        });
+
+
+        appInsights.defaultClient.flush({
+            callback: () => {
+                appInsights.dispose();
+                resolve();
+            }
+        });
 	});
 
 }
