@@ -137,6 +137,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
+
+		this._titleReadyPromise = new Promise<string>(c => {
+			this._titleReadyComplete = c;
+		});
+
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
@@ -155,10 +160,6 @@ export class TerminalInstance implements ITerminalInstance {
 			if (_container) {
 				this._attachToElement(_container);
 			}
-		});
-
-		this._titleReadyPromise = new Promise<string>(c => {
-			this._titleReadyComplete = c;
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
