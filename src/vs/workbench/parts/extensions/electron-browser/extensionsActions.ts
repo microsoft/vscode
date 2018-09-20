@@ -776,26 +776,6 @@ export class CheckForUpdatesAction extends Action {
 	static readonly ID = 'workbench.extensions.action.checkForUpdates';
 	static LABEL = localize('checkForUpdates', "Check for Extension Updates");
 
-	static GetOutdatedMessage(outdatedExtensionsCount: number, disabledExtensionsCount: number): string {
-		if (!outdatedExtensionsCount) {
-			return localize('noUpdatesAvailable', "All Extensions are up to date.");
-		}
-
-		let msgAvailableExtensions = outdatedExtensionsCount === 1 ? localize('singleUpdateAvailable', "1 extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdatedExtensionsCount);
-		if (disabledExtensionsCount) {
-			if (outdatedExtensionsCount === 1) {
-				msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to a disabled extension is available.");
-			} else if (disabledExtensionsCount === 1) {
-				msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdatedExtensionsCount);
-			} else if (disabledExtensionsCount === outdatedExtensionsCount) {
-				msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdatedExtensionsCount);
-			} else {
-				msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdatedExtensionsCount, disabledExtensionsCount);
-			}
-		}
-		return msgAvailableExtensions;
-	}
-
 	constructor(
 		id = CheckForUpdatesAction.ID,
 		label = CheckForUpdatesAction.LABEL,
@@ -810,14 +790,29 @@ export class CheckForUpdatesAction extends Action {
 		this.extensionsWorkbenchService.queryLocal().then(
 			extensions => {
 				const outdatedExtensions = extensions.filter(ext => ext.outdated === true);
-				const disabledExtensionsCount = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
-				const msgAvailableExtensions = CheckForUpdatesAction.GetOutdatedMessage(outdatedExtensions.length, disabledExtensionsCount);
-
-				if (outdatedExtensions.length) {
-					this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => viewlet.search(''));
+				if (!outdatedExtensions.length) {
+					this.notificationService.notify({ severity: severity.Info, message: localize('noUpdatesAvailable', "All Extensions are up to date.") });
+					return;
 				}
+
+				let msgAvailableExtensions = outdatedExtensions.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdatedExtensions.length);
+
+				const disabledExtensionsCount = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
+				if (disabledExtensionsCount) {
+					if (outdatedExtensions.length === 1) {
+						msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
+					} else if (disabledExtensionsCount === 1) {
+						msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdatedExtensions.length);
+					} else if (disabledExtensionsCount === outdatedExtensions.length) {
+						msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdatedExtensions.length);
+					} else {
+						msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdatedExtensions.length, disabledExtensionsCount);
+					}
+				}
+
+				this.viewletService.openViewlet(VIEWLET_ID, true)
+					.then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => viewlet.search(''));
 
 				this.notificationService.notify({ severity: severity.Info, message: msgAvailableExtensions });
 			}
