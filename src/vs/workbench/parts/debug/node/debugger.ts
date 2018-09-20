@@ -49,10 +49,8 @@ export class Debugger implements IDebugger {
 						return new SocketDebugAdapter(adapterDescriptor);
 					case 'executable':
 						return new ExecutableDebugAdapter(adapterDescriptor, this.type, outputService);
-					case 'implementation':
-						return undefined;	// seeing 'direct' here is an error
 					default:
-						return undefined;
+						throw new Error('Cannot create debug adapter.');
 				}
 			});
 		}
