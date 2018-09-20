@@ -106,12 +106,12 @@ export class ExtHostOutputService {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
-	createOutputChannel(name: string, push: boolean): vscode.OutputChannel {
+	createOutputChannel(name: string, options?: { force?: boolean }): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			return push ? new ExtHostPushOutputChannel(name, this._proxy) : new ExtHostPullOutputChannel(name, this._outputDir, this._proxy);
+			return options && options.force ? new ExtHostPushOutputChannel(name, this._proxy) : new ExtHostPullOutputChannel(name, this._outputDir, this._proxy);
 		}
 	}
 }

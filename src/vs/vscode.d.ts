@@ -6222,15 +6222,15 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new [output channel](#OutputChannel) with the given name.
-		 * By default the channel will not push the appended data and hence there will be a delay while showing it in the UI.
-		 * Pass `true` for `push` argument to push the data and show immediately.
+		 * By default the UI will not show the appended data immediately.
+		 * To force UI to show the data immediately pass options with `force` parameter set to `true`.
 		 *
 		 * *NOTE* Default output channels help in improving the performance of VS Code.
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
-		 * @param push Set to `true` to push the data and show in the UI immediately.
+		 * @param options Optional options to control how the channel will be created.
 		 */
-		export function createOutputChannel(name: string, push?: boolean): OutputChannel;
+		export function createOutputChannel(name: string, options?: { force?: boolean }): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
