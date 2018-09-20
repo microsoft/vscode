@@ -551,7 +551,8 @@ declare module 'vscode' {
 		 *      }
 		 * 		return executable;
 		 *   }
-		 * Registering more than one provideDebugAdapter for a type results in an error.
+		 * An extension is only allowed to register a DebugConfigurationProvider with a provideDebugAdapter method if the extension defines the debug type. Otherwise an error is thrown.
+		 * Registering more than one DebugConfigurationProvider with a provideDebugAdapter method for a type results in an error.
 		 * @param session The [debug session](#DebugSession) for which the debug adapter will be used.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
@@ -563,11 +564,6 @@ declare module 'vscode' {
 
 		/**
 		 * Deprecated, use DebugConfigurationProvider.provideDebugAdapter instead.
-		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
-		 * Registering more than one debugAdapterExecutable for a type results in an error.
-		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
-		 * @param token A cancellation token.
-		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
 		 * @deprecated Use DebugConfigurationProvider.provideDebugAdapter instead
 		 */
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;

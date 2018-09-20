@@ -33,6 +33,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -116,7 +117,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					for (const dbg of debuggers) {
-						// only debugger contributions with a "label" are considered a "main" debugger contribution
+						// only debugger contributions with a "label" are considered a "defining" debugger contribution
 						if (dbg.type && dbg.label) {
 							debugTypes.push(dbg.type);
 							if (dbg.adapterExecutableCommand) {
@@ -239,14 +240,30 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 
-	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
+	public registerDebugConfigurationProvider(extension: IExtensionDescription, type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
+
 		if (!provider) {
 			return new Disposable(() => { });
 		}
 
+		// if a provider has a provideDebugAdapter method, we check the constraints specified in the API doc
+		if (provider.provideDebugAdapter) {
+
+			// a provider with this method can only be registered in the extension that contributes the debugger
+			if (!this.definesDebugType(extension, type)) {
+				throw new Error(`method 'provideDebugAdapter' must only be called from the extension that defines the '${type}' debugger.`);
+			}
+
+			// make sure that only one provider for this type is registered
+			if (this._providerByType.has(type)) {
+				throw new Error(`a provider with method 'provideDebugAdapter' can only be registered once per a type.`);
+			} else {
+				this._providerByType.set(type, provider);
+			}
+		}
+
 		let handle = this._handleCounter++;
 		this._providerByHandle.set(handle, provider);
-		this._providerByType.set(type, provider);
 
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type,
 			!!provider.provideDebugConfigurations,
@@ -255,7 +272,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		return new Disposable(() => {
 			this._providerByHandle.delete(handle);
-			this._providerByType.delete(type);	// TODO@AW support more than one
+			this._providerByType.delete(type);
 			this._debugServiceProxy.$unregisterDebugConfigurationProvider(handle);
 		});
 	}
@@ -519,6 +536,23 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	// private & dto helpers
+
+	private definesDebugType(ed: IExtensionDescription, type: string) {
+		if (ed.contributes) {
+			const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+			if (debuggers && debuggers.length > 0) {
+				for (const dbg of debuggers) {
+					// only debugger contributions with a "label" are considered a "defining" debugger contribution
+					if (dbg.label && dbg.type) {
+						if (dbg.type === type) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
 
 	private getAdapterDescriptor(debugConfigProvider, sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Thenable<vscode.DebugAdapterDescriptor> {
 
