@@ -40,7 +40,7 @@ interface SurveyData {
 const allSurveys: ReadonlyArray<SurveyData> = [
 	{
 		id: 'checkJs',
-		prompt: localize('survey.checkJs.prompt', "Help us improve our support for checkJs in JavaScript!"),
+		prompt: localize('survey.checkJs.prompt', "Help improve VS Code's support for [checkJs](https://code.visualstudio.com/Docs/languages/javascript#_type-checking) in JavaScript! Since you have been using this feature, would you consider taking a short survey about your experience?"),
 		globalTriggerThreshold: 10,
 		url: vscode.Uri.parse('https://www.surveymonkey.com/r/FH8PZQ3'),
 		remindLaterDelayInMilliseconds: 3 * 24 * 60 * 60 * 1000 // 3 days
