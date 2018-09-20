@@ -11,26 +11,6 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh - https://github.com/Microsoft/vscode/issues/1800
-
-	export namespace languages {
-
-		/**
-		 * Set (and change) the [language](#TextDocument.languageId) that is associated
-		 * with the given document.
-		 *
-		 * *Note* that calling this function will trigger the [`onDidCloseTextDocument`](#languages.onDidCloseTextDocument) event
-		 * followed by the [`onDidOpenTextDocument`](#languages.onDidOpenTextDocument) event.
-		 *
-		 * @param document The document which language is to be changed
-		 * @param languageId The new language identifier.
-		 * @returns A thenable that resolves with the updated document.
-		 */
-		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
-	}
-
-	//#endregion
-
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
