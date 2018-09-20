@@ -13,6 +13,10 @@
 export const enum CharCode {
 	Null = 0,
 	/**
+	 * The `\b` character.
+	 */
+	Backspace = 8,
+	/**
 	 * The `\t` character.
 	 */
 	Tab = 9,
