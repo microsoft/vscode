@@ -196,6 +196,12 @@ class FocusTrait<T> extends Trait<T> {
 		super.renderIndex(index, container);
 		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
+
+		if (this.contains(index)) {
+			container.setAttribute('aria-selected', 'true');
+		} else {
+			container.removeAttribute('aria-selected');
+		}
 	}
 }
 
