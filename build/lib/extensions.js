@@ -129,7 +129,11 @@ function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
             }));
         });
         es.merge.apply(es, webpackStreams.concat([patchFilesStream])).pipe(result);
-    }).catch(function (err) { return result.emit('error', err); });
+    }).catch(function (err) {
+        console.error(extensionPath);
+        console.error(packagedDependencies);
+        result.emit('error', err);
+    });
     return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 function fromLocalNormal(extensionPath) {
