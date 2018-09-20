@@ -35,6 +35,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IStringStream, ITextSnapshot } from 'vs/platform/files/common/files';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 
+const CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048;
+
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
 }
@@ -1852,7 +1854,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
-		return this._tokens.isCheapToTokenize(lineNumber);
+		if (!this._tokens.isCheapToTokenize(lineNumber)) {
+			return false;
+		}
+
+		if (lineNumber < this._tokens.inValidLineStartIndex + 1) {
+			return true;
+		}
+
+		if (this.getLineLength(lineNumber) < CHEAP_TOKENIZATION_LENGTH_LIMIT) {
+			return true;
+		}
+
+		return false;
 	}
 
 	public tokenizeIfCheap(lineNumber: number): void {
