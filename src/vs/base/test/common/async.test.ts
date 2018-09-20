@@ -367,9 +367,8 @@ suite('Async', () => {
 
 		assert(delayer.isTriggered());
 
-		delayer.fire().then(() => {
-			assert(!delayer.isTriggered());
-		});
+		delayer.fire();
+		assert(!delayer.isTriggered());
 	});
 
 	test('Delayer - fire after finished', async function (this, done) {

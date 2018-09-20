@@ -238,7 +238,7 @@ export class Delayer<T> {
 		}
 	}
 
-	async fire(): TPromise<void> {
+	fire(): void {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
