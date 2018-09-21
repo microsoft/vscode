@@ -95,11 +95,12 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
 import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/node/multiExtensionManagement';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
-import { DownloadServiceChannel } from 'vs/platform/download/node/downloadIpc';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { runWhenIdle } from 'vs/base/common/async';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
 
 /**
  * Services that we require for the Shell
@@ -345,7 +346,6 @@ export class WorkbenchShell extends Disposable {
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
 		sharedProcess.then(client => {
-			client.registerChannel('download', new DownloadServiceChannel());
 			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
 		});
 
@@ -389,6 +389,7 @@ export class WorkbenchShell extends Disposable {
 		this.lifecycleService = lifecycleService;
 
 		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
+		serviceCollection.set(IDownloadService, new SyncDescriptor(DownloadService));
 		serviceCollection.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
