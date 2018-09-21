@@ -314,7 +314,6 @@ export async function main(argv: string[]): Promise<any> {
 						port: portRenderer,
 						tries: 200,
 						chooseTab: function (targets) {
-							console.log(targets);
 							return targets.find(target => {
 								if (!target.webSocketDebuggerUrl) {
 									return false;
