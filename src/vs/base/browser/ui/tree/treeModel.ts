@@ -86,7 +86,7 @@ function getTreeElementIterator<T>(elements: Iterator<ITreeElement<T>> | ITreeEl
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
 	const { element, collapsible, collapsed } = treeElement;
-	const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, visibleCount: 0 };
+	const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, visibleCount: 1 };
 
 	if (visible) {
 		treeListElements.push(node);
@@ -95,7 +95,10 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTree
 	const children = getTreeElementIterator(treeElement.children);
 	node.children = Iterator.collect(Iterator.map(children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
 	node.collapsible = node.collapsible || node.children.length > 0;
-	node.visibleCount = 1 + getVisibleCount(node.children);
+
+	if (!collapsed) {
+		node.visibleCount += getVisibleCount(node.children);
+	}
 
 	return node;
 }
