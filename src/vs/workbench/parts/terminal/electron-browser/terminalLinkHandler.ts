@@ -13,7 +13,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -62,7 +62,6 @@ export class TerminalLinkHandler {
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 	private _initialCwd: string;
-	private _configHelper: ITerminalConfigHelper;
 	private _localLinkPattern: RegExp;
 
 	constructor(
@@ -78,7 +77,6 @@ export class TerminalLinkHandler {
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 		this.registerWebLinkHandler();
 		this.registerLocalLinkHandler();
-		this._configHelper = _terminalService.configHelper;
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
@@ -94,7 +92,7 @@ export class TerminalLinkHandler {
 			matchIndex,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
 			tooltipCallback: (e: MouseEvent) => {
-				if (this._configHelper.config.rendererType === 'dom') {
+				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
 					const target = (e.target as HTMLElement);
 					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
 				} else {
@@ -114,7 +112,7 @@ export class TerminalLinkHandler {
 		this._xterm.webLinksInit(wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
 			tooltipCallback: (e: MouseEvent) => {
-				if (this._configHelper.config.rendererType === 'dom') {
+				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
 					const target = (e.target as HTMLElement);
 					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
 				} else {
@@ -133,7 +131,7 @@ export class TerminalLinkHandler {
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback: (e: MouseEvent) => {
-				if (this._configHelper.config.rendererType === 'dom') {
+				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
 					const target = (e.target as HTMLElement);
 					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
 				} else {
