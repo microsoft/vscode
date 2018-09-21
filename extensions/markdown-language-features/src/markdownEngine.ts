@@ -179,7 +179,7 @@ export class MarkdownEngine {
 
 				// Assume it must be an relative or absolute file path
 				// Use a fake scheme to avoid parse warnings
-				let uri = vscode.Uri.parse(`fake-scheme:${link}`);
+				let uri = vscode.Uri.parse(`vscode-resource:${link}`);
 
 				if (uri.path) {
 					// Assume it must be a file
@@ -200,9 +200,7 @@ export class MarkdownEngine {
 					}
 					return normalizeLink(uri.with({ scheme: 'vscode-resource' }).toString(true));
 				} else if (!uri.path && uri.fragment) {
-					return normalizeLink(uri.with({
-						fragment: this.slugifier.fromHeading(uri.fragment).value
-					}).toString(true));
+					return `#${this.slugifier.fromHeading(uri.fragment).value}`;
 				}
 			} catch (e) {
 				// noop
