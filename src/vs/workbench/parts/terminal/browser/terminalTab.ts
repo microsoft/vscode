@@ -11,6 +11,7 @@ import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitv
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
 const SPLIT_PANE_MIN_SIZE = 120;
+const TERMINAL_MIN_USEFUL_SIZE = 250;
 
 class SplitPaneContainer {
 	private _height: number;
@@ -361,21 +362,26 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
-		const instance = this._terminalService.createInstance(
-			terminalFocusContextKey,
-			configHelper,
-			undefined,
-			shellLaunchConfig,
-			true);
-		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
-		this._initInstanceListeners(instance);
-		this._setActiveInstance(instance);
+		const newTerminalWidth = this._container.clientWidth / (this._terminalInstances.length + 1);
+		if (newTerminalWidth >= TERMINAL_MIN_USEFUL_SIZE) {
+			const instance = this._terminalService.createInstance(
+				terminalFocusContextKey,
+				configHelper,
+				undefined,
+				shellLaunchConfig,
+				true);
+			this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
+			this._initInstanceListeners(instance);
+			this._setActiveInstance(instance);
 
-		if (this._splitPaneContainer) {
-			this._splitPaneContainer.split(instance, this._activeInstanceIndex);
+			if (this._splitPaneContainer) {
+				this._splitPaneContainer.split(instance, this._activeInstanceIndex);
+			}
+
+			return instance;
+		} else {
+			return undefined;
 		}
-
-		return instance;
 	}
 
 	public addDisposable(disposable: IDisposable): void {

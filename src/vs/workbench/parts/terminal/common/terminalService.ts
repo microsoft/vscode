@@ -12,8 +12,9 @@ import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export abstract class TerminalService implements ITerminalService {
+export abstract class TerminalService extends Disposable implements ITerminalService {
 	public _serviceBrand: any;
 
 	protected _isShuttingDown: boolean;
@@ -50,6 +51,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
+	private readonly _onTerminalNotSplit: Emitter<void> = new Emitter<void>();
+	public get onTerminalNotSplit(): Event<void> { return this._onTerminalNotSplit.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -60,6 +63,7 @@ export abstract class TerminalService implements ITerminalService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService protected readonly _storageService: IStorageService
 	) {
+		super();
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
@@ -263,10 +267,14 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		this._initInstanceListeners(instance);
-		this._onInstancesChanged.fire();
+		if (instance) {
+			this._initInstanceListeners(instance);
+			this._onInstancesChanged.fire();
 
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		} else {
+			this._onTerminalNotSplit.fire();
+		}
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {

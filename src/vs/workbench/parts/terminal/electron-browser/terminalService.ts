@@ -56,7 +56,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
-
+		this.toDispose.push(this.onTerminalNotSplit(() => this._notificationService.warn(nls.localize('terminal.minWidth', "Not enough space to split terminal."))));
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
 			// if the request to open files is coming in from the integrated terminal (identified though
 			// the termProgram variable) and we are instructed to wait for editors close, wait for the
