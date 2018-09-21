@@ -1335,10 +1335,17 @@ abstract class ViewZonesComputer {
 				} else {
 					viewZoneLineNumber = originalEndEquivalentLineNumber;
 				}
+
+				let marginDomNode: HTMLDivElement = null;
+				if (lineChange && lineChange.modifiedStartLineNumber <= modifiedForeignVZ.current.afterLineNumber && modifiedForeignVZ.current.afterLineNumber <= lineChange.modifiedEndLineNumber) {
+					marginDomNode = this._createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion();
+				}
+
 				stepOriginal.push({
 					afterLineNumber: viewZoneLineNumber,
 					heightInLines: modifiedForeignVZ.current.heightInLines,
-					domNode: null
+					domNode: null,
+					marginDomNode: marginDomNode
 				});
 				modifiedForeignVZ.advance();
 			}
@@ -1443,6 +1450,8 @@ abstract class ViewZonesComputer {
 
 		return result;
 	}
+
+	protected abstract _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement;
 
 	protected abstract _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone;
 
@@ -1737,6 +1746,10 @@ class SideBySideViewZonesComputer extends ViewZonesComputer {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 	}
 
+	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement {
+		return null;
+	}
+
 	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
 		if (lineChangeModifiedLength > lineChangeOriginalLength) {
 			return {
@@ -1897,10 +1910,15 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		this.renderIndicators = renderIndicators;
 	}
 
+	protected _createOriginalMarginDomNodeForModifiedForeignViewZoneInAddedRegion(): HTMLDivElement {
+		let result = document.createElement('div');
+		result.className = 'inline-added-margin-view-zone';
+		return result;
+	}
+
 	protected _produceOriginalFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone {
 		let marginDomNode = document.createElement('div');
 		marginDomNode.className = 'inline-added-margin-view-zone';
-		Configuration.applyFontInfoSlow(marginDomNode, this.modifiedEditorConfiguration.fontInfo);
 
 		return {
 			afterLineNumber: Math.max(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber),
