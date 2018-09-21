@@ -66,7 +66,7 @@ This project incorporates components from the projects listed below. The origina
 59.	vscode-logfile-highlighter version 1.2.0 (https://github.com/emilast/vscode-logfile-highlighter)
 60.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 61.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
-
+62.	textmate/toml.tmbundle (https://github.com/textmate/toml.tmbundle)
 
 %% atom/language-c NOTICES AND INFORMATION BEGIN HERE
 =========================================
