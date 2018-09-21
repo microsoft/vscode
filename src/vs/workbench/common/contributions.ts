@@ -6,8 +6,8 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase, LifecyclePhaseToString } from 'vs/platform/lifecycle/common/lifecycle';
-import { mark } from 'vs/base/common/performance';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 
 // --- Workbench Contribution Registry
 
@@ -90,15 +90,33 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	}
 
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
-		mark(`LifecyclePhase/${LifecyclePhaseToString(phase)}/createContrib:start`);
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
-		if (toBeInstantiated) {
-			while (toBeInstantiated.length > 0) {
-				const ctor = toBeInstantiated.shift();
+		if (!toBeInstantiated) {
+			return;
+		}
+		if (phase !== LifecyclePhase.Eventually) {
+			// instantiate every synchronously and blocking
+			for (const ctor of toBeInstantiated) {
 				instantiationService.createInstance(ctor);
 			}
+		} else {
+			// for the Eventually-phase we instantiate contributions
+			// only when idle. this might take a few idle-busy-cycles
+			// but will finish within one second
+			let i = 0;
+			const instantiateSome = (idle: IdleDeadline) => {
+				while (i < toBeInstantiated.length) {
+					const ctor = toBeInstantiated[i++];
+					instantiationService.createInstance(ctor);
+					if (idle.timeRemaining() < 1) {
+						// time is up -> reschedule
+						runWhenIdle(instantiateSome, 1000);
+						break;
+					}
+				}
+			};
+			runWhenIdle(instantiateSome, 1000);
 		}
-		mark(`LifecyclePhase/${LifecyclePhaseToString(phase)}/createContrib:end`);
 	}
 }
 
