@@ -157,13 +157,10 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .shadow.top {
-	max-width: 1000px;
-	margin: auto;
-}
-
-.settings-editor > .settings-body > .settings-tree-container > .monaco-tree .monaco-scrollable-element {
-	overflow: visible !important;
-	/* so the shadow can be drawn outside the scrollable element */
+	left: 50%;
+	max-width: 952px; /* 1000 - 24*2 padding */
+	margin-left: -476px;
+	z-index: 1000;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
