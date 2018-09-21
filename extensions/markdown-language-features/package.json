@@ -252,6 +252,20 @@
 					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
 					"scope": "resource"
 				},
+				"markdown.preview.openMarkdownLinks": {
+					"type": "string",
+					"default": "inPreview",
+					"description": "%configuration.markdown.preview.openMarkdownLinks.description%",
+					"scope": "resource",
+					"enum": [
+						"inPreview",
+						"inEditor"
+					],
+					"enumDescriptions": [
+						"%configuration.markdown.preview.openMarkdownLinks.inPreview%",
+						"%configuration.markdown.preview.openMarkdownLinks.inEditor%"
+					]
+				},
 				"markdown.trace": {
 					"type": "string",
 					"enum": [
