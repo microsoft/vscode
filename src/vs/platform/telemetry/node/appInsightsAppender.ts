@@ -26,6 +26,7 @@ function getClient(aiKey: string): appInsights.TelemetryClient {
 			.setAutoCollectDependencies(false)
 			.setAutoDependencyCorrelation(false)
 			.setAutoCollectConsole(false)
+			.setInternalLogging(false, false)
 			.setUseDiskRetryCaching(true)
 			.start();
 		client = appInsights.defaultClient;
