@@ -60,6 +60,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
 	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
@@ -179,6 +180,20 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			return obj;
 		};
 		return { next };
+	}
+
+	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
+		let content = this._lines[lineNumber - 1];
+		let ranges = this._wordenize(content, wordDefinition);
+		let words: IWordAtPosition[] = [];
+		for (const range of ranges) {
+			words.push({
+				word: content.substring(range.start, range.end),
+				startColumn: range.start + 1,
+				endColumn: range.end + 1
+			});
+		}
+		return words;
 	}
 
 	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
@@ -482,6 +497,52 @@ export abstract class BaseEditorSimpleWorker {
 
 
 	// ---- END suggest --------------------------------------------------------------------------
+
+	//#region -- word ranges --
+
+	getWordRanges(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
+		let model = this._getModel(modelUrl);
+		if (!model) {
+			return Promise.resolve({});
+		}
+		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		let result: { [word: string]: IRange[] } = {};
+
+		function handleWords(words: IWordAtPosition[], lineNumber: number) {
+			for (const word of words) {
+				if (!isNaN(Number(word.word))) {
+					continue;
+				}
+				let array = result[word.word];
+				if (!array) {
+					array = [];
+					result[word.word] = array;
+				}
+				array.push({
+					startLineNumber: lineNumber,
+					startColumn: word.startColumn,
+					endLineNumber: lineNumber,
+					endColumn: word.endColumn
+				});
+			}
+		}
+
+		// up
+		for (let i = position.lineNumber; i > Math.max(position.lineNumber - 100, 0); i--) {
+			let words = model.getLineWords(i, wordDefRegExp);
+			handleWords(words, i);
+		}
+
+		// down
+		for (let i = position.lineNumber + 1; i < Math.min(position.lineNumber + 100, model.getLineCount()); i++) {
+			let words = model.getLineWords(i, wordDefRegExp);
+			handleWords(words, i);
+		}
+
+		return Promise.resolve(result);
+	}
+
+	//#endregion
 
 	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
 		let model = this._getModel(modelUrl);

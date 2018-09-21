@@ -107,6 +107,14 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
+
+	canGetWordRanges(resource: URI): boolean {
+		return canSyncModel(this._modelService, resource);
+	}
+
+	getWordRanges(resource: URI, position: IPosition): TPromise<{ [word: string]: IRange[] }> {
+		return this._workerManager.withWorker().then(client => client.getWordRanges(resource, position));
+	}
 }
 
 class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
@@ -411,6 +419,19 @@ export class EditorWorkerClient extends Disposable {
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
+		});
+	}
+
+	getWordRanges(resource: URI, position: IPosition): TPromise<{ [word: string]: IRange[] }> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return proxy.getWordRanges(resource.toString(), position, wordDef, wordDefFlags);
 		});
 	}
 
