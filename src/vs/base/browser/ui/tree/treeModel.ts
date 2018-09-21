@@ -17,9 +17,9 @@ export interface ITreeElement<T> {
 }
 
 export interface ITreeNode<T> {
-	readonly parent: IMutableTreeNode<T> | undefined;
+	readonly parent: ITreeNode<T> | undefined;
 	readonly element: T;
-	readonly children: IMutableTreeNode<T>[];
+	readonly children: ITreeNode<T>[];
 	readonly depth: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
@@ -27,6 +27,8 @@ export interface ITreeNode<T> {
 }
 
 interface IMutableTreeNode<T> extends ITreeNode<T> {
+	readonly parent: IMutableTreeNode<T> | undefined;
+	readonly children: IMutableTreeNode<T>[];
 	collapsed: boolean;
 	visibleCount: number;
 }
