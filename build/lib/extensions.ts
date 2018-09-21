@@ -213,12 +213,12 @@ export function fromMarketplace(extensionName: string, version: string): Stream 
 			method: 'POST',
 			gzip: true,
 			headers,
-			body: body
+			body
 		}
 	};
 
 	return remote('/extensionquery', options)
-		.pipe(flatmap((stream, f) => {
+		.pipe(flatmap((_, f) => {
 			const rawResult = f.contents.toString('utf8');
 			const result = JSON.parse(rawResult);
 			const extension = result.results[0].extensions[0];
