@@ -475,13 +475,23 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 	}
 
 	private alertSearchResult(count: number, viewId: string) {
-		if (!count) {
-			return;
-		}
-		if (viewIdNameMappings[viewId]) {
-			alert(localize('extensionsFoundInSection', "{0} extensions found in the {1} section.", count, viewIdNameMappings[viewId]));
-		} else {
-			alert(localize('extensionsFound', "{0} extensions found.", count));
+		switch (count) {
+			case 0:
+				break;
+			case 1:
+				if (viewIdNameMappings[viewId]) {
+					alert(localize('extensionFoundInSection', "1 extension found in the {0} section.", viewIdNameMappings[viewId]));
+				} else {
+					alert(localize('extensionFound', "1 extension found."));
+				}
+				break;
+			default:
+				if (viewIdNameMappings[viewId]) {
+					alert(localize('extensionsFoundInSection', "{0} extensions found in the {1} section.", count, viewIdNameMappings[viewId]));
+				} else {
+					alert(localize('extensionsFound', "{0} extensions found.", count));
+				}
+				break;
 		}
 	}
 
