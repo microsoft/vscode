@@ -133,7 +133,6 @@ export class TreeModel<T> {
 		visibleCount: 1
 	};
 
-	// TODO@joao can't we do without this?
 	private _onDidChangeCollapseState = new Emitter<ITreeNode<T>>();
 	readonly onDidChangeCollapseState: Event<ITreeNode<T>> = this._onDidChangeCollapseState.event;
 
