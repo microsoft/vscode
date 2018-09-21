@@ -56,6 +56,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -69,6 +70,18 @@ const SearchBuiltInExtensionsContext = new RawContextKey<boolean>('searchBuiltIn
 const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const DefaultRecommendedExtensionsContext = new RawContextKey<boolean>('defaultRecommendedExtensions', false);
 const GroupByServersContext = new RawContextKey<boolean>('groupByServersContext', false);
+const viewIdNameMappings: { [id: string]: string } = {
+	'extensions.listView': localize('marketPlace', "Marketplace"),
+	'extensions.enabledExtensionList': localize('enabledExtensions', "Enabled"),
+	'extensions.disabledExtensionList': localize('disabledExtensions', "Disabled"),
+	'extensions.popularExtensionsList': localize('popularExtensions', "Popular"),
+	'extensions.recommendedList': localize('recommendedExtensions', "Recommended"),
+	'extensions.otherrecommendedList': localize('otherRecommendedExtensions', "Other Recommendations"),
+	'extensions.workspaceRecommendedList': localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
+	'extensions.builtInExtensionsList': localize('builtInExtensions', "Features"),
+	'extensions.builtInThemesExtensionsList': localize('builtInThemesExtensions', "Themes"),
+	'extensions.builtInBasicsExtensionsList': localize('builtInBasicsExtensions', "Programming Languages"),
+};
 
 export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
@@ -101,9 +114,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createMarketPlaceExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.listView';
 		return {
-			id: 'extensions.listView',
-			name: localize('marketPlace', "Marketplace"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: ExtensionsListView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchBuiltInExtensions'), ContextKeyExpr.not('recommendedExtensions'), ContextKeyExpr.not('groupByServersContext')),
@@ -112,9 +126,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.enabledExtensionList';
 		return {
-			id: 'extensions.enabledExtensionList',
-			name: localize('enabledExtensions', "Enabled"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('hasInstalledExtensions')),
@@ -125,9 +140,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.disabledExtensionList';
 		return {
-			id: 'extensions.disabledExtensionList',
-			name: localize('disabledExtensions', "Disabled"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: DisabledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('hasInstalledExtensions')),
@@ -139,9 +155,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createPopularExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.popularExtensionsList';
 		return {
-			id: 'extensions.popularExtensionsList',
-			name: localize('popularExtensions', "Popular"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: ExtensionsListView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.not('hasInstalledExtensions')),
@@ -162,9 +179,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createDefaultRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.recommendedList';
 		return {
-			id: 'extensions.recommendedList',
-			name: localize('recommendedExtensions', "Recommended"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: DefaultRecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
@@ -175,9 +193,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createOtherRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.otherrecommendedList';
 		return {
-			id: 'extensions.otherrecommendedList',
-			name: localize('otherRecommendedExtensions', "Other Recommendations"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.has('recommendedExtensions'),
@@ -188,9 +207,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createWorkspaceRecommendedExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.workspaceRecommendedList';
 		return {
-			id: 'extensions.workspaceRecommendedList',
-			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: WorkspaceRecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
@@ -201,9 +221,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createBuiltInExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.builtInExtensionsList';
 		return {
-			id: 'extensions.builtInExtensionsList',
-			name: localize('builtInExtensions', "Features"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: BuiltInExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
@@ -213,9 +234,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createBuiltInThemesExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.builtInThemesExtensionsList';
 		return {
-			id: 'extensions.builtInThemesExtensionsList',
-			name: localize('builtInThemesExtensions', "Themes"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: BuiltInThemesExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
@@ -225,9 +247,10 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 
 	private createBuiltInBasicsExtensionsListViewDescriptor(): IViewDescriptor {
+		const id = 'extensions.builtInBasicsExtensionsList';
 		return {
-			id: 'extensions.builtInBasicsExtensionsList',
-			name: localize('builtInBasicsExtensions', "Programming Languages"),
+			id,
+			name: viewIdNameMappings[id],
 			container: VIEW_CONTAINER,
 			ctor: BuiltInBasicsExtensionsView,
 			when: ContextKeyExpr.has('searchBuiltInExtensions'),
@@ -432,15 +455,44 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
-			return this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.normalizedQuery()))));
+			return this.progress(TPromise.join(this.panels.map(view => {
+				(<ExtensionsListView>view).show(this.normalizedQuery()).then(model => {
+					this.alertSearchResult(model.length, view.id);
+				});
+			})));
 		}
 		return TPromise.as(null);
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
-		this.progress(TPromise.join(addedViews.map(addedView => (<ExtensionsListView>addedView).show(this.normalizedQuery()))));
+		this.progress(TPromise.join(addedViews.map(addedView => {
+			(<ExtensionsListView>addedView).show(this.normalizedQuery()).then(model => {
+				this.alertSearchResult(model.length, addedView.id);
+			});
+		})));
 		return addedViews;
+	}
+
+	private alertSearchResult(count: number, viewId: string) {
+		switch (count) {
+			case 0:
+				break;
+			case 1:
+				if (viewIdNameMappings[viewId]) {
+					alert(localize('extensionFoundInSection', "1 extension found in the {0} section.", viewIdNameMappings[viewId]));
+				} else {
+					alert(localize('extensionFound', "1 extension found."));
+				}
+				break;
+			default:
+				if (viewIdNameMappings[viewId]) {
+					alert(localize('extensionsFoundInSection', "{0} extensions found in the {1} section.", count, viewIdNameMappings[viewId]));
+				} else {
+					alert(localize('extensionsFound', "{0} extensions found.", count));
+				}
+				break;
+		}
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {

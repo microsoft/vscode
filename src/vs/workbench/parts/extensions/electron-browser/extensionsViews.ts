@@ -40,6 +40,7 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { distinct } from 'vs/base/common/arrays';
 import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -599,6 +600,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 			if (count === 0 && this.isVisible()) {
 				this.messageBox.textContent = isGalleryError ? localize('galleryError', "We cannot connect to the Extensions Marketplace at this time, please try again later.") : localize('no extensions found', "No extensions found.");
+				if (isGalleryError) {
+					alert(this.messageBox.textContent);
+				}
 			} else {
 				this.messageBox.textContent = '';
 			}
