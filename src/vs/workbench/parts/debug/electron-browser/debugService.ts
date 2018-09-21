@@ -68,6 +68,11 @@ function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
 	};
 }
 
+const enum TaskRunResult {
+	Failure,
+	Success
+}
+
 export class DebugService implements IDebugService {
 	_serviceBrand: any;
 
@@ -386,8 +391,8 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runTask(workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
-					if (success) {
+				return this.runTask(workspace, resolvedConfig.preLaunchTask).then(result => {
+					if (result === TaskRunResult.Success) {
 						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
 					}
 					return undefined;
@@ -561,9 +566,9 @@ export class DebugService implements IDebugService {
 
 			const unresolvedConfiguration = session.unresolvedConfiguration;
 			if (session.capabilities.supportsRestartRequest) {
-				return this.runTask(session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
-					.then(success => success ? this.runTask(session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
-						.then(success => success ? session.restart() : undefined) : TPromise.as(<any>undefined));
+				return this.runTask(session.root, session.configuration.postDebugTask)
+					.then(taskRunResult => taskRunResult === TaskRunResult.Success ? this.runTask(session.root, session.configuration.preLaunchTask)
+						.then(taskRunResult => taskRunResult === TaskRunResult.Success ? session.restart() : undefined) : TPromise.as(<any>undefined));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -647,7 +652,7 @@ export class DebugService implements IDebugService {
 		return TPromise.as(config);
 	}
 
-	private showError(message: string, actions: IAction[] = []): TPromise<any> {
+	private showError(message: string, actions: IAction[] = []): TPromise<boolean> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
 		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
@@ -655,40 +660,37 @@ export class DebugService implements IDebugService {
 				return actions[choice].run();
 			}
 
-			return TPromise.as(null);
+			return TPromise.as(false);
 		});
 	}
 
 	//---- task management
 
-	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig): TPromise<boolean> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<TaskRunResult> {
 
-		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
-			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig });
-		});
-
+		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => TPromise.as(TaskRunResult.Success));
 		return this.doRunTask(root, taskId).then((taskSummary: ITaskSummary) => {
-			const errorCount = config.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 			if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-				return true;
+				return <any>TaskRunResult.Success;
 			}
 
-			const taskId = typeof config.preLaunchTask === 'string' ? config.preLaunchTask : JSON.stringify(config.preLaunchTask);
+			const taskLabel = typeof taskId === 'string' ? taskId : taskId.name;
 			const message = errorCount > 1
-				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskId)
+				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
-					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskId)
-					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskId, taskSummary.exitCode);
+					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskLabel)
+					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
+				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => TaskRunResult.Failure);
 			});
 
-			return this.showError(message, [debugAnywayAction, showErrorsAction]).then(() => false);
+			return this.showError(message, [debugAnywayAction, showErrorsAction]);
 		}, (err: TaskError) => {
-			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]).then(() => false);
+			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 		});
 	}
 
