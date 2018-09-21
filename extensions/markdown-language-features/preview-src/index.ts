@@ -133,7 +133,7 @@ document.addEventListener('click', event => {
 			}
 			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
 				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
-				messaging.postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
+				messaging.postMessage('clickLink', { path, fragment });
 				event.preventDefault();
 				event.stopPropagation();
 				break;

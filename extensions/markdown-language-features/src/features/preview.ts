@@ -128,16 +128,16 @@ export class MarkdownPreview {
 					this.onCacheImageSizes(e.body);
 					break;
 
-				case 'command':
-					vscode.commands.executeCommand(e.body.command, ...e.body.args);
-					break;
-
 				case 'revealLine':
 					this.onDidScrollPreview(e.body.line);
 					break;
 
 				case 'didClick':
 					this.onDidClickPreview(e.body.line);
+					break;
+
+				case 'clickLink':
+					vscode.commands.executeCommand('_markdown.openDocumentLink', e.body);
 					break;
 
 				case 'showPreviewSecuritySelector':
