@@ -391,7 +391,7 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runTask(workspace, resolvedConfig.preLaunchTask).then(result => {
+				return this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask).then(result => {
 					if (result === TaskRunResult.Success) {
 						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
 					}
@@ -536,7 +536,7 @@ export class DebugService implements IDebugService {
 			this.telemetryDebugSessionStop(session, adapterExitEvent);
 
 			if (session.configuration.postDebugTask) {
-				this.doRunTask(session.root, session.configuration.postDebugTask).then(undefined, err =>
+				this.runTask(session.root, session.configuration.postDebugTask).then(undefined, err =>
 					this.notificationService.error(err)
 				);
 			}
@@ -567,8 +567,8 @@ export class DebugService implements IDebugService {
 			const unresolvedConfiguration = session.unresolvedConfiguration;
 			if (session.capabilities.supportsRestartRequest) {
 				return this.runTask(session.root, session.configuration.postDebugTask)
-					.then(taskRunResult => taskRunResult === TaskRunResult.Success ? this.runTask(session.root, session.configuration.preLaunchTask)
-						.then(taskRunResult => taskRunResult === TaskRunResult.Success ? session.restart() : undefined) : TPromise.as(<any>undefined));
+					.then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask)
+						.then(taskRunResult => taskRunResult === TaskRunResult.Success ? session.restart() : <any>undefined));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -666,10 +666,10 @@ export class DebugService implements IDebugService {
 
 	//---- task management
 
-	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<TaskRunResult> {
+	private runTaskAndCheckErrors(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<TaskRunResult> {
 
 		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => TPromise.as(TaskRunResult.Success));
-		return this.doRunTask(root, taskId).then((taskSummary: ITaskSummary) => {
+		return this.runTask(root, taskId).then((taskSummary: ITaskSummary) => {
 			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
@@ -694,7 +694,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private doRunTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId || this.skipRunningTask) {
 			this.skipRunningTask = false;
 			return TPromise.as(null);
