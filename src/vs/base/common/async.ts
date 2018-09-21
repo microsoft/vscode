@@ -8,7 +8,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
@@ -692,3 +692,32 @@ export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
+
+
+export interface IdleDeadline {
+	readonly didTimeout: boolean;
+	timeRemaining(): DOMHighResTimeStamp;
+}
+/**
+ * Execute the callback the next time the browser is idle
+ */
+export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+
+declare module global {
+	export function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+	export function cancelIdleCallback(handle: number): void;
+}
+(function () {
+	if (!global.requestIdleCallback || !global.cancelIdleCallback) {
+		console.warn('requestIdleCallback not available. using fallback');
+		runWhenIdle = (runner, timeout?) => {
+			let handle = setTimeout(() => runner({ didTimeout: true, timeRemaining() { return Number.MAX_VALUE; } }), timeout);
+			return { dispose() { clearTimeout(handle); } };
+		};
+	} else {
+		runWhenIdle = (runner, timeout?) => {
+			let handle = global.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			return { dispose() { global.cancelIdleCallback(handle); } };
+		};
+	}
+})();
