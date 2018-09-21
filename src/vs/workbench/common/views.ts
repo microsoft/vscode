@@ -16,6 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -111,11 +112,13 @@ export interface IViewDescriptor {
 
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
+
+	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 }
 
 export interface IViewDescriptorCollection {
-	readonly onDidChange: Event<void>;
-	readonly viewDescriptors: IViewDescriptor[];
+	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
+	readonly activeViewDescriptors: IViewDescriptor[];
 }
 
 export interface IViewsRegistry {
@@ -131,6 +134,8 @@ export interface IViewsRegistry {
 	getViews(loc: ViewContainer): IViewDescriptor[];
 
 	getView(id: string): IViewDescriptor;
+
+	getAllViews(): IViewDescriptor[];
 
 }
 
@@ -197,6 +202,12 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 			}
 		}
 		return null;
+	}
+
+	getAllViews(): IViewDescriptor[] {
+		const allViews: IViewDescriptor[] = [];
+		this._views.forEach(views => allViews.push(...views));
+		return allViews;
 	}
 };
 

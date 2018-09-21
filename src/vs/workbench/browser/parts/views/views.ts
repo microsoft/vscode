@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/views';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IView, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -13,11 +12,15 @@ import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/b
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKeyChangeEvent, IReadableSet, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
 import { sortedDiff, firstIndex, move } from 'vs/base/common/arrays';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 function filterViewEvent(container: ViewContainer, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return chain(event)
@@ -68,10 +71,10 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 	private contextKeys = new CounterSet<string>();
 	private items: IViewItem[] = [];
 
-	private _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private _onDidChange: Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[] }> = this._register(new Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>());
+	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }> = this._onDidChange.event;
 
-	get viewDescriptors(): IViewDescriptor[] {
+	get activeViewDescriptors(): IViewDescriptor[] {
 		return this.items
 			.filter(i => i.active)
 			.map(i => i.viewDescriptor);
@@ -95,7 +98,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 	}
 
 	private onViewsRegistered(viewDescriptors: IViewDescriptor[]): any {
-		let fireChangeEvent = false;
+		const added: IViewDescriptor[] = [];
 
 		for (const viewDescriptor of viewDescriptors) {
 			const item = {
@@ -112,17 +115,17 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 			}
 
 			if (item.active) {
-				fireChangeEvent = true;
+				added.push(viewDescriptor);
 			}
 		}
 
-		if (fireChangeEvent) {
-			this._onDidChange.fire();
+		if (added.length) {
+			this._onDidChange.fire({ added, removed: [] });
 		}
 	}
 
 	private onViewsDeregistered(viewDescriptors: IViewDescriptor[]): any {
-		let fireChangeEvent = false;
+		const removed: IViewDescriptor[] = [];
 
 		for (const viewDescriptor of viewDescriptors) {
 			const index = firstIndex(this.items, i => i.viewDescriptor.id === viewDescriptor.id);
@@ -141,30 +144,35 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 			}
 
 			if (item.active) {
-				fireChangeEvent = true;
+				removed.push(viewDescriptor);
 			}
 		}
 
-		if (fireChangeEvent) {
-			this._onDidChange.fire();
+		if (removed.length) {
+			this._onDidChange.fire({ added: [], removed });
 		}
 	}
 
 	private onContextChanged(event: IContextKeyChangeEvent): any {
-		let fireChangeEvent = false;
+		const removed: IViewDescriptor[] = [];
+		const added: IViewDescriptor[] = [];
 
 		for (const item of this.items) {
 			const active = this.isViewDescriptorActive(item.viewDescriptor);
 
 			if (item.active !== active) {
-				fireChangeEvent = true;
+				if (active) {
+					added.push(item.viewDescriptor);
+				} else {
+					removed.push(item.viewDescriptor);
+				}
 			}
 
 			item.active = active;
 		}
 
-		if (fireChangeEvent) {
-			this._onDidChange.fire();
+		if (added.length || removed.length) {
+			this._onDidChange.fire({ added, removed });
 		}
 	}
 
@@ -214,8 +222,8 @@ export class ContributableViewsModel extends Disposable {
 		super();
 		const viewDescriptorCollection = viewsService.getViewDescriptors(container);
 
-		this._register(viewDescriptorCollection.onDidChange(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors)));
-		this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors);
+		this._register(viewDescriptorCollection.onDidChangeActiveViews(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.activeViewDescriptors)));
+		this.onDidChangeViewDescriptors(viewDescriptorCollection.activeViewDescriptors);
 	}
 
 	isVisible(id: string): boolean {
@@ -486,9 +494,9 @@ export class ViewsService extends Disposable implements IViewsService {
 	_serviceBrand: any;
 
 	private readonly viewDescriptorCollections: Map<ViewContainer, IViewDescriptorCollection>;
+	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IViewletService private viewletService: IViewletService,
 		@IStorageService private storageService: IStorageService,
@@ -498,6 +506,11 @@ export class ViewsService extends Disposable implements IViewsService {
 		super();
 
 		this.viewDescriptorCollections = new Map<ViewContainer, IViewDescriptorCollection>();
+		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
+
+		this.onDidRegisterViews(ViewsRegistry.getAllViews());
+		this._register(ViewsRegistry.onViewsRegistered(views => this.onDidRegisterViews(views)));
+
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
 		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
@@ -526,17 +539,74 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
-		this.viewDescriptorCollections.set(viewContainer, this._register(new ViewDescriptorCollection(viewContainer, this.contextKeyService)));
+		const viewDescriptorCollection = this.registerViewDescriptorCollection(viewContainer);
+
 		// TODO: @Joao Remove this after moving SCM Viewlet to ViewContainerViewlet - https://github.com/Microsoft/vscode/issues/49054
 		if (viewContainer.id !== SCM_VIEWLET_ID) {
-			const viewDescriptorCollection = this._register(this.instantiationService.createInstance(ViewDescriptorCollection, viewContainer));
-			this._register(viewDescriptorCollection.onDidChange(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection)));
+			this._register(viewDescriptorCollection.onDidChangeActiveViews(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection)));
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection));
 		}
 	}
 
-	private updateViewletEnablement(viewContainer: ViewContainer, viewDescriptorCollection: ViewDescriptorCollection): void {
-		const enabled = viewDescriptorCollection.viewDescriptors.length > 0;
+	private registerViewDescriptorCollection(viewContainer: ViewContainer): IViewDescriptorCollection {
+		const viewDescriptorCollection = this._register(new ViewDescriptorCollection(viewContainer, this.contextKeyService));
+
+		this.onDidChangeActiveViews({ added: viewDescriptorCollection.activeViewDescriptors, removed: [] });
+		this._register(viewDescriptorCollection.onDidChangeActiveViews(changed => this.onDidChangeActiveViews(changed)));
+
+		this.viewDescriptorCollections.set(viewContainer, viewDescriptorCollection);
+		return viewDescriptorCollection;
+	}
+
+	private onDidChangeActiveViews({ added, removed }: { added: IViewDescriptor[], removed: IViewDescriptor[] }): void {
+		added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
+		removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
+	}
+
+	private onDidRegisterViews(viewDescriptors: IViewDescriptor[]): void {
+		for (const viewDescriptor of viewDescriptors) {
+			const viewlet = this.viewletService.getViewlet(viewDescriptor.container.id);
+			const command = {
+				id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
+				title: localize('focus view', "Focus on {0} View", viewDescriptor.name),
+				category: viewlet ? viewlet.name : localize('view category', "View"),
+			};
+			const when = ContextKeyExpr.has(`${viewDescriptor.id}.active`);
+
+			CommandsRegistry.registerCommand(command.id, () => this.openView(viewDescriptor.id, true));
+
+			MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+				command,
+				when
+			});
+
+			if (viewDescriptor.focusCommand && viewDescriptor.focusCommand.keybindings) {
+				KeybindingsRegistry.registerKeybindingRule({
+					id: command.id,
+					when,
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: viewDescriptor.focusCommand.keybindings.primary,
+					secondary: viewDescriptor.focusCommand.keybindings.secondary,
+					linux: viewDescriptor.focusCommand.keybindings.linux,
+					mac: viewDescriptor.focusCommand.keybindings.mac,
+					win: viewDescriptor.focusCommand.keybindings.win
+				});
+			}
+		}
+	}
+
+	private getOrCreateActiveViewContextKey(viewDescriptor: IViewDescriptor): IContextKey<boolean> {
+		const activeContextKeyId = `${viewDescriptor.id}.active`;
+		let contextKey = this.activeViewContextKeys.get(activeContextKeyId);
+		if (!contextKey) {
+			contextKey = new RawContextKey(activeContextKeyId, false).bindTo(this.contextKeyService);
+			this.activeViewContextKeys.set(activeContextKeyId, contextKey);
+		}
+		return contextKey;
+	}
+
+	private updateViewletEnablement(viewContainer: ViewContainer, viewDescriptorCollection: IViewDescriptorCollection): void {
+		const enabled = viewDescriptorCollection.activeViewDescriptors.length > 0;
 		this.viewletService.setViewletEnablement(viewContainer.id, enabled);
 		this.storageService.store(`viewservice.${viewContainer.id}.enablement`, enabled, this.getStorageScope());
 	}

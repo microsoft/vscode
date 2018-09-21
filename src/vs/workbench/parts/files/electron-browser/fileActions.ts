@@ -1297,30 +1297,6 @@ export class CloseGroupAction extends Action {
 	}
 }
 
-export class FocusOpenEditorsView extends Action {
-
-	public static readonly ID = 'workbench.files.action.focusOpenEditorsView';
-	public static readonly LABEL = nls.localize({ key: 'focusOpenEditors', comment: ['Open is an adjective'] }, "Focus on Open Editors View");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private viewletService: IViewletService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
-			const openEditorsView = viewlet.getOpenEditorsView();
-			if (openEditorsView) {
-				openEditorsView.setExpanded(true);
-				openEditorsView.getList().domFocus();
-			}
-		});
-	}
-}
-
 export class FocusFilesExplorer extends Action {
 
 	public static readonly ID = 'workbench.files.action.focusFilesExplorer';

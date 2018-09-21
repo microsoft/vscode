@@ -745,7 +745,7 @@ export class ToggleReplAction extends TogglePanelAction {
 export class FocusReplAction extends Action {
 
 	static readonly ID = 'workbench.debug.action.focusRepl';
-	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus Debug Console');
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus on Debug Console View');
 
 
 	constructor(id: string, label: string,

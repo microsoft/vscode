@@ -45,7 +45,7 @@ import { ViewsRegistry } from 'vs/workbench/common/views';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
-import { DebugViewlet, FocusVariablesViewAction, FocusBreakpointsViewAction, FocusCallStackViewAction, FocusWatchViewAction } from 'vs/workbench/parts/debug/browser/debugViewlet';
+import { DebugViewlet } from 'vs/workbench/parts/debug/browser/debugViewlet';
 import { Repl } from 'vs/workbench/parts/debug/electron-browser/repl';
 import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
@@ -112,11 +112,11 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 Registry.as<PanelRegistry>(PanelExtensions.Panels).setDefaultPanelId(REPL_ID);
 
 // Register default debug views
-ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, container: VIEW_CONTAINER, canToggleVisibility: true }]);
-ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true }]);
-ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, container: VIEW_CONTAINER, canToggleVisibility: true }]);
+ViewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), ctor: VariablesView, order: 10, weight: 40, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' } }]);
+ViewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), ctor: WatchExpressionsView, order: 20, weight: 10, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' } }]);
+ViewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), ctor: CallStackView, order: 30, weight: 30, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' } }]);
+ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, container: VIEW_CONTAINER, canToggleVisibility: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' } }]);
 ViewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), ctor: LoadedScriptsView, order: 35, weight: 5, container: VIEW_CONTAINER, canToggleVisibility: true, collapsed: true, when: CONTEXT_LOADED_SCRIPTS_SUPPORTED }]);
-ViewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), ctor: BreakpointsView, order: 40, weight: 20, container: VIEW_CONTAINER, canToggleVisibility: true }]);
 
 // register action to open viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
@@ -148,13 +148,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveAllBreakpointsAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(EnableAllBreakpointsAction, EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL), 'Debug: Enable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(DisableAllBreakpointsAction, DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL), 'Debug: Disable All Breakpoints', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL), 'Debug: Clear Console', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus Debug Console', debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusReplAction, FocusReplAction.ID, FocusReplAction.LABEL), 'Debug: Focus on Debug Console View', debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SelectAndStartAction, SelectAndStartAction.ID, SelectAndStartAction.LABEL), 'Debug: Select and Start Debugging', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusVariablesViewAction, FocusVariablesViewAction.ID, FocusVariablesViewAction.LABEL), 'Debug: Focus Variables', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusWatchViewAction, FocusWatchViewAction.ID, FocusWatchViewAction.LABEL), 'Debug: Focus Watch', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusCallStackViewAction, FocusCallStackViewAction.ID, FocusCallStackViewAction.LABEL), 'Debug: Focus Call Stack', debugCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(FocusBreakpointsViewAction, FocusBreakpointsViewAction.ID, FocusBreakpointsViewAction.LABEL), 'Debug: Focus Breakpoints', debugCategory);
-
 
 // Register Quick Open
 (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
