@@ -54,8 +54,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
-	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 1000;
-	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 200;
+	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
+	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 
 	private static readonly SUGGESTIONS: string[] = [
 		'@modified', '@tag:usesOnlineServices'
@@ -64,9 +64,9 @@ export class SettingsEditor2 extends BaseEditor {
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
 		if (isArray(type)) {
 			// nullable integer/number or complex
-			return true;
+			return false;
 		}
-		return type !== SettingValueType.Enum && type !== SettingValueType.Complex;
+		return type === SettingValueType.Enum || type === SettingValueType.Complex;
 	}
 
 	private defaultSettingsEditorModel: Settings2EditorModel;
