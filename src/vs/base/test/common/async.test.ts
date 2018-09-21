@@ -357,37 +357,6 @@ suite('Async', () => {
 		return p;
 	});
 
-	test('Delayer - fire', function () {
-		// start a new Delayer with a delay that is much longer than acceptable timeout for test
-		let delayer = new async.Delayer(100000);
-
-		assert(!delayer.isTriggered());
-
-		delayer.trigger(() => TPromise.as(42));
-
-		assert(delayer.isTriggered());
-
-		delayer.fire();
-		assert(!delayer.isTriggered());
-	});
-
-	test('Delayer - fire after finished', async function (this, done) {
-		const sleep = time => new Promise((resolve) => setTimeout(resolve, time));
-
-		let delayer = new async.Delayer(0);
-
-		assert(!delayer.isTriggered());
-
-		delayer.trigger(() => TPromise.as(42));
-		assert(delayer.isTriggered());
-
-		await sleep(200);
-
-		assert(!delayer.isTriggered());
-		assert.doesNotThrow(() => delayer.fire());
-		done();
-	});
-
 	test('Sequence', function () {
 		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);

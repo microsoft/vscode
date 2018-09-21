@@ -238,15 +238,6 @@ export class Delayer<T> {
 		}
 	}
 
-	fire(): void {
-		this.cancelTimeout();
-
-		if (this.completionPromise) {
-			this.doResolve(null);
-			this.completionPromise = null;
-		}
-	}
-
 	private cancelTimeout(): void {
 		if (this.timeout !== null) {
 			clearTimeout(this.timeout);
