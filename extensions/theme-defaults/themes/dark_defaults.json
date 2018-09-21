@@ -13,6 +13,8 @@
 		"sideBarTitle.foreground": "#BBBBBB",
 		"input.placeholderForeground": "#A6A6A6",
 		"settings.textInputBackground": "#292929",
-		"settings.numberInputBackground": "#292929"
+		"settings.numberInputBackground": "#292929",
+		"menu.background": "#252526",
+		"menu.foreground": "#CCCCCC"
 	}
 }

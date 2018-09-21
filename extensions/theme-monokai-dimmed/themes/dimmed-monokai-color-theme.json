@@ -35,6 +35,8 @@
 		"activityBarBadge.background": "#3655b5",
 		"sideBar.background": "#272727",
 		"sideBarSectionHeader.background": "#505050",
+		"menu.background": "#272727",
+		"menu.foreground": "#CCCCCC",
 		"pickerGroup.foreground": "#b0b0b0",
 		"terminal.ansiWhite": "#ffffff",
 		"inputOption.activeBorder": "#3655b5",

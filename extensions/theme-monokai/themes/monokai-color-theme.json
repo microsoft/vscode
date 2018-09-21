@@ -54,6 +54,8 @@
 		"activityBar.dropBackground": "#414339",
 		"sideBar.background": "#1e1f1c",
 		"sideBarSectionHeader.background": "#272822",
+		"menu.background": "#1e1f1c",
+		"menu.foreground": "#cccccc",
 		"pickerGroup.foreground": "#75715E",
 		"input.background": "#414339",
 		"inputOption.activeBorder": "#75715E",
