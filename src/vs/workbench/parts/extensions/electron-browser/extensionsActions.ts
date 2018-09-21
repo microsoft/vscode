@@ -960,7 +960,7 @@ export class ReloadAction extends Action {
 	private throttler: Throttler;
 
 	constructor(
-		private useShortLabel: boolean,
+		private useLongLabel: boolean,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService,
@@ -1044,10 +1044,10 @@ export class ReloadAction extends Action {
 	}
 
 	private setTooltip(text: string) {
-		if (this.useShortLabel) {
-			this.tooltip = text;
-		} else {
+		if (this.useLongLabel) {
 			this.label = text;
+		} else {
+			this.tooltip = text;
 		}
 	}
 	run(): TPromise<any> {
