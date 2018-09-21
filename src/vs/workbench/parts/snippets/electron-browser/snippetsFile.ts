@@ -234,7 +234,7 @@ export class SnippetFile {
 			body = body.join('\n');
 		}
 
-		if (typeof prefix !== 'string' || typeof body !== 'string') {
+		if ((typeof prefix !== 'string' && !Array.isArray(prefix)) || typeof body !== 'string') {
 			return;
 		}
 
@@ -264,14 +264,17 @@ export class SnippetFile {
 			}
 		}
 
-		bucket.push(new Snippet(
-			scopes,
-			name,
-			prefix,
-			description,
-			body,
-			source,
-			this.source
-		));
+		let prefixes = Array.isArray(prefix) ? prefix : [prefix];
+		prefixes.forEach(p => {
+			bucket.push(new Snippet(
+				scopes,
+				name,
+				p,
+				description,
+				body,
+				source,
+				this.source
+			));
+		});
 	}
 }
