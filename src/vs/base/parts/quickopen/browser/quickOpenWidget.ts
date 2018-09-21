@@ -23,7 +23,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { StandardMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -68,6 +68,10 @@ export class QuickOpenController extends DefaultController {
 		}
 
 		return super.onContextMenu(tree, element, event);
+	}
+
+	onMouseMiddleClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+		return this.onLeftClick(tree, element, event);
 	}
 }
 

@@ -25,6 +25,8 @@ import { basename } from 'vs/base/common/paths';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Schemas } from 'vs/base/common/network';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 	private bearingResolve: Thenable<this>;
@@ -34,7 +36,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private labelService: ILabelService,
+		@IOpenerService private openerService: IOpenerService
 	) {
 		super(editorService);
 	}
@@ -79,9 +82,15 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			}, onUnexpectedError);
 		}
 
-		TPromise.as(this.bearingResolve)
-			.then(() => super.run(mode, context))
-			.then(void 0, onUnexpectedError);
+		// open after resolving
+		TPromise.as(this.bearingResolve).then(() => {
+			const scheme = this.bearing.location.uri ? this.bearing.location.uri.scheme : void 0;
+			if (scheme === Schemas.http || scheme === Schemas.https) {
+				this.openerService.open(this.bearing.location.uri); // support http/https resources (https://github.com/Microsoft/vscode/issues/58924))
+			} else {
+				super.run(mode, context);
+			}
+		});
 
 		// hide if OPEN
 		return mode === Mode.OPEN;

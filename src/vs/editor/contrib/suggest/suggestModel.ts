@@ -5,7 +5,7 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -19,6 +19,7 @@ import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, Su
 import { CompletionModel } from './completionModel';
 import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -98,7 +99,7 @@ export class SuggestModel implements IDisposable {
 	private readonly _triggerRefilter = new TimeoutTimer();
 	private _state: State;
 
-	private _requestPromise: CancelablePromise<ISuggestionItem[]>;
+	private _requestToken: CancellationTokenSource;
 	private _context: LineContext;
 	private _currentSelection: Selection;
 
@@ -114,7 +115,6 @@ export class SuggestModel implements IDisposable {
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._state = State.Idle;
-		this._requestPromise = null;
 		this._completionModel = null;
 		this._context = null;
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
@@ -230,12 +230,10 @@ export class SuggestModel implements IDisposable {
 
 		if (this._triggerQuickSuggest) {
 			this._triggerQuickSuggest.cancel();
-
 		}
 
-		if (this._requestPromise) {
-			this._requestPromise.cancel();
-			this._requestPromise = null;
+		if (this._requestToken) {
+			this._requestToken.cancel();
 		}
 
 		this._state = State.Idle;
@@ -385,18 +383,20 @@ export class SuggestModel implements IDisposable {
 			suggestCtx = { triggerKind: SuggestTriggerKind.Invoke };
 		}
 
-		this._requestPromise = createCancelablePromise(token => provideSuggestionItems(
+		this._requestToken = new CancellationTokenSource();
+
+		provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
 			this._editor.getConfiguration().contribInfo.suggest.snippets,
 			onlyFrom,
 			suggestCtx,
-			token
-		));
+			this._requestToken.token
 
-		this._requestPromise.then(items => {
+		).then(items => {
 
-			this._requestPromise = null;
+			this._requestToken.dispose();
+
 			if (this._state === State.Idle) {
 				return;
 			}

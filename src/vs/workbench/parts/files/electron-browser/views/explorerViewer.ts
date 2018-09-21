@@ -500,8 +500,20 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 					sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
 				}
 
-				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick || (event && event.middleButton) });
+				this.openEditor(stat, { preserveFocus, sideBySide, pinned: isDoubleClick });
 			}
+		}
+
+		return true;
+	}
+
+	public onMouseMiddleClick(tree: WorkbenchTree, element: ExplorerItem | Model, event: IMouseEvent): boolean {
+		let sideBySide = false;
+		if (event) {
+			sideBySide = tree.useAltAsMultipleSelectionModifier ? (event.ctrlKey || event.metaKey) : event.altKey;
+		}
+		if (element instanceof ExplorerItem && !element.isDirectory) {
+			this.openEditor(element, { preserveFocus: true, sideBySide, pinned: true });
 		}
 
 		return true;

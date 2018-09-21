@@ -68,6 +68,11 @@ function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
 	};
 }
 
+const enum TaskRunResult {
+	Failure,
+	Success
+}
+
 export class DebugService implements IDebugService {
 	_serviceBrand: any;
 
@@ -256,108 +261,107 @@ export class DebugService implements IDebugService {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() =>
-			this.textFileService.saveAll().then(() =>
-				this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
-					this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
+				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 
-						if (this.model.getSessions().length === 0) {
-							this.removeReplExpressions();
-							this.allSessions.clear();
+					if (this.model.getSessions().length === 0) {
+						this.removeReplExpressions();
+						this.allSessions.clear();
+					}
+
+					let config: IConfig, compound: ICompound;
+					if (!configOrName) {
+						configOrName = this.configurationManager.selectedConfiguration.name;
+					}
+					if (typeof configOrName === 'string' && launch) {
+						config = launch.getConfiguration(configOrName);
+						compound = launch.getCompound(configOrName);
+
+						const sessions = this.model.getSessions();
+						const alreadyRunningMessage = nls.localize('configurationAlreadyRunning', "There is already a debug configuration \"{0}\" running.", configOrName);
+						if (sessions.some(s => s.getName(false) === configOrName && (!launch || !launch.workspace || !s.root || s.root.uri.toString() === launch.workspace.uri.toString()))) {
+							return TPromise.wrapError(new Error(alreadyRunningMessage));
+						}
+						if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
+							return TPromise.wrapError(new Error(alreadyRunningMessage));
+						}
+					} else if (typeof configOrName !== 'string') {
+						config = configOrName;
+					}
+
+					if (compound) {
+						if (!compound.configurations) {
+							return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
+								"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 						}
 
-						let config: IConfig, compound: ICompound;
-						if (!configOrName) {
-							configOrName = this.configurationManager.selectedConfiguration.name;
-						}
-						if (typeof configOrName === 'string' && launch) {
-							config = launch.getConfiguration(configOrName);
-							compound = launch.getCompound(configOrName);
-
-							const sessions = this.model.getSessions();
-							const alreadyRunningMessage = nls.localize('configurationAlreadyRunning', "There is already a debug configuration \"{0}\" running.", configOrName);
-							if (sessions.some(s => s.getName(false) === configOrName && (!launch || !launch.workspace || !s.root || s.root.uri.toString() === launch.workspace.uri.toString()))) {
-								return TPromise.wrapError(new Error(alreadyRunningMessage));
+						return TPromise.join(compound.configurations.map(configData => {
+							const name = typeof configData === 'string' ? configData : configData.name;
+							if (name === compound.name) {
+								return TPromise.as(null);
 							}
-							if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
-								return TPromise.wrapError(new Error(alreadyRunningMessage));
+
+							let launchForName: ILaunch;
+							if (typeof configData === 'string') {
+								const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
+								if (launchesContainingName.length === 1) {
+									launchForName = launchesContainingName[0];
+								} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
+									// If there are multiple launches containing the configuration give priority to the configuration in the current launch
+									launchForName = launch;
+								} else {
+									return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
+										: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations '{0}' in the workspace. Use folder name to qualify the configuration.", name)));
+								}
+							} else if (configData.folder) {
+								const launchesMatchingConfigData = this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.name === configData.folder && !!l.getConfiguration(configData.name));
+								if (launchesMatchingConfigData.length === 1) {
+									launchForName = launchesMatchingConfigData[0];
+								} else {
+									return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
+								}
 							}
-						} else if (typeof configOrName !== 'string') {
-							config = configOrName;
-						}
 
-						if (compound) {
-							if (!compound.configurations) {
-								return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
-									"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
+							return this.startDebugging(launchForName, name, noDebug, unresolvedConfiguration);
+						}));
+					}
+					if (configOrName && !config) {
+						const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : JSON.stringify(configOrName)) :
+							nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
+						return TPromise.wrapError(new Error(message));
+					}
+
+					// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
+					// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
+					let type: string;
+					if (config) {
+						type = config.type;
+					} else {
+						// a no-folder workspace has no launch.config
+						config = <IConfig>{};
+					}
+					unresolvedConfiguration = unresolvedConfiguration || deepClone(config);
+
+					if (noDebug) {
+						config.noDebug = true;
+					}
+
+					return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
+						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
+							// a falsy config indicates an aborted launch
+							if (config && config.type) {
+								return this.createSession(launch, config, unresolvedConfiguration);
 							}
 
-							return TPromise.join(compound.configurations.map(configData => {
-								const name = typeof configData === 'string' ? configData : configData.name;
-								if (name === compound.name) {
-									return TPromise.as(null);
-								}
+							if (launch && type && config === null) {	// show launch.json only for "config" being "null".
+								return launch.openConfigFile(false, true, type).then(() => undefined);
+							}
 
-								let launchForName: ILaunch;
-								if (typeof configData === 'string') {
-									const launchesContainingName = this.configurationManager.getLaunches().filter(l => !!l.getConfiguration(name));
-									if (launchesContainingName.length === 1) {
-										launchForName = launchesContainingName[0];
-									} else if (launchesContainingName.length > 1 && launchesContainingName.indexOf(launch) >= 0) {
-										// If there are multiple launches containing the configuration give priority to the configuration in the current launch
-										launchForName = launch;
-									} else {
-										return TPromise.wrapError(new Error(launchesContainingName.length === 0 ? nls.localize('noConfigurationNameInWorkspace', "Could not find launch configuration '{0}' in the workspace.", name)
-											: nls.localize('multipleConfigurationNamesInWorkspace', "There are multiple launch configurations '{0}' in the workspace. Use folder name to qualify the configuration.", name)));
-									}
-								} else if (configData.folder) {
-									const launchesMatchingConfigData = this.configurationManager.getLaunches().filter(l => l.workspace && l.workspace.name === configData.folder && !!l.getConfiguration(configData.name));
-									if (launchesMatchingConfigData.length === 1) {
-										launchForName = launchesMatchingConfigData[0];
-									} else {
-										return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
-									}
-								}
-
-								return this.startDebugging(launchForName, name, noDebug, unresolvedConfiguration);
-							}));
-						}
-						if (configOrName && !config) {
-							const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : JSON.stringify(configOrName)) :
-								nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
-							return TPromise.wrapError(new Error(message));
-						}
-
-						// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
-						// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
-						let type: string;
-						if (config) {
-							type = config.type;
-						} else {
-							// a no-folder workspace has no launch.config
-							config = <IConfig>{};
-						}
-						unresolvedConfiguration = unresolvedConfiguration || deepClone(config);
-
-						if (noDebug) {
-							config.noDebug = true;
-						}
-
-						return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
-							this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
-								// a falsy config indicates an aborted launch
-								if (config && config.type) {
-									return this.createSession(launch, config, unresolvedConfiguration);
-								}
-
-								if (launch && type && config === null) {	// show launch.json only for "config" being "null".
-									return launch.openConfigFile(false, true, type).then(() => undefined);
-								}
-
-								return undefined;
-							})
-						).then(() => undefined);
-					})
-				)));
+							return undefined;
+						})
+					).then(() => undefined);
+				})
+			)));
 	}
 
 	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig): TPromise<void> {
@@ -387,8 +391,8 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch ? launch.workspace : undefined;
-				return this.runTask(workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig).then(success => {
-					if (success) {
+				return this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask).then(result => {
+					if (result === TaskRunResult.Success) {
 						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
 					}
 					return undefined;
@@ -532,7 +536,7 @@ export class DebugService implements IDebugService {
 			this.telemetryDebugSessionStop(session, adapterExitEvent);
 
 			if (session.configuration.postDebugTask) {
-				this.doRunTask(session.root, session.configuration.postDebugTask).then(undefined, err =>
+				this.runTask(session.root, session.configuration.postDebugTask).then(undefined, err =>
 					this.notificationService.error(err)
 				);
 			}
@@ -562,9 +566,9 @@ export class DebugService implements IDebugService {
 
 			const unresolvedConfiguration = session.unresolvedConfiguration;
 			if (session.capabilities.supportsRestartRequest) {
-				return this.runTask(session.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration)
-					.then(success => success ? this.runTask(session.root, session.configuration.preLaunchTask, session.configuration, unresolvedConfiguration)
-						.then(success => success ? session.restart() : undefined) : TPromise.as(<any>undefined));
+				return this.runTask(session.root, session.configuration.postDebugTask)
+					.then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask)
+						.then(taskRunResult => taskRunResult === TaskRunResult.Success ? session.restart() : <any>undefined));
 			}
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -648,7 +652,7 @@ export class DebugService implements IDebugService {
 		return TPromise.as(config);
 	}
 
-	private showError(message: string, actions: IAction[] = []): TPromise<any> {
+	private showError(message: string, actions: IAction[] = []): TPromise<boolean> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
 		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
@@ -656,44 +660,41 @@ export class DebugService implements IDebugService {
 				return actions[choice].run();
 			}
 
-			return TPromise.as(null);
+			return TPromise.as(false);
 		});
 	}
 
 	//---- task management
 
-	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: IConfig, unresolvedConfig: IConfig): TPromise<boolean> {
+	private runTaskAndCheckErrors(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<TaskRunResult> {
 
-		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
-			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig });
-		});
-
-		return this.doRunTask(root, taskId).then((taskSummary: ITaskSummary) => {
-			const errorCount = config.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => TPromise.as(TaskRunResult.Success));
+		return this.runTask(root, taskId).then((taskSummary: ITaskSummary) => {
+			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 			if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-				return true;
+				return <any>TaskRunResult.Success;
 			}
 
-			const taskId = typeof config.preLaunchTask === 'string' ? config.preLaunchTask : JSON.stringify(config.preLaunchTask);
+			const taskLabel = typeof taskId === 'string' ? taskId : taskId.name;
 			const message = errorCount > 1
-				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskId)
+				? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
-					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskId)
-					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskId, taskSummary.exitCode);
+					? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", taskLabel)
+					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode);
 
 			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
+				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => TaskRunResult.Failure);
 			});
 
-			return this.showError(message, [debugAnywayAction, showErrorsAction]).then(() => false);
+			return this.showError(message, [debugAnywayAction, showErrorsAction]);
 		}, (err: TaskError) => {
-			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]).then(() => false);
+			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
 		});
 	}
 
-	private doRunTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
+	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId || this.skipRunningTask) {
 			this.skipRunningTask = false;
 			return TPromise.as(null);
