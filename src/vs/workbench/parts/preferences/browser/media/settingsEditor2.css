@@ -107,8 +107,13 @@
 }
 
 .settings-editor > .settings-body > .no-results {
-	margin-top: 20px;
 	display: none;
+	max-width: 1000px;
+	margin: auto;
+	margin-top: 20px;
+	padding-left: 24px;
+	padding-right: 24px;
+	box-sizing: border-box;
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
