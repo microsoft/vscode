@@ -1029,7 +1029,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('Reload to activate', testObject.tooltip);
+				assert.equal('Reload to Activate', testObject.tooltip);
 				assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 			});
 	});
@@ -1064,7 +1064,7 @@ suite('ExtensionsActions Test', () => {
 				didUninstallEvent.fire({ identifier: local.identifier });
 
 				assert.ok(testObject.enabled);
-				assert.equal('Reload to deactivate', testObject.tooltip);
+				assert.equal('Reload to Deactivate', testObject.tooltip);
 				assert.equal(`Reload this window to deactivate the uninstalled extension 'a'?`, testObject.reloadMessage);
 			});
 	});
@@ -1104,7 +1104,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('Reload to update', testObject.tooltip);
+				assert.equal('Reload to Update', testObject.tooltip);
 				assert.equal(`Reload this window to activate the updated extension 'a'?`, testObject.reloadMessage);
 			});
 	});
@@ -1141,7 +1141,7 @@ suite('ExtensionsActions Test', () => {
 			return workbenchService.setEnablement(extensions[0], EnablementState.Disabled)
 				.then(() => {
 					assert.ok(testObject.enabled);
-					assert.equal('Reload to deactivate', testObject.tooltip);
+					assert.equal('Reload to Deactivate', testObject.tooltip);
 					assert.equal(`Reload this window to deactivate the extension 'a'?`, testObject.reloadMessage);
 				});
 		});
@@ -1176,7 +1176,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to activate', testObject.tooltip);
+								assert.equal('Reload to Activate', testObject.tooltip);
 								assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 							});
 					});
@@ -1219,7 +1219,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to activate', testObject.tooltip);
+								assert.equal('Reload to Activate', testObject.tooltip);
 								assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 							});
 
