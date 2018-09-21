@@ -77,7 +77,7 @@ function getTreeElementIterator<T>(elements: Iterator<ITreeElement<T>> | ITreeEl
 	if (!elements) {
 		return Iterator.empty();
 	} else if (Array.isArray(elements)) {
-		return Iterator.iterate(elements);
+		return Iterator.fromArray(elements);
 	} else {
 		return elements;
 	}
@@ -102,7 +102,7 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTree
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T>): ITreeElement<T> {
 	const { element, collapsed } = node;
-	const children = Iterator.map(Iterator.iterate(node.children), treeNodeToElement);
+	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
 
 	return { element, children, collapsed };
 }
@@ -155,7 +155,7 @@ export class TreeModel<T> {
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
 		}
 
-		return Iterator.map(Iterator.iterate(deletedNodes), treeNodeToElement);
+		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
 	}
 
 	getListIndex(location: number[]): number {
