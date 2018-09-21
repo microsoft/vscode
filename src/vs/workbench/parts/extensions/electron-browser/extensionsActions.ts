@@ -53,6 +53,7 @@ import product from 'vs/platform/node/product';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -133,11 +134,15 @@ export class InstallAction extends Action {
 	run(): TPromise<any> {
 		this.extensionsWorkbenchService.open(this.extension);
 
+		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
+
 		return this.install(this.extension);
 	}
 
 	private install(extension: IExtension): TPromise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
+		return this.extensionsWorkbenchService.install(extension).then(() => {
+			alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+		}, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
 			}
@@ -219,7 +224,11 @@ export class UninstallAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return this.extensionsWorkbenchService.uninstall(this.extension);
+		alert(localize('uninstallExtensionStart', "Uninstalling extension {0} started.", this.extension.displayName));
+
+		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
+			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension.displayName));
+		});
 	}
 
 	dispose(): void {
@@ -353,11 +362,14 @@ export class UpdateAction extends Action {
 	}
 
 	run(): TPromise<any> {
+		alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
 		return this.install(this.extension);
 	}
 
 	private install(extension: IExtension): TPromise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
+		return this.extensionsWorkbenchService.install(extension).then(() => {
+			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", this.extension.displayName, this.extension.latestVersion));
+		}, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
 			}
