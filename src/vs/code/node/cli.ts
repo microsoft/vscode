@@ -274,7 +274,7 @@ export async function main(argv: string[]): Promise<any> {
 			processCallbacks.push(async _child => {
 
 				class Profiler {
-					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number }) {
+					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, chooseTab?: Function }) {
 						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;
@@ -309,8 +309,24 @@ export async function main(argv: string[]): Promise<any> {
 				try {
 					// load and start profiler
 					const main = await Profiler.start('main', filenamePrefix, { port: portMain });
-					const renderer = await Profiler.start('renderer', filenamePrefix, { port: portRenderer, tries: 200 });
 					const extHost = await Profiler.start('extHost', filenamePrefix, { port: portExthost, tries: 300 });
+					const renderer = await Profiler.start('renderer', filenamePrefix, {
+						port: portRenderer,
+						tries: 200,
+						chooseTab: function (targets) {
+							console.log(targets);
+							return targets.find(target => {
+								if (!target.webSocketDebuggerUrl) {
+									return false;
+								}
+								if (target.type === 'page') {
+									return target.url.indexOf('workbench/workbench.html') > 0;
+								} else {
+									return true;
+								}
+							});
+						}
+					});
 
 					// wait for the renderer to delete the
 					// marker file
