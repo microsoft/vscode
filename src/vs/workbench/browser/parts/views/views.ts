@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IView } from 'vs/workbench/common/views';
+import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IView, IViewDescriptorCollection } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -63,7 +63,7 @@ interface IViewItem {
 	active: boolean;
 }
 
-class ViewDescriptorCollection extends Disposable {
+class ViewDescriptorCollection extends Disposable implements IViewDescriptorCollection {
 
 	private contextKeys = new CounterSet<string>();
 	private items: IViewItem[] = [];
@@ -208,11 +208,11 @@ export class ContributableViewsModel extends Disposable {
 
 	constructor(
 		container: ViewContainer,
-		contextKeyService: IContextKeyService,
+		viewsService: IViewsService,
 		protected viewStates = new Map<string, IViewState>(),
 	) {
 		super();
-		const viewDescriptorCollection = this._register(new ViewDescriptorCollection(container, contextKeyService));
+		const viewDescriptorCollection = viewsService.getViewDescriptors(container);
 
 		this._register(viewDescriptorCollection.onDidChange(() => this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors)));
 		this.onDidChangeViewDescriptors(viewDescriptorCollection.viewDescriptors);
@@ -407,14 +407,14 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	constructor(
 		container: ViewContainer,
 		viewletStateStorageId: string,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewsService viewsService: IViewsService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 		const hiddenViewsStorageId = `${viewletStateStorageId}.hidden`;
 		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, hiddenViewsStorageId, storageService, contextService);
 
-		super(container, contextKeyService, viewStates);
+		super(container, viewsService, viewStates);
 
 		this.viewletStateStorageId = viewletStateStorageId;
 		this.hiddenViewsStorageId = hiddenViewsStorageId;
@@ -485,19 +485,27 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: any;
 
+	private readonly viewDescriptorCollections: Map<ViewContainer, IViewDescriptorCollection>;
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IViewletService private viewletService: IViewletService,
 		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 
+		this.viewDescriptorCollections = new Map<ViewContainer, IViewDescriptorCollection>();
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
 		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
 		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, this.getStorageScope(), viewlet.id !== TEST_VIEW_CONTAINER_ID))));
+	}
+
+	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection {
+		return this.viewDescriptorCollections.get(container);
 	}
 
 	openView(id: string, focus: boolean): TPromise<IView> {
@@ -518,6 +526,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
+		this.viewDescriptorCollections.set(viewContainer, this._register(new ViewDescriptorCollection(viewContainer, this.contextKeyService)));
 		// TODO: @Joao Remove this after moving SCM Viewlet to ViewContainerViewlet - https://github.com/Microsoft/vscode/issues/49054
 		if (viewContainer.id !== SCM_VIEWLET_ID) {
 			const viewDescriptorCollection = this._register(this.instantiationService.createInstance(ViewDescriptorCollection, viewContainer));

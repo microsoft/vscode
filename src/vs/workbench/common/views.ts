@@ -113,6 +113,11 @@ export interface IViewDescriptor {
 	readonly hideByDefault?: boolean;
 }
 
+export interface IViewDescriptorCollection {
+	readonly onDidChange: Event<void>;
+	readonly viewDescriptors: IViewDescriptor[];
+}
+
 export interface IViewsRegistry {
 
 	readonly onViewsRegistered: Event<IViewDescriptor[]>;
@@ -213,6 +218,8 @@ export interface IViewsService {
 	_serviceBrand: any;
 
 	openView(id: string, focus?: boolean): TPromise<IView>;
+
+	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
 }
 
 // Custom views
