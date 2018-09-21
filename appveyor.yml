@@ -3,11 +3,11 @@ environment:
   VSCODE_BUILD_VERBOSE: true
 install:
   - ps: Install-Product node 5.10.1 x64
-  - npm install -g gulp mocha
+   npm install -g gulp mocha
 build_script:
-  - .\scripts\npm.bat install --force
-  - gulp electron
-  - gulp compile
+   .\scripts\npm.bat install --force
+   gulp electron
+   gulp compile
 test_script:
-  - .\scripts\test.bat
-  - .\scripts\test-integration.bat
+   .\scripts\test.bat
+   .\scripts\test-integration.bat

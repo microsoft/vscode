@@ -6,7 +6,7 @@
 	"author": "Microsoft Corporation",
 	"license": "MIT",
 	"publisher": "vscode",
-	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+	"aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "*"
 	},
@@ -71,13 +71,20 @@
 			"order": 20,
 			"properties": {
 				"typescript.tsdk": {
-					"type": ["string", "null"],
+					"type": [
+						"string",
+						"null"
+					],
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
 				"typescript.tsserver.trace": {
 					"type": "string",
-					"enum": ["off", "messages", "verbose"],
+					"enum": [
+						"off",
+						"messages",
+						"verbose"
+					],
 					"default": "off",
 					"description": "%typescript.tsserver.trace%"
 				},

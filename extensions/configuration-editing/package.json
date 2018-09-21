@@ -6,7 +6,8 @@
 		"vscode": "^1.0.0"
 	},
 	"categories": [
-		"Languages", "Other"
+		"Languages",
+		"Other"
 	],
 	"activationEvents": [
 		"onLanguage:json"

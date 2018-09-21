@@ -1,51 +1,74 @@
 {
   "name": "javascript",
   "version": "0.1.0",
+  "lockfileVersion": 1,
+  "requires": true,
   "dependencies": {
     "agent-base": {
       "version": "1.0.2",
-      "from": "agent-base@>=1.0.1 <1.1.0",
-      "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-1.0.2.tgz"
+      "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-1.0.2.tgz",
+      "integrity": "sha1-aJDT+yFwBLYrcPiSjg+uX4lSpwY="
     },
     "debug": {
       "version": "2.2.0",
-      "from": "debug@>=2.0.0 <3.0.0",
-      "resolved": "https://registry.npmjs.org/debug/-/debug-2.2.0.tgz"
+      "resolved": "https://registry.npmjs.org/debug/-/debug-2.2.0.tgz",
+      "integrity": "sha1-+HBX6ZWxofauaklgZkE3vFbwOdo=",
+      "requires": {
+        "ms": "0.7.1"
+      }
     },
     "extend": {
       "version": "3.0.0",
-      "from": "extend@>=3.0.0 <4.0.0",
-      "resolved": "https://registry.npmjs.org/extend/-/extend-3.0.0.tgz"
+      "resolved": "https://registry.npmjs.org/extend/-/extend-3.0.0.tgz",
+      "integrity": "sha1-WkdDU7nzNT3dgXbf03uRyDpG8dQ="
     },
     "http-proxy-agent": {
       "version": "0.2.7",
-      "from": "http-proxy-agent@>=0.2.6 <0.3.0",
-      "resolved": "https://registry.npmjs.org/http-proxy-agent/-/http-proxy-agent-0.2.7.tgz"
+      "resolved": "https://registry.npmjs.org/http-proxy-agent/-/http-proxy-agent-0.2.7.tgz",
+      "integrity": "sha1-4X/aZfCQLZUs55IeYsf/iGJlWl4=",
+      "requires": {
+        "agent-base": "~1.0.1",
+        "debug": "2",
+        "extend": "3"
+      }
     },
     "https-proxy-agent": {
       "version": "0.3.6",
-      "from": "https-proxy-agent@>=0.3.5 <0.4.0",
-      "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz"
+      "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-0.3.6.tgz",
+      "integrity": "sha1-cT+jjl01P1DrFKNC/r4pAz7RYZs=",
+      "requires": {
+        "agent-base": "~1.0.1",
+        "debug": "2",
+        "extend": "3"
+      }
     },
     "jsonc-parser": {
       "version": "0.2.3",
-      "from": "jsonc-parser@>=0.2.2 <0.3.0",
-      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.2.3.tgz"
+      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.2.3.tgz",
+      "integrity": "sha1-X0wlYgK/REhoSPu1x9pA7muOFvg=",
+      "requires": {
+        "vscode-nls": "^1.0.4"
+      }
     },
     "ms": {
       "version": "0.7.1",
-      "from": "ms@0.7.1",
-      "resolved": "https://registry.npmjs.org/ms/-/ms-0.7.1.tgz"
+      "resolved": "https://registry.npmjs.org/ms/-/ms-0.7.1.tgz",
+      "integrity": "sha1-nNE8A62/8ltl7/3nzoZO6VIBcJg="
     },
     "request-light": {
       "version": "0.1.0",
-      "from": "request-light@>=0.1.0 <0.2.0",
-      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.1.0.tgz"
+      "resolved": "https://registry.npmjs.org/request-light/-/request-light-0.1.0.tgz",
+      "integrity": "sha1-/mXd/7suh5RPDMr9hcuDnpE4U0U=",
+      "requires": {
+        "http-proxy-agent": "^0.2.6",
+        "https-proxy-agent": "^0.3.5",
+        "vscode-nls": "^1.0.4"
+      }
     },
     "vscode-nls": {
       "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz",
+      "integrity": "sha1-KYwB/Oh4AsZEwKFe9SajPGLA1Y4="
     }
   }
 }

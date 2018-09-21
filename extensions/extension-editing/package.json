@@ -6,7 +6,8 @@
 		"vscode": "^1.4.0"
 	},
 	"categories": [
-		"Languages", "Other"
+		"Languages",
+		"Other"
 	],
 	"activationEvents": [
 		"onLanguage:typescript"

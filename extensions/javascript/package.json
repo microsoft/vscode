@@ -2,9 +2,12 @@
 	"name": "javascript",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "0.10.x" },
+	"engines": {
+		"vscode": "0.10.x"
+	},
 	"activationEvents": [
-		"onLanguage:javascript", "onLanguage:json"
+		"onLanguage:javascript",
+		"onLanguage:json"
 	],
 	"main": "./out/javascriptMain",
 	"dependencies": {

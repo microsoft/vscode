@@ -1,16 +1,21 @@
 {
   "name": "configuration-editing",
   "version": "0.0.1",
+  "lockfileVersion": 1,
+  "requires": true,
   "dependencies": {
     "jsonc-parser": {
       "version": "0.2.3",
-      "from": "jsonc-parser@>=0.2.2 <0.3.0",
-      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.2.3.tgz"
+      "resolved": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-0.2.3.tgz",
+      "integrity": "sha1-X0wlYgK/REhoSPu1x9pA7muOFvg=",
+      "requires": {
+        "vscode-nls": "^1.0.4"
+      }
     },
     "vscode-nls": {
       "version": "1.0.7",
-      "from": "vscode-nls@>=1.0.4 <2.0.0",
-      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz"
+      "resolved": "https://registry.npmjs.org/vscode-nls/-/vscode-nls-1.0.7.tgz",
+      "integrity": "sha1-KYwB/Oh4AsZEwKFe9SajPGLA1Y4="
     }
   }
 }
