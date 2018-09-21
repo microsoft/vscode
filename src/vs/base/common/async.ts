@@ -709,8 +709,12 @@ declare module global {
 }
 (function () {
 	if (!global.requestIdleCallback || !global.cancelIdleCallback) {
-		console.warn('requestIdleCallback not available. using fallback');
+		let warned = false;
 		runWhenIdle = (runner, timeout?) => {
+			if (!warned) {
+				console.warn('requestIdleCallback not available. using fallback');
+				warned = true;
+			}
 			let handle = setTimeout(() => runner({ didTimeout: true, timeRemaining() { return Number.MAX_VALUE; } }), timeout);
 			return { dispose() { clearTimeout(handle); } };
 		};
