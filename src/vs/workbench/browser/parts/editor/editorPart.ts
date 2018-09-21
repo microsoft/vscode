@@ -660,7 +660,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		const groupHasFocus = isAncestor(document.activeElement, sourceView.element);
 
-		// Move is a simple remove and add of the same view
+		// Move through grid widget API
 		this.gridWidget.moveView(sourceView, Sizing.Distribute, targetView, this.toGridViewDirection(direction));
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
