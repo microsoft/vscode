@@ -369,7 +369,7 @@ export class ExtensionEditor extends BaseEditor {
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
+		const reloadAction = this.instantiationService.createInstance(ReloadAction, true);
 
 		installAction.extension = extension;
 		maliciousStatusAction.extension = extension;

@@ -972,6 +972,7 @@ export class ReloadAction extends Action {
 	private throttler: Throttler;
 
 	constructor(
+		private useLongLabel: boolean,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWindowService private windowService: IWindowService,
 		@IExtensionService private extensionService: IExtensionService,
@@ -1019,14 +1020,14 @@ export class ReloadAction extends Action {
 				if (isDifferentVersionRunning && !isDisabled) {
 					// Requires reload to run the updated extension
 					this.enabled = true;
-					this.tooltip = localize('postUpdateTooltip', "Reload to update");
+					this.setTooltip(localize('postUpdateTooltip', "Reload to Update"));
 					this.reloadMessage = localize('postUpdateMessage', "Reload this window to activate the updated extension '{0}'?", this.extension.displayName);
 					return;
 				}
 				if (isDisabled) {
 					// Requires reload to disable the extension
 					this.enabled = true;
-					this.tooltip = localize('postDisableTooltip', "Reload to deactivate");
+					this.setTooltip(localize('postDisableTooltip', "Reload to Deactivate"));
 					this.reloadMessage = localize('postDisableMessage', "Reload this window to deactivate the extension '{0}'?", this.extension.displayName);
 					return;
 				}
@@ -1037,7 +1038,7 @@ export class ReloadAction extends Action {
 				if (extensionServer && extensionServer.authority === localServer.authority && !isDisabled) {
 					// Requires reload to enable the extension
 					this.enabled = true;
-					this.tooltip = localize('postEnableTooltip', "Reload to activate");
+					this.setTooltip(localize('postEnableTooltip', "Reload to Activate"));
 					this.reloadMessage = localize('postEnableMessage', "Reload this window to activate the extension '{0}'?", this.extension.displayName);
 					return;
 				}
@@ -1048,12 +1049,19 @@ export class ReloadAction extends Action {
 		if (isUninstalled && runningExtension) {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
-			this.tooltip = localize('postUninstallTooltip', "Reload to deactivate");
+			this.setTooltip(localize('postUninstallTooltip', "Reload to Deactivate"));
 			this.reloadMessage = localize('postUninstallMessage', "Reload this window to deactivate the uninstalled extension '{0}'?", this.extension.displayName);
 			return;
 		}
 	}
 
+	private setTooltip(text: string) {
+		if (this.useLongLabel) {
+			this.label = text;
+		} else {
+			this.tooltip = text;
+		}
+	}
 	run(): TPromise<any> {
 		return this.windowService.reloadWindow();
 	}
