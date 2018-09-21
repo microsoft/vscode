@@ -206,13 +206,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
 
-			// Track the last edit location: count up on a version ID to correlate
-			// with cursor change events to avoid remembering cursor locations that
-			// do not originate from content changes.
-
-			// TODO this does not work for edits via keyboard shortcuts (e.g. Cut)
-
-			this.activeEditorListeners.push(activeTextEditorWidget.onDidType(() => {
+			// Track the last edit location by tracking model content change events
+			this.activeEditorListeners.push(activeTextEditorWidget.onDidChangeModelContent(() => {
 				const position = activeTextEditorWidget.getPosition();
 
 				this.lastEditLocation = {
