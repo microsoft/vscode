@@ -16,7 +16,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -89,7 +89,6 @@ export class DebugService implements IDebugService {
 	private debugState: IContextKey<string>;
 	private inDebugMode: IContextKey<boolean>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
-	private skipRunningTask: boolean;
 	private initializing = false;
 	private previousState: State;
 
@@ -148,7 +147,9 @@ export class DebugService implements IDebugService {
 
 					case EXTENSION_ATTACH_BROADCAST_CHANNEL:
 						// EH was started in debug mode -> attach to it
-						this.attachExtensionHost(session, broadcast.payload.port);
+						session.configuration.request = 'attach';
+						session.configuration.port = broadcast.payload.port;
+						this.launchOrAttachToSession(session);
 						break;
 
 					case EXTENSION_TERMINATE_BROADCAST_CHANNEL:
@@ -415,15 +416,13 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private attachExtensionHost(session: IDebugSession, port: number): TPromise<void> {
-
-		session.configuration.request = 'attach';
-		session.configuration.port = port;
+	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
-
 		return session.initialize(dbgr).then(() => {
 			session.launchOrAttach(session.configuration).then(() => {
-				this.focusStackFrame(undefined, undefined, session);
+				if (focus) {
+					this.focusStackFrame(undefined, undefined, session);
+				}
 			});
 		});
 	}
@@ -440,64 +439,30 @@ export class DebugService implements IDebugService {
 		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
-		const resolved = configuration.resolved;
-		const dbgr = this.configurationManager.getDebugger(resolved.type);
+		return this.launchOrAttachToSession(session).then(() => {
 
-		return session.initialize(dbgr).then(() => {
+			// since the initialized response has arrived announce the new Session (including extensions)
+			this._onDidNewSession.fire(session);
 
-			return session.launchOrAttach(resolved).then(() => {
+			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
+			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
+				this.panelService.openPanel(REPL_ID, false);
+			}
 
-				this.focusStackFrame(undefined, undefined, session);
+			const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
+			// Open debug viewlet based on the visibility of the side bar and openDebug setting
+			if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
+				this.viewletService.openViewlet(VIEWLET_ID);
+			}
+			this.viewModel.firstSessionStart = false;
 
-				// since the initialized response has arrived announce the new Session (including extensions)
-				this._onDidNewSession.fire(session);
+			this.debugType.set(session.configuration.type);
+			if (this.model.getSessions().length > 1) {
+				this.viewModel.setMultiSessionView(true);
+			}
 
-				const internalConsoleOptions = resolved.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
-				if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
-					this.panelService.openPanel(REPL_ID, false);
-				}
-
-				const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-				// Open debug viewlet based on the visibility of the side bar and openDebug setting
-				if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
-					this.viewletService.openViewlet(VIEWLET_ID);
-				}
-				this.viewModel.firstSessionStart = false;
-
-				this.debugType.set(resolved.type);
-				if (this.model.getSessions().length > 1) {
-					this.viewModel.setMultiSessionView(true);
-				}
-
-				return this.telemetryDebugSessionStart(root, resolved.type, dbgr.extensionDescription);
-
-			}).then(() => session, (error: Error | string) => {
-
-				if (session) {
-					session.shutdown();
-				}
-
-				if (errors.isPromiseCanceledError(error)) {
-					// don't show 'canceled' error messages to the user #7906
-					return TPromise.as(undefined);
-				}
-
-				// Show the repl if some error got logged there #5870
-				if (this.model.getReplElements().length > 0) {
-					this.panelService.openPanel(REPL_ID, false);
-				}
-
-				if (resolved && resolved.request === 'attach' && resolved.__autoAttach) {
-					// ignore attach timeouts in auto attach mode
-				} else {
-					const errorMessage = error instanceof Error ? error.message : error;
-					this.telemetryDebugMisconfiguration(resolved ? resolved.type : undefined, errorMessage);
-					this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
-				}
-				return TPromise.as(undefined);
-			});
-
-		}).then(undefined, error => {
+			return this.telemetryDebugSessionStart(root, session.configuration.type);
+		}).then(() => session, (error: Error | string) => {
 
 			if (session) {
 				session.shutdown();
@@ -505,9 +470,22 @@ export class DebugService implements IDebugService {
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
-				return TPromise.as(null);
+				return TPromise.as(undefined);
 			}
-			return TPromise.wrapError(error);
+
+			// Show the repl if some error got logged there #5870
+			if (this.model.getReplElements().length > 0) {
+				this.panelService.openPanel(REPL_ID, false);
+			}
+
+			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
+				// ignore attach timeouts in auto attach mode
+			} else {
+				const errorMessage = error instanceof Error ? error.message : error;
+				this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
+				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			}
+			return TPromise.as(undefined);
 		});
 	}
 
@@ -561,61 +539,57 @@ export class DebugService implements IDebugService {
 	}
 
 	restartSession(session: IDebugSession, restartData?: any): TPromise<any> {
-
 		return this.textFileService.saveAll().then(() => {
-
-			const unresolvedConfiguration = session.unresolvedConfiguration;
-			if (session.capabilities.supportsRestartRequest) {
-				return this.runTask(session.root, session.configuration.postDebugTask)
-					.then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask)
-						.then(taskRunResult => taskRunResult === TaskRunResult.Success ? session.restart() : <any>undefined));
-			}
-
-			const focusedSession = this.viewModel.focusedSession;
-			const preserveFocus = focusedSession && session.getId() === focusedSession.getId();
-
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			const isAutoRestart = !!restartData;
-			this.skipRunningTask = isAutoRestart;
+			const taskPromise = isAutoRestart ? TPromise.as(TaskRunResult.Success) :
+				this.runTask(session.root, session.configuration.postDebugTask).then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
 
-			if (isExtensionHostDebugging(session.configuration) && session.root) {
-				return this.broadcastService.broadcast({
-					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-					payload: [session.root.uri.toString()]
-				});
-			}
-
-			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
-			return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
-
-				return new TPromise<void>((c, e) => {
-					setTimeout(() => {
-						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-						let configToUse = session.configuration;
-
-						const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
-						if (launch) {
-							const config = launch.getConfiguration(session.configuration.name);
-							if (config && !equals(config, unresolvedConfiguration)) {
-								// Take the type from the session since the debug extension might overwrite it #21316
-								configToUse = config;
-								configToUse.type = session.configuration.type;
-								configToUse.noDebug = session.configuration.noDebug;
-							}
-						}
-						configToUse.__restart = restartData;
-						this.skipRunningTask = isAutoRestart;
-						this.startDebugging(launch, configToUse, configToUse.noDebug, unresolvedConfiguration).then(() => c(null), err => e(err));
-					}, 300);
-				});
-			}).then(() => {
-				if (preserveFocus) {
-					// Restart should preserve the focused session
-					const restartedSession = this.model.getSessions().filter(p => p.configuration.name === session.configuration.name).pop();
-					if (restartedSession && restartedSession !== this.viewModel.focusedSession) {
-						this.focusStackFrame(undefined, undefined, restartedSession);
-					}
+			return taskPromise.then(taskRunResult => {
+				if (taskRunResult !== TaskRunResult.Success) {
+					return;
 				}
+				if (session.capabilities.supportsRestartRequest) {
+					return session.restart().then(() => void 0);
+				}
+
+				const shouldFocus = this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
+				if (isExtensionHostDebugging(session.configuration) && session.root) {
+					return this.broadcastService.broadcast({
+						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+						payload: [session.root.uri.toString()]
+					});
+				}
+
+				// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
+				return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
+
+					return new TPromise<void>((c, e) => {
+						setTimeout(() => {
+							// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+							let needsToSubstitute = false;
+							let unresolved: IConfig;
+							const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
+							if (launch) {
+								unresolved = launch.getConfiguration(session.configuration.name);
+								if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
+									// Take the type from the session since the debug extension might overwrite it #21316
+									unresolved.type = session.configuration.type;
+									unresolved.noDebug = session.configuration.noDebug;
+									needsToSubstitute = true;
+								}
+							}
+
+							(needsToSubstitute ? this.substituteVariables(launch, unresolved) : TPromise.as(session.configuration)).then(resolved => {
+								session.setConfiguration({ resolved, unresolved });
+								session.configuration.__restart = restartData;
+
+								this.launchOrAttachToSession(session, shouldFocus)
+									.then(() => c(null), err => e(err));
+							});
+						}, 300);
+					});
+				});
 			});
 		});
 	}
@@ -695,8 +669,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
-		if (!taskId || this.skipRunningTask) {
-			this.skipRunningTask = false;
+		if (!taskId) {
 			return TPromise.as(null);
 		}
 		// run a task before starting a debug session
@@ -1131,7 +1104,8 @@ export class DebugService implements IDebugService {
 
 	//---- telemetry
 
-	private telemetryDebugSessionStart(root: IWorkspaceFolder, type: string, extension: IExtensionDescription): TPromise<any> {
+	private telemetryDebugSessionStart(root: IWorkspaceFolder, type: string): TPromise<any> {
+		const extension = this.configurationManager.getDebugger(type).extensionDescription;
 		/* __GDPR__
 			"debugSessionStart" : {
 				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
