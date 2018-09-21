@@ -25,12 +25,12 @@ suite('Snippets', function () {
 		assert.equal(bucket.length, 0);
 
 		file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
-			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test'),
-			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test'),
-			new Snippet(['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test'),
-			new Snippet(['bar.comment'], 'BarSnippet2', 'foo', '', 'snippet', 'test'),
-			new Snippet(['bar.strings'], 'BarSnippet2', 'foo', '', 'snippet', 'test'),
-			new Snippet(['bazz', 'bazz'], 'BazzSnippet1', 'foo', '', 'snippet', 'test'),
+			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(['foo'], 'FooSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(['bar'], 'BarSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(['bar.comment'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(['bar.strings'], 'BarSnippet2', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(['bazz', 'bazz'], 'BazzSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
 		]);
 
 		bucket = [];
@@ -57,8 +57,8 @@ suite('Snippets', function () {
 	test('SnippetFile#select - any scope', function () {
 
 		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
-			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test'),
-			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test'),
+			new Snippet([], 'AnySnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
+			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
 		]);
 
 		let bucket: Snippet[] = [];

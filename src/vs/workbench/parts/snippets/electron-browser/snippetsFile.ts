@@ -30,7 +30,7 @@ export class Snippet {
 		readonly description: string,
 		readonly body: string,
 		readonly source: string,
-		readonly isFromExtension?: boolean,
+		readonly snippetSource: SnippetSource,
 	) {
 		//
 		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
@@ -60,12 +60,10 @@ export class Snippet {
 	}
 
 	static compare(a: Snippet, b: Snippet): number {
-		if (a.isFromExtension !== b.isFromExtension) {
-			if (a.isFromExtension) {
-				return 1;
-			} else {
-				return -1;
-			}
+		if (a.snippetSource < b.snippetSource) {
+			return -1;
+		} else if (a.snippetSource > b.snippetSource) {
+			return 1;
 		} else if (a.name > b.name) {
 			return 1;
 		} else if (a.name < b.name) {
@@ -273,7 +271,7 @@ export class SnippetFile {
 			description,
 			body,
 			source,
-			this._extension !== void 0
+			this.source
 		));
 	}
 }

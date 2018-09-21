@@ -356,7 +356,7 @@ export class SnippetSuggestion implements ISuggestion {
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.body;
 		this.overwriteBefore = overwriteBefore;
-		this.sortText = `${snippet.isFromExtension ? 'z' : 'a'}-${snippet.prefix}`;
+		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
 		this.type = 'snippet';
 		this.insertTextIsSnippet = true;
