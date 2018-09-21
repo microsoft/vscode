@@ -551,6 +551,7 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e) => this.onMouseMiddleClick(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
@@ -1210,6 +1211,20 @@ export class TreeView extends HeightMap {
 		this.lastClickTimeStamp = Date.now();
 
 		this.context.controller.onClick(this.context.tree, item.model.getElement(), event);
+	}
+
+	private onMouseMiddleClick(e: MouseEvent): void {
+		if (!this.context.controller.onMouseMiddleClick) {
+			return;
+		}
+
+		var event = new Mouse.StandardMouseEvent(e);
+		var item = this.getItemAround(event.target);
+
+		if (!item) {
+			return;
+		}
+		this.context.controller.onMouseMiddleClick(this.context.tree, item.model.getElement(), event);
 	}
 
 	private onMouseDown(e: MouseEvent): void {

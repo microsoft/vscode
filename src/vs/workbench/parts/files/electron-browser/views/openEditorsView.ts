@@ -252,28 +252,27 @@ export class OpenEditorsView extends ViewletPanel {
 		});
 
 		// Open when selecting via keyboard
+		this.disposables.push(this.list.onMouseMiddleClick(e => {
+			if (e && e.element instanceof OpenEditor) {
+				e.element.group.closeEditor(e.element.editor);
+			}
+		}));
 		this.disposables.push(this.list.onOpen(e => {
 			const browserEvent = e.browserEvent;
 
 			let openToSide = false;
 			let isSingleClick = false;
 			let isDoubleClick = false;
-			let isMiddleClick = false;
 			if (browserEvent instanceof MouseEvent) {
 				isSingleClick = browserEvent.detail === 1;
 				isDoubleClick = browserEvent.detail === 2;
-				isMiddleClick = browserEvent.button === 1 /* middle button */;
 				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
 			}
 
 			const focused = this.list.getFocusedElements();
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
-				if (isMiddleClick) {
-					element.group.closeEditor(element.editor);
-				} else {
-					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
-				}
+				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 			} else {
 				this.editorGroupService.activateGroup(element);
 			}
