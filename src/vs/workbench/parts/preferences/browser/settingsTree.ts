@@ -366,7 +366,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	private settingActions: IAction[];
 
 	constructor(
-		_measureContainer: HTMLElement,
+		_measureParent: HTMLElement,
 		@IThemeService private themeService: IThemeService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -376,7 +376,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		@IKeybindingService private keybindingService: IKeybindingService,
 	) {
 		this.descriptionMeasureContainer = $('.setting-item-description');
-		DOM.append(_measureContainer,
+		DOM.append(_measureParent,
 			$('.setting-measure-container.monaco-tree-row', undefined,
 				$('.setting-item', undefined,
 					this.descriptionMeasureContainer)));

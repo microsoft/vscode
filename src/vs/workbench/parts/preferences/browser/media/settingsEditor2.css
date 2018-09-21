@@ -8,9 +8,7 @@
 }
 
 .settings-editor {
-	padding: 11px 24px 0px;
-	max-width: 1000px;
-	margin: auto;
+	padding: 11px 0px 0px;
 }
 
 /* header styling */
@@ -19,6 +17,9 @@
 	margin: auto;
 	overflow: hidden;
 	padding-top: 3px;
+	padding-left: 24px;
+	padding-right: 24px;
+	max-width: 1000px;
 }
 
 .settings-editor > .settings-header > .search-container {
@@ -91,7 +92,8 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
-	padding: 0px; /* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
+	padding: 0px;
+	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
@@ -102,12 +104,6 @@
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
-}
-
-.settings-editor > .settings-body {
-	display: flex;
-	margin: auto;
-	max-width: 1000px;
 }
 
 .settings-editor > .settings-body > .no-results {
@@ -126,10 +122,27 @@
 	margin-left: 0px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
+	max-width: 1000px;
+	margin: auto;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
+	margin-left: 208px;
+	width: calc(100% - 208px);
+}
+
+.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows,
+.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
+	/* 3 margin + 20 padding + 2 border */
+	width: calc(100% - 25px);
+	margin-left: 25px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/* 20 from monaco-tree-row */
-	padding-left: 20px;
-	width: calc(100% - 33px);
+	/* 208 margin + 20 padding + 2 border */
+	margin-left: 230px;
+	width: calc(100% - 230px);
 	border: 1px solid transparent;
 }
 
@@ -138,20 +151,14 @@
 	display: none !important;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .shadow.top:not(.top-left-corner) {
-	position: absolute;
-	left: -160px; /* toc width */
-	right: 0px;
-	width: initial;
-}
-
-.settings-editor > .settings-body > .settings-tree-container > .monaco-tree .shadow.top.top-left-corner {
-	position: absolute;
-	left: -160px;
+.settings-editor > .settings-body > .settings-tree-container .shadow.top {
+	max-width: 1000px;
+	margin: auto;
 }
 
 .settings-editor > .settings-body > .settings-tree-container > .monaco-tree .monaco-scrollable-element {
-	overflow: visible !important; /* so the shadow can be drawn outside the scrollable element */
+	overflow: visible !important;
+	/* so the shadow can be drawn outside the scrollable element */
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
@@ -192,8 +199,15 @@
 }
 
 .settings-editor > .settings-body .settings-toc-container {
+	width: 100%;
+	pointer-events: none;
+	z-index: 100;
+	position: absolute;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree {
 	width: 160px;
-	margin-top: 16px;
+	pointer-events: initial;
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-toc-container,
@@ -246,13 +260,23 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container {
-	flex: 1;
-	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
-	margin-left: 20px;
+	margin-right: 1px;
+	/* So the item doesn't blend into the edge of the view container  */
 	margin-top: 14px;
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
+}
+
+.settings-editor > .settings-body .settings-toc-wrapper {
+	padding-left: 31px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper,
+.settings-editor > .settings-body .settings-toc-wrapper {
+	height: 100%;
+	max-width: 1000px;
+	margin: auto;
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container,
@@ -261,7 +285,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree-row {
-	overflow: visible; /* so validation messages dont get clipped */
+	overflow: visible;
+	/* so validation messages dont get clipped */
 	cursor: default;
 }
 
@@ -374,7 +399,8 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description-markdown code {
-	line-height: 15px; /** For some reason, this is needed, otherwise <code> will take up 20px height */
+	line-height: 15px;
+	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
