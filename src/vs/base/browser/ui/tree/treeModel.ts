@@ -166,16 +166,16 @@ export class TreeModel<T> {
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {
-		return this._setCollapsed(location, collapsed);
+		const { node, listIndex, visible } = this.findNode(location);
+		return this._setCollapsed(node, listIndex, visible, collapsed);
 	}
 
 	toggleCollapsed(location: number[]): void {
-		this._setCollapsed(location);
+		const { node, listIndex, visible } = this.findNode(location);
+		this._setCollapsed(node, listIndex, visible);
 	}
 
-	private _setCollapsed(location: number[], collapsed?: boolean | undefined): boolean {
-		const { node, listIndex, visible } = this.findNode(location);
-
+	private _setCollapsed(node: IMutableTreeNode<T>, listIndex: number, visible: boolean, collapsed?: boolean | undefined): boolean {
 		if (!node.collapsible) {
 			return false;
 		}
@@ -195,11 +195,27 @@ export class TreeModel<T> {
 			const toInsert = updateVisibleCount(node);
 
 			this.list.splice(listIndex + 1, previousVisibleCount - 1, toInsert.slice(1));
+			this._onDidChangeCollapseState.fire(node);
 		}
 
-		this._onDidChangeCollapseState.fire(node);
-
 		return true;
+	}
+
+	// TODO@joao cleanup
+	setCollapsedAll(collapsed: boolean): void {
+		if (collapsed) {
+			const queue = [...this.root.children]; // TODO@joao use a linked list
+			let listIndex = 0;
+
+			while (queue.length > 0) {
+				const node = queue.shift();
+				const visible = listIndex < this.root.children.length;
+				this._setCollapsed(node, listIndex, visible, collapsed);
+
+				queue.push(...node.children);
+				listIndex++;
+			}
+		}
 	}
 
 	isCollapsed(location: number[]): boolean {

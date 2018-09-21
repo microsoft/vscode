@@ -44,21 +44,40 @@
 
 			const tree = new Tree(container, delegate, [renderer]);
 
-			const xhr = new XMLHttpRequest();
-			xhr.open('GET', '/api/ls?path=');
-			xhr.send();
-			xhr.onreadystatechange = function () {
-				if (this.readyState == 4 && this.status == 200) {
-					const data = JSON.parse(this.responseText);
+			function setModel(model) {
+				performance.mark('before splice');
+				const start = performance.now();
+				tree.splice([0], 0, model);
+				console.log('splice took', performance.now() - start);
+				performance.mark('after splice');
+			}
 
-					performance.mark('before splice');
-					const start = performance.now();
-					tree.splice([0], 0, [data]);
-					console.log('splice took', performance.now() - start);
-					performance.mark('after splice');
+			switch (location.search) {
+				case '?problems': {
+					const files = [];
+					for (let i = 0; i < 10000; i++) {
+						const errors = [];
 
+						for (let j = 1; j <= (i % 5) + 1; j++) {
+							errors.push({ element: `error #${j}` });
+						}
+
+						files.push({ element: `file #${i}`, children: errors });
+					}
+					setModel(files);
+					break;
 				}
-			};
+				default:
+					const xhr = new XMLHttpRequest();
+					xhr.open('GET', '/api/ls?path=');
+					xhr.send();
+					xhr.onreadystatechange = function () {
+						if (this.readyState == 4 && this.status == 200) {
+							setModel([JSON.parse(this.responseText)]);
+						}
+					};
+			}
+
 		});
 	</script>
 </body>
