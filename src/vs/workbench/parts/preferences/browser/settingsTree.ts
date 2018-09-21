@@ -43,7 +43,7 @@ import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsLayout
 import { ISettingsEditorViewState, isExcludeSetting, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IExcludeDataItem, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
-import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -331,6 +331,7 @@ const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
 export interface ISettingChangeEvent {
 	key: string;
 	value: any; // undefined => reset/unconfigure
+	type: SettingValueType | SettingValueType[];
 }
 
 export interface ISettingLinkClickEvent {
@@ -384,7 +385,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
 				if (context) {
-					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined });
+					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
 				}
 
 				return TPromise.wrap(null);
@@ -915,7 +916,8 @@ export class SettingsRenderer implements ITreeRenderer {
 
 				this._onDidChangeSetting.fire({
 					key: template.context.setting.key,
-					value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue)
+					value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
+					type: template.context.valueType
 				});
 			}
 		}));
@@ -1097,7 +1099,7 @@ export class SettingsRenderer implements ITreeRenderer {
 	}
 
 	private renderValue(element: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
-		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
+		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context.valueType });
 		template.deprecationWarningElement.innerText = element.setting.deprecationMessage || '';
 
 		if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
