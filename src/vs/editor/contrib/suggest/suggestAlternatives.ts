@@ -68,7 +68,7 @@ export class SuggestAlternatives {
 			if (newIndex === index) {
 				break;
 			}
-			if (!model.items[newIndex].suggestion.insertTextIsSnippet && !model.items[newIndex].suggestion.additionalTextEdits) {
+			if (!model.items[newIndex].suggestion.additionalTextEdits) {
 				break;
 			}
 		}
