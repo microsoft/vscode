@@ -385,7 +385,7 @@ export class SettingsRenderer implements ITreeRenderer {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
 				if (context) {
-					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type });
+					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
 				}
 
 				return TPromise.wrap(null);

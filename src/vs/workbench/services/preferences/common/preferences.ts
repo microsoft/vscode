@@ -63,7 +63,7 @@ export interface ISetting {
 	deprecationMessage?: string;
 
 	scope?: ConfigurationScope;
-	type?: SettingValueType | SettingValueType[];
+	type?: string | string[];
 	enum?: string[];
 	enumDescriptions?: string[];
 	enumDescriptionsAreMarkdown?: boolean;
