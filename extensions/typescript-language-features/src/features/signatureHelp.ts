@@ -27,22 +27,17 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		if (!filepath) {
 			return undefined;
 		}
+
 		const args: Proto.SignatureHelpRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
 			triggerReason: toTsTriggerReason(context!)
 		};
-
-		let info: Proto.SignatureHelpItems;
-		try {
-			const { body } = await this.client.execute('signatureHelp', args, token);
-			if (!body) {
-				return undefined;
-			}
-			info = body;
-		} catch {
+		const response = await this.client.execute('signatureHelp', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
+		const info = response.body;
 		const result = new vscode.SignatureHelp();
 		result.activeSignature = info.selectedItemIndex;
 		result.activeParameter = this.getActiveParmeter(info);

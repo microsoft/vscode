@@ -375,6 +375,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set count(count: number | undefined) {
+		if (this._count === count) {
+			return;
+		}
+
 		this._count = count;
 		this._proxy.$updateSourceControl(this.handle, { count });
 	}

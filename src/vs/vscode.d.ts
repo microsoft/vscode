@@ -6229,11 +6229,16 @@ declare module 'vscode' {
 		export function createInputBox(): InputBox;
 
 		/**
-		 * Create a new [output channel](#OutputChannel) with the given name.
+		 * Creates a new [output channel](#OutputChannel) with the given name.
+		 *
+		 * By default, Output channels use a separate transport mechanism when appending data.
+		 * This helps to reduce CPU load on the UI process but also means that the output channel UI updates with a small delay.
+		 * Use the force-flag to enforce immediate updates at the cost of higher CPU usage.
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param options Options to control how the channel will be created.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		export function createOutputChannel(name: string, options?: { force?: boolean }): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
@@ -7333,7 +7338,8 @@ declare module 'vscode' {
 		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
 
 		/**
-		 * An event that is emitted when a [text document](#TextDocument) is opened.
+		 * An event that is emitted when a [text document](#TextDocument) is opened or when the language id
+		 * of a text document [has been changed](#languages.setTextDocumentLanguage).
 		 *
 		 * To add an event listener when a visible text document is opened, use the [TextEditor](#TextEditor) events in the
 		 * [window](#window) namespace. Note that:
@@ -7346,7 +7352,8 @@ declare module 'vscode' {
 		export const onDidOpenTextDocument: Event<TextDocument>;
 
 		/**
-		 * An event that is emitted when a [text document](#TextDocument) is disposed.
+		 * An event that is emitted when a [text document](#TextDocument) is disposed or when the language id
+		 * of a text document [has been changed](#languages.setTextDocumentLanguage).
 		 *
 		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
 		 * [window](#window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
@@ -7476,6 +7483,19 @@ declare module 'vscode' {
 		 * @return Promise resolving to an array of identifier strings.
 		 */
 		export function getLanguages(): Thenable<string[]>;
+
+		/**
+		 * Set (and change) the [language](#TextDocument.languageId) that is associated
+		 * with the given document.
+		 *
+		 * *Note* that calling this function will trigger the [`onDidCloseTextDocument`](#workspace.onDidCloseTextDocument) event
+		 * followed by the [`onDidOpenTextDocument`](#workspace.onDidOpenTextDocument) event.
+		 *
+		 * @param document The document which language is to be changed
+		 * @param languageId The new language identifier.
+		 * @returns A thenable that resolves with the updated document.
+		 */
+		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
 
 		/**
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values

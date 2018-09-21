@@ -149,10 +149,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, handle: number): Thenable<void> {
+	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasProvideDebugAdapter: boolean, hasTracker: boolean, handle: number): Thenable<void> {
 
 		const provider = <IDebugConfigurationProvider>{
-			type: debugType
+			type: debugType,
+			hasTracker: hasTracker
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder) => {

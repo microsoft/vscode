@@ -101,6 +101,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
+		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
+		telemetryLogService.info('===========================================================');
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
 		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {

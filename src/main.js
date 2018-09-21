@@ -54,6 +54,22 @@ configureCommandlineSwitches(args, nodeCachedDataDir);
 
 // Load our code once ready
 app.once('ready', function () {
+	if (args['trace']) {
+		// @ts-ignore
+		const contentTracing = require('electron').contentTracing;
+
+		const traceOptions = {
+			categoryFilter: args['trace-category-filter'] || '*',
+			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+		};
+
+		contentTracing.startRecording(traceOptions, () => onReady());
+	} else {
+		onReady();
+	}
+});
+
+function onReady() {
 	perf.mark('main:appReady');
 
 	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
@@ -109,7 +125,7 @@ app.once('ready', function () {
 			}
 		});
 	}, console.error);
-});
+}
 
 /**
  * @typedef {import('minimist').ParsedArgs} ParsedArgs

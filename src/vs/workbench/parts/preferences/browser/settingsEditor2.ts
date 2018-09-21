@@ -498,7 +498,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const tocRenderer = this.instantiationService.createInstance(TOCRenderer);
 
-		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree, this.tocTreeContainer,
+		this.tocTree = this._register(this.instantiationService.createInstance(TOCTree,
+			DOM.append(this.tocTreeContainer, $('.settings-toc-wrapper')),
 			this.viewState,
 			{
 				renderer: tocRenderer

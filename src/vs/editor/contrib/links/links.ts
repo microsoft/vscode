@@ -54,41 +54,49 @@ const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 const decoration = {
 	meta: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	metaActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	alt: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	altCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	metaCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
 	metaCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),

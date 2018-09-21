@@ -810,15 +810,31 @@ export class CheckForUpdatesAction extends Action {
 	private checkUpdatesAndNotify(): void {
 		this.extensionsWorkbenchService.queryLocal().then(
 			extensions => {
-				const outdatedCount = extensions.filter(ext => ext.outdated === true).length;
-				let msgAvailableExtensions = localize('noUpdatesAvailable', "All Extensions are up to date.");
-				if (outdatedCount > 0) {
-					msgAvailableExtensions = outdatedCount === 1 ? localize('updateAvailable', "An Extension update is available.")
-						: localize('updatesAvailable', "{0} extensions updates are available.", outdatedCount);
-					this.viewletService.openViewlet(VIEWLET_ID, true)
-						.then(viewlet => viewlet as IExtensionsViewlet)
-						.then(viewlet => viewlet.search(''));
+				const outdatedExtensions = extensions.filter(ext => ext.outdated === true);
+				if (!outdatedExtensions.length) {
+					this.notificationService.notify({ severity: severity.Info, message: localize('noUpdatesAvailable', "All Extensions are up to date.") });
+					return;
 				}
+
+				let msgAvailableExtensions = outdatedExtensions.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdatedExtensions.length);
+
+				const disabledExtensionsCount = outdatedExtensions.filter(ext => ext.enablementState === EnablementState.Disabled || ext.enablementState === EnablementState.WorkspaceDisabled).length;
+				if (disabledExtensionsCount) {
+					if (outdatedExtensions.length === 1) {
+						msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
+					} else if (disabledExtensionsCount === 1) {
+						msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdatedExtensions.length);
+					} else if (disabledExtensionsCount === outdatedExtensions.length) {
+						msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdatedExtensions.length);
+					} else {
+						msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdatedExtensions.length, disabledExtensionsCount);
+					}
+				}
+
+				this.viewletService.openViewlet(VIEWLET_ID, true)
+					.then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => viewlet.search(''));
+
 				this.notificationService.notify({ severity: severity.Info, message: msgAvailableExtensions });
 			}
 		);

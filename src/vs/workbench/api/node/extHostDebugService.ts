@@ -33,13 +33,15 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
-	private _handleCounter: number;
+	private _providerHandleCounter: number;
 	private _providerByHandle: Map<number, vscode.DebugConfigurationProvider>;
 	private _providerByType: Map<string, vscode.DebugConfigurationProvider>;
+	private _providers: TypeProviderPair[];
 
 	private _debugServiceProxy: MainThreadDebugServiceShape;
 	private _debugSessions: Map<DebugSessionUUID, ExtHostDebugSession> = new Map<DebugSessionUUID, ExtHostDebugSession>();
@@ -69,6 +71,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _aexCommands: Map<string, string>;
 	private _debugAdapters: Map<number, IDebugAdapter>;
+	private _debugAdaptersTrackers: Map<number, vscode.IDebugAdapterTracker>;
 
 	private _variableResolver: IConfigurationResolverService;
 
@@ -84,10 +87,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		private _terminalService: ExtHostTerminalService,
 		private _commandService: ExtHostCommands
 	) {
-		this._aexCommands = new Map();
-		this._handleCounter = 0;
+		this._providerHandleCounter = 0;
 		this._providerByHandle = new Map();
 		this._providerByType = new Map();
+		this._providers = [];
+
+		this._aexCommands = new Map();
+		this._debugAdapters = new Map();
+		this._debugAdaptersTrackers = new Map();
 
 		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
@@ -107,7 +114,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
 		this._breakpointEventsActive = false;
 
-		this._debugAdapters = new Map();
 
 		// register all debug extensions
 		const debugTypes: string[] = [];
@@ -116,7 +122,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
 				if (debuggers && debuggers.length > 0) {
 					for (const dbg of debuggers) {
-						// only debugger contributions with a "label" are considered a "main" debugger contribution
+						// only debugger contributions with a "label" are considered a "defining" debugger contribution
 						if (dbg.type && dbg.label) {
 							debugTypes.push(dbg.type);
 							if (dbg.adapterExecutableCommand) {
@@ -239,23 +245,42 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
 	}
 
-	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
+	public registerDebugConfigurationProvider(extension: IExtensionDescription, type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
+
 		if (!provider) {
 			return new Disposable(() => { });
 		}
 
-		let handle = this._handleCounter++;
+		// if a provider has a provideDebugAdapter method, we check the constraints specified in the API doc
+		if (provider.provideDebugAdapter) {
+
+			// a provider with this method can only be registered in the extension that contributes the debugger
+			if (!this.definesDebugType(extension, type)) {
+				throw new Error(`method 'provideDebugAdapter' must only be called from the extension that defines the '${type}' debugger.`);
+			}
+
+			// make sure that only one provider for this type is registered
+			if (this._providerByType.has(type)) {
+				throw new Error(`a provider with method 'provideDebugAdapter' can only be registered once per a type.`);
+			} else {
+				this._providerByType.set(type, provider);
+			}
+		}
+
+		let handle = this._providerHandleCounter++;
 		this._providerByHandle.set(handle, provider);
-		this._providerByType.set(type, provider);
+		this._providers.push({ type, provider });
 
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type,
 			!!provider.provideDebugConfigurations,
 			!!provider.resolveDebugConfiguration,
-			!!provider.debugAdapterExecutable || !!provider.provideDebugAdapter, handle);
+			!!provider.debugAdapterExecutable || !!provider.provideDebugAdapter,
+			!!provider.provideDebugAdapterTracker, handle);
 
 		return new Disposable(() => {
 			this._providerByHandle.delete(handle);
-			this._providerByType.delete(type);	// TODO@AW support more than one
+			this._providerByType.delete(type);
+			this._providers = this._providers.filter(p => p.provider !== provider);		// remove
 			this._debugServiceProxy.$unregisterDebugConfigurationProvider(handle);
 		});
 	}
@@ -358,18 +383,43 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 			if (da) {
 				this._debugAdapters.set(handle, da);
-				da.onMessage(message => {
-					// DA -> VS Code
-					convertToVSCPaths(message, source => {
-						if (paths.isAbsolute(source.path)) {
-							(<any>source).path = URI.file(source.path);
+
+				return this.getDebugAdapterTrackers(sessionDto, folderUri, config).then(tracker => {
+
+					if (tracker) {
+						this._debugAdaptersTrackers.set(handle, tracker);
+					}
+
+					da.onMessage(message => {
+
+						if (tracker) {
+							tracker.fromDebugAdapter(message);
 						}
+
+						// DA -> VS Code
+						convertToVSCPaths(message, source => {
+							if (paths.isAbsolute(source.path)) {
+								(<any>source).path = URI.file(source.path);
+							}
+						});
+						mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 					});
-					mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+					da.onError(err => {
+						tracker.debugAdapterError(err);
+						this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack);
+					});
+					da.onExit(code => {
+						tracker.debugAdapterExit(code, null);
+						this._debugServiceProxy.$acceptDAExit(handle, code, null);
+					});
+
+					if (tracker) {
+						tracker.startDebugAdapter();
+					}
+
+					return da.startSession();
 				});
-				da.onError(err => this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack));
-				da.onExit(code => this._debugServiceProxy.$acceptDAExit(handle, code, null));
-				return da.startSession();
+
 			}
 			return undefined;
 		});
@@ -382,6 +432,12 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 				source.path = URI.revive(source.path).fsPath;
 			}
 		});
+
+		const tracker = this._debugAdaptersTrackers.get(handle);
+		if (tracker) {
+			tracker.toDebugAdapter(message);
+		}
+
 		const da = this._debugAdapters.get(handle);
 		if (da) {
 			da.sendMessage(message);
@@ -390,11 +446,21 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	public $stopDASession(handle: number): TPromise<void> {
+
+		const tracker = this._debugAdaptersTrackers.get(handle);
+		this._debugAdaptersTrackers.delete(handle);
+		if (tracker) {
+			tracker.stopDebugAdapter();
+		}
+
 		const da = this._debugAdapters.get(handle);
 		this._debugAdapters.delete(handle);
-		return da ? da.stopSession() : void 0;
+		if (da) {
+			return da.stopSession();
+		} else {
+			return void 0;
+		}
 	}
-
 
 	public $acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void {
 
@@ -457,7 +523,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-
 	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): Thenable<vscode.DebugConfiguration[]> {
 		let provider = this._providerByHandle.get(handle);
 		if (!provider) {
@@ -519,6 +584,41 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	// private & dto helpers
+
+	private definesDebugType(ed: IExtensionDescription, type: string) {
+		if (ed.contributes) {
+			const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+			if (debuggers && debuggers.length > 0) {
+				for (const dbg of debuggers) {
+					// only debugger contributions with a "label" are considered a "defining" debugger contribution
+					if (dbg.label && dbg.type) {
+						if (dbg.type === type) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	private getDebugAdapterTrackers(sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): TPromise<vscode.IDebugAdapterTracker> {
+
+		const session = this.getSession(sessionDto);
+		const folder = this.getFolder(folderUri);
+
+		const type = config.type;
+		const promises = this._providers
+			.filter(pair => pair.provider.provideDebugAdapterTracker && (pair.type === type || pair.type === '*'))
+			.map(pair => pair.provider.provideDebugAdapterTracker(session, folder, config, CancellationToken.None));
+
+		return TPromise.join(promises).then(trackers => {
+			if (trackers.length > 0) {
+				return new MultiTracker(trackers);
+			}
+			return undefined;
+		});
+	}
 
 	private getAdapterDescriptor(debugConfigProvider, sessionDto: IDebugSessionDto, folderUri: UriComponents | undefined, config: vscode.DebugConfiguration): Thenable<vscode.DebugAdapterDescriptor> {
 
@@ -688,10 +788,45 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 	}
 }
 
+interface TypeProviderPair {
+	type: string;
+	provider: vscode.DebugConfigurationProvider;
+}
+
 interface IDapTransport {
 	start(cb: (msg: DebugProtocol.ProtocolMessage) => void, errorcb: (event: DebugProtocol.Event) => void);
 	send(message: DebugProtocol.ProtocolMessage);
 	stop(): void;
+}
+
+class MultiTracker implements vscode.IDebugAdapterTracker {
+
+	constructor(private trackers: vscode.IDebugAdapterTracker[]) {
+	}
+
+	startDebugAdapter(): void {
+		this.trackers.forEach(t => t.startDebugAdapter ? t.startDebugAdapter() : void 0);
+	}
+
+	toDebugAdapter(message: any): void {
+		this.trackers.forEach(t => t.toDebugAdapter ? t.toDebugAdapter(message) : void 0);
+	}
+
+	fromDebugAdapter(message: any): void {
+		this.trackers.forEach(t => t.fromDebugAdapter ? t.fromDebugAdapter(message) : void 0);
+	}
+
+	debugAdapterError(error: Error): void {
+		this.trackers.forEach(t => t.debugAdapterError ? t.debugAdapterError(error) : void 0);
+	}
+
+	debugAdapterExit(code: number, signal: string): void {
+		this.trackers.forEach(t => t.debugAdapterExit ? t.debugAdapterExit(code, signal) : void 0);
+	}
+
+	stopDebugAdapter(): void {
+		this.trackers.forEach(t => t.stopDebugAdapter ? t.stopDebugAdapter() : void 0);
+	}
 }
 
 class DirectTransport implements IDapTransport {

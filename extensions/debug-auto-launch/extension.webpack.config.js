@@ -12,9 +12,9 @@ const withDefaults = require('../shared.webpack.config');
 module.exports = withDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/extension.ts'
+		extension: './src/extension.ts',
 	},
-	externals: {
-		'vscode-ripgrep': 'commonjs vscode-ripgrep'
+	resolve: {
+		mainFields: ['module', 'main']
 	}
 });

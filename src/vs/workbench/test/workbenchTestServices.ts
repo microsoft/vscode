@@ -77,6 +77,10 @@ import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -276,6 +280,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
+	instantiationService.stub(IViewletService, new TestViewletService());
 
 	return instantiationService;
 }
@@ -368,6 +373,9 @@ export class TestHistoryService implements IHistoryService {
 
 	public getLastActiveFile(schemeFilter: string): URI {
 		return void 0;
+	}
+
+	public openLastEditLocation(): void {
 	}
 }
 
@@ -723,6 +731,10 @@ export class TestEditorService implements EditorServiceImpl {
 
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean {
 		return false;
+	}
+
+	getOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
+		return void 0;
 	}
 
 	replaceEditors(editors: any, group: any) {
@@ -1378,6 +1390,33 @@ export class TestHashService implements IHashService {
 	createSHA1(content: string): string {
 		return content;
 	}
+}
+
+export class TestViewletService implements IViewletService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	readonly onDidViewletRegister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
+	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
+	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
+	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }> = new Emitter<{ id: string, enabled: boolean }>().event;
+
+	openViewlet(id: string, focus?: boolean): TPromise<IViewlet> { return null; }
+
+	getActiveViewlet(): IViewlet { return null; }
+
+	getDefaultViewletId(): string { return null; }
+
+	getViewlet(id: string): ViewletDescriptor { return null; }
+
+	getAllViewlets(): ViewletDescriptor[] { return null; }
+
+	getViewlets(): ViewletDescriptor[] { return null; }
+
+	setViewletEnablement(id: string, enabled: boolean): void { }
+
+	getProgressIndicator(id: string): IProgressService { return null; }
+
 }
 
 export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {

@@ -417,7 +417,7 @@ suite('Event utils', () => {
 		test('should emit when done', () => {
 			let count = 0;
 
-			const event = fromPromise(TPromise.as(null));
+			const event = fromPromise(Promise.resolve(null));
 			event(() => count++);
 
 			assert.equal(count, 0);

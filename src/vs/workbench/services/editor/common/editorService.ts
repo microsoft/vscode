@@ -152,6 +152,15 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean;
 
 	/**
+	 * Get the actual opened editor input in any or a specific editor group based on the resource.
+	 *
+	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * @param group optional to specify a group to check for the editor
+	 */
+	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput;
+
+	/**
 	 * Allows to override the opening of editors by installing a handler that will
 	 * be called each time an editor is about to open allowing to override the
 	 * operation to open a different editor.

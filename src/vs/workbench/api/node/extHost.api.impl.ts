@@ -270,7 +270,6 @@ export function createApiFactory(
 				return extHostLanguages.getLanguages();
 			},
 			setTextDocumentLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
-				checkProposedApiEnabled(extension);
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
@@ -436,8 +435,8 @@ export function createApiFactory(
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
 				return extHostProgress.withProgress(extension, options, task);
 			},
-			createOutputChannel(name: string, push?: boolean): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name, push);
+			createOutputChannel(name: string, options?: { force?: boolean }): vscode.OutputChannel {
+				return extHostOutputService.createOutputChannel(name, options);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebview(extension.extensionLocation, viewType, title, showOptions, options);
@@ -656,7 +655,7 @@ export function createApiFactory(
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
-				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
+				return extHostDebugService.registerDebugConfigurationProvider(extension, debugType, provider);
 			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);

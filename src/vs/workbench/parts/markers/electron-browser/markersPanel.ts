@@ -33,6 +33,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { localize } from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class MarkersPanel extends Panel {
 
@@ -53,6 +54,7 @@ export class MarkersPanel extends Panel {
 	private messageBoxContainer: HTMLElement;
 	private ariaLabelElement: HTMLElement;
 	private panelSettings: any;
+	private panelFoucusContextKey: IContextKey<boolean>;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 
@@ -64,8 +66,10 @@ export class MarkersPanel extends Panel {
 		@IThemeService themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
 		@IStorageService storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
+		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
 		this.delayedRefresh = new Delayer<void>(500);
 		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.setCurrentActiveEditor();
@@ -87,6 +91,9 @@ export class MarkersPanel extends Panel {
 		this.createListeners();
 
 		this.updateFilter();
+
+		this.onDidFocus(() => this.panelFoucusContextKey.set(true));
+		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
 
 		return this.render();
 	}
@@ -117,6 +124,12 @@ export class MarkersPanel extends Panel {
 			this.autoReveal(true);
 		} else {
 			this.messageBoxContainer.focus();
+		}
+	}
+
+	public focusFilter(): void {
+		if (this.filterInputActionItem) {
+			this.filterInputActionItem.focus();
 		}
 	}
 
@@ -198,7 +211,7 @@ export class MarkersPanel extends Panel {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer, (action) => this.getActionItem(action));
 		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
-		const controller = this.instantiationService.createInstance(Controller, () => { if (this.filterInputActionItem) { this.filterInputActionItem.focus(); } });
+		const controller = this.instantiationService.createInstance(Controller, () => this.focusFilter());
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			filter: new Viewer.DataFilter(),

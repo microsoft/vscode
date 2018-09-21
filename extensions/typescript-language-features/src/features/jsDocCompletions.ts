@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
@@ -55,14 +54,8 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		let res: Proto.DocCommandTemplateResponse | undefined;
-		try {
-			res = await this.client.execute('docCommentTemplate', args, token);
-		} catch {
-			return undefined;
-		}
-
-		if (!res.body) {
+		const response = await this.client.execute('docCommentTemplate', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
@@ -71,10 +64,10 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		// Workaround for #43619
 		// docCommentTemplate previously returned undefined for empty jsdoc templates.
 		// TS 2.7 now returns a single line doc comment, which breaks indentation.
-		if (res.body.newText === '/** */') {
+		if (response.body.newText === '/** */') {
 			item.insertText = defaultJsDoc;
 		} else {
-			item.insertText = templateToSnippet(res.body.newText);
+			item.insertText = templateToSnippet(response.body.newText);
 		}
 
 		return [item];

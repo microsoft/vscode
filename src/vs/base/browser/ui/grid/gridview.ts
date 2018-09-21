@@ -181,9 +181,14 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid index');
 		}
 
-		const first = index === 0;
-		const last = index === this.splitview.length;
 		this.splitview.addView(node, size, index);
+		this._addChild(node, index);
+		this.onDidChildrenChange();
+	}
+
+	private _addChild(node: Node, index: number): void {
+		const first = index === 0;
+		const last = index === this.children.length;
 		this.children.splice(index, 0, node);
 		node.orthogonalStartSash = this.splitview.sashes[index - 1];
 		node.orthogonalEndSash = this.splitview.sashes[index];
@@ -195,8 +200,6 @@ class BranchNode implements ISplitView, IDisposable {
 		if (!last) {
 			this.children[index + 1].orthogonalStartSash = this.splitview.sashes[index];
 		}
-
-		this.onDidChildrenChange();
 	}
 
 	removeChild(index: number, sizing?: Sizing): void {
@@ -204,10 +207,15 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid index');
 		}
 
-		const first = index === 0;
-		const last = index === this.splitview.length - 1;
 		this.splitview.removeView(index, sizing);
-		this.children.splice(index, 1);
+		this._removeChild(index);
+		this.onDidChildrenChange();
+	}
+
+	private _removeChild(index: number): Node {
+		const first = index === 0;
+		const last = index === this.children.length - 1;
+		const [child] = this.children.splice(index, 1);
 
 		if (!first) {
 			this.children[index - 1].orthogonalEndSash = this.splitview.sashes[index - 1];
@@ -217,7 +225,30 @@ class BranchNode implements ISplitView, IDisposable {
 			this.children[index].orthogonalStartSash = this.splitview.sashes[Math.max(index - 1, 0)];
 		}
 
-		this.onDidChildrenChange();
+		return child;
+	}
+
+	moveChild(from: number, to: number): void {
+		if (from === to) {
+			return;
+		}
+
+		if (from < 0 || from >= this.children.length) {
+			throw new Error('Invalid from index');
+		}
+
+		if (to < 0 || to > this.children.length) {
+			throw new Error('Invalid to index');
+		}
+
+		if (from < to) {
+			to--;
+		}
+
+		this.splitview.moveView(from, to);
+
+		const child = this._removeChild(from);
+		this._addChild(child, to);
 	}
 
 	swapChildren(from: number, to: number): void {
@@ -649,6 +680,16 @@ export class GridView implements IDisposable {
 		}
 
 		return node.view;
+	}
+
+	moveView(parentLocation: number[], from: number, to: number): void {
+		const [, parent] = this.getNode(parentLocation);
+
+		if (!(parent instanceof BranchNode)) {
+			throw new Error('Invalid location');
+		}
+
+		parent.moveChild(from, to);
 	}
 
 	swapViews(from: number[], to: number[]): void {

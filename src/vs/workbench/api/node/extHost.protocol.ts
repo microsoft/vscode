@@ -577,7 +577,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): Thenable<void>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, hasProvideTrackerMethod: boolean, handle: number): Thenable<void>;
 	$unregisterDebugConfigurationProvider(handle: number): Thenable<void>;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Thenable<any>;

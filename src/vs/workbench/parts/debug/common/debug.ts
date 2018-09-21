@@ -518,6 +518,7 @@ export interface IDebugConfigurationProvider {
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
 	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor>;
+	hasTracker: boolean;
 }
 
 export interface ITerminalLauncher {
@@ -563,6 +564,8 @@ export interface IConfigurationManager {
 	 * Allows to register on change of selected debug configuration.
 	 */
 	onDidSelectConfiguration: Event<void>;
+
+	needsToRunInExtHost(debugType: string): boolean;
 
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;

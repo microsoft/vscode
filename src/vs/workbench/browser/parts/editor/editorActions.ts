@@ -1128,6 +1128,22 @@ export class NavigateBackwardsAction extends Action {
 	}
 }
 
+export class NavigateToLastEditLocationAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastEditLocation';
+	static readonly LABEL = nls.localize('navigateToLastEditLocation', "Go to Last Edit Location");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		this.historyService.openLastEditLocation();
+
+		return TPromise.as(null);
+	}
+}
+
 export class NavigateLastAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateLast';

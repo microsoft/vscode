@@ -92,6 +92,12 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
+	public needsToRunInExtHost(debugType: string): boolean {
+		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
+		const providers = this.providers.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
+		return providers.length > 0;
+	}
+
 	public unregisterDebugConfigurationProvider(handle: number): void {
 		this.providers = this.providers.filter(p => p.handle !== handle);
 	}

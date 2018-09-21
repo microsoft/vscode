@@ -13,7 +13,7 @@ import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/s
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 
 interface ISnippetPick extends IQuickPickItem {
@@ -83,7 +83,8 @@ class InsertSnippetAction extends EditorAction {
 					undefined,
 					undefined,
 					snippet,
-					undefined
+					undefined,
+					SnippetSource.User,
 				));
 			}
 
@@ -123,10 +124,21 @@ class InsertSnippetAction extends EditorAction {
 						detail: snippet.description,
 						snippet
 					};
-					if (!snippet.isFromExtension && !prevSnippet) {
-						picks.push({ type: 'separator', label: nls.localize('sep.userSnippet', "User Snippets") });
-					} else if (snippet.isFromExtension && (!prevSnippet || !prevSnippet.isFromExtension)) {
-						picks.push({ type: 'separator', label: nls.localize('sep.extSnippet', "Extension Snippets") });
+					if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
+						let label = '';
+						switch (snippet.snippetSource) {
+							case SnippetSource.User:
+								label = nls.localize('sep.userSnippet', "User Snippets");
+								break;
+							case SnippetSource.Extension:
+								label = nls.localize('sep.extSnippet', "Extension Snippets");
+								break;
+							case SnippetSource.Workspace:
+								label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
+								break;
+						}
+						picks.push({ type: 'separator', label });
+
 					}
 					picks.push(pick);
 					prevSnippet = snippet;

@@ -556,6 +556,7 @@ export class Repository implements Disposable {
 
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
+	private isFreshRepository: boolean | undefined = undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -1306,7 +1307,12 @@ export class Repository implements Disposable {
 
 		// Disable `Discard All Changes` for "fresh" repositories
 		// https://github.com/Microsoft/vscode/issues/43066
-		commands.executeCommand('setContext', 'gitFreshRepository', !this._HEAD || !this._HEAD.commit);
+		const isFreshRepository = !this._HEAD || !this._HEAD.commit;
+
+		if (this.isFreshRepository !== isFreshRepository) {
+			commands.executeCommand('setContext', 'gitFreshRepository', isFreshRepository);
+			this.isFreshRepository = isFreshRepository;
+		}
 
 		this._onDidChangeStatus.fire();
 	}

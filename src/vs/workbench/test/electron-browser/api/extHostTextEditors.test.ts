@@ -28,7 +28,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		rpcProtocol.set(MainContext.MainThreadTextEditors, new class extends mock<MainThreadTextEditorsShape>() {
 			$tryApplyWorkspaceEdit(_workspaceResourceEdits: WorkspaceEditDto): TPromise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
-				return TPromise.as(true);
+				return Promise.resolve(true);
 			}
 		});
 		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));

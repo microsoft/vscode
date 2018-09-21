@@ -9,8 +9,9 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { isAncestor } from 'vs/base/browser/dom';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -76,17 +77,18 @@ export abstract class TogglePanelAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		if (this.isPanelShowing()) {
+		if (this.isPanelFocused()) {
 			return this.partService.setPanelHidden(true);
 		}
 
 		return this.panelService.openPanel(this.panelId, true);
 	}
 
-	private isPanelShowing(): boolean {
-		const panel = this.panelService.getActivePanel();
+	private isPanelFocused(): boolean {
+		const activePanel = this.panelService.getActivePanel();
+		const activeElement = document.activeElement;
 
-		return panel && panel.getId() === this.panelId;
+		return activePanel && activeElement && isAncestor(activeElement, this.partService.getContainer(Parts.PANEL_PART));
 	}
 }
 

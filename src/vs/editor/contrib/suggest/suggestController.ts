@@ -26,7 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICompletionItem } from './completionModel';
-import { Context as SuggestContext } from './suggest';
+import { Context as SuggestContext, ISuggestionItem } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
@@ -302,6 +302,28 @@ export class SuggestController implements IEditorContribution {
 			}
 		};
 
+		const makesTextEdit = (item: ISuggestionItem): boolean => {
+			if (item.suggestion.insertTextIsSnippet || item.suggestion.additionalTextEdits) {
+				// snippet, other editor -> makes edit
+				return true;
+			}
+			const position = this._editor.getPosition();
+			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const endColumn = position.column;
+			if (endColumn - startColumn !== item.suggestion.insertText.length) {
+				// unequal lengths -> makes edit
+				return true;
+			}
+			const textNow = this._editor.getModel().getValueInRange({
+				startLineNumber: position.lineNumber,
+				startColumn,
+				endLineNumber: position.lineNumber,
+				endColumn
+			});
+			// unequal text -> makes edit
+			return textNow !== item.suggestion.insertText;
+		};
+
 		once(this._model.onDidTrigger)(_ => {
 			// wait for trigger because only then the cancel-event is trustworthy
 			let listener: IDisposable[] = [];
@@ -318,9 +340,14 @@ export class SuggestController implements IEditorContribution {
 					fallback();
 					return;
 				}
+				const index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
+				const item = completionModel.items[index];
+				if (!makesTextEdit(item)) {
+					fallback();
+					return;
+				}
 				this._editor.pushUndoStop();
-				let index = this._memory.select(this._editor.getModel(), this._editor.getPosition(), completionModel.items);
-				this._onDidSelectItem({ index, model: completionModel, item: completionModel.items[index] }, true, false);
+				this._onDidSelectItem({ index, item, model: completionModel }, true, false);
 
 			}, undefined, listener);
 		});

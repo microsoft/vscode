@@ -119,6 +119,7 @@ export class Marker extends NodeWithId {
 	isSelected: boolean = false;
 	messageMatches: IMatch[] = [];
 	sourceMatches: IMatch[] = [];
+	codeMatches: IMatch[] = [];
 	resourceRelatedInformation: RelatedInformation[] = [];
 
 	constructor(
@@ -352,6 +353,7 @@ export class MarkersModel {
 	private updateMarker(marker: Marker, resource: ResourceMarkers): void {
 		marker.messageMatches = !resource.isExcluded && this._filterOptions.textFilter ? FilterOptions._fuzzyFilter(this._filterOptions.textFilter, marker.raw.message) : [];
 		marker.sourceMatches = !resource.isExcluded && marker.raw.source && this._filterOptions.textFilter ? FilterOptions._filter(this._filterOptions.textFilter, marker.raw.source) : [];
+		marker.codeMatches = !resource.isExcluded && marker.raw.code && this._filterOptions.textFilter ? FilterOptions._filter(this._filterOptions.textFilter, marker.raw.code) : [];
 		marker.resourceRelatedInformation.forEach(r => {
 			r.uriMatches = !resource.isExcluded && this._filterOptions.textFilter ? FilterOptions._filter(this._filterOptions.textFilter, paths.basename(r.raw.resource.fsPath)) : [];
 			r.messageMatches = !resource.isExcluded && this._filterOptions.textFilter ? FilterOptions._fuzzyFilter(this._filterOptions.textFilter, r.raw.message) : [];
@@ -402,6 +404,9 @@ export class MarkersModel {
 			return true;
 		}
 		if (!!marker.source && !!FilterOptions._filter(this._filterOptions.textFilter, marker.source)) {
+			return true;
+		}
+		if (!!marker.code && !!FilterOptions._filter(this._filterOptions.textFilter, marker.code)) {
 			return true;
 		}
 		if (!!marker.relatedInformation && marker.relatedInformation.some(r =>

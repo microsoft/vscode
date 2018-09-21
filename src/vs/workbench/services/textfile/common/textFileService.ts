@@ -381,7 +381,14 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		if (options && options.force && this.fileService.canHandleResource(resource) && !this.isDirty(resource)) {
 			const model = this._models.get(resource);
 			if (model) {
-				model.save({ force: true, reason: SaveReason.EXPLICIT }).then(() => !model.isDirty());
+				if (!options) {
+					options = Object.create(null);
+				}
+
+				options.force = true;
+				options.reason = SaveReason.EXPLICIT;
+
+				model.save(options).then(() => !model.isDirty());
 			}
 		}
 

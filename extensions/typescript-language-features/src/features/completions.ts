@@ -321,23 +321,20 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		let isNewIdentifierLocation = true;
 		let msg: ReadonlyArray<Proto.CompletionEntry> | undefined = undefined;
-		try {
-			if (this.client.apiVersion.gte(API.v300)) {
-				const { body } = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
-				if (!body) {
-					return null;
-				}
-				isNewIdentifierLocation = body.isNewIdentifierLocation;
-				msg = body.entries;
-			} else {
-				const { body } = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
-				if (!body) {
-					return null;
-				}
-				msg = body;
+		if (this.client.apiVersion.gte(API.v300)) {
+			const response = await this.client.interuptGetErr(() => this.client.execute('completionInfo', args, token));
+			if (response.type !== 'response' || !response.body) {
+				return null;
 			}
-		} catch {
-			return null;
+			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
+			msg = response.body.entries;
+		} else {
+			const response = await this.client.interuptGetErr(() => this.client.execute('completions', args, token));
+			if (response.type !== 'response' || !response.body) {
+				return null;
+			}
+
+			msg = response.body;
 		}
 
 		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
@@ -371,12 +368,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		};
 
 		let details: Proto.CompletionEntryDetails[] | undefined;
-		try {
-			const { body } = await this.client.execute('completionEntryDetails', args, token);
-			details = body;
-		} catch {
+		const response = await this.client.execute('completionEntryDetails', args, token);
+		if (response.type !== 'response') {
 			return item;
 		}
+		const { body } = response;
+		details = body;
 
 		if (!details || !details.length || !details[0]) {
 			return item;
@@ -528,7 +525,13 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
 		try {
-			const { body } = await this.client.execute('quickinfo', typeConverters.Position.toFileLocationRequestArgs(filepath, position), token);
+			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+			const response = await this.client.execute('quickinfo', args, token);
+			if (response.type !== 'response') {
+				return true;
+			}
+
+			const { body } = response;
 			switch (body && body.kind) {
 				case 'var':
 				case 'let':

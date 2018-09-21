@@ -49,52 +49,6 @@ process.on('uncaughtException', (e: any) => {
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
 
-// Create a simple text document manager. The text document manager
-// supports full document sync only
-const documents: TextDocuments = new TextDocuments();
-// Make the text document manager listen on the connection
-// for open, change and close text document events
-documents.listen(connection);
-
-let clientSnippetSupport = false;
-let clientDynamicRegisterSupport = false;
-let foldingRangeLimit = Number.MAX_VALUE;
-let hierarchicalDocumentSymbolSupport = false;
-
-// After the server has started the client sends an initialize request. The server receives
-// in the passed params the rootPath of the workspace plus the client capabilities.
-connection.onInitialize((params: InitializeParams): InitializeResult => {
-
-	function getClientCapability<T>(name: string, def: T) {
-		const keys = name.split('.');
-		let c: any = params.capabilities;
-		for (let i = 0; c && i < keys.length; i++) {
-			if (!c.hasOwnProperty(keys[i])) {
-				return def;
-			}
-			c = c[keys[i]];
-		}
-		return c;
-	}
-
-	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
-	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
-	const capabilities: ServerCapabilities = {
-		// Tell the client that the server works in FULL text document sync mode
-		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
-		hoverProvider: true,
-		documentSymbolProvider: true,
-		documentRangeFormattingProvider: false,
-		colorProvider: {},
-		foldingRangeProvider: true
-	};
-
-	return { capabilities };
-});
-
 const workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
 		return URL.resolve(resource, relativePath);
@@ -138,11 +92,66 @@ const schemaRequestService = (uri: string): Thenable<string> => {
 };
 
 // create the JSON language service
-const languageService = getLanguageService({
+let languageService = getLanguageService({
 	schemaRequestService,
 	workspaceContext,
-	contributions: []
+	contributions: [],
 });
+
+// Create a simple text document manager. The text document manager
+// supports full document sync only
+const documents: TextDocuments = new TextDocuments();
+// Make the text document manager listen on the connection
+// for open, change and close text document events
+documents.listen(connection);
+
+let clientSnippetSupport = false;
+let clientDynamicRegisterSupport = false;
+let foldingRangeLimit = Number.MAX_VALUE;
+let hierarchicalDocumentSymbolSupport = false;
+
+// After the server has started the client sends an initialize request. The server receives
+// in the passed params the rootPath of the workspace plus the client capabilities.
+connection.onInitialize((params: InitializeParams): InitializeResult => {
+
+	languageService = getLanguageService({
+		schemaRequestService,
+		workspaceContext,
+		contributions: [],
+		clientCapabilities: params.capabilities
+	});
+
+	function getClientCapability<T>(name: string, def: T) {
+		const keys = name.split('.');
+		let c: any = params.capabilities;
+		for (let i = 0; c && i < keys.length; i++) {
+			if (!c.hasOwnProperty(keys[i])) {
+				return def;
+			}
+			c = c[keys[i]];
+		}
+		return c;
+	}
+
+	clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
+	clientDynamicRegisterSupport = getClientCapability('workspace.symbol.dynamicRegistration', false);
+	foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+	hierarchicalDocumentSymbolSupport = getClientCapability('textDocument.documentSymbol.hierarchicalDocumentSymbolSupport', false);
+	const capabilities: ServerCapabilities = {
+		// Tell the client that the server works in FULL text document sync mode
+		textDocumentSync: documents.syncKind,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['"', ':'] } : void 0,
+		hoverProvider: true,
+		documentSymbolProvider: true,
+		documentRangeFormattingProvider: false,
+		colorProvider: {},
+		foldingRangeProvider: true
+	};
+
+	return { capabilities };
+});
+
+
 
 // The settings interface describes the server relevant settings part
 interface Settings {

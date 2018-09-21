@@ -27,7 +27,7 @@ import {
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction, ChangeGroupAction
 } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { LocalExtensionType, IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionManagementService, IExtensionManagementServerService, IExtensionManagementServer, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView, GroupByServerExtensionsView, DefaultRecommendedExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -537,7 +537,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 			return;
 		}
 
-		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated ? 1 : 0), 0);
+		const outdated = this.extensionsWorkbenchService.local.reduce((r, e) => r + (e.outdated && e.enablementState !== EnablementState.Disabled && e.enablementState !== EnablementState.WorkspaceDisabled ? 1 : 0), 0);
 		if (outdated > 0) {
 			const badge = new NumberBadge(outdated, n => localize('outdatedExtensions', '{0} Outdated Extensions', n));
 			this.badgeHandle = this.activityService.showActivity(VIEWLET_ID, badge, 'extensions-badge count-badge');

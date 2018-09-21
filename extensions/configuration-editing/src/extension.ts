@@ -12,7 +12,12 @@ import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
 const fadedDecoration = vscode.window.createTextEditorDecorationType({
-	color: '#777'
+	light: {
+		color: '#757575'
+	},
+	dark: {
+		color: '#878787'
+	}
 });
 
 let pendingLaunchJsonDecoration: NodeJS.Timer;

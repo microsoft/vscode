@@ -24,6 +24,7 @@ import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/w
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { isString, isNumber } from 'vs/base/common/types';
 
 export interface PositionLike {
 	line: number;
@@ -107,7 +108,7 @@ export namespace Diagnostic {
 			...Range.from(value.range),
 			message: value.message,
 			source: value.source,
-			code: String(value.code),
+			code: isString(value.code) || isNumber(value.code) ? String(value.code) : void 0,
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
 			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,

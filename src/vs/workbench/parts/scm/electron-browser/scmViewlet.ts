@@ -1065,7 +1065,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 
-		this.contributedViews = new PersistentContributableViewsModel(VIEW_CONTAINER, 'scm.views', contextKeyService, storageService, contextService);
+		this.contributedViews = instantiationService.createInstance(PersistentContributableViewsModel, VIEW_CONTAINER, 'scm.views');
 		this.disposables.push(this.contributedViews);
 	}
 

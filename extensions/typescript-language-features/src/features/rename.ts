@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
@@ -21,12 +21,12 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.Range | null> {
-		const body = await this.execRename(document, position, token);
-		if (!body) {
+		const response = await this.execRename(document, position, token);
+		if (!response || response.type !== 'response' || !response.body) {
 			return null;
 		}
 
-		const renameInfo = body.info;
+		const renameInfo = response.body.info;
 		if (!renameInfo.canRename) {
 			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
 		}
@@ -47,12 +47,12 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		newName: string,
 		token: vscode.CancellationToken
 	): Promise<vscode.WorkspaceEdit | null> {
-		const body = await this.execRename(document, position, token);
-		if (!body) {
+		const response = await this.execRename(document, position, token);
+		if (!response || response.type !== 'response' || !response.body) {
 			return null;
 		}
 
-		const renameInfo = body.info;
+		const renameInfo = response.body.info;
 		if (!renameInfo.canRename) {
 			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
 		}
@@ -63,7 +63,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 				this.renameFile(edit, renameInfo.fileToRename, newName);
 			}
 		}
-		this.updateLocs(edit, body.locs, newName);
+		this.updateLocs(edit, response.body.locs, newName);
 		return edit;
 	}
 
@@ -71,7 +71,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		document: vscode.TextDocument,
 		position: vscode.Position,
 		token: vscode.CancellationToken
-	): Promise<Proto.RenameResponseBody | undefined> {
+	): Promise<ServerResponse<Proto.RenameResponse> | undefined> {
 		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return undefined;
@@ -83,12 +83,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			findInComments: false
 		};
 
-		try {
-			return (await this.client.execute('rename', args, token)).body;
-		} catch {
-			// noop
-			return undefined;
-		}
+		return this.client.execute('rename', args, token);
 	}
 
 	private updateLocs(

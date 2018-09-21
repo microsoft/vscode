@@ -46,7 +46,7 @@ suite('ExtHostTextEditor', () => {
 		let editor = new ExtHostTextEditor(new class extends mock<MainThreadTextEditorsShape>() {
 			$tryApplyEdits(): TPromise<boolean> {
 				applyCount += 1;
-				return TPromise.wrap(true);
+				return Promise.resolve(true);
 			}
 		}, 'edt1', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
 
@@ -73,7 +73,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			},
 			$tryShowTextDocument: undefined,
 			$registerTextEditorDecorationType: undefined,

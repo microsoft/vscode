@@ -12,7 +12,7 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 
 class SimpleSnippetService implements ISnippetsService {
@@ -51,14 +51,16 @@ suite('SnippetsService', function () {
 			'bar',
 			'',
 			'barCodeSnippet',
-			''
+			'',
+			SnippetSource.User
 		), new Snippet(
 			['fooLang'],
 			'bazzTest',
 			'bazz',
 			'',
 			'bazzCodeSnippet',
-			''
+			'',
+			SnippetSource.User
 		)]);
 	});
 
@@ -96,14 +98,16 @@ suite('SnippetsService', function () {
 			'bar',
 			'',
 			's1',
-			''
+			'',
+			SnippetSource.User
 		), new Snippet(
 			['fooLang'],
 			'name',
 			'bar-bar',
 			'',
 			's2',
-			''
+			'',
+			SnippetSource.User
 		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
@@ -147,7 +151,8 @@ suite('SnippetsService', function () {
 			'<?php',
 			'',
 			'insert me',
-			''
+			'',
+			SnippetSource.User
 		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
@@ -181,7 +186,8 @@ suite('SnippetsService', function () {
 			'foo',
 			'',
 			'<foo>$0</foo>',
-			''
+			'',
+			SnippetSource.User
 		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
@@ -203,7 +209,7 @@ suite('SnippetsService', function () {
 			'',
 			'second',
 			'',
-			true
+			SnippetSource.Extension
 		), new Snippet(
 			['fooLang'],
 			'first',
@@ -211,7 +217,7 @@ suite('SnippetsService', function () {
 			'',
 			'first',
 			'',
-			false
+			SnippetSource.User
 		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
@@ -232,7 +238,8 @@ suite('SnippetsService', function () {
 			'p-a',
 			'',
 			'second',
-			''
+			'',
+			SnippetSource.User
 		)]);
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
@@ -255,7 +262,8 @@ suite('SnippetsService', function () {
 			'bug',
 			'',
 			'second',
-			''
+			'',
+			SnippetSource.User
 		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);

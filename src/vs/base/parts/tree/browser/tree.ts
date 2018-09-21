@@ -556,6 +556,11 @@ export interface IController {
 	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
+	 * Called when a mouse middle button is pressed down on an element.
+	 */
+	onMouseMiddleClick?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
+
+	/**
 	 * Called when a mouse button is pressed down on an element.
 	 */
 	onMouseDown?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;

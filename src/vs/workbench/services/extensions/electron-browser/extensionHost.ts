@@ -50,6 +50,28 @@ export interface IExtensionHostStarter {
 	dispose(): void;
 }
 
+export interface IExtensionDevOptions {
+	readonly isExtensionDevHost: boolean;
+	readonly isExtensionDevDebug: boolean;
+	readonly isExtensionDevDebugBrk: boolean;
+	readonly isExtensionDevTestFromCli: boolean;
+}
+export function parseExtensionDevOptions(environmentService: IEnvironmentService): IExtensionDevOptions {
+	// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
+	let isExtensionDevHost = environmentService.isExtensionDevelopment;
+	const extDevLoc = environmentService.extensionDevelopmentLocationURI;
+	const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
+	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';
+	let isExtensionDevDebugBrk = debugOk && !!environmentService.debugExtensionHost.break;
+	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
+	return {
+		isExtensionDevHost,
+		isExtensionDevDebug,
+		isExtensionDevDebugBrk,
+		isExtensionDevTestFromCli,
+	};
+}
+
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
@@ -89,13 +111,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
-		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
-		const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-		const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
-		this._isExtensionDevDebug = debugOk && typeof this._environmentService.debugExtensionHost.port === 'number';
-		this._isExtensionDevDebugBrk = debugOk && !!this._environmentService.debugExtensionHost.break;
-		this._isExtensionDevTestFromCli = this._isExtensionDevHost && !!this._environmentService.extensionTestsPath && !this._environmentService.debugExtensionHost.break;
+		const devOpts = parseExtensionDevOptions(this._environmentService);
+		this._isExtensionDevHost = devOpts.isExtensionDevHost;
+		this._isExtensionDevDebug = devOpts.isExtensionDevDebug;
+		this._isExtensionDevDebugBrk = devOpts.isExtensionDevDebugBrk;
+		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		this._lastExtensionHostError = null;
 		this._terminating = false;
