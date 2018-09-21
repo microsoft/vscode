@@ -725,6 +725,10 @@ export class TestEditorService implements EditorServiceImpl {
 		return false;
 	}
 
+	getOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
+		return void 0;
+	}
+
 	replaceEditors(editors: any, group: any) {
 		return TPromise.as(void 0);
 	}
