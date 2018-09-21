@@ -875,6 +875,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
 	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
+	get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return this.view.onMouseMiddleClick; }
 	get onMouseUp(): Event<IListMouseEvent<T>> { return this.view.onMouseUp; }
 	get onMouseDown(): Event<IListMouseEvent<T>> { return this.view.onMouseDown; }
 	get onMouseOver(): Event<IListMouseEvent<T>> { return this.view.onMouseOver; }
