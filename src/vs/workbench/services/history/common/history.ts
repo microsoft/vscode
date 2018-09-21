@@ -21,6 +21,11 @@ export interface IHistoryService {
 	reopenLastClosedEditor(): void;
 
 	/**
+	 * Navigates to the last location where an edit happened.
+	 */
+	openLastEditLocation(): void;
+
+	/**
 	 * Navigate forwards in history.
 	 *
 	 * @param acrossEditors instructs the history to skip navigation entries that

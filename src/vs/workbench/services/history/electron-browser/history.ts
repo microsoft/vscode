@@ -90,7 +90,6 @@ interface ISerializedEditorHistoryEntry {
 interface IStackEntry {
 	input: IEditorInput | IResourceInput;
 	selection?: ITextEditorSelection;
-	timestamp: number;
 }
 
 interface IRecentlyClosedFile {
@@ -115,6 +114,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private lastIndex: number;
 	private navigatingInStack: boolean;
 	private currentTextEditorState: TextEditorState;
+
+	private lastEditLocation: IStackEntry;
 
 	private history: (IEditorInput | IResourceInput)[];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
@@ -195,6 +196,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Apply listener for selection changes if this is a text editor
 		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		const activeEditor = this.editorService.activeEditor;
 		if (activeTextEditorWidget) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
@@ -203,6 +205,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
+
+			// Track the last edit location by tracking model content change events
+			this.activeEditorListeners.push(activeTextEditorWidget.onDidChangeModelContent(() => {
+				const position = activeTextEditorWidget.getPosition();
+
+				this.lastEditLocation = {
+					input: activeEditor,
+					selection: {
+						startLineNumber: position.lineNumber,
+						startColumn: position.column
+					}
+				};
+			}));
 		}
 	}
 
@@ -254,6 +269,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		if (lastClosedFile) {
 			this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: true, index: lastClosedFile.index } });
+		}
+	}
+
+	openLastEditLocation(): void {
+		if (this.lastEditLocation) {
+			this.doNavigate(this.lastEditLocation, true);
 		}
 	}
 
@@ -366,34 +387,34 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private navigate(acrossEditors?: boolean): void {
-		const entry = this.stack[this.index];
+		this.navigatingInStack = true;
 
+		this.doNavigate(this.stack[this.index], !acrossEditors).then(() => {
+			this.navigatingInStack = false;
+		}, error => {
+			this.navigatingInStack = false;
+
+			errors.onUnexpectedError(error);
+		});
+	}
+
+	private doNavigate(location: IStackEntry, withSelection: boolean): TPromise<IBaseEditor> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};
 
 		// Unless we navigate across editors, support selection and
 		// minimize scrolling by setting revealInCenterIfOutsideViewport
-		if (entry.selection && !acrossEditors) {
-			options.selection = entry.selection;
+		if (location.selection && withSelection) {
+			options.selection = location.selection;
 			options.revealInCenterIfOutsideViewport = true;
 		}
 
-		this.navigatingInStack = true;
-
-		let openEditorPromise: TPromise<IBaseEditor>;
-		if (entry.input instanceof EditorInput) {
-			openEditorPromise = this.editorService.openEditor(entry.input, options);
-		} else {
-			openEditorPromise = this.editorService.openEditor({ resource: (entry.input as IResourceInput).resource, options });
+		if (location.input instanceof EditorInput) {
+			return this.editorService.openEditor(location.input, options);
 		}
 
-		openEditorPromise.then(() => {
-			this.navigatingInStack = false;
-		}, error => {
-			this.navigatingInStack = false;
-			errors.onUnexpectedError(error);
-		});
+		return this.editorService.openEditor({ resource: (location.input as IResourceInput).resource, options });
 	}
 
 	protected handleEditorSelectionChangeEvent(editor?: IBaseEditor, event?: ICursorPositionChangedEvent): void {
@@ -561,7 +582,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const stackInput = this.preferResourceInput(input);
-		const entry = { input: stackInput, selection, timestamp: Date.now() };
+		const entry = { input: stackInput, selection };
 
 		// Replace at current position
 		if (replace) {
