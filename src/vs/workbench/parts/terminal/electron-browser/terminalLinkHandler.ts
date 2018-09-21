@@ -13,11 +13,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalConfigHelper } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -64,7 +62,7 @@ export class TerminalLinkHandler {
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 	private _initialCwd: string;
-	private _configHelper: TerminalConfigHelper;
+	private _configHelper: ITerminalConfigHelper;
 	private _localLinkPattern: RegExp;
 
 	constructor(
@@ -74,14 +72,13 @@ export class TerminalLinkHandler {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 		this.registerWebLinkHandler();
 		this.registerLocalLinkHandler();
-		this._configHelper = instantiationService.createInstance(TerminalConfigHelper);
+		this._configHelper = _terminalService.configHelper;
 	}
 
 	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
