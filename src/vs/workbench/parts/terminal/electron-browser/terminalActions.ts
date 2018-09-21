@@ -657,21 +657,38 @@ export class RunActiveFileInTerminalAction extends Action {
 		}
 		let uriPath: string = uri.fsPath;
 		const hasSpace = uriPath.indexOf(' ') !== -1;
-		if (hasSpace && isWindows) {
-			uriPath = '"' + uriPath + '"';
-		} else if (!isWindows) {
-			if (uriPath.indexOf('\\') !== 0) {
-				uriPath = uriPath.replace(/\\/g, '\\\\');
+		if (isWindows) {
+			const exe = this.terminalService.getActiveInstance().shellLaunchConfig.executable;
+			const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+			let buildNumber: number = 0;
+			if (osVersion && osVersion.length === 4) {
+				buildNumber = parseInt(osVersion[3]);
 			}
-			const hasDoubleQuote = uriPath.indexOf('"') !== -1;
-			if (!hasSpace && hasDoubleQuote) {
-				uriPath = '\'' + uriPath + '\'';
+			// 17063 is the build number where wsl path was introduced.
+			// Update Windows uriPath to be executed in WSL.
+			if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (buildNumber >= 17063)) {
+				uriPath = 'runActive="$(wslpath ' + this._escapeNonWindowsPath(uriPath) + ')" && "${runActive}"';
 			} else if (hasSpace) {
-				uriPath = uriPath.replace(/ /g, '\\ ');
+				uriPath = '"' + uriPath + '"';
 			}
+		} else if (!isWindows) {
+			uriPath = this._escapeNonWindowsPath(uriPath);
 		}
 		instance.sendText(uriPath, true);
 		return this.terminalService.showPanel();
+	}
+
+	private _escapeNonWindowsPath(path: string): string {
+		let newPath = path;
+		if (newPath.indexOf('\\') !== 0) {
+			newPath = newPath.replace(/\\/g, '\\\\');
+		}
+		if (!newPath && (newPath.indexOf('"') !== -1)) {
+			newPath = '\'' + newPath + '\'';
+		} else if (newPath.indexOf(' ') !== -1) {
+			newPath = newPath.replace(/ /g, '\\ ');
+		}
+		return newPath;
 	}
 }
 
