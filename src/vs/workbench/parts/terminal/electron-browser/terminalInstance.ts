@@ -66,6 +66,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _xtermReadyPromise: Promise<void>;
+	private _titleReadyPromise: Promise<string>;
+	private _titleReadyComplete: (title: string) => any;
 
 	private _disposables: lifecycle.IDisposable[];
 	private _messageTitleDisposable: lifecycle.IDisposable;
@@ -97,8 +99,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
-	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
+	private readonly _onTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
 	private readonly _onLineData: Emitter<string> = new Emitter<string>();
@@ -135,6 +137,11 @@ export class TerminalInstance implements ITerminalInstance {
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._id = TerminalInstance._idCounter++;
+
+		this._titleReadyPromise = new Promise<string>(c => {
+			this._titleReadyComplete = c;
+		});
+
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
@@ -1031,10 +1038,18 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		}
 		const didTitleChange = title !== this._title;
+		const oldTitle = this._title;
 		this._title = title;
 		if (didTitleChange) {
-			this._onTitleChanged.fire(title);
+			if (!oldTitle) {
+				this._titleReadyComplete(title);
+			}
+			this._onTitleChanged.fire(this);
 		}
+	}
+
+	public waitForTitle(): Promise<string> {
+		return this._titleReadyPromise;
 	}
 
 	public setDimensions(dimensions: ITerminalDimensions): void {

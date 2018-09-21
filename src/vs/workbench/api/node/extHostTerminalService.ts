@@ -115,6 +115,10 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		return this._name;
 	}
 
+	public set name(name: string) {
+		this._name = name;
+	}
+
 	public get processId(): Thenable<number> {
 		return this._pidPromise;
 	}
@@ -310,6 +314,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const renderer = this._getTerminalRendererById(id);
 		if (renderer) {
 			renderer._fireOnInput(data);
+		}
+	}
+
+	public $acceptTerminalTitleChange(id: number, name: string): void {
+		const extHostTerminal = this._getTerminalObjectById(this.terminals, id);
+		if (extHostTerminal) {
+			extHostTerminal.name = name;
 		}
 	}
 
