@@ -99,8 +99,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
 	private readonly _onProcessIdReady: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
-	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
-	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
+	private readonly _onTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
 	private readonly _onLineData: Emitter<string> = new Emitter<string>();
@@ -1044,7 +1044,7 @@ export class TerminalInstance implements ITerminalInstance {
 			if (!oldTitle) {
 				this._titleReadyComplete(title);
 			}
-			this._onTitleChanged.fire(title);
+			this._onTitleChanged.fire(this);
 		}
 	}
 

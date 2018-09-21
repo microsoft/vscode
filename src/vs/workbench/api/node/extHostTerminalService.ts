@@ -97,10 +97,6 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 				this._pidPromiseComplete = c;
 			}
 		});
-
-		this._idPromise.then(c => {
-			this._proxy.$registerOnTitleChangedListener(this._id);
-		});
 	}
 
 	public create(

@@ -17,7 +17,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
 	private _terminalOnDidWriteDataListeners: { [id: number]: IDisposable } = {};
-	private _terminalOnTitleChangeListeners: { [id: number]: IDisposable } = {};
 	private _terminalOnDidAcceptInputListeners: { [id: number]: IDisposable } = {};
 
 	constructor(
@@ -36,6 +35,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
 		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
+		this._toDispose.push(terminalService.onInstanceTitleChanged(instance => this._onTitleChanged(instance.id, instance.title)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -154,24 +154,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._onTerminalData(terminalId, data);
 		});
 		terminalInstance.addDisposable(this._terminalOnDidWriteDataListeners[terminalId]);
-	}
-
-	public $registerOnTitleChangedListener(terminalId: number): void {
-		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
-		if (!terminalInstance) {
-			return;
-		}
-
-		// Listener already registered
-		if (this._terminalOnTitleChangeListeners[terminalId]) {
-			return;
-		}
-
-		// Register
-		this._terminalOnTitleChangeListeners[terminalId] = terminalInstance.onTitleChanged(name => {
-			this._onTitleChanged(terminalId, name);
-		});
-		terminalInstance.addDisposable(this._terminalOnTitleChangeListeners[terminalId]);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | undefined): void {

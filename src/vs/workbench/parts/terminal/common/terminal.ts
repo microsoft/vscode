@@ -189,7 +189,7 @@ export interface ITerminalService {
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
-	onInstanceTitleChanged: Event<string>;
+	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
@@ -311,7 +311,7 @@ export interface ITerminalInstance {
 	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
-	onTitleChanged: Event<string>;
+	onTitleChanged: Event<ITerminalInstance>;
 
 	/**
 	 * An event that fires when the terminal instance is disposed.
