@@ -11,7 +11,6 @@ export interface MessagePoster {
 	 */
 	postMessage(type: string, body: object): void;
 
-
 	/**
 	 * Post a command to be executed to the markdown extension
 	 */

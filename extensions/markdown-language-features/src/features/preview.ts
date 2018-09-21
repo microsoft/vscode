@@ -140,6 +140,13 @@ export class MarkdownPreview {
 					this.onDidClickPreview(e.body.line);
 					break;
 
+				case 'showPreviewSecuritySelector':
+					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.body.source);
+					break;
+
+				case 'previewStyleLoadError':
+					vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", e.body.unloadedStyles.join(', ')));
+					break;
 			}
 		}, null, this.disposables);
 
