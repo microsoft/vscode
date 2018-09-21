@@ -32,6 +32,7 @@
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
 	"command.branch": "Create Branch...",
+	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",
 	"command.merge": "Merge Branch...",
