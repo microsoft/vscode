@@ -136,6 +136,13 @@ export class SearchWidget extends Widget {
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this._replaceHistoryDelayer = new Delayer<void>(500);
 		this.render(container, options);
+
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.accessibilitySupport')) {
+				this.updateAccessibilitySupport();
+			}
+		});
+		this.updateAccessibilitySupport();
 	}
 
 	public focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
@@ -235,6 +242,11 @@ export class SearchWidget extends Widget {
 
 		this.renderSearchInput(this.domNode, options);
 		this.renderReplaceInput(this.domNode, options);
+	}
+
+	private updateAccessibilitySupport(): void {
+		const value = this.configurationService.getValue('editor.accessibilitySupport');
+		this.searchInput.setFocusInputOnOptionClick(value !== 'on');
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
