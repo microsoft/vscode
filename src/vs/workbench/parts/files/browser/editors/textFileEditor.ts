@@ -13,7 +13,7 @@ import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
+import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
@@ -40,6 +40,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
+	private restoreViewState: boolean;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
@@ -58,6 +60,8 @@ export class TextFileEditor extends BaseTextEditor {
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 
+		this.updateRestoreViewStateConfiguration();
+
 		// Clear view state for deleted files
 		this._register(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 	}
@@ -67,6 +71,16 @@ export class TextFileEditor extends BaseTextEditor {
 		if (deleted && deleted.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource));
 		}
+	}
+
+	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+		super.handleConfigurationChangeEvent(configuration);
+
+		this.updateRestoreViewStateConfiguration();
+	}
+
+	private updateRestoreViewStateConfiguration(): void {
+		this.restoreViewState = this.configurationService.getValue(null, 'workbench.editor.restoreViewState');
 	}
 
 	getTitle(): string {
@@ -80,12 +94,16 @@ export class TextFileEditor extends BaseTextEditor {
 	setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		super.setEditorVisible(visible, group);
 
-		// React to editors closing to preserve view state. This needs to happen
+		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
-		// been disposed and we can safely persist the view state still.
+		// been disposed and we can safely persist the view state still as needed.
 		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
 			if (e.editor === this.input) {
-				this.doSaveTextEditorViewState(this.input);
+				if (this.restoreViewState) {
+					this.doSaveTextEditorViewState(this.input);
+				} else {
+					this.clearTextEditorViewState([this.input.getResource()], this.group);
+				}
 			}
 		}));
 	}

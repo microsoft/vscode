@@ -950,6 +950,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	restoreViewState?: boolean;
 }
 
 export interface IResourceOptions {
@@ -1010,8 +1011,8 @@ export interface IEditorMemento<T> {
 	loadState(group: IEditorGroup, resource: URI): T;
 	loadState(group: IEditorGroup, editor: EditorInput): T;
 
-	clearState(resource: URI): void;
-	clearState(editor: EditorInput): void;
+	clearState(resource: URI, group?: IEditorGroup): void;
+	clearState(editor: EditorInput, group?: IEditorGroup): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

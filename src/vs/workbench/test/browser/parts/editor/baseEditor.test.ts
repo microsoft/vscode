@@ -250,10 +250,10 @@ suite('Workbench base editor', () => {
 		assert.ok(!memento.loadState(testGroup4, URI.file('/E')));
 		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 
-		memento.clearState(URI.file('/C'));
+		memento.clearState(URI.file('/C'), testGroup4);
 		memento.clearState(URI.file('/E'));
 
-		assert.ok(!memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
 		assert.ok(!memento.loadState(testGroup0, URI.file('/E')));
 	});
