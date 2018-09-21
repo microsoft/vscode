@@ -564,9 +564,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.lastFocusedSettingElement = element.setting.key;
 			this.settingsTree.reveal(element);
 		}));
-		this._register(this.settingsTreeRenderer.onDidBlurSetting(element => {
-			this._onDidBlurSetting(element);
-		}));
 
 		this.settingsTreeDataSource = this.instantiationService.createInstance(SimplePagedDataSource,
 			this.instantiationService.createInstance(SettingsDataSource, this.viewState));
@@ -609,11 +606,6 @@ export class SettingsEditor2 extends BaseEditor {
 		} else {
 			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
 		}
-	}
-
-	private _onDidBlurSetting(element: SettingsTreeSettingElement) {
-		this.settingFastUpdateDelayer.fire();
-		this.settingSlowUpdateDelayer.fire();
 	}
 
 	private updateTreeScrollSync(): void {
