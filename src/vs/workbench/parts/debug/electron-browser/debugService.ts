@@ -56,6 +56,18 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 
+function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
+	return (listener, thisArgs = null, disposables?) => {
+		const result = event(e => {
+			if (e.kind === kind) {
+				result.dispose();
+				return listener.call(thisArgs, e);
+			}
+		}, null, disposables);
+		return result;
+	};
+}
+
 export class DebugService implements IDebugService {
 	_serviceBrand: any;
 
@@ -695,17 +707,6 @@ export class DebugService implements IDebugService {
 				return TPromise.wrapError(errors.create(errorMessage));
 			}
 
-			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
-				return (listener, thisArgs = null, disposables?) => {
-					const result = event(e => {
-						if (e.kind === kind) {
-							result.dispose();
-							return listener.call(thisArgs, e);
-						}
-					}, null, disposables);
-					return result;
-				};
-			}
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 			let taskStarted = false;
 			const promise = this.taskService.getActiveTasks().then(tasks => {
@@ -713,12 +714,12 @@ export class DebugService implements IDebugService {
 					// task is already running - nothing to do.
 					return TPromise.as(null);
 				}
-				once(TaskEventKind.Active, this.taskService.onDidStateChange)((taskEvent) => {
-					taskStarted = true;
-				});
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
-					return new TPromise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => c(null)));
+					return new TPromise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => {
+						taskStarted = true;
+						c(null);
+					}));
 				}
 
 				return taskPromise;
