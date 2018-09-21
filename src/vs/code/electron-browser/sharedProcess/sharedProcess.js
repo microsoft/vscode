@@ -6,11 +6,11 @@
 //@ts-check
 'use strict';
 
-// Set the below before requiring applicationinsights in the shared process
-process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = 'true'; // Skip monkey patching of 3rd party modules by appinsights
-global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
-
+const bootstrap = require('../../../../bootstrap');
 const bootstrapWindow = require('../../../../bootstrap-window');
+
+// Avoid Monkey Patches from Application Insights
+bootstrap.avoidMonkeyPatchFromAppInsights();
 
 bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
 	sharedProcess.startup({
