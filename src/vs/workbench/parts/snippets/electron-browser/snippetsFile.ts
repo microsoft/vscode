@@ -135,6 +135,12 @@ interface JsonSerializedSnippets {
 	[name: string]: JsonSerializedSnippet | { [name: string]: JsonSerializedSnippet };
 }
 
+export const enum SnippetSource {
+	Extension = 1,
+	User = 2,
+	Workspace = 3
+}
+
 export class SnippetFile {
 
 	readonly data: Snippet[] = [];
@@ -144,6 +150,7 @@ export class SnippetFile {
 	private _loadPromise: Promise<this>;
 
 	constructor(
+		readonly source: SnippetSource,
 		readonly location: URI,
 		readonly defaultScopes: string[],
 		private readonly _extension: IExtensionDescription,
@@ -244,11 +251,19 @@ export class SnippetFile {
 
 		let source: string;
 		if (this._extension) {
+			// extension snippet -> show the name of the extension
 			source = this._extension.displayName || this._extension.name;
-		} else if (this.isGlobalSnippets) {
-			source = localize('source.snippetGlobal', "Global User Snippet");
+
+		} else if (this.source === SnippetSource.Workspace) {
+			// workspace -> only *.code-snippets files
+			source = localize('source.workspaceSnippetGlobal', "Workspace Snippet");
 		} else {
-			source = localize('source.snippet', "User Snippet");
+			// user -> global (*.code-snippets) and language snippets
+			if (this.isGlobalSnippets) {
+				source = localize('source.userSnippetGlobal', "Global User Snippet");
+			} else {
+				source = localize('source.userSnippet', "User Snippet");
+			}
 		}
 
 		bucket.push(new Snippet(

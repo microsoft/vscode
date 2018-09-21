@@ -6,14 +6,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
 
 suite('Snippets', function () {
 
 	class TestSnippetFile extends SnippetFile {
 		constructor(filepath: URI, snippets: Snippet[]) {
-			super(filepath, undefined, undefined, null);
+			super(SnippetSource.Extension, filepath, undefined, undefined, undefined);
 			this.data.push(...snippets);
 		}
 	}
