@@ -122,4 +122,44 @@ suite('TokenSelectionSupport', () => {
 				new Range(3, 1, 3, 2)
 			]);
 	});
+
+	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
+
+		assertGetRangesToPosition([
+			' [ ]',
+			' { } ',
+			'( ) '
+		], 2, 3, [
+				new Range(1, 1, 3, 5),
+				new Range(2, 1, 2, 6),
+				new Range(2, 2, 2, 5),
+				new Range(2, 3, 2, 4)
+			]);
+	});
+
+	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
+
+		assertGetRangesToPosition([
+			' [] ',
+			' { } ',
+			'  ( ) '
+		], 1, 3, [
+				new Range(1, 1, 3, 7),
+				new Range(1, 1, 1, 5),
+				new Range(1, 2, 1, 4)
+			]);
+	});
+
+	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
+
+		assertGetRangesToPosition([
+			'  [] ',
+			' { } ',
+			'selectthis( ) '
+		], 3, 11, [
+				new Range(1, 1, 3, 15),
+				new Range(3, 1, 3, 15),
+				new Range(3, 1, 3, 11)
+			]);
+	});
 });
