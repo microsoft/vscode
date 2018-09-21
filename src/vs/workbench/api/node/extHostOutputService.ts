@@ -117,12 +117,12 @@ export class ExtHostOutputService {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
-	createOutputChannel(name: string, push: boolean): vscode.OutputChannel {
+	createOutputChannel(name: string, options?: { force?: boolean }): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			if (push) {
+			if (options && options.force) {
 				return new ExtHostPushOutputChannel(name, this._proxy);
 			} else {
 				// Do not crash if logger cannot be created

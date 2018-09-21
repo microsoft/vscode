@@ -6229,11 +6229,16 @@ declare module 'vscode' {
 		export function createInputBox(): InputBox;
 
 		/**
-		 * Create a new [output channel](#OutputChannel) with the given name.
+		 * Creates a new [output channel](#OutputChannel) with the given name.
+		 *
+		 * By default, Output channels use a separate transport mechanism when appending data.
+		 * This helps to reduce CPU load on the UI process but also means that the output channel UI updates with a small delay.
+		 * Use the force-flag to enforce immediate updates at the cost of higher CPU usage.
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param options Options to control how the channel will be created.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		export function createOutputChannel(name: string, options?: { force?: boolean }): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
