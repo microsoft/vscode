@@ -703,12 +703,12 @@ export interface IdleDeadline {
  */
 export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
-declare module global {
+declare module self {
 	export function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
 	export function cancelIdleCallback(handle: number): void;
 }
 (function () {
-	if (!global.requestIdleCallback || !global.cancelIdleCallback) {
+	if (typeof self === 'undefined' || !self.requestIdleCallback || !self.cancelIdleCallback) {
 		let warned = false;
 		runWhenIdle = (runner, timeout?) => {
 			if (!warned) {
@@ -720,8 +720,8 @@ declare module global {
 		};
 	} else {
 		runWhenIdle = (runner, timeout?) => {
-			let handle = global.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
-			return { dispose() { global.cancelIdleCallback(handle); } };
+			let handle = self.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			return { dispose() { self.cancelIdleCallback(handle); } };
 		};
 	}
 })();
