@@ -374,6 +374,9 @@ export class TestHistoryService implements IHistoryService {
 	public getLastActiveFile(schemeFilter: string): URI {
 		return void 0;
 	}
+
+	public openLastEditLocation(): void {
+	}
 }
 
 export class TestDialogService implements IDialogService {
