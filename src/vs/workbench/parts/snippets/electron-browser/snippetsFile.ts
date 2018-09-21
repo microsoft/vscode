@@ -134,9 +134,9 @@ interface JsonSerializedSnippets {
 }
 
 export const enum SnippetSource {
-	Extension = 1,
-	User = 2,
-	Workspace = 3
+	User = 1,
+	Workspace = 2,
+	Extension = 3,
 }
 
 export class SnippetFile {
