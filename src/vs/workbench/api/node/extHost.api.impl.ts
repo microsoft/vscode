@@ -61,6 +61,7 @@ import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
 import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
+import { localize } from 'vs/nls';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -119,7 +120,7 @@ export function createApiFactory(
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService));
-	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService));
+	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(rpcProtocol, extHostWorkspace, extensionService, extHostDocumentsAndEditors, extHostConfiguration, extHostTerminalService, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, schemeTransformer));
 	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration));
@@ -137,7 +138,10 @@ export function createApiFactory(
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
 	const extHostOutputService = new ExtHostOutputService(initData.logsLocation, rpcProtocol);
-	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
+	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
+
+	// Register an output channel for exthost log
+	extHostOutputService.createOutputChannelFromLogFile(localize('extensionsLog', "Extension Host"), extHostLogService.logFile);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -265,8 +269,7 @@ export function createApiFactory(
 			getLanguages(): Thenable<string[]> {
 				return extHostLanguages.getLanguages();
 			},
-			changeLanguage(document: vscode.TextDocument, languageId: string): Thenable<void> {
-				checkProposedApiEnabled(extension);
+			setTextDocumentLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
@@ -652,7 +655,7 @@ export function createApiFactory(
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
-				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
+				return extHostDebugService.registerDebugConfigurationProvider(extension, debugType, provider);
 			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
@@ -721,6 +724,8 @@ export function createApiFactory(
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
+			DebugAdapterServer: extHostTypes.DebugAdapterServer,
+			DebugAdapterImplementation: extHostTypes.DebugAdapterImplementation,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
@@ -755,6 +760,7 @@ export function createApiFactory(
 			Selection: extHostTypes.Selection,
 			ShellExecution: extHostTypes.ShellExecution,
 			ShellQuoting: extHostTypes.ShellQuoting,
+			SignatureHelpTriggerReason: extHostTypes.SignatureHelpTriggerReason,
 			SignatureHelp: extHostTypes.SignatureHelp,
 			SignatureInformation: extHostTypes.SignatureInformation,
 			SnippetString: extHostTypes.SnippetString,

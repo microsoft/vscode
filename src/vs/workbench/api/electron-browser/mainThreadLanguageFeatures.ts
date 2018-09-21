@@ -307,10 +307,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 			signatureHelpTriggerCharacters: triggerCharacter,
 
-			provideSignatureHelp: (model: ITextModel, position: EditorPosition, token: CancellationToken): Thenable<modes.SignatureHelp> => {
-				return this._proxy.$provideSignatureHelp(handle, model.uri, position, token);
+			provideSignatureHelp: (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.SignatureHelpContext): Thenable<modes.SignatureHelp> => {
+				return this._proxy.$provideSignatureHelp(handle, model.uri, position, context, token);
 			}
-
 		});
 	}
 
@@ -403,6 +402,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
 			afterText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText),
+			oneLineAboveText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText),
 			action: onEnterRule.action
 		};
 	}

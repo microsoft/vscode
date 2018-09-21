@@ -16,21 +16,13 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/jsonServerMain.ts',
 	},
-	resolve: {
-		mainFields: ['module', 'main'],
-		extensions: ['.ts', '.js'] // support ts-files and js-files
-	},
 	output: {
 		filename: 'jsonServerMain.js',
-		path: path.join(__dirname, 'dist'),
-		libraryTarget: "commonjs",
-	},
-	externals: {
-		"vscode-nls": 'commonjs vscode-nls',
+		path: path.join(__dirname, 'dist')
 	},
 	plugins: [
 		new webpack.NormalModuleReplacementPlugin(
-			/(\/|\\)vscode-languageserver(\/|\\)lib(\/|\\)files\.js/,
+			/[/\\]vscode-languageserver[/\\]lib[/\\]files\.js/,
 			require.resolve('./build/filesFillIn')
 		),
 		new webpack.IgnorePlugin(/vertx/)

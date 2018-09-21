@@ -131,7 +131,8 @@ export class StartAction extends AbstractDebugAction {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
-		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidNewSession(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidEndSession(() => this.updateEnablement()));
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
@@ -218,7 +219,7 @@ export class RestartAction extends AbstractDebugAction {
 	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedSession);
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedSession)));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(() => this.setLabel(this.debugService.getViewModel().focusedSession)));
 	}
 
 	@memoize

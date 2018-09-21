@@ -9,12 +9,12 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/tokenSelectionSupport';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 class MockJSMode extends MockMode {
 
@@ -30,34 +30,7 @@ class MockJSMode extends MockMode {
 				['[', ']']
 			],
 
-			onEnterRules: [
-				{
-					// e.g. /** | */
-					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-					afterText: /^\s*\*\/$/,
-					action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-				},
-				{
-					// e.g. /** ...|
-					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-					action: { indentAction: IndentAction.None, appendText: ' * ' }
-				},
-				{
-					// e.g.  * ...|
-					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-					action: { indentAction: IndentAction.None, appendText: '* ' }
-				},
-				{
-					// e.g.  */|
-					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-					action: { indentAction: IndentAction.None, removeText: 1 }
-				},
-				{
-					// e.g.  *-----*/|
-					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-					action: { indentAction: IndentAction.None, removeText: 1 }
-				}
-			]
+			onEnterRules: javascriptOnEnterRules
 		}));
 	}
 }
@@ -113,6 +86,80 @@ suite('TokenSelectionSupport', () => {
 				new Range(3, 17, 3, 26),
 				new Range(3, 18, 3, 25),
 				// new Range(3, 19, 3, 20)
+			]);
+	});
+
+	test('getRangesToPosition #56886. Skip empty lines correctly.', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo){',
+			'\tif (bar) {',
+			'',
+			'\t}',
+			'}'
+		], 3, 1, [
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3)
+			]);
+	});
+
+	test('getRangesToPosition #56886. Do not skip lines with only whitespaces.', () => {
+
+		assertGetRangesToPosition([
+			'function a(bar, foo){',
+			'\tif (bar) {',
+			' ',
+			'\t}',
+			'}'
+		], 3, 1, [
+				new Range(1, 1, 5, 2),
+				new Range(1, 21, 5, 2),
+				new Range(2, 1, 4, 3),
+				new Range(2, 11, 4, 3),
+				new Range(3, 1, 4, 2),
+				new Range(3, 1, 3, 2)
+			]);
+	});
+
+	test('getRangesToPosition #40658. Cursor at first position inside brackets should select line inside.', () => {
+
+		assertGetRangesToPosition([
+			' [ ]',
+			' { } ',
+			'( ) '
+		], 2, 3, [
+				new Range(1, 1, 3, 5),
+				new Range(2, 1, 2, 6),
+				new Range(2, 2, 2, 5),
+				new Range(2, 3, 2, 4)
+			]);
+	});
+
+	test('getRangesToPosition #40658. Cursor in empty brackets should reveal brackets first.', () => {
+
+		assertGetRangesToPosition([
+			' [] ',
+			' { } ',
+			'  ( ) '
+		], 1, 3, [
+				new Range(1, 1, 3, 7),
+				new Range(1, 1, 1, 5),
+				new Range(1, 2, 1, 4)
+			]);
+	});
+
+	test('getRangesToPosition #40658. Tokens before bracket will be revealed first.', () => {
+
+		assertGetRangesToPosition([
+			'  [] ',
+			' { } ',
+			'selectthis( ) '
+		], 3, 11, [
+				new Range(1, 1, 3, 15),
+				new Range(3, 1, 3, 15),
+				new Range(3, 1, 3, 11)
 			]);
 	});
 });

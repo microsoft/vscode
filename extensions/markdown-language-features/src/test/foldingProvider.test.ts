@@ -114,9 +114,62 @@ d`);
 		assert.strictEqual(firstFold.end, 3);
 	});
 
-	test('Should fold if list has multiple lines of content', async () => {
+	test('lists folds should span multiple lines of content', async () => {
 		const folds = await getFoldsForDocument(`a
 - This list item\n  spans multiple\n  lines.`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('List should leave single blankline before new element', async () => {
+		const folds = await getFoldsForDocument(`- a
+a
+
+
+b`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 0);
+		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('Should fold fenced code blocks', async () => {
+		const folds = await getFoldsForDocument(`~~~ts
+a
+~~~
+b`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 0);
+		assert.strictEqual(firstFold.end, 2);
+	});
+
+	test('Should fold fenced code blocks with yaml front matter', async () => {
+		const folds = await getFoldsForDocument(`---
+title: bla
+---
+
+~~~ts
+a
+~~~
+
+a
+a
+b
+a`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 4);
+		assert.strictEqual(firstFold.end, 6);
+	});
+
+	test('Should fold html blocks', async () => {
+		const folds = await getFoldsForDocument(`x
+<div>
+	fa
+</div>`);
 		assert.strictEqual(folds.length, 1);
 		const firstFold = folds[0];
 		assert.strictEqual(firstFold.start, 1);

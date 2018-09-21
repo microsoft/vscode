@@ -538,7 +538,9 @@ suite('viewLineRenderer.renderLine', () => {
 				'101 chars',
 				_lineText.substr(0, 101),
 				[
-					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0interesting\u00a0text.\u00a0This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0</span>',
+					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0</span>',
+					'<span class="mtk1">interesting\u00a0text.\u00a0This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0</span>',
+					'<span class="mtk1">contains\u00a0</span>',
 				]
 			);
 		}
@@ -1375,13 +1377,11 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="mtk3">\u00a0JoyShareல்\u00a0பின்தொடர்ந்து,\u00a0விடீயோ,\u00a0ஜோக்குகள்,\u00a0அனிமேசன்,\u00a0நகைச்சுவை\u00a0படங்கள்\u00a0மற்றும்\u00a0செய்திகளை\u00a0பெறுவீர்</span>',
+			'<span class="mtk3">\u00a0JoyShareல்\u00a0பின்தொடர்ந்து,\u00a0விடீயோ,\u00a0ஜோக்குகள்,\u00a0</span>',
+			'<span class="mtk3">அனிமேசன்,\u00a0நகைச்சுவை\u00a0படங்கள்\u00a0மற்றும்\u00a0செய்திகளை\u00a0</span>',
+			'<span class="mtk3">பெறுவீர்</span>',
 			'</span>'
 		].join('');
-
-		let _expected = expected.split('').map(c => c.charCodeAt(0));
-		let _actual = actual.html.split('').map(c => c.charCodeAt(0));
-		assert.deepEqual(_actual, _expected);
 
 		assert.deepEqual(actual.html, expected);
 	});
@@ -1408,7 +1408,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="mtk3">\u00a0वो\u00a0ऐसा\u00a0क्या\u00a0है\u00a0जो\u00a0हमारे\u00a0अंदर\u00a0भी\u00a0है\u00a0और\u00a0बाहर\u00a0भी\u00a0है।\u00a0जिसकी\u00a0वजह\u00a0से\u00a0हम\u00a0सब\u00a0हैं।\u00a0जिसने\u00a0इस\u00a0सृष्टि\u00a0की\u00a0रचना\u00a0की\u00a0है।</span>',
+			'<span class="mtk3">\u00a0वो\u00a0ऐसा\u00a0क्या\u00a0है\u00a0जो\u00a0हमारे\u00a0अंदर\u00a0भी\u00a0है\u00a0और\u00a0बाहर\u00a0भी\u00a0है।\u00a0</span>',
+			'<span class="mtk3">जिसकी\u00a0वजह\u00a0से\u00a0हम\u00a0सब\u00a0हैं।\u00a0जिसने\u00a0इस\u00a0सृष्टि\u00a0की\u00a0रचना\u00a0की\u00a0</span>',
+			'<span class="mtk3">है।</span>',
 			'</span>'
 		].join('');
 
@@ -1437,6 +1439,66 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let expected = [
 			'<span>',
 			'<span class="mtk3">This\u00a0is\u00a0a\u00a0long\u00a0line\u00a0which\u00a0never\u00a0uses\u00a0more\u00a0than\u00a0two</span><span class="mtk3">\u00a0spaces.</span><span class="mtk3">\u00a0</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #33525: Long line with ligatures takes a long time to paint decorations', () => {
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			'append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to append data to',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(194, 3)]),
+			[],
+			4,
+			10,
+			10000,
+			'none',
+			false,
+			true
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0</span>',
+			'<span class="mtk3">append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0</span>',
+			'<span class="mtk3">append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0</span>',
+			'<span class="mtk3">append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0append\u00a0data\u00a0to\u00a0</span>',
+			'<span class="mtk3">append\u00a0data\u00a0to</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #33525: Long line with ligatures takes a long time to paint decorations - not possible', () => {
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			'appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(194, 3)]),
+			[],
+			4,
+			10,
+			10000,
+			'none',
+			false,
+			true
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">appenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatatoappenddatato</span>',
 			'</span>'
 		].join('');
 

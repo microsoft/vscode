@@ -283,14 +283,12 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
-			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
-			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
+			'markdownDescription': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'markdownDescription': nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on."),
-			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
+			'markdownDescription': nls.localize('insertSpaces', "Insert spaces when pressing `Tab`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.detectIndentation': {
 			'type': 'boolean',
@@ -352,7 +350,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.hover.delay': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
-			'description': nls.localize('hover.delay', "Time delay in milliseconds after which to the hover is shown.")
+			'description': nls.localize('hover.delay', "Controls the delay in milliseconds after which the hover is shown.")
 		},
 		'editor.hover.sticky': {
 			'type': 'boolean',
@@ -367,7 +365,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.autoFindInSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
-			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried on selected text or the entire file in the editor.")
+			'description': nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
 		},
 		'editor.find.globalFindClipboard': {
 			'type': 'boolean',
@@ -621,6 +619,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': 0,
 			'minimum': 0,
 			'markdownDescription': nls.localize('suggestLineHeight', "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used.")
+		},
+		'editor.tabCompletion': {
+			type: 'string',
+			default: 'off',
+			enum: ['on', 'off', 'onlySnippets'],
+			enumDescriptions: [
+				nls.localize('tabCompletion.on', "Tab complete will insert the best matching suggestion when pressing tab."),
+				nls.localize('tabCompletion.off', "Disable tab completions."),
+				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
+			],
+			description: nls.localize('tabCompletion', "Enables tab completions.")
 		},
 		'editor.suggest.filterGraceful': {
 			type: 'boolean',

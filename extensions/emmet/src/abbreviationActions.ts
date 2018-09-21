@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, isTemplateScript } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
 const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
@@ -44,7 +44,6 @@ function doWrapping(individualLines: boolean, args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const rootNode = parseDocument(editor.document, false);
 	if (individualLines) {
 		if (editor.selections.length === 1 && editor.selection.isEmpty) {
 			vscode.window.showInformationMessage('Select more than 1 line and try again.');
@@ -55,10 +54,8 @@ function doWrapping(individualLines: boolean, args: any) {
 			return;
 		}
 	}
-	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
-	if (!syntax) {
-		return;
-	}
+	const syntax = 'html';
+	const rootNode = parseDocument(editor.document, false);
 
 	let inPreview = false;
 	let currentValue = '';
@@ -445,7 +442,18 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 	if (currentHtmlNode) {
 		if (currentHtmlNode.name === 'script') {
-			return isTemplateScript(currentHtmlNode);
+			const typeAttribute = (currentHtmlNode.attributes || []).filter(x => x.name.toString() === 'type')[0];
+			const typeValue = typeAttribute ? typeAttribute.value.toString() : '';
+
+			if (allowedMimeTypesInScriptTag.indexOf(typeValue) > -1) {
+				return true;
+			}
+
+			const isScriptJavascriptType = !typeValue || typeValue === 'application/javascript' || typeValue === 'text/javascript';
+			if (isScriptJavascriptType) {
+				return !!getSyntaxFromArgs({ language: 'javascript' });
+			}
+			return false;
 		}
 
 		const innerRange = getInnerRange(currentHtmlNode);

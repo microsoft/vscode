@@ -5,27 +5,13 @@
 import { createRotatingLogger } from 'vs/platform/log/node/spdlogService';
 import { RotatingLogger } from 'spdlog';
 
-interface Appender {
-	critical(content: string);
-	flush();
-}
-
 export class OutputAppender {
 
-	private appender: Appender;
+	private appender: RotatingLogger;
 
 	constructor(name: string, file: string) {
-		// Do not crash if logger cannot be loaded
-		try {
-			this.appender = createRotatingLogger(name, file, 1024 * 1024 * 30, 1);
-			(<RotatingLogger>this.appender).clearFormatters();
-		} catch (error) {
-			console.error(error);
-			this.appender = {
-				critical() { },
-				flush() { },
-			};
-		}
+		this.appender = createRotatingLogger(name, file, 1024 * 1024 * 30, 1);
+		this.appender.clearFormatters();
 	}
 
 	append(content: string): void {

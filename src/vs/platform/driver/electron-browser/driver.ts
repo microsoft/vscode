@@ -230,11 +230,12 @@ export async function registerWindowDriver(
 	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	const options = await windowDriverRegistry.registerWindowDriver(windowId);
+	await windowDriverRegistry.registerWindowDriver(windowId);
+	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
 
-	if (options.verbose) {
-		windowDriver.openDevTools();
-	}
+	// if (options.verbose) {
+	// 	windowDriver.openDevTools();
+	// }
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 	return combinedDisposable([disposable, client]);

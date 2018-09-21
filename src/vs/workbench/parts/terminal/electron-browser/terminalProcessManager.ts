@@ -117,7 +117,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 			// Adding other env keys necessary to create the process
 			const locale = this._configHelper.config.setLocaleVariables ? platform.locale : undefined;
-			terminalEnvironment.addTerminalEnvironmentKeys(env, locale);
+			terminalEnvironment.addTerminalEnvironmentKeys(env, platform.isWindows, locale);
 
 			this._logService.debug(`Terminal process launching`, shellLaunchConfig, this.initialCwd, cols, rows, env);
 			this._process = new TerminalProcess(shellLaunchConfig, this.initialCwd, cols, rows, env);

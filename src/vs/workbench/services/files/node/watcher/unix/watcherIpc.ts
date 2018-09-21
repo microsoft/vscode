@@ -16,6 +16,7 @@ export interface IWatcherChannel extends IChannel {
 	listen<T>(event: string, arg?: any): Event<T>;
 
 	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
+	call(command: 'setVerboseLogging', request: boolean): TPromise<void>;
 	call<T>(command: string, arg?: any): TPromise<T>;
 }
 
@@ -30,9 +31,11 @@ export class WatcherChannel implements IWatcherChannel {
 		throw new Error('No events');
 	}
 
-	call(command: string, arg: any): TPromise<any> {
+	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'setRoots': return this.service.setRoots(arg);
+			case 'setVerboseLogging': return this.service.setVerboseLogging(arg);
+			case 'stop': return this.service.stop();
 		}
 		return undefined;
 	}
@@ -46,7 +49,15 @@ export class WatcherChannelClient implements IWatcherService {
 		return this.channel.listen('watch', options);
 	}
 
+	setVerboseLogging(enable: boolean): TPromise<void> {
+		return this.channel.call('setVerboseLogging', enable);
+	}
+
 	setRoots(roots: IWatcherRequest[]): TPromise<void> {
 		return this.channel.call('setRoots', roots);
+	}
+
+	stop(): TPromise<void> {
+		return this.channel.call('stop');
 	}
 }

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
+import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { IExtensionSetting, ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
-import { isArray } from 'vs/base/common/types';
 
 export const MODIFIED_SETTING_TAG = 'modified';
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
@@ -32,12 +32,38 @@ export abstract class SettingsTreeElement {
 	index: number;
 }
 
+export type SettingsTreeGroupChild = (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement);
+
 export class SettingsTreeGroupElement extends SettingsTreeElement {
-	children: (SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement)[];
 	count?: number;
 	label: string;
 	level: number;
 	isFirstGroup: boolean;
+
+	private _childSettingKeys: Set<string>;
+	private _children: SettingsTreeGroupChild[];
+
+	get children(): SettingsTreeGroupChild[] {
+		return this._children;
+	}
+
+	set children(newChildren: SettingsTreeGroupChild[]) {
+		this._children = newChildren;
+
+		this._childSettingKeys = new Set();
+		this._children.forEach(child => {
+			if (child instanceof SettingsTreeSettingElement) {
+				this._childSettingKeys.add(child.setting.key);
+			}
+		});
+	}
+
+	/**
+	 * Returns whether this group contains the given child key (to a depth of 1 only)
+	 */
+	containsSetting(key: string): boolean {
+		return this._childSettingKeys.has(key);
+	}
 }
 
 export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
@@ -180,22 +206,20 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return false;
 		}
 	}
-}
 
-export function countSettingGroupChildrenWithPredicate(tree: SettingsTreeGroupElement, predicate: (setting: SettingsTreeSettingElement) => boolean): number {
-	const recursiveCounter: (root: SettingsTreeGroupElement | SettingsTreeSettingElement | SettingsTreeNewExtensionsElement) => number =
-		root => {
-			if (root instanceof SettingsTreeGroupElement) {
-				return root.children.map(child => recursiveCounter(child)).reduce((a, b) => a + b, 0);
-			} else if (root instanceof SettingsTreeSettingElement) {
-				return +predicate(root);
-			} else if (root instanceof SettingsTreeNewExtensionsElement) {
-				return 0;
-			}
+	matchesScope(scope: SettingsTarget): boolean {
+		const configTarget = URI.isUri(scope) ? ConfigurationTarget.WORKSPACE_FOLDER : scope;
 
-			throw new Error('Argument to settingsTreeChildrenCount should only have group, setting, or extension elements');
-		};
-	return recursiveCounter(tree);
+		if (configTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+			return this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		if (configTarget === ConfigurationTarget.WORKSPACE) {
+			return this.setting.scope === ConfigurationScope.WINDOW || this.setting.scope === ConfigurationScope.RESOURCE;
+		}
+
+		return true;
+	}
 }
 
 export class SettingsTreeModel {
@@ -205,7 +229,7 @@ export class SettingsTreeModel {
 	private _tocRoot: ITOCEntry;
 
 	constructor(
-		private _viewState: ISettingsEditorViewState,
+		protected _viewState: ISettingsEditorViewState,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) { }
 
@@ -257,17 +281,19 @@ export class SettingsTreeModel {
 		element.parent = parent;
 		element.level = this.getDepth(element);
 
-		element.children = [];
+		const children = [];
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element))
 				.filter(el => el.setting.deprecationMessage ? el.isConfigured : true);
-			element.children.push(...settingChildren);
+			children.push(...settingChildren);
 		}
 
 		if (tocEntry.children) {
 			const groupChildren = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
-			element.children.push(...groupChildren);
+			children.push(...groupChildren);
 		}
+
+		element.children = children;
 
 		this._treeElementsById.set(element.id, element);
 		return element;
@@ -417,18 +443,18 @@ export class SearchResultModel extends SettingsTreeModel {
 		}
 
 		const localMatchKeys = new Set();
-		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
+		const localResult = this.rawSearchResults[SearchResultIdx.Local];
 		if (localResult) {
 			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
 		}
 
-		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
+		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {
 			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
 		}
 
 		if (remoteResult) {
-			this.newExtensionSearchResults = objects.deepClone(this.rawSearchResults[SearchResultIdx.NewExtensions]);
+			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
 		}
 
 		this.cachedUniqueSearchResults = [localResult, remoteResult];
@@ -457,6 +483,10 @@ export class SearchResultModel extends SettingsTreeModel {
 			label: 'searchResultModel',
 			settings: this.getFlatSettings()
 		});
+
+		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
+		this.root.children = this.root.children
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const newExtElement = new SettingsTreeNewExtensionsElement();

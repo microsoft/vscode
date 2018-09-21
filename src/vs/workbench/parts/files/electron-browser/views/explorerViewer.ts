@@ -56,7 +56,6 @@ import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage }
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -408,7 +407,6 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@IMenuService private menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
@@ -540,9 +538,6 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 				if (wasCancelled) {
 					tree.domFocus();
 				}
-			},
-			getKeyBinding: (action) => {
-				return this.keybindingService.lookupKeybinding(action.id);
 			},
 			getActionsContext: () => selection && selection.indexOf(stat) >= 0
 				? selection.map((fs: ExplorerItem) => fs.resource)

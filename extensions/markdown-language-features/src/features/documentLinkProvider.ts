@@ -3,34 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
+import { getUriForLinkWithKnownExternalScheme } from '../util/links';
 
 function normalizeLink(
 	document: vscode.TextDocument,
 	link: string,
 	base: string
 ): vscode.Uri {
-	const uri = vscode.Uri.parse(link);
-	if (uri.scheme) {
-		return uri;
+	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
+	if (externalSchemeUri) {
+		return externalSchemeUri;
 	}
 
-	// assume it must be a file
-	let resourcePath = uri.path;
-	if (!uri.path) {
+	// Assume it must be an relative or absolute file path
+	// Use a fake scheme to avoid parse warnings
+	const tempUri = vscode.Uri.parse(`fake-scheme:${link}`);
+
+	let resourcePath = tempUri.path;
+	if (!tempUri.path) {
 		resourcePath = document.uri.path;
-	} else if (uri.path[0] === '/') {
+	} else if (tempUri.path[0] === '/') {
 		const root = vscode.workspace.getWorkspaceFolder(document.uri);
 		if (root) {
-			resourcePath = path.join(root.uri.fsPath, uri.path);
+			resourcePath = path.join(root.uri.fsPath, tempUri.path);
 		}
 	} else {
-		resourcePath = path.join(base, uri.path);
+		resourcePath = path.join(base, tempUri.path);
 	}
 
-	return OpenDocumentLinkCommand.createCommandUri(resourcePath, uri.fragment);
+	return OpenDocumentLinkCommand.createCommandUri(resourcePath, tempUri.fragment);
 }
 
 function matchAll(

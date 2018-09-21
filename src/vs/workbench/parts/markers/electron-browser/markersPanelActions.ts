@@ -36,6 +36,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isEqual } from 'vs/base/common/resources';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -128,6 +129,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	private filterInputBox: HistoryInputBox;
 	private controlsContainer: HTMLInputElement;
 	private filterBadge: HTMLInputElement;
+	private focusContextKey: IContextKey<boolean>;
 
 	constructor(
 		readonly action: MarkersFilterAction,
@@ -135,9 +137,11 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
+		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(500);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
@@ -151,6 +155,12 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		this.createControls(filterContainer);
 
 		this.adjustInputBox();
+	}
+
+	focus(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.focus();
+		}
 	}
 
 	toggleLayout(small: boolean) {
@@ -177,6 +187,10 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, 'keydown', (keyboardEvent) => this.onInputKeyDown(keyboardEvent, this.filterInputBox)));
 		this._register(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
+
+		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
+		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.focusContextKey.set(false)));
 	}
 
 	private createControls(container: HTMLElement): void {

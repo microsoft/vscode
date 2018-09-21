@@ -23,6 +23,7 @@ import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase'
 import { IWordAtPosition, EndOfLineSequence } from 'vs/editor/common/model';
 import { globals } from 'vs/base/common/platform';
 import { Iterator } from 'vs/base/common/iterator';
+import { mergeSort } from 'vs/base/common/arrays';
 
 export interface IMirrorModel {
 	readonly uri: URI;
@@ -373,6 +374,8 @@ export abstract class BaseEditorSimpleWorker {
 
 		const result: TextEdit[] = [];
 		let lastEol: EndOfLineSequence;
+
+		edits = mergeSort(edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
 		for (let { range, text, eol } of edits) {
 

@@ -43,17 +43,7 @@ export class ViewModel implements IViewModel {
 	}
 
 	get focusedThread(): IThread {
-		if (this._focusedStackFrame) {
-			return this._focusedStackFrame.thread;
-		}
-		if (this._focusedSession) {
-			const threads = this._focusedSession.getAllThreads();
-			if (threads && threads.length) {
-				return threads[threads.length - 1];
-			}
-		}
-
-		return undefined;
+		return this._focusedThread;
 	}
 
 	get focusedStackFrame(): IStackFrame {
@@ -61,18 +51,19 @@ export class ViewModel implements IViewModel {
 	}
 
 	setFocus(stackFrame: IStackFrame, thread: IThread, session: IDebugSession, explicit: boolean): void {
-		const shouldEmit = this._focusedSession !== session || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
+		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
+		const shouldEmitForSession = this._focusedSession !== session;
 
 		this._focusedStackFrame = stackFrame;
 		this._focusedThread = thread;
-		if (this._focusedSession !== session) {
-			this._focusedSession = session;
-			this._onDidFocusSession.fire(session);
-		}
+		this._focusedSession = session;
 
 		this.loadedScriptsSupportedContextKey.set(session && session.capabilities.supportsLoadedSourcesRequest);
 
-		if (shouldEmit) {
+		if (shouldEmitForSession) {
+			this._onDidFocusSession.fire(session);
+		}
+		if (shouldEmitForStackFrame) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
 		}
 	}

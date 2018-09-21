@@ -17,11 +17,6 @@ export interface ITitleService {
 	_serviceBrand: any;
 
 	/**
-	 * Set the window title with the given value.
-	 */
-	setTitle(title: string): void;
-
-	/**
 	 * Update some environmental title properties.
 	 */
 	updateProperties(properties: ITitleProperties): void;

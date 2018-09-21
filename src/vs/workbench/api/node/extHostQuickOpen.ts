@@ -69,6 +69,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 					let description: string;
 					let detail: string;
 					let picked: boolean;
+					let alwaysShow: boolean;
 
 					if (typeof item === 'string') {
 						label = item;
@@ -77,13 +78,15 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						description = item.description;
 						detail = item.detail;
 						picked = item.picked;
+						alwaysShow = item.shouldAlwaysShow;
 					}
 					pickItems.push({
 						label,
 						description,
 						handle,
 						detail,
-						picked
+						picked,
+						alwaysShow
 					});
 				}
 

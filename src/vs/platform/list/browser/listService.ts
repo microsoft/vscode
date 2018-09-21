@@ -647,6 +647,9 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 	protected readonly highlighter: IHighlighter;
 	protected readonly highlights: Map<any, FuzzyScore>;
 
+	private readonly _onDidStartFilter: Emitter<this>;
+	readonly onDidStartFiltering: Event<this>;
+
 	constructor(
 		parent: HTMLElement,
 		treeConfiguration: IHighlightingTreeConfiguration,
@@ -706,6 +709,10 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 					break;
 			}
 		}));
+
+		this._onDidStartFilter = new Emitter<this>();
+		this.onDidStartFiltering = this._onDidStartFilter.event;
+		this.disposables.push(this._onDidStartFilter);
 	}
 
 	setInput(element: any): TPromise<any> {
@@ -729,6 +736,7 @@ export class HighlightingWorkbenchTree extends WorkbenchTree {
 		removeClass(this.domNode, 'inactive');
 		this.input.focus();
 		this.layout();
+		this._onDidStartFilter.fire(this);
 	}
 
 	private lastSelection: any[];

@@ -247,6 +247,7 @@ export class QuickInputList {
 		const delegate = new ListElementDelegate();
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: element => element.label,
+			openController: { shouldOpen: () => false }, // Workaround #58124
 			multipleSelectionSupport: false
 		}) as WorkbenchList<ListElement>;
 		this.list.getHTMLElement().id = id;
@@ -281,6 +282,11 @@ export class QuickInputList {
 		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
 			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
 				this._onLeave.fire();
+			}
+		}));
+		this.disposables.push(this.list.onSelectionChange(e => {
+			if (e.elements.length) {
+				this.list.setSelection([]);
 			}
 		}));
 	}

@@ -40,12 +40,7 @@ export interface IModelDecorationOverviewRulerOptions {
 	 * CSS color to render in the overview ruler.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	darkColor: string | ThemeColor;
-	/**
-	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
-	 */
-	hcColor?: string | ThemeColor;
+	darkColor?: string | ThemeColor;
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -82,6 +77,11 @@ export interface IModelDecorationOptions {
 	 * @internal
 	 */
 	showIfCollapsed?: boolean;
+	/**
+	 * Collapse the decoration if its entire range is being replaced via an edit.
+	 * @internal
+	 */
+	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
 	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.

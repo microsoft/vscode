@@ -6,18 +6,18 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { SimpleReplElement, Model, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
+import { SimpleReplElement, DebugModel, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 suite('Debug - Model', () => {
-	let model: Model;
+	let model: DebugModel;
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new Model([], true, [], [], [], <any>{ isDirty: (e: any) => false });
+		model = new DebugModel([], true, [], [], [], <any>{ isDirty: (e: any) => false });
 		rawSession = new MockRawSession();
 	});
 
@@ -144,7 +144,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		session['_raw'] = <any>rawSession;
+		session['raw'] = <any>rawSession;
 
 		model.rawUpdate({
 			sessionId: session.getId(),
@@ -237,7 +237,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		session['_raw'] = <any>rawSession;
+		session['raw'] = <any>rawSession;
 
 		// Add the threads
 		model.rawUpdate({
@@ -351,7 +351,7 @@ suite('Debug - Model', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined);
 		model.addSession(session);
 
-		session['_raw'] = <any>rawSession;
+		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 		model.addReplExpression(session, stackFrame, 'myVariable').then();

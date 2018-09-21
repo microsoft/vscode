@@ -26,7 +26,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
+import { DebugToolbar } from 'vs/workbench/parts/debug/browser/debugToolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
@@ -105,7 +105,7 @@ export class DebugViewlet extends ViewContainerViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugActionsWidget.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugToolbar.getActions(this.allActions, this.toDispose, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	public get showInitialDebugActions(): boolean {

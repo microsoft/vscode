@@ -413,6 +413,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				dom.addClass(this._domNode, 'visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
 			}, 0);
+
+			// validate query again as it's being dismissed when we hide the find widget.
+			setTimeout(() => {
+				this._findInput.validate();
+			}, 200);
+
 			this._codeEditor.layoutOverlayWidget(this);
 
 			let adjustEditorScrollTop = true;
@@ -450,6 +456,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			dom.removeClass(this._domNode, 'visible');
 			this._domNode.setAttribute('aria-hidden', 'true');
+			this._findInput.clearMessage();
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
@@ -603,7 +610,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (this._toggleSelectionFind.checked) {
 			let selection = this._codeEditor.getSelection();
 			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+				selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
 			}
 			let currentMatch = this._state.currentMatch;
 			if (selection.startLineNumber !== selection.endLineNumber) {
@@ -732,7 +739,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return { content: e.message };
 				}
 			}
-		}, this._contextKeyService));
+		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
@@ -799,7 +806,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				if (this._toggleSelectionFind.checked) {
 					let selection = this._codeEditor.getSelection();
 					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-						selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+						selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
 					}
 					if (!selection.isEmpty()) {
 						this._state.change({ searchScope: selection }, true);
@@ -847,8 +854,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			history: []
 		}, this._contextKeyService));
 
+
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
-		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
+		this._register(this._replaceInputBox.onDidChange((e) => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
 		}));
 
@@ -1157,4 +1165,8 @@ registerThemingParticipant((theme, collector) => {
 		}
 	}
 
+	const inputActiveBorder = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveBorder) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
+	}
 });

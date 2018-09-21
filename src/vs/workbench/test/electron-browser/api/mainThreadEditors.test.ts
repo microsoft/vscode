@@ -29,6 +29,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { LabelService } from 'vs/platform/label/common/label';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 suite('MainThreadEditors', () => {
 
@@ -56,15 +57,15 @@ suite('MainThreadEditors', () => {
 			isDirty() { return false; }
 			create(uri: URI, contents?: string, options?: any) {
 				createdResources.add(uri);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			delete(resource: URI) {
 				deletedResources.add(resource);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 			models = <any>{
 				onModelSaved: Event.None,
@@ -80,11 +81,11 @@ suite('MainThreadEditors', () => {
 					textEditorModel = modelService.getModel(resource);
 				};
 				textEditorModel.isReadonly = () => false;
-				return TPromise.as(new ImmortalReference(textEditorModel));
+				return Promise.resolve(new ImmortalReference(textEditorModel));
 			}
 		};
 
-		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()));
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), textModelService, new TestFileService(), textFileService, new LabelService(TestEnvironmentService, new TestContextService()), configService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -108,6 +109,14 @@ suite('MainThreadEditors', () => {
 			null,
 			editorGroupService,
 			bulkEditService,
+			new class extends mock<IPanelService>() implements IPanelService {
+				_serviceBrand: any;
+				onDidPanelOpen = Event.None;
+				onDidPanelClose = Event.None;
+				getActivePanel() {
+					return null;
+				}
+			}
 		);
 
 		editors = new MainThreadTextEditors(

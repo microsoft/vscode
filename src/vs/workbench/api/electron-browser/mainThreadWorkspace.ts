@@ -25,6 +25,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { TextSearchComplete } from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -113,15 +114,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
 
 		let folderQueries: IFolderQuery[];
-		if (typeof includeFolder === 'string') {
-			folderQueries = [{ folder: URI.file(includeFolder) }]; // if base provided, only search in that folder
+		if (includeFolder) {
+			folderQueries = [{ folder: includeFolder }]; // if base provided, only search in that folder
 		} else {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
 		}
@@ -168,7 +169,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<void> {
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -182,8 +183,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		};
 
 		const search = this._searchService.search(query, token, onProgress).then(
-			() => {
-				return null;
+			result => {
+				return { limitHit: result.limitHit };
 			},
 			err => {
 				if (!isPromiseCanceledError(err)) {

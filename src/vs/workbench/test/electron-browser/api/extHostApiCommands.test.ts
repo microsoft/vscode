@@ -75,10 +75,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				_serviceBrand: undefined,
 				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
-						return TPromise.wrapError(new Error(id + ' NOT known'));
+						return Promise.reject(new Error(id + ' NOT known'));
 					}
 					let { handler } = CommandsRegistry.getCommands()[id];
-					return TPromise.as(instantiationService.invokeFunction(handler, args));
+					return Promise.resolve(instantiationService.invokeFunction(handler, args));
 				}
 			});
 			instantiationService.stub(IMarkerService, new MarkerService());
@@ -340,6 +340,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('vscode.executeDocumentSymbolProvider command only returns SymbolInformation[] rather than DocumentSymbol[] #57984', function () {
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				return [
+					new types.SymbolInformation('SymbolInformation', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0))
+				];
+			}
+		}));
+		disposables.push(extHost.registerDocumentSymbolProvider(defaultSelector, <vscode.DocumentSymbolProvider>{
+			provideDocumentSymbols(): any {
+				let root = new types.DocumentSymbol('DocumentSymbol', 'DocumentSymbol#detail', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0));
+				root.children = [new types.DocumentSymbol('DocumentSymbol#child', 'DocumentSymbol#detail#child', types.SymbolKind.Enum, new types.Range(1, 0, 1, 0), new types.Range(1, 0, 1, 0))];
+				return [root];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
+				assert.equal(values.length, 2);
+				let [first, second] = values;
+				assert.ok(first instanceof types.SymbolInformation);
+				assert.ok(!(first instanceof types.DocumentSymbol));
+				assert.ok(second instanceof types.SymbolInformation);
+				assert.equal(first.name, 'DocumentSymbol');
+				assert.equal(first.children.length, 1);
+				assert.equal(second.name, 'SymbolInformation');
+			});
+		});
+	});
+
 	// --- suggest
 
 	test('Suggest, back and forth', function () {
@@ -480,6 +510,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(b.preselect, undefined);
 		assert.equal(c.preselect, true);
 		assert.equal(d.preselect, undefined);
+	});
+
+	test('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				let a = new types.CompletionItem('item1');
+				a.commitCharacters = ['a', 'b'];
+				let b = new types.CompletionItem('item2');
+				return new types.CompletionList([a, b], false);
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 2);
+
+		let [a, b] = list.items;
+		assert.deepEqual(a.commitCharacters, ['a', 'b']);
+		assert.equal(b.commitCharacters, undefined);
 	});
 
 	// --- quickfix

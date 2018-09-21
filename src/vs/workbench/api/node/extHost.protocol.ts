@@ -33,7 +33,7 @@ import { EndOfLine, IFileOperationOptions, TextEditorLineNumbersStyle } from 'vs
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TaskDTO, TaskExecutionDTO, TaskFilterDTO, TaskHandleDTO, TaskProcessEndedDTO, TaskProcessStartedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
 import { ITreeItem } from 'vs/workbench/common/views';
-import { IAdapterExecutable, IConfig, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
+import { IConfig, ITerminalSettings, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -59,6 +59,7 @@ export interface IWorkspaceData {
 }
 
 export interface IInitData {
+	commit: string;
 	parentPid: number;
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
@@ -226,6 +227,7 @@ export interface ISerializedIndentationRule {
 export interface ISerializedOnEnterRule {
 	beforeText: ISerializedRegExp;
 	afterText?: ISerializedRegExp;
+	oneLineAboveText?: ISerializedRegExp;
 	action: EnterAction;
 }
 export interface ISerializedLanguageConfiguration {
@@ -300,7 +302,7 @@ export interface MainThreadMessageServiceShape extends IDisposable {
 }
 
 export interface MainThreadOutputServiceShape extends IDisposable {
-	$register(label: string, file?: UriComponents): Thenable<string>;
+	$register(label: string, log: boolean, file?: UriComponents): Thenable<string>;
 	$append(channelId: string, value: string): Thenable<void>;
 	$clear(channelId: string): Thenable<void>;
 	$reveal(channelId: string, preserveFocus: boolean): Thenable<void>;
@@ -469,8 +471,8 @@ export interface ExtHostUrlsShape {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<UriComponents[]>;
-	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<void>;
+	$startFileSearch(includePattern: string, includeFolder: URI, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<UriComponents[]>;
+	$startTextSearch(query: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<vscode.TextSearchComplete>;
 	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean>;
 	$saveAll(includeUntitled?: boolean): Thenable<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string }[]): Thenable<void>;
@@ -575,7 +577,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$acceptDAError(handle: number, name: string, message: string, stack: string): void;
 	$acceptDAExit(handle: number, code: number, signal: string): void;
-	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasDebugAdapterExecutable: boolean, handle: number): Thenable<void>;
+	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, hasProvideDaMethod: boolean, hasProvideTrackerMethod: boolean, handle: number): Thenable<void>;
 	$unregisterDebugConfigurationProvider(handle: number): Thenable<void>;
 	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): Thenable<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Thenable<any>;
@@ -843,7 +845,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.SignatureHelp>;
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp>;
 	$provideDocumentLinks(handle: number, resource: UriComponents, token: CancellationToken): Thenable<modes.ILink[]>;
 	$resolveDocumentLink(handle: number, link: modes.ILink, token: CancellationToken): Thenable<modes.ILink>;
 	$provideDocumentColors(handle: number, resource: UriComponents, token: CancellationToken): Thenable<IRawColorInfo[]>;
@@ -942,20 +944,26 @@ export interface ISourceMultiBreakpointDto {
 	}[];
 }
 
+export interface IDebugSessionDto {
+	id: DebugSessionUUID;
+	type: string;
+	name: string;
+}
+
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Thenable<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): Thenable<void>;
-	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): Thenable<void>;
+	$startDASession(handle: number, session: IDebugSessionDto, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<void>;
 	$stopDASession(handle: number): Thenable<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): void;
 	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IConfig>;
 	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): Thenable<IConfig[]>;
-	$debugAdapterExecutable(handle: number, folder: UriComponents | undefined): Thenable<IAdapterExecutable>;
-	$acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void;
-	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
-	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
-	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
-	$acceptBreakpointsDelta(delat: IBreakpointsDeltaDto): void;
+	$provideDebugAdapter(handle: number, session: IDebugSessionDto, folderUri: UriComponents | undefined, debugConfiguration: IConfig): Thenable<IAdapterDescriptor>;
+	$acceptDebugSessionStarted(session: IDebugSessionDto): void;
+	$acceptDebugSessionTerminated(session: IDebugSessionDto): void;
+	$acceptDebugSessionActiveChanged(session: IDebugSessionDto): void;
+	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
+	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 }
 
 
@@ -988,6 +996,8 @@ export interface ExtHostCommentsShape {
 	$provideDocumentComments(handle: number, document: UriComponents): Thenable<modes.CommentInfo>;
 	$createNewCommentThread(handle: number, document: UriComponents, range: IRange, text: string): Thenable<modes.CommentThread>;
 	$replyToCommentThread(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): Thenable<modes.CommentThread>;
+	$editComment(handle: number, document: UriComponents, comment: modes.Comment, text: string): Thenable<modes.Comment>;
+	$deleteComment(handle: number, document: UriComponents, comment: modes.Comment): Thenable<void>;
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 

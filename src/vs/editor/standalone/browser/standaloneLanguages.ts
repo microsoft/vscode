@@ -744,7 +744,7 @@ class SuggestAdapter {
 			command: item.command,
 			sortText: item.sortText,
 			filterText: item.filterText,
-			snippetType: 'internal',
+			insertTextIsSnippet: false,
 			additionalTextEdits: item.additionalTextEdits,
 			commitCharacters: item.commitCharacters
 		};
@@ -770,7 +770,7 @@ class SuggestAdapter {
 			suggestion.insertText = item.textEdit.text;
 		} else if (typeof item.insertText === 'object' && typeof item.insertText.value === 'string') {
 			suggestion.insertText = item.insertText.value;
-			suggestion.snippetType = 'textmate';
+			suggestion.insertTextIsSnippet = true;
 		} else if (typeof item.insertText === 'string') {
 			suggestion.insertText = item.insertText;
 		}
@@ -880,6 +880,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
 		SuggestTriggerKind: modes.SuggestTriggerKind,
-		FoldingRangeKind: modes.FoldingRangeKind
+		FoldingRangeKind: modes.FoldingRangeKind,
+		SignatureHelpTriggerReason: modes.SignatureHelpTriggerReason,
 	};
 }

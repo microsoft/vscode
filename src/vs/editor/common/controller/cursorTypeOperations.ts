@@ -767,7 +767,13 @@ export class TypeOperations {
 				if (characterAfter) {
 					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
 					let shouldAutoCloseBefore = isQuote(ch) ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
-					if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
+					if (isBeforeCloseBrace) {
+						// In normal auto closing logic, we will auto close if the cursor is even before a closing brace intentionally.
+						// However for composition mode, we do nothing here as users might clear all the characters for composition and we don't want to do a unnecessary auto close.
+						// Related: microsoft/vscode#57250.
+						continue;
+					}
+					if (!shouldAutoCloseBefore(characterAfter)) {
 						continue;
 					}
 				}

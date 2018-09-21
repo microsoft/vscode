@@ -120,7 +120,7 @@ CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccess
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceConfigFileAction.ID,
-		title: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`,
+		title: { value: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`, original: 'Workspaces: Open Workspace Configuration File' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').isEqualTo('workspace')
 });
@@ -280,16 +280,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 4
 });
 
-if (!isMacintosh) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: 'z_Exit',
-		command: {
-			id: QUIT_ID,
-			title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
-		},
-		order: 1
-	});
-}
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: 'z_Exit',
+	command: {
+		id: QUIT_ID,
+		title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+	},
+	order: 1,
+	when: IsMacContext.toNegated()
+});
 
 // Appereance menu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
@@ -632,7 +631,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',
-			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by an online service."),
+			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
 			'default': true,
 			'scope': ConfigurationScope.WINDOW,
 			'tags': ['usesOnlineServices']

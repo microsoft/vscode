@@ -6,7 +6,7 @@
 'use strict';
 
 import { URI } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,9 +37,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 // Viewlet Action
-export class OpenExplorerViewletAction extends ToggleViewletAction {
+export class OpenExplorerViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
 	public static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
 
@@ -47,9 +48,10 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 
@@ -58,7 +60,7 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 	constructor(@ILabelService labelService: ILabelService) {
 		labelService.registerFormatter(Schemas.file, {
 			uri: {
-				label: '${path}',
+				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
 				normalizeDriveLetter: platform.isWindows
@@ -234,6 +236,17 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.RESOURCE
 		},
+		'files.restrictGuessedEncodings': {
+			'type': 'array',
+			'overridable': true,
+			'default': [],
+			'items': {
+				'type': 'string',
+				'enum': Object.keys(SUPPORTED_ENCODINGS)
+			},
+			'scope': ConfigurationScope.RESOURCE,
+			'description': nls.localize('restrictGuessedEncodings', "If provided, will restrict the list of encodings that can be used when guessing. If the guessed file encoding is not in the list, the default encoding will be used.")
+		},
 		'files.eol': {
 			'type': 'string',
 			'enum': [
@@ -247,6 +260,11 @@ configurationRegistry.registerConfiguration({
 			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.enableTrash': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('useTrash', "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.")
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',

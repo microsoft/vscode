@@ -189,28 +189,6 @@ export class QueryBuilder {
 		return Object.keys(excludeExpression).length ? excludeExpression : undefined;
 	}
 
-	/**
-	 * A helper that splits positive and negative patterns from a string that combines both.
-	 */
-	public parseIncludeExcludePattern(pattern: string): { includePattern?: string, excludePattern?: string } {
-		const grouped = collections.groupBy(
-			splitGlobPattern(pattern),
-			s => strings.startsWith(s, '!') ? 'excludePattern' : 'includePattern');
-
-		const result = {};
-		if (grouped.includePattern) {
-			result['includePattern'] = grouped.includePattern.join(', ');
-		}
-
-		if (grouped.excludePattern) {
-			result['excludePattern'] = grouped.excludePattern
-				.map(s => strings.ltrim(s, '!'))
-				.join(', ');
-		}
-
-		return result;
-	}
-
 	private mergeExcludesFromFolderQueries(folderQueries: IFolderQuery[]): glob.IExpression | undefined {
 		const mergedExcludes = folderQueries.reduce((merged: glob.IExpression, fq: IFolderQuery) => {
 			if (fq.excludePattern) {
@@ -275,7 +253,7 @@ export class QueryBuilder {
 			return [uri.file(paths.normalize(searchPath))];
 		}
 
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) { // TODO: @Sandy Try checking workspace folders length instead.
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 			return [resources.joinPath(workspaceUri, searchPath)];
 		} else if (searchPath === './') {
@@ -284,7 +262,7 @@ export class QueryBuilder {
 			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => resources.basename(folder.uri) === searchPathRoot || folder.name === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => folder.name === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?

@@ -39,17 +39,12 @@ declare namespace monaco {
 
 
 	export class Promise<T = any> {
-		constructor(
-			executor: (
-				resolve: (value: T | PromiseLike<T>) => void,
-				reject: (reason: any) => void) => void,
-			oncancel?: () => void);
+		constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason: any) => void) => void);
 
 		public then<TResult1 = T, TResult2 = never>(
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
-		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
@@ -81,6 +76,7 @@ declare namespace monaco {
 		 */
 		readonly onCancellationRequested: IEvent<any>;
 	}
+
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
 	 * This class is a simple parser which creates the basic component parts
@@ -1192,12 +1188,7 @@ declare namespace monaco.editor {
 		 * CSS color to render in the overview ruler.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		darkColor: string | ThemeColor;
-		/**
-		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
-		 */
-		hcColor?: string | ThemeColor;
+		darkColor?: string | ThemeColor;
 		/**
 		 * The position in the overview ruler.
 		 */
@@ -2914,6 +2905,10 @@ declare namespace monaco.editor {
 		 */
 		suggestLineHeight?: number;
 		/**
+		 * Enable tab completion.
+		 */
+		tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
+		/**
 		 * Enable selection highlight.
 		 * Defaults to true.
 		 */
@@ -3256,6 +3251,7 @@ declare namespace monaco.editor {
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
@@ -3547,6 +3543,11 @@ declare namespace monaco.editor {
 		 * `preference` will also affect the placement.
 		 */
 		position: IPosition;
+		/**
+		 * Optionally, a range can be provided to further
+		 * define the position of the content widget.
+		 */
+		range?: IRange;
 		/**
 		 * Placement preference for position, in order of preference.
 		 */
@@ -4676,6 +4677,10 @@ declare namespace monaco.languages {
 		 */
 		afterText?: RegExp;
 		/**
+		 * This rule will only execute if the text above the this line matches this regular expression.
+		 */
+		oneLineAboveText?: RegExp;
+		/**
 		 * The action to execute.
 		 */
 		action: EnterAction;
@@ -4884,6 +4889,17 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
+	export enum SignatureHelpTriggerReason {
+		Invoke = 1,
+		TriggerCharacter = 2,
+		Retrigger = 3
+	}
+
+	export interface SignatureHelpContext {
+		triggerReason: SignatureHelpTriggerReason;
+		triggerCharacter?: string;
+	}
+
 	/**
 	 * The signature help provider interface defines the contract between extensions and
 	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -4893,7 +4909,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
 	/**
@@ -5304,6 +5320,9 @@ declare namespace monaco.languages {
 
 	export interface WorkspaceEdit {
 		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	}
+
+	export interface Rejection {
 		rejectReason?: string;
 	}
 
@@ -5313,8 +5332,8 @@ declare namespace monaco.languages {
 	}
 
 	export interface RenameProvider {
-		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
-		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
+		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
+		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 	}
 
 	export interface Command {

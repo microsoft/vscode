@@ -8,12 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -78,28 +79,39 @@ export class KeybindingsEditorInput extends EditorInput {
 	}
 }
 
-export class SettingsEditor2Input extends ResourceEditorInput {
+export class SettingsEditor2Input extends EditorInput {
 
 	public static readonly ID: string = 'workbench.input.settings2';
+	private readonly _settingsModel: Settings2EditorModel;
 
-	constructor(defaultSettingsResource: URI,
-		private _configurationTarget: ConfigurationTarget,
-		private _folderUri: URI | undefined,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
+	constructor(
+		@IPreferencesService _preferencesService: IPreferencesService,
 	) {
-		super(nls.localize('settingsEditor2InputName', "Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
+		super();
+
+		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	get configurationTarget(): ConfigurationTarget {
-		return this._configurationTarget;
-	}
-
-	get folderUri(): URI | undefined {
-		return this._folderUri;
+	matches(otherInput: any): boolean {
+		return otherInput instanceof SettingsEditor2Input;
 	}
 
 	getTypeId(): string {
 		return SettingsEditor2Input.ID;
+	}
+
+	getName(): string {
+		return nls.localize('settingsEditor2InputName', "Settings");
+	}
+
+	resolve(): TPromise<Settings2EditorModel> {
+		return TPromise.as(this._settingsModel);
+	}
+
+	public getResource(): URI {
+		return URI.from({
+			scheme: 'vscode-settings',
+			path: `settingseditor`
+		});
 	}
 }

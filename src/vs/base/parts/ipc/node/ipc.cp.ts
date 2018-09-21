@@ -5,8 +5,7 @@
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Delayer, always } from 'vs/base/common/async';
+import { Delayer, always, createCancelablePromise } from 'vs/base/common/async';
 import { deepClone, assign } from 'vs/base/common/objects';
 import { Emitter, fromNodeEventEmitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
@@ -100,8 +99,8 @@ export class Client implements IChannelClient, IDisposable {
 		const that = this;
 
 		return {
-			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
-				return that.requestPromise(channelName, command, arg, cancellationToken);
+			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Thenable<T> {
+				return that.requestPromise<T>(channelName, command, arg, cancellationToken);
 			},
 			listen(event: string, arg?: any) {
 				return that.requestEvent(channelName, event, arg);
@@ -109,19 +108,19 @@ export class Client implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	protected requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): TPromise<void> {
+	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Thenable<T> {
 		if (!this.disposeDelayer) {
-			return TPromise.wrapError(new Error('disposed'));
+			return Promise.reject(new Error('disposed'));
 		}
 
 		if (cancellationToken.isCancellationRequested) {
-			return TPromise.wrapError(errors.canceled());
+			return Promise.reject(errors.canceled());
 		}
 
 		this.disposeDelayer.cancel();
 
 		const channel = this.getCachedChannel(channelName);
-		const result: TPromise<void> = channel.call(name, arg, cancellationToken);
+		const result = createCancelablePromise(token => channel.call<T>(name, arg, token));
 		const cancellationTokenListener = cancellationToken.onCancellationRequested(() => result.cancel());
 
 		const disposable = toDisposable(() => result.cancel());
@@ -159,7 +158,7 @@ export class Client implements IChannelClient, IDisposable {
 				this.activeRequests.delete(listener);
 				listener.dispose();
 
-				if (this.activeRequests.size === 0) {
+				if (this.activeRequests.size === 0 && this.disposeDelayer) {
 					this.disposeDelayer.trigger(() => this.disposeClient());
 				}
 			}
@@ -223,7 +222,7 @@ export class Client implements IChannelClient, IDisposable {
 			this.child.on('exit', (code: any, signal: any) => {
 				process.removeListener('exit', onExit);
 
-				this.activeRequests.forEach(dispose);
+				this.activeRequests.forEach(r => dispose(r));
 				this.activeRequests.clear();
 
 				if (code !== 0 && signal !== 'SIGTERM') {

@@ -69,10 +69,15 @@ function providePathSuggestions(pathValue: string, position: Position, range: Ra
 	const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
 	const currentDocFsPath = URI.parse(document.uri).fsPath;
 
-	const paths = providePaths(valueBeforeCursor, currentDocFsPath, workspaceRoot).filter(p => {
-		// Exclude current doc's path
-		return path.resolve(currentDocFsPath, '../', p) !== currentDocFsPath;
-	});
+	const paths = providePaths(valueBeforeCursor, currentDocFsPath, workspaceRoot)
+		.filter(p => {
+			// Exclude current doc's path
+			return path.resolve(currentDocFsPath, '../', p) !== currentDocFsPath;
+		})
+		.filter(p => {
+			// Exclude paths that start with `.`
+			return p[0] !== '.';
+		});
 
 	const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
 	const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);

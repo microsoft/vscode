@@ -99,8 +99,8 @@ export class SearchWidget extends Widget {
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string;
 
-	private _onSearchSubmit = this._register(new Emitter<boolean>());
-	public readonly onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<void>());
+	public readonly onSearchSubmit: Event<void> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<void>());
 	public readonly onSearchCancel: Event<void> = this._onSearchCancel.event;
@@ -265,7 +265,7 @@ export class SearchWidget extends Widget {
 		};
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
-		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
+		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, true));
 		this._register(attachFindInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
@@ -453,7 +453,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(refresh: boolean = true): void {
+	private submitSearch(): void {
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.configurationService.getValue<ISearchConfigurationProperties>('search').globalFindClipboard;
 		if (value) {
@@ -461,7 +461,7 @@ export class SearchWidget extends Widget {
 				this.clipboardServce.writeFindText(value);
 			}
 
-			this._onSearchSubmit.fire(refresh);
+			this._onSearchSubmit.fire();
 		}
 	}
 

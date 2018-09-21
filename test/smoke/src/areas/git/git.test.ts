@@ -14,8 +14,8 @@ export function setup() {
 		before(async function () {
 			const app = this.app as Application;
 
-			cp.execSync('git config user.name testuser', { cwd: app.workspacePath });
-			cp.execSync('git config user.email monacotools@microsoft.com', { cwd: app.workspacePath });
+			cp.execSync('git config user.name testuser', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git config user.email monacotools@microsoft.com', { cwd: app.workspacePathOrFolder });
 		});
 
 		it('reflects working tree changes', async function () {
@@ -71,7 +71,7 @@ export function setup() {
 			await app.workbench.scm.commit('second commit');
 			await app.code.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 2↑');
 
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
+			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePathOrFolder });
 		});
 	});
 }

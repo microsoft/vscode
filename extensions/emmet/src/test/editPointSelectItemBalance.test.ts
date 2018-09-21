@@ -250,6 +250,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 
 			editor.selections = [new Selection(12, 7, 12, 7)];
 			let expectedBalanceInRanges: [number, number, number, number][] = [
+				[12, 21, 17, 1],   // inner contents of <div class="header">
 				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
 				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
 				[14, 3, 14, 32],   // <li class="item1">Item 1</li>
@@ -288,6 +289,25 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 				testSelection(editor.selection, colstart, linestart, colend, lineend);
 				balanceIn();
 			});
+
+			return Promise.resolve();
+		});
+	});
+
+	test('Emmet Balance In when selection doesnt span entire node or its inner contents', function (): any {
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+
+			editor.selection = new Selection(13, 7, 13, 10); // Inside the open tag of <ul class="nav main">
+			balanceIn();
+			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+
+			editor.selection = new Selection(16, 4, 16, 5); // Inside the open close of <ul class="nav main">
+			balanceIn();
+			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
+
+			editor.selection = new Selection(13, 7, 14, 2); // Inside the open tag of <ul class="nav main"> and the next line
+			balanceIn();
+			testSelection(editor.selection, 23, 13, 2, 16); // inner contents of <ul class="nav main">
 
 			return Promise.resolve();
 		});

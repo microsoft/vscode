@@ -222,7 +222,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): TPromise<string> {
+	public promptForPath(resource: URI, defaultPath: string): TPromise<string> {
 		return TPromise.wrap(this.promptPath);
 	}
 
@@ -307,10 +307,10 @@ export class TestExtensionService implements IExtensionService {
 	activateByEvent(activationEvent: string): TPromise<void> { return TPromise.as(void 0); }
 	whenInstalledExtensionsRegistered(): TPromise<boolean> { return TPromise.as(true); }
 	getExtensions(): TPromise<IExtensionDescription[]> { return TPromise.as([]); }
-	getLogsLocations(): TPromise<URI[]> { return TPromise.as([]); }
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
+	getInspectPort(): number { return 0; }
 	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
@@ -353,6 +353,9 @@ export class TestHistoryService implements IHistoryService {
 	}
 
 	public clear(): void {
+	}
+
+	public clearRecentlyOpened(): void {
 	}
 
 	public getHistory(): (IEditorInput | IResourceInput)[] {
@@ -722,6 +725,10 @@ export class TestEditorService implements EditorServiceImpl {
 		return false;
 	}
 
+	getOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
+		return void 0;
+	}
+
 	replaceEditors(editors: any, group: any) {
 		return TPromise.as(void 0);
 	}
@@ -948,6 +955,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	onCodeEditorRemove: Event<ICodeEditor> = Event.None;
 	onDiffEditorAdd: Event<IDiffEditor> = Event.None;
 	onDiffEditorRemove: Event<IDiffEditor> = Event.None;
+	onDidChangeTransientModelProperty: Event<ITextModel> = Event.None;
 
 	addCodeEditor(editor: ICodeEditor): void { }
 	removeCodeEditor(editor: ICodeEditor): void { }

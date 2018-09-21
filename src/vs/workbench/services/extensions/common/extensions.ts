@@ -154,11 +154,6 @@ export interface IExtensionService {
 	getExtensions(): TPromise<IExtensionDescription[]>;
 
 	/**
-	 * Return extension host log folder paths
-	 */
-	getLogsLocations(): TPromise<URI[]>;
-
-	/**
 	 * Read all contributions to an extension point.
 	 */
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]>;
@@ -177,6 +172,11 @@ export interface IExtensionService {
 	 * Begin an extension host process profile session.
 	 */
 	startExtensionHostProfile(): TPromise<ProfileSession>;
+
+	/**
+	 * Return the inspect port or 0.
+	 */
+	getInspectPort(): number;
 
 	/**
 	 * Restarts the extension host.

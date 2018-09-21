@@ -60,7 +60,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 
 	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
 		let prevSelection: Selection[] = [];
-		const cursors: Position[] = [];
+		let cursors: Position[] = [];
 
 		let editor = findEditor(model, this.codeEditorService);
 		if (editor) {
@@ -68,7 +68,7 @@ class TrimWhitespaceParticipant implements ISaveParticipantParticipant {
 			// Collect active cursors in `cursors` only if `isAutoSaved` to avoid having the cursors jump
 			prevSelection = editor.getSelections();
 			if (isAutoSaved) {
-				cursors.push(...prevSelection.map(s => new Position(s.positionLineNumber, s.positionColumn)));
+				cursors = prevSelection.map(s => s.getPosition());
 				const snippetsRange = SnippetController2.get(editor).getSessionEnclosingRange();
 				if (snippetsRange) {
 					for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
@@ -154,11 +154,26 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 
 	public participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void {
 		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.getResource() })) {
-			this.doTrimFinalNewLines(model.textEditorModel);
+			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
 
-	private doTrimFinalNewLines(model: ITextModel): void {
+	/**
+	 * returns 0 if the entire file is empty or whitespace only
+	 */
+	private findLastLineWithContent(model: ITextModel): number {
+		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
+			const lineContent = model.getLineContent(lineNumber);
+			if (strings.lastNonWhitespaceIndex(lineContent) !== -1) {
+				// this line has content
+				return lineNumber;
+			}
+		}
+		// no line has content
+		return 0;
+	}
+
+	private doTrimFinalNewLines(model: ITextModel, isAutoSaved: boolean): void {
 		const lineCount = model.getLineCount();
 
 		// Do not insert new line if file does not end with new line
@@ -167,24 +182,29 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipantParticipant
 		}
 
 		let prevSelection: Selection[] = [];
+		let cannotTouchLineNumber = 0;
 		const editor = findEditor(model, this.codeEditorService);
 		if (editor) {
 			prevSelection = editor.getSelections();
+			if (isAutoSaved) {
+				for (let i = 0, len = prevSelection.length; i < len; i++) {
+					const positionLineNumber = prevSelection[i].positionLineNumber;
+					if (positionLineNumber > cannotTouchLineNumber) {
+						cannotTouchLineNumber = positionLineNumber;
+					}
+				}
+			}
 		}
 
-		let currentLineNumber = model.getLineCount();
-		let currentLine = model.getLineContent(currentLineNumber);
-		let currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
-		while (currentLineIsEmptyOrWhitespace) {
-			currentLineNumber--;
-			currentLine = model.getLineContent(currentLineNumber);
-			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
+		const lastLineNumberWithContent = this.findLastLineWithContent(model);
+		const deleteFromLineNumber = Math.max(lastLineNumberWithContent + 1, cannotTouchLineNumber + 1);
+		const deletionRange = model.validateRange(new Range(deleteFromLineNumber, 1, lineCount, model.getLineMaxColumn(lineCount)));
+
+		if (deletionRange.isEmpty()) {
+			return;
 		}
 
-		const deletionRange = model.validateRange(new Range(currentLineNumber + 1, 1, lineCount + 1, 1));
-		if (!deletionRange.isEmpty()) {
-			model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
-		}
+		model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
 
 		if (editor) {
 			editor.setSelections(prevSelection);

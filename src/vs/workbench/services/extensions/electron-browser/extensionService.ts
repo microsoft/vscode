@@ -19,7 +19,7 @@ import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, 
 import { USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, schema } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog, ExtensionScannerInput, IExtensionResolver, IExtensionReference, Translations, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ExtensionHostProcessWorker, IExtensionHostStarter } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -39,12 +39,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
-import { RPCProtocol, IRPCProtocolLogger, RequestInitiator } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { RPCProtocol, IRPCProtocolLogger, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isEqualOrParent } from 'vs/base/common/resources';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -114,6 +116,9 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionHostProcessManager extends Disposable {
 
 	public readonly onDidCrash: Event<[number, string]>;
+
+	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
+	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
@@ -187,6 +192,7 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol, logger);
+		this._register(this._extensionHostProcessRPCProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
@@ -242,7 +248,19 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 		throw new Error('Extension host not running or no inspect port available');
 	}
+
+	public getInspectPort(): number {
+		if (this._extensionHostProcessWorker) {
+			let port = this._extensionHostProcessWorker.getInspectPort();
+			if (port) {
+				return port;
+			}
+		}
+		return 0;
+	}
 }
+
+schema.properties.engines.properties.vscode.default = `^${pkg.version}`;
 
 export class ExtensionService extends Disposable implements IExtensionService {
 
@@ -259,6 +277,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private readonly _onDidChangeExtensionsStatus: Emitter<string[]> = this._register(new Emitter<string[]>());
 	public readonly onDidChangeExtensionsStatus: Event<string[]> = this._onDidChangeExtensionsStatus.event;
+
+	private _unresponsiveNotificationHandle: INotificationHandle;
 
 	// --- Members used per extension host process
 	private _extensionHostProcessManagers: ExtensionHostProcessManager[];
@@ -285,6 +305,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._allRequestedActivateEvents = Object.create(null);
 
 		this._onDidRegisterExtensions = new Emitter<void>();
+
+		this._unresponsiveNotificationHandle = null;
 
 		this._extensionHostProcessManagers = [];
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -373,12 +395,30 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const extHostProcessWorker = this._instantiationService.createInstance(ExtensionHostProcessWorker, this.getExtensions(), this._extensionHostLogsLocation);
 		const extHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, extHostProcessWorker, initialActivationEvents);
 		extHostProcessManager.onDidCrash(([code, signal]) => this._onExtensionHostCrashed(code, signal));
+		extHostProcessManager.onDidChangeResponsiveState((responsiveState) => this._onResponsiveStateChanged(responsiveState));
 		this._extensionHostProcessManagers.push(extHostProcessManager);
 	}
 
 	private _onExtensionHostCrashed(code: number, signal: string): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		this._stopExtensionHostProcess();
+
+		if (code === 55) {
+			this._notificationService.prompt(
+				Severity.Error,
+				nls.localize('extensionHostProcess.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+				[{
+					label: nls.localize('relaunch', "Relaunch VS Code"),
+					run: () => {
+						this._instantiationService.invokeFunction((accessor) => {
+							const windowsService = accessor.get(IWindowsService);
+							windowsService.relaunch({});
+						});
+					}
+				}]
+			);
+			return;
+		}
 
 		let message = nls.localize('extensionHostProcess.crash', "Extension host terminated unexpectedly.");
 		if (code === 87) {
@@ -395,6 +435,45 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				run: () => this._startExtensionHostProcess(Object.keys(this._allRequestedActivateEvents))
 			}]
 		);
+	}
+
+	private _onResponsiveStateChanged(state: ResponsiveState): void {
+		if (this._unresponsiveNotificationHandle) {
+			this._unresponsiveNotificationHandle.close();
+			this._unresponsiveNotificationHandle = null;
+		}
+
+		const showRunningExtensions = {
+			keepOpen: true,
+			label: nls.localize('extensionHostProcess.unresponsive.inspect', "Show running extensions"),
+			run: () => {
+				this._instantiationService.invokeFunction((accessor) => {
+					const editorService = accessor.get(IEditorService);
+					editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+				});
+			}
+		};
+
+		const restartExtensionHost = {
+			label: nls.localize('extensionHostProcess.unresponsive.restart', "Restart Extension Host"),
+			run: () => {
+				this.restartExtensionHost();
+			}
+		};
+
+		if (state === ResponsiveState.Unresponsive) {
+			this._unresponsiveNotificationHandle = this._notificationService.prompt(
+				Severity.Warning,
+				nls.localize('extensionHostProcess.unresponsive', "Extension Host is unresponsive."),
+				[showRunningExtensions, restartExtensionHost]
+			);
+		} else {
+			this._unresponsiveNotificationHandle = this._notificationService.prompt(
+				Severity.Info,
+				nls.localize('extensionHostProcess.responsive', "Extension Host is now responsive."),
+				[showRunningExtensions]
+			);
+		}
 	}
 
 	// ---- begin IExtensionService
@@ -436,10 +515,6 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return this._installedExtensionsReady.wait().then(() => {
 			return this._registry.getAllExtensionDescriptions();
 		});
-	}
-
-	public getLogsLocations(): TPromise<URI[]> {
-		return TPromise.as([this._extensionHostLogsLocation]);
 	}
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
@@ -494,6 +569,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			}
 		}
 		throw new Error('Extension host not running or no inspect port available');
+	}
+
+	public getInspectPort(): number {
+		if (this._extensionHostProcessManagers.length > 0) {
+			return this._extensionHostProcessManagers[0].getInspectPort();
+		}
+		return 0;
 	}
 
 	// ---- end IExtensionService

@@ -24,6 +24,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
@@ -108,79 +110,98 @@ export interface IExpression extends IReplElement, IExpressionContainer {
 	readonly type?: string;
 }
 
-export interface IRawDebugSession {
-
-	capabilities: DebugProtocol.Capabilities;
-	disconnected: boolean;
-
-	readyForBreakpoints: boolean;
-	emittedStopped: boolean;
-	sessionLengthInSeconds: number;
-
-	launchOrAttach(args: IConfig): TPromise<DebugProtocol.Response>;
-	terminate(restart?: boolean): TPromise<DebugProtocol.TerminateResponse>;
-	disconnect(restart?: boolean): TPromise<any>;
-
-	setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse>;
-	setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse>;
-	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse>;
-
-	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
-	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
-	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
-	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
-	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
-	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
-	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
-
-	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
-	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
-	stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse>;
-	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
-	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
-	terminateThreads(args: DebugProtocol.TerminateThreadsArguments): TPromise<DebugProtocol.TerminateThreadsResponse>;
-	stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse>;
-	reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse>;
-
-	completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse>;
-	setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse>;
-	source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse>;
-	loadedSources(args: DebugProtocol.LoadedSourcesArguments): TPromise<DebugProtocol.LoadedSourcesResponse>;
+export interface IDebugger {
+	createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void>;
+	getCustomTelemetryService(): TPromise<TelemetryService>;
 }
 
-export interface IDebugSession extends ITreeElement, IDisposable {
+export type ActualBreakpoints = { [id: string]: DebugProtocol.Breakpoint };
+
+export enum State {
+	Inactive,
+	Initializing,
+	Stopped,
+	Running
+}
+
+export class AdapterEndEvent {
+	error?: Error;
+	sessionLengthInSeconds: number;
+	emittedStopped: boolean;
+}
+
+export interface LoadedSourceEvent {
+	reason: 'new' | 'changed' | 'removed';
+	source: Source;
+}
+
+export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
-	readonly raw: IRawDebugSession;
+	readonly unresolvedConfiguration: IConfig;
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
-	readonly capabilities: DebugProtocol.Capabilities;
 
 	getName(includeRoot: boolean): string;
+
 	getSourceForUri(modelUri: uri): Source;
-	getThread(threadId: number): IThread;
-	getAllThreads(): ReadonlyArray<IThread>;
 	getSource(raw: DebugProtocol.Source): Source;
-	getLoadedSources(): TPromise<Source[]>;
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
-	clearThreads(removeThreads: boolean, reference?: number): void;
 
 	rawUpdate(data: IRawModelUpdate): void;
 
-	/**
-	 * Allows to register on loaded source events.
-	 */
-	onDidLoadedSource: Event<LoadedSourceEvent>;
+	// session events
+	readonly onDidEndAdapter: Event<AdapterEndEvent>;
+	readonly onDidChangeState: Event<void>;
 
-	/**
-	 * Allows to register on custom DAP events.
-	 */
-	onDidCustomEvent: Event<DebugProtocol.Event>;
+	// DA capabilities
+	readonly capabilities: DebugProtocol.Capabilities;
 
-	/**
-	 * Allows to register on DA events.
-	 */
-	onDidExitAdapter: Event<Error>;
+	// DAP events
+
+	readonly onDidLoadedSource: Event<LoadedSourceEvent>;
+	readonly onDidCustomEvent: Event<DebugProtocol.Event>;
+
+	// Disconnects and clears state. Session can be initialized again for a new connection.
+	shutdown(): void;
+
+	// DAP request
+
+	initialize(dbgr: IDebugger): TPromise<void>;
+	launchOrAttach(config: IConfig): TPromise<void>;
+	restart(): TPromise<DebugProtocol.RestartResponse>;
+	terminate(restart?: boolean /* false */): TPromise<void>;
+	disconnect(restart?: boolean /* false */): TPromise<void>;
+
+	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined>;
+	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): TPromise<ActualBreakpoints | undefined>;
+	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any>;
+
+	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse>;
+	exceptionInfo(threadId: number): TPromise<IExceptionInfo>;
+	scopes(frameId: number): TPromise<DebugProtocol.ScopesResponse>;
+	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): TPromise<DebugProtocol.VariablesResponse>;
+	evaluate(expression: string, frameId?: number, context?: string): TPromise<DebugProtocol.EvaluateResponse>;
+	customRequest(request: string, args: any): TPromise<DebugProtocol.Response>;
+
+	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
+	next(threadId: number): TPromise<DebugProtocol.NextResponse>;
+	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse>;
+	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse>;
+	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse>;
+	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse>;
+	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse>;
+	pause(threadId: number): TPromise<DebugProtocol.PauseResponse>;
+	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse>;
+
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
+	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
+	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse>;
+	getLoadedSources(): TPromise<Source[]>;
+
+	getThread(threadId: number): IThread;
+	getAllThreads(): ReadonlyArray<IThread>;
+	clearThreads(removeThreads: boolean, reference?: number): void;
 }
 
 export interface IThread extends ITreeElement {
@@ -344,7 +365,7 @@ export interface IViewModel extends ITreeElement {
 	onDidSelectExpression: Event<IExpression>;
 }
 
-export interface IModel extends ITreeElement {
+export interface IDebugModel extends ITreeElement {
 	getSessions(): ReadonlyArray<IDebugSession>;
 	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
@@ -367,15 +388,6 @@ export interface IBreakpointsChangeEvent {
 	removed?: (IBreakpoint | IFunctionBreakpoint)[];
 	changed?: (IBreakpoint | IFunctionBreakpoint)[];
 	sessionOnly?: boolean;
-}
-
-// Debug enums
-
-export enum State {
-	Inactive,
-	Initializing,
-	Stopped,
-	Running
 }
 
 // Debug configuration interfaces
@@ -438,19 +450,35 @@ export interface IDebugAdapter extends IDisposable {
 	startSession(): TPromise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void): void;
+	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timemout?: number): void;
 	stopSession(): TPromise<void>;
 }
 
 export interface IDebugAdapterProvider extends ITerminalLauncher {
-	createDebugAdapter(debugType: string, adapterInfo: IAdapterExecutable | null, debugPort: number): IDebugAdapter;
+	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
 	substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 }
 
-export interface IAdapterExecutable {
-	readonly command?: string;
-	readonly args?: string[];
+export interface IDebugAdapterExecutable {
+	readonly type: 'executable';
+	readonly command: string;
+	readonly args: string[];
+	readonly cwd?: string;
+	readonly env?: { [key: string]: string };
 }
+
+export interface IDebugAdapterServer {
+	readonly type: 'server';
+	readonly port: number;
+	readonly host?: string;
+}
+
+export interface IDebugAdapterImplementation {
+	readonly type: 'implementation';
+	readonly implementation: any;
+}
+
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImplementation;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;
@@ -489,7 +517,8 @@ export interface IDebugConfigurationProvider {
 	handle: number;
 	resolveDebugConfiguration?(folderUri: uri | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
 	provideDebugConfigurations?(folderUri: uri | undefined): TPromise<IConfig[]>;
-	debugAdapterExecutable(folderUri: uri | undefined): TPromise<IAdapterExecutable>;
+	provideDebugAdapter?(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor>;
+	hasTracker: boolean;
 }
 
 export interface ITerminalLauncher {
@@ -536,14 +565,17 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
+	needsToRunInExtHost(debugType: string): boolean;
+
 	registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void;
 	unregisterDebugConfigurationProvider(handle: number): void;
 
 	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any): TPromise<any>;
-	debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined>;
+	provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor | undefined>;
 
 	registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable;
-	createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable | null, debugPort?: number): IDebugAdapter | undefined;
+	createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter;
+
 	substituteVariables(debugType: string, folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
 }
@@ -597,11 +629,6 @@ export interface ILaunch {
 // Debug service interfaces
 
 export const IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
-
-export interface LoadedSourceEvent {
-	reason: string;
-	source: Source;
-}
 
 export interface IDebugService {
 	_serviceBrand: any;
@@ -757,7 +784,7 @@ export interface IDebugService {
 	/**
 	 * Gets the current debug model.
 	 */
-	getModel(): IModel;
+	getModel(): IDebugModel;
 
 	/**
 	 * Gets the current view model.

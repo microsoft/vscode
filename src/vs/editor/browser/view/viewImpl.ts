@@ -552,8 +552,9 @@ export class View extends ViewEventHandler {
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
 		let newPosition = widgetData.position ? widgetData.position.position : null;
+		let newRange = widgetData.position ? widgetData.position.range : null;
 		let newPreference = widgetData.position ? widgetData.position.preference : null;
-		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
+		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
 		this._scheduleRender();
 	}
 

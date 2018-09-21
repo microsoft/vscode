@@ -126,6 +126,10 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, uri expected');
 	}
 
+	if (!references) {
+		throw new Error('missing references');
+	}
+
 	const codeEditorService = accessor.get(ICodeEditorService);
 	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
 		if (!isCodeEditor(control)) {

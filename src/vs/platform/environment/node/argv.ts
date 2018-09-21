@@ -34,7 +34,9 @@ const options: minimist.Opts = {
 		'export-default-configuration',
 		'install-source',
 		'upload-logs',
-		'driver'
+		'driver',
+		'trace-category-filter',
+		'trace-options'
 	],
 	boolean: [
 		'help',
@@ -67,7 +69,8 @@ const options: minimist.Opts = {
 		'status',
 		'file-write',
 		'file-chmod',
-		'driver-verbose'
+		'driver-verbose',
+		'trace'
 	],
 	alias: {
 		add: 'a',
@@ -161,8 +164,8 @@ const extensionsHelp: { [name: string]: string; } = {
 	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
-	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
+	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts."),
 	'--enable-proposed-api (<extension-id>)': localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.")
 };
 

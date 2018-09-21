@@ -19,11 +19,15 @@ import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensio
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
-import { URI } from 'vs/base/common/uri';
+import { URI, setUriThrowOnMissingScheme } from 'vs/base/common/uri';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { timeout } from 'vs/base/common/async';
 import { Counter } from 'vs/base/common/numbers';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+
+// we don't (yet) throw when extensions parse
+// uris that have no scheme
+setUriThrowOnMissingScheme(false);
 
 const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -43,30 +47,7 @@ function patchProcess(allowExit: boolean) {
 }
 
 export function exit(code?: number) {
-	// See https://github.com/Microsoft/vscode/issues/32990
-	// calling process.exit() does not exit the process when the process is being debugged
-	// It waits for the debugger to disconnect, but in our version, the debugger does not
-	// receive an event that the process desires to exit such that it can disconnect.
-
-	let watchdog: { exit: (exitCode: number) => void; } = null;
-	try {
-		watchdog = require.__$__nodeRequire('native-watchdog');
-	} catch (err) {
-		nativeExit(code);
-		return;
-	}
-
-	// Do exactly what node.js would have done, minus the wait for the debugger part
-
-	if (code || code === 0) {
-		process.exitCode = code;
-	}
-
-	if (!(<any>process)._exiting) {
-		(<any>process)._exiting = true;
-		process.emit('exit', process.exitCode || 0);
-	}
-	watchdog.exit(process.exitCode || 0);
+	nativeExit(code);
 }
 
 interface ITestRunner {

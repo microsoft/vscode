@@ -7,7 +7,6 @@
 import * as path from 'path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
@@ -82,30 +81,14 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
 		if (provider) {
-			return new Promise((c, e) => {
-				this._fileSearchManager.fileSearch(query, provider, batch => {
-					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}, token).then(c, err => {
-					if (!isPromiseCanceledError(err)) {
-						e(err);
-					}
-				});
-			});
+			return this._fileSearchManager.fileSearch(query, provider, batch => {
+				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+			}, token);
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
-			const searchP = this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+			return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
 				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-			}).then(null, err => {
-				if (!isPromiseCanceledError(err)) {
-					throw err;
-				}
-
-				return null;
-			});
-
-			token.onCancellationRequested(() => searchP.cancel());
-
-			return searchP;
+			}, token);
 		}
 	}
 
@@ -332,11 +315,13 @@ class TextSearchEngine {
 			// For each root folder
 			TPromise.join(folderQueries.map((fq, i) => {
 				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
-			})).then(() => {
+			})).then(results => {
 				tokenSource.dispose();
 				this.collector.flush();
+
+				const someFolderHitLImit = results.some(result => result && result.limitHit);
 				resolve({
-					limitHit: this.isLimitHit,
+					limitHit: this.isLimitHit || someFolderHitLImit,
 					stats: {
 						type: 'textSearchProvider'
 					}
@@ -352,40 +337,33 @@ class TextSearchEngine {
 		});
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<void> {
-		return new TPromise((resolve, reject) => {
+	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete> {
+		const queryTester = new QueryGlobTester(this.config, folderQuery);
+		const testingPs = [];
+		const progress = {
+			report: (result: vscode.TextSearchResult) => {
+				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
+					return this.readdir(path.dirname(result.uri.fsPath));
+				});
 
-			const queryTester = new QueryGlobTester(this.config, folderQuery);
-			const testingPs = [];
-			const progress = {
-				report: (result: vscode.TextSearchResult) => {
-					const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
-						return this.readdir(path.dirname(result.uri.fsPath));
-					});
+				const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
+				testingPs.push(
+					queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
+						.then(included => {
+							if (included) {
+								onResult(result);
+							}
+						}));
+			}
+		};
 
-					const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
-					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
-							.then(included => {
-								if (included) {
-									onResult(result);
-								}
-							}));
-				}
-			};
-
-			const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-			new TPromise(resolve => process.nextTick(resolve))
-				.then(() => {
-					return this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, token);
-				})
-				.then(() => {
-					return TPromise.join(testingPs);
-				})
-				.then(
-					() => resolve(null),
-					reject);
-		});
+		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
+		return new TPromise(resolve => process.nextTick(resolve))
+			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, token))
+			.then(result => {
+				return TPromise.join(testingPs)
+					.then(() => result);
+			});
 	}
 
 	private readdir(dirname: string): TPromise<string[]> {

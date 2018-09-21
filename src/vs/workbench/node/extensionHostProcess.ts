@@ -13,6 +13,8 @@ import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createConnection } from 'net';
 import { Event, filterEvent } from 'vs/base/common/event';
 import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/common/extensionHostProtocol';
+import * as nativeWatchdog from 'native-watchdog';
+import product from 'vs/platform/node/product';
 
 // With Electron 2.x and node.js 8.x the "natives" module
 // can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
@@ -88,6 +90,16 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 			const initData = <IInitData>JSON.parse(raw.toString());
 
+			const rendererCommit = initData.commit;
+			const myCommit = product.commit;
+
+			if (rendererCommit && myCommit) {
+				// Running in the built version where commits are defined
+				if (rendererCommit !== myCommit) {
+					exit(55);
+				}
+			}
+
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
@@ -116,12 +128,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				onUnexpectedError(err);
 			});
 
-			// Workaround for Electron not installing a handler to ignore SIGPIPE
-			// (https://github.com/electron/electron/issues/13254)
-			process.on('SIGPIPE', () => {
-				onUnexpectedError(new Error('Unexpected SIGPIPE'));
-			});
-
 			// Kill oneself if one's parent dies. Much drama.
 			setInterval(function () {
 				try {
@@ -129,7 +135,19 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				} catch (e) {
 					onTerminate();
 				}
-			}, 5000);
+			}, 1000);
+
+			// In certain cases, the event loop can become busy and never yield
+			// e.g. while-true or process.nextTick endless loops
+			// So also use the native node module to do it from a separate thread
+			let watchdog: typeof nativeWatchdog;
+			try {
+				watchdog = require.__$__nodeRequire('native-watchdog');
+				watchdog.start(initData.parentPid);
+			} catch (err) {
+				// no problem...
+				onUnexpectedError(err);
+			}
 
 			// Tell the outside that we are initialized
 			protocol.send(createMessageOfType(MessageType.Initialized));

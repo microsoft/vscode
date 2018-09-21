@@ -71,7 +71,7 @@ export function testRepeatedActionAndExtractPositions(text: string, initialPosit
 			}
 
 			if (actualStops.length > 1000) {
-				throw new Error(`Endless loop detected!`);
+				throw new Error(`Endless loop detected involving position ${editor.getPosition()}!`);
 			}
 		}
 	});

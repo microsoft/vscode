@@ -1674,7 +1674,7 @@ export class TreeView extends HeightMap {
 				return candidate;
 			}
 
-			if (element === document.body) {
+			if (element === this.scrollableElement.getDomNode() || element === document.body) {
 				return null;
 			}
 		} while (element = element.parentElement);

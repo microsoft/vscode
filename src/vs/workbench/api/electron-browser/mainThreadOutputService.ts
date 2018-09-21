@@ -37,9 +37,9 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		// Leave all the existing channels intact (e.g. might help with troubleshooting)
 	}
 
-	public $register(label: string, file?: UriComponents): Thenable<string> {
+	public $register(label: string, log: boolean, file?: UriComponents): Thenable<string> {
 		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log: false });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : null, log });
 		return TPromise.as(id);
 	}
 

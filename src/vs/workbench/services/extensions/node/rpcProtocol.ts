@@ -14,6 +14,9 @@ import { URI } from 'vs/base/common/uri';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
 
 declare var Proxy: any; // TODO@TypeScript
 
@@ -91,6 +94,11 @@ export const enum RequestInitiator {
 	OtherSide = 1
 }
 
+export const enum ResponsiveState {
+	Responsive = 0,
+	Unresponsive = 1
+}
+
 export interface IRPCProtocolLogger {
 	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
 	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
@@ -98,7 +106,12 @@ export interface IRPCProtocolLogger {
 
 const noop = () => { };
 
-export class RPCProtocol implements IRPCProtocol {
+export class RPCProtocol extends Disposable implements IRPCProtocol {
+
+	private static UNRESPONSIVE_TIME = 10 * 1000; // 10s
+
+	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
+	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	private readonly _protocol: IMessagePassingProtocol;
 	private readonly _logger: IRPCProtocolLogger;
@@ -109,8 +122,13 @@ export class RPCProtocol implements IRPCProtocol {
 	private _lastMessageId: number;
 	private readonly _cancelInvokedHandlers: { [req: string]: () => void; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
+	private _responsiveState: ResponsiveState;
+	private _unacknowledgedCount: number;
+	private _unresponsiveTime: number;
+	private _asyncCheckUresponsive: RunOnceScheduler;
 
 	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger = null, transformer: IURITransformer = null) {
+		super();
 		this._protocol = protocol;
 		this._logger = logger;
 		this._uriTransformer = transformer;
@@ -124,6 +142,10 @@ export class RPCProtocol implements IRPCProtocol {
 		this._lastMessageId = 0;
 		this._cancelInvokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
+		this._responsiveState = ResponsiveState.Responsive;
+		this._unacknowledgedCount = 0;
+		this._unresponsiveTime = 0;
+		this._asyncCheckUresponsive = this._register(new RunOnceScheduler(() => this._checkUnresponsive(), 1000));
 		this._protocol.onMessage((msg) => this._receiveOneMessage(msg));
 	}
 
@@ -135,6 +157,58 @@ export class RPCProtocol implements IRPCProtocol {
 			const pending = this._pendingRPCReplies[msgId];
 			pending.resolveErr(errors.canceled());
 		});
+	}
+
+	private _onWillSendRequest(req: number): void {
+		if (this._unacknowledgedCount === 0) {
+			// Since this is the first request we are sending in a while,
+			// mark this moment as the start for the countdown to unresponsive time
+			this._unresponsiveTime = Date.now() + RPCProtocol.UNRESPONSIVE_TIME;
+		}
+		this._unacknowledgedCount++;
+		if (!this._asyncCheckUresponsive.isScheduled()) {
+			this._asyncCheckUresponsive.schedule();
+		}
+	}
+
+	private _onDidReceiveAcknowledge(req: number): void {
+		// The next possible unresponsive time is now + delta.
+		this._unresponsiveTime = Date.now() + RPCProtocol.UNRESPONSIVE_TIME;
+		this._unacknowledgedCount--;
+		if (this._unacknowledgedCount === 0) {
+			// No more need to check for unresponsive
+			this._asyncCheckUresponsive.cancel();
+		}
+		// The ext host is responsive!
+		this._setResponsiveState(ResponsiveState.Responsive);
+	}
+
+	private _checkUnresponsive(): void {
+		if (this._unacknowledgedCount === 0) {
+			// Not waiting for anything => cannot say if it is responsive or not
+			return;
+		}
+
+		if (Date.now() > this._unresponsiveTime) {
+			// Unresponsive!!
+			this._setResponsiveState(ResponsiveState.Unresponsive);
+		} else {
+			// Not (yet) unresponsive, be sure to check again soon
+			this._asyncCheckUresponsive.schedule();
+		}
+	}
+
+	private _setResponsiveState(newResponsiveState: ResponsiveState): void {
+		if (this._responsiveState === newResponsiveState) {
+			// no change
+			return;
+		}
+		this._responsiveState = newResponsiveState;
+		this._onDidChangeResponsiveState.fire(this._responsiveState);
+	}
+
+	public get responsiveState(): ResponsiveState {
+		return this._responsiveState;
 	}
 
 	public transformIncomingURIs<T>(obj: T): T {
@@ -209,6 +283,13 @@ export class RPCProtocol implements IRPCProtocol {
 				this._receiveRequest(msgLength, req, rpcId, method, args, (messageType === MessageType.RequestMixedArgsWithCancellation));
 				break;
 			}
+			case MessageType.Acknowledged: {
+				if (this._logger) {
+					this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `ack`);
+				}
+				this._onDidReceiveAcknowledge(req);
+				break;
+			}
 			case MessageType.Cancel: {
 				this._receiveCancel(msgLength, req);
 				break;
@@ -265,6 +346,13 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 
 		this._cancelInvokedHandlers[callId] = cancel;
+
+		// Acknowledge the request
+		const msg = MessageIO.serializeAcknowledged(req);
+		if (this._logger) {
+			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `ack`);
+		}
+		this._protocol.send(msg);
 
 		promise.then((r) => {
 			delete this._cancelInvokedHandlers[callId];
@@ -383,6 +471,7 @@ export class RPCProtocol implements IRPCProtocol {
 		}
 
 		this._pendingRPCReplies[callId] = result;
+		this._onWillSendRequest(req);
 		if (this._uriTransformer) {
 			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
@@ -625,6 +714,10 @@ class MessageIO {
 		};
 	}
 
+	public static serializeAcknowledged(req: number): Buffer {
+		return MessageBuffer.alloc(MessageType.Acknowledged, req, 0).buffer;
+	}
+
 	public static serializeCancel(req: number): Buffer {
 		return MessageBuffer.alloc(MessageType.Cancel, req, 0).buffer;
 	}
@@ -708,12 +801,13 @@ const enum MessageType {
 	RequestJSONArgsWithCancellation = 2,
 	RequestMixedArgs = 3,
 	RequestMixedArgsWithCancellation = 4,
-	Cancel = 5,
-	ReplyOKEmpty = 6,
-	ReplyOKBuffer = 7,
-	ReplyOKJSON = 8,
-	ReplyErrError = 9,
-	ReplyErrEmpty = 10,
+	Acknowledged = 5,
+	Cancel = 6,
+	ReplyOKEmpty = 7,
+	ReplyOKBuffer = 8,
+	ReplyOKJSON = 9,
+	ReplyErrError = 10,
+	ReplyErrEmpty = 11,
 }
 
 const enum ArgType {

@@ -33,7 +33,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -45,6 +45,7 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class Item extends BreadcrumbsItem {
 
@@ -121,7 +122,7 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
-	breadcrumbsBackground: ColorIdentifier;
+	breadcrumbsBackground: ColorIdentifier | ColorFunction;
 }
 
 export class BreadcrumbsControl {
@@ -162,6 +163,7 @@ export class BreadcrumbsControl {
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
 	) {
 		this.domNode = document.createElement('div');
@@ -280,8 +282,15 @@ export class BreadcrumbsControl {
 			return;
 		}
 
-		this._editorGroup.focus();
 		const { element } = event.item as Item;
+		this._editorGroup.focus();
+
+		/* __GDPR__
+			"breadcrumbs/select" : {
+				"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryService.publicLog('breadcrumbs/select', { type: element instanceof TreeElement ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -315,6 +324,12 @@ export class BreadcrumbsControl {
 					}
 					this._contextViewService.hideContextView(this);
 					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent));
+					/* __GDPR__
+						"breadcrumbs/open" : {
+							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this._telemetryService.publicLog('breadcrumbs/open', { type: !data ? 'nothing' : data.target instanceof TreeElement ? 'symbol' : 'file' });
 				});
 				let focusListener = picker.onDidFocusElement(data => {
 					if (!editor || !(data.target instanceof OutlineElement)) {
@@ -341,13 +356,17 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
-				let pickerHeight = Math.min(330, window.innerHeight * 0.4);
+				let maxHeight = Math.min(window.innerHeight * .7, 300);
+
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
 				let pickerArrowSize = 8;
 				let pickerArrowOffset: number;
 
 				let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
 				let y = data.top + data.height - pickerArrowSize;
+				if (y + maxHeight >= window.innerHeight) {
+					maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
+				}
 				let x = data.left;
 				if (x + pickerWidth >= maxInnerWidth) {
 					x = maxInnerWidth - pickerWidth;
@@ -362,8 +381,7 @@ export class BreadcrumbsControl {
 				} else {
 					pickerArrowOffset = (data.left + (data.width * .3)) - x;
 				}
-				picker.layout(pickerHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
-				picker.setInput(element);
+				picker.setInput(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
 				return { x, y };
 			},
 			onHide: (data) => {
@@ -431,7 +449,7 @@ export class BreadcrumbsControl {
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs"),
+		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
 		category: localize('cmd.category', "View")
 	}
 });
@@ -440,7 +458,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 99,
 	command: {
 		id: 'breadcrumbs.toggle',
-		title: localize('cmd.toggle', "Toggle Breadcrumbs")
+		title: localize('miToggleBreadcrumbs', "Toggle &&Breadcrumbs")
 	}
 });
 CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
@@ -466,7 +484,7 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.focusAndSelect',
-		title: localize('cmd.focus', "Focus Breadcrumbs"),
+		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
 		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
 	}
 });

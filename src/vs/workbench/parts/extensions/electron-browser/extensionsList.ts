@@ -7,7 +7,7 @@
 
 import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { createCancelablePromise } from 'vs/base/common/async';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -181,13 +180,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.ratings.style.display = '';
 		data.extension = extension;
 
-		const manifestPromise = createCancelablePromise(token => extension.getManifest(token).then(manifest => {
-			if (manifest) {
-				const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
-				if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
-			}
-		}));
-		data.disposables.push(toDisposable(() => manifestPromise.cancel()));
+		if (extension.gallery && extension.gallery.properties && extension.gallery.properties.localizedLanguages && extension.gallery.properties.localizedLanguages.length) {
+			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
+		}
 	}
 
 	disposeElement(): void {

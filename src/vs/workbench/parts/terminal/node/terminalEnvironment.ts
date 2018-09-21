@@ -82,9 +82,14 @@ export function sanitizeEnvironment(env: platform.IProcessEnvironment): void {
 	});
 }
 
-export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, locale: string | undefined): void {
+export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, isWindows: boolean, locale?: string): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	env['TERM_PROGRAM_VERSION'] = pkg.version;
+
+	// Don't set $LANG if OS is Windows and the setLocale setting is false
+	if (isWindows && !locale) {
+		return;
+	}
 	env['LANG'] = _getLangEnvVariable(locale);
 }
 
@@ -97,7 +102,7 @@ export function resolveConfigurationVariables(configurationResolverService: ICon
 	return env;
 }
 
-function _getLangEnvVariable(locale?: string) {
+function _getLangEnvVariable(locale?: string): string {
 	const parts = locale ? locale.split('-') : [];
 	const n = parts.length;
 	if (n === 0) {

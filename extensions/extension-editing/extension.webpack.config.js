@@ -14,10 +14,6 @@ module.exports = withDefaults({
 	entry: {
 		extension: './src/extension.ts',
 	},
-	resolve: {
-		mainFields: ['module', 'main'],
-		extensions: ['.ts', '.js'] // support ts-files and js-files
-	},
 	externals: {
 		'../../../product.json': 'commonjs ../../../product.json',
 		'typescript': 'commonjs typescript'

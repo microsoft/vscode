@@ -114,23 +114,6 @@ function toggleWordWrap(editor: ICodeEditor, state: IWordWrapState): IWordWrapSt
 	};
 }
 
-function applyWordWrapState(editor: ICodeEditor, state: IWordWrapState): void {
-	if (state.transientState) {
-		// toggle is on
-		editor.updateOptions({
-			wordWrap: state.transientState.forceWordWrap,
-			wordWrapMinified: state.transientState.forceWordWrapMinified
-		});
-		return;
-	}
-
-	// toggle is off
-	editor.updateOptions({
-		wordWrap: state.configuredWordWrap,
-		wordWrapMinified: state.configuredWordWrapMinified
-	});
-}
-
 const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
 class ToggleWordWrapAction extends EditorAction {
 
@@ -170,9 +153,8 @@ class ToggleWordWrapAction extends EditorAction {
 		// Compute the new state
 		const newState = toggleWordWrap(editor, currentState);
 		// Write the new state
+		// (this will cause an event and the controller will apply the state)
 		writeTransientState(model, newState.transientState, codeEditorService);
-		// Apply the new state
-		applyWordWrapState(editor, newState);
 	}
 }
 
@@ -192,6 +174,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const isWordWrapMinified = this.contextKeyService.createKey(isWordWrapMinifiedKey, this._isWordWrapMinified(configuration));
 		const isDominatedByLongLines = this.contextKeyService.createKey(isDominatedByLongLinesKey, this._isDominatedByLongLines(configuration));
 		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, this._inDiffEditor(configuration));
+		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (!e.wrappingInfo) {
@@ -201,9 +184,21 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			isWordWrapMinified.set(this._isWordWrapMinified(configuration));
 			isDominatedByLongLines.set(this._isDominatedByLongLines(configuration));
 			inDiffEditor.set(this._inDiffEditor(configuration));
+			if (!currentlyApplyingEditorConfig) {
+				// I am not the cause of the word wrap getting changed
+				ensureWordWrapSettings();
+			}
 		}));
 
 		this._register(editor.onDidChangeModel((e) => {
+			ensureWordWrapSettings();
+		}));
+
+		this._register(codeEditorService.onDidChangeTransientModelProperty(() => {
+			ensureWordWrapSettings();
+		}));
+
+		const ensureWordWrapSettings = () => {
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
@@ -223,8 +218,30 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			const desiredState = readWordWrapState(newModel, this.configurationService, this.codeEditorService);
 
 			// Apply the state
-			applyWordWrapState(editor, desiredState);
-		}));
+			try {
+				currentlyApplyingEditorConfig = true;
+				this._applyWordWrapState(desiredState);
+			} finally {
+				currentlyApplyingEditorConfig = false;
+			}
+		};
+	}
+
+	private _applyWordWrapState(state: IWordWrapState): void {
+		if (state.transientState) {
+			// toggle is on
+			this.editor.updateOptions({
+				wordWrap: state.transientState.forceWordWrap,
+				wordWrapMinified: state.transientState.forceWordWrapMinified
+			});
+			return;
+		}
+
+		// toggle is off
+		this.editor.updateOptions({
+			wordWrap: state.configuredWordWrap,
+			wordWrapMinified: state.configuredWordWrapMinified
+		});
 	}
 
 	private _isWordWrapMinified(config: InternalEditorOptions): boolean {

@@ -492,24 +492,17 @@ class RenameAdapter {
 			}
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
-			if (typeof err === 'string') {
-				return <WorkspaceEditDto>{
-					edits: undefined,
-					rejectReason: err
-				};
-			} else if (err instanceof Error && typeof err.message === 'string') {
-				return <WorkspaceEditDto>{
-					edits: undefined,
-					rejectReason: err.message
-				};
+			let rejectReason = RenameAdapter._asMessage(err);
+			if (rejectReason) {
+				return <WorkspaceEditDto>{ rejectReason, edits: undefined };
 			} else {
 				// generic error
-				return TPromise.wrapError<WorkspaceEditDto>(err);
+				return Promise.reject<WorkspaceEditDto>(err);
 			}
 		});
 	}
 
-	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation> {
+	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation & modes.Rejection> {
 		if (typeof this._provider.prepareRename !== 'function') {
 			return TPromise.as(undefined);
 		}
@@ -539,7 +532,24 @@ class RenameAdapter {
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
+		}, err => {
+			let rejectReason = RenameAdapter._asMessage(err);
+			if (rejectReason) {
+				return <modes.RenameLocation & modes.Rejection>{ rejectReason, range: undefined, text: undefined };
+			} else {
+				return Promise.reject(err);
+			}
 		});
+	}
+
+	private static _asMessage(err: any): string {
+		if (typeof err === 'string') {
+			return err;
+		} else if (err instanceof Error && typeof err.message === 'string') {
+			return err.message;
+		} else {
+			return undefined;
+		}
 	}
 }
 
@@ -671,19 +681,19 @@ class SuggestAdapter {
 		// 'insertText'-logic
 		if (item.textEdit) {
 			result.insertText = item.textEdit.newText;
-			result.snippetType = 'internal';
+			result.insertTextIsSnippet = false;
 
 		} else if (typeof item.insertText === 'string') {
 			result.insertText = item.insertText;
-			result.snippetType = 'internal';
+			result.insertTextIsSnippet = false;
 
 		} else if (item.insertText instanceof SnippetString) {
 			result.insertText = item.insertText.value;
-			result.snippetType = 'textmate';
+			result.insertTextIsSnippet = true;
 
 		} else {
 			result.insertText = item.label;
-			result.snippetType = 'internal';
+			result.insertTextIsSnippet = false;
 		}
 
 		// 'overwrite[Before|After]'-logic
@@ -714,12 +724,12 @@ class SignatureHelpAdapter {
 		private readonly _provider: vscode.SignatureHelpProvider
 	) { }
 
-	provideSignatureHelp(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
+	provideSignatureHelp(resource: URI, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
 
-		return asThenable(() => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
+		return asThenable(() => this._provider.provideSignatureHelp(doc, pos, token, context)).then(value => {
 			if (value) {
 				return typeConvert.SignatureHelp.from(value);
 			}
@@ -1144,8 +1154,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Thenable<modes.SignatureHelp> {
-		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, token));
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Thenable<modes.SignatureHelp> {
+		return this._withAdapter(handle, SignatureHelpAdapter, adapter => adapter.provideSignatureHelp(URI.revive(resource), position, context, token));
 	}
 
 	// --- links
@@ -1222,6 +1232,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return {
 			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
 			afterText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText),
+			oneLineAboveText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText),
 			action: onEnterRule.action
 		};
 	}

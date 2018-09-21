@@ -12,7 +12,6 @@ import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { TestTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 const themeServiceMock = new TestThemeService();
 
@@ -21,8 +20,8 @@ export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
-		return TPromise.as(null);
+	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): Promise<ICodeEditor> {
+		return Promise.resolve(null);
 	}
 }
 

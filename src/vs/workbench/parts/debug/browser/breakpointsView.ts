@@ -285,6 +285,8 @@ interface IBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
 
 interface IInputTemplateData {
 	inputBox: InputBox;
+	checkbox: HTMLInputElement;
+	icon: HTMLElement;
 	breakpoint: IFunctionBreakpoint;
 	reactedOnEvent: boolean;
 	toDispose: IDisposable[];
@@ -337,7 +339,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), true);
+		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
@@ -451,7 +453,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disalbed', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (session && !session.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
@@ -484,7 +486,14 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 
 	renderTemplate(container: HTMLElement): IInputTemplateData {
 		const template: IInputTemplateData = Object.create(null);
-		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
+
+		const breakpoint = dom.append(container, $('.breakpoint'));
+		template.icon = $('.icon');
+		template.checkbox = createCheckbox();
+
+		dom.append(breakpoint, template.icon);
+		dom.append(breakpoint, template.checkbox);
+		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
 			placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
 			ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
@@ -527,12 +536,20 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		return template;
 	}
 
-	renderElement(functionBreakpoint: IFunctionBreakpoint, index: number, data: IInputTemplateData): void {
+	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
 		data.reactedOnEvent = false;
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, functionBreakpoint);
+
+		data.icon.className = className + ' icon';
+		data.icon.title = message ? message : '';
+		data.checkbox.checked = functionBreakpoint.enabled;
+		data.checkbox.disabled = true;
 		data.inputBox.value = functionBreakpoint.name || '';
-		data.inputBox.focus();
-		data.inputBox.select();
+		setTimeout(() => {
+			data.inputBox.focus();
+			data.inputBox.select();
+		}, 0);
 	}
 
 	disposeElement(): void {

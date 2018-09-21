@@ -7,7 +7,6 @@
 
 import { dirname, join } from 'path';
 import { basename } from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { del, exists, readdir, readFile } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -80,7 +79,7 @@ class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
-					TPromise.join<any>([
+					Promise.all<any>([
 						this._windowsService.showItemInFolder(join(dir, files[0])),
 						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
 					]).then(() => {

@@ -50,6 +50,28 @@ export interface IExtensionHostStarter {
 	dispose(): void;
 }
 
+export interface IExtensionDevOptions {
+	readonly isExtensionDevHost: boolean;
+	readonly isExtensionDevDebug: boolean;
+	readonly isExtensionDevDebugBrk: boolean;
+	readonly isExtensionDevTestFromCli: boolean;
+}
+export function parseExtensionDevOptions(environmentService: IEnvironmentService): IExtensionDevOptions {
+	// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
+	let isExtensionDevHost = environmentService.isExtensionDevelopment;
+	const extDevLoc = environmentService.extensionDevelopmentLocationURI;
+	const debugOk = !extDevLoc || extDevLoc.scheme === Schemas.file;
+	let isExtensionDevDebug = debugOk && typeof environmentService.debugExtensionHost.port === 'number';
+	let isExtensionDevDebugBrk = debugOk && !!environmentService.debugExtensionHost.break;
+	let isExtensionDevTestFromCli = isExtensionDevHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
+	return {
+		isExtensionDevHost,
+		isExtensionDevDebug,
+		isExtensionDevDebugBrk,
+		isExtensionDevTestFromCli,
+	};
+}
+
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
 	private readonly _onCrashed: Emitter<[number, string]> = new Emitter<[number, string]>();
@@ -89,13 +111,11 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService
 	) {
-		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this._isExtensionDevHost = this._environmentService.isExtensionDevelopment;
-		const extDevLoc = this._environmentService.extensionDevelopmentLocationURI;
-		const debugOk = extDevLoc && extDevLoc.scheme === Schemas.file;
-		this._isExtensionDevDebug = debugOk && typeof this._environmentService.debugExtensionHost.port === 'number';
-		this._isExtensionDevDebugBrk = debugOk && !!this._environmentService.debugExtensionHost.break;
-		this._isExtensionDevTestFromCli = this._isExtensionDevHost && !!this._environmentService.extensionTestsPath && !this._environmentService.debugExtensionHost.break;
+		const devOpts = parseExtensionDevOptions(this._environmentService);
+		this._isExtensionDevHost = devOpts.isExtensionDevHost;
+		this._isExtensionDevDebug = devOpts.isExtensionDevDebug;
+		this._isExtensionDevDebugBrk = devOpts.isExtensionDevDebugBrk;
+		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
 		this._lastExtensionHostError = null;
 		this._terminating = false;
@@ -188,7 +208,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(getPathFromAmdModule(require, 'bootstrap'), ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
@@ -385,6 +405,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 				const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 				const workspace = this._contextService.getWorkspace();
 				const r: IInitData = {
+					commit: product.commit,
 					parentPid: process.pid,
 					environment: {
 						isExtensionDevelopmentDebug: this._isExtensionDevDebug,
@@ -490,9 +511,9 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 			// (graceful termination)
 			protocol.send(createMessageOfType(MessageType.Terminate));
 
-			// Give the extension host 60s, after which we will
+			// Give the extension host 10s, after which we will
 			// try to kill the process and release any resources
-			setTimeout(() => this._cleanResources(), 60 * 1000);
+			setTimeout(() => this._cleanResources(), 10 * 1000);
 
 		}, (err) => {
 

@@ -39,7 +39,7 @@ export class FileWatcher {
 
 	public startWatching(): () => void {
 		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap'),
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
 				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],

@@ -16,6 +16,7 @@ import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder,
 import { SimpleButton } from './findWidget';
 import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -27,21 +28,23 @@ export abstract class SimpleFindWidget extends Widget {
 	private _findInput: FindInput;
 	private _domNode: HTMLElement;
 	private _innerDomNode: HTMLElement;
-	private _isVisible: boolean;
+	private _isVisible: boolean = false;
 	private _focusTracker: dom.IFocusTracker;
 	private _findInputFocusTracker: dom.IFocusTracker;
 	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		private readonly _state: FindReplaceState = new FindReplaceState(),
+		showOptionButtons?: boolean
 	) {
 		super();
 
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-		}, contextKeyService));
+		}, contextKeyService, showOptionButtons));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
@@ -50,6 +53,24 @@ export abstract class SimpleFindWidget extends Widget {
 			this.onInputChanged();
 			this._delayedUpdateHistory();
 		});
+
+		this._findInput.setRegex(!!this._state.isRegex);
+		this._findInput.setCaseSensitive(!!this._state.matchCase);
+		this._findInput.setWholeWords(!!this._state.wholeWord);
+
+		this._register(this._findInput.onDidOptionChange(() => {
+			this._state.change({
+				isRegex: this._findInput.getRegex(),
+				wholeWord: this._findInput.getWholeWords(),
+				matchCase: this._findInput.getCaseSensitive()
+			}, true);
+		}));
+
+		this._register(this._state.onFindReplaceStateChange(() => {
+			this._findInput.setRegex(this._state.isRegex);
+			this._findInput.setWholeWords(this._state.wholeWord);
+			this._findInput.setCaseSensitive(this._state.matchCase);
+		}));
 
 		this._register(this._findInput.onKeyDown((e) => {
 			if (e.equals(KeyCode.Enter)) {
@@ -134,7 +155,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public get focusTracker(): dom.IFocusTracker {
-		return this._findInputFocusTracker;
+		return this._focusTracker;
 	}
 
 	public updateTheme(theme: ITheme): void {
@@ -190,6 +211,19 @@ export abstract class SimpleFindWidget extends Widget {
 		}, 0);
 	}
 
+	public show(initialInput?: string): void {
+		if (initialInput && !this._isVisible) {
+			this._findInput.setValue(initialInput);
+		}
+
+		this._isVisible = true;
+
+		setTimeout(() => {
+			dom.addClass(this._innerDomNode, 'visible');
+			this._innerDomNode.setAttribute('aria-hidden', 'false');
+		}, 0);
+	}
+
 	public hide(): void {
 		if (this._isVisible) {
 			this._isVisible = false;
@@ -205,6 +239,18 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected _updateHistory() {
 		this._findInput.inputBox.addToHistory();
+	}
+
+	protected _getRegexValue(): boolean {
+		return this._findInput.getRegex();
+	}
+
+	protected _getWholeWordValue(): boolean {
+		return this._findInput.getWholeWords();
+	}
+
+	protected _getCaseSensitiveValue(): boolean {
+		return this._findInput.getCaseSensitive();
 	}
 }
 

@@ -20,14 +20,17 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { isWindows } from 'vs/base/common/platform';
+import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -225,6 +228,19 @@ export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
 	) {
 		// Send ctrl+E
 		super(id, label, String.fromCharCode('E'.charCodeAt(0) - 64), terminalService);
+	}
+}
+
+export class SendSequenceTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+		if (!terminalInstance) {
+			return;
+		}
+		terminalInstance.sendText(args.text, false);
 	}
 }
 
@@ -639,7 +655,22 @@ export class RunActiveFileInTerminalAction extends Action {
 			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
-		instance.sendText(uri.fsPath, true);
+		let uriPath: string = uri.fsPath;
+		const hasSpace = uriPath.indexOf(' ') !== -1;
+		if (hasSpace && isWindows) {
+			uriPath = '"' + uriPath + '"';
+		} else if (!isWindows) {
+			if (uriPath.indexOf('\\') !== 0) {
+				uriPath = uriPath.replace(/\\/g, '\\\\');
+			}
+			const hasDoubleQuote = uriPath.indexOf('"') !== -1;
+			if (!hasSpace && hasDoubleQuote) {
+				uriPath = '\'' + uriPath + '\'';
+			} else if (hasSpace) {
+				uriPath = uriPath.replace(/ /g, '\\ ');
+			}
+		}
+		instance.sendText(uriPath, true);
 		return this.terminalService.showPanel();
 	}
 }
@@ -1160,6 +1191,89 @@ export class ToggleEscapeSequenceLoggingAction extends Action {
 		if (instance) {
 			instance.toggleEscapeSequenceLogging();
 		}
+		return TPromise.as(void 0);
+	}
+}
+
+abstract class ToggleFindOptionCommand extends Action {
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	protected abstract runInner(state: FindReplaceState): void;
+
+	public run(): TPromise<any> {
+		const state = this.terminalService.getFindState();
+		this.runInner(state);
+		return TPromise.as(void 0);
+	}
+}
+
+export class ToggleRegexCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ isRegex: !state.isRegex }, false);
+	}
+}
+
+export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ wholeWord: !state.wholeWord }, false);
+	}
+}
+
+export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ matchCase: !state.matchCase }, false);
+	}
+}
+
+export class FindNext extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.terminalService.findNext();
+		return TPromise.as(void 0);
+	}
+}
+
+export class FindPrevious extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.terminalService.findPrevious();
 		return TPromise.as(void 0);
 	}
 }

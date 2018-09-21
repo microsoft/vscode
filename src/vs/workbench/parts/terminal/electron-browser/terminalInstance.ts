@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
-import { Terminal as XTermTerminal } from 'vscode-xterm';
+import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -305,7 +305,10 @@ export class TerminalInstance implements ITerminalInstance {
 			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
+			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+			this.processReady.then(() => {
+				this._linkHandler.initialCwd = this._processManager.initialCwd;
+			});
 		}
 		this._xterm.on('focus', () => this._onFocus.fire(this));
 
@@ -550,12 +553,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.selectAll();
 	}
 
-	public findNext(term: string): boolean {
-		return this._xterm.findNext(term);
+	public findNext(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findNext(term, searchOptions);
 	}
 
-	public findPrevious(term: string): boolean {
-		return this._xterm.findPrevious(term);
+	public findPrevious(term: string, searchOptions: ISearchOptions): boolean {
+		return this._xterm.findPrevious(term, searchOptions);
 	}
 
 	public notifyFindWidgetFocusChanged(isFocused: boolean): void {

@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically, TextCompareEditorActiveContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -112,8 +112,6 @@ import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services/extensions/electron-browser/inactiveExtensionUrlHandler';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { LabelService, ILabelService } from 'vs/platform/label/common/label';
@@ -246,8 +244,7 @@ export class Workbench extends Disposable implements IPartService {
 		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: NotificationService,
-		@ITelemetryService private telemetryService: TelemetryService
+		@INotificationService private notificationService: NotificationService
 	) {
 		super();
 
@@ -364,7 +361,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
 		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null, this.telemetryService, this.notificationService, this.contextViewService));
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
 		}
@@ -621,6 +618,7 @@ export class Workbench extends Disposable implements IPartService {
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);
 
+		const activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
 		const editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		const textCompareEditorVisible = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
 		const textCompareEditorActive = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
@@ -650,6 +648,12 @@ export class Workbench extends Disposable implements IPartService {
 				multipleEditorGroups.set(true);
 			} else {
 				multipleEditorGroups.reset();
+			}
+
+			if (activeControl) {
+				activeEditorContext.set(activeControl.getId());
+			} else {
+				activeEditorContext.reset();
 			}
 		};
 
@@ -1070,7 +1074,9 @@ export class Workbench extends Disposable implements IPartService {
 		part.id = id;
 		part.setAttribute('role', role);
 
-		this.workbench.appendChild(part);
+		// Insert all workbench parts at the beginning. Issue #52531
+		// This is primarily for the title bar to allow overriding -webkit-app-region
+		this.workbench.insertBefore(part, this.workbench.lastChild);
 
 		return part;
 	}

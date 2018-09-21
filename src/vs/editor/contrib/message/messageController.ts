@@ -7,7 +7,7 @@
 
 import 'vs/css!./messageController';
 import * as nls from 'vs/nls';
-import { setDisposableTimeout } from 'vs/base/common/async';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -75,7 +75,7 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		this._messageListeners.push(this._editor.onDidChangeModel(() => this.closeMessage()));
 
 		// close after 3s
-		this._messageListeners.push(setDisposableTimeout(() => this.closeMessage(), 3000));
+		this._messageListeners.push(new TimeoutTimer(() => this.closeMessage(), 3000));
 
 		// close on mouse move
 		let bounds: Range;

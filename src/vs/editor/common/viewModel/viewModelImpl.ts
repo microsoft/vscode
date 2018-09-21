@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -35,7 +35,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private hasFocus: boolean;
 	private viewportStartLine: number;
 	private viewportStartLineTrackedRange: string;
-	private viewportStartLineTop: number;
+	private viewportStartLineDelta: number;
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
@@ -51,7 +51,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.hasFocus = false;
 		this.viewportStartLine = -1;
 		this.viewportStartLineTrackedRange = null;
-		this.viewportStartLineTop = 0;
+		this.viewportStartLineDelta = 0;
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
@@ -162,7 +162,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		if (restorePreviousViewportStart && previousViewportStartModelPosition) {
 			const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(previousViewportStartModelPosition);
 			const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-			this.viewLayout.deltaScrollNow(0, viewPositionTop - this.viewportStartLineTop);
+			this.viewLayout.setScrollPositionNow({ scrollTop: viewPositionTop + this.viewportStartLineDelta });
 		}
 	}
 
@@ -252,7 +252,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				if (modelRange) {
 					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
 					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.deltaScrollNow(0, viewPositionTop - this.viewportStartLineTop);
+					this.viewLayout.setScrollPositionNow({ scrollTop: viewPositionTop + this.viewportStartLineDelta });
 				}
 			}
 		}));
@@ -450,7 +450,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewportStartLine = startLineNumber;
 		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
-		this.viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
+		const viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
+		const scrollTop = this.viewLayout.getCurrentScrollTop();
+		this.viewportStartLineDelta = scrollTop - viewportStartLineTop;
 	}
 
 	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
@@ -539,7 +541,9 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			opts._resolvedColor = null;
+			if (opts) {
+				opts.invalidateCachedColor();
+			}
 		}
 	}
 
@@ -554,6 +558,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	public validateModelPosition(position: IPosition): Position {
 		return this.model.validatePosition(position);
+	}
+
+	public validateModelRange(range: IRange): Range {
+		return this.model.validateRange(range);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {

@@ -8,7 +8,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
@@ -58,35 +58,6 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	};
 }
 
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
-	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
-		let item = callback(source.token);
-		if (item instanceof TPromise) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else if (isThenable<T>(item)) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else {
-			source.dispose();
-			resolve(item);
-		}
-	}, () => {
-		source.cancel();
-	});
-}
-
 export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Thenable<T> {
 	return new TPromise<T>((resolve, reject) => {
 		let item = callback();
@@ -97,23 +68,7 @@ export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Th
 		} else {
 			resolve(item);
 		}
-	}, () => { /* not supported */ });
-}
-
-/**
- * Hook a cancellation token to a WinJS Promise
- */
-export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
-	const subscription = token.onCancellationRequested(() => promise.cancel());
-	if (resolveAsUndefinedWhenCancelled) {
-		promise = promise.then<T>(undefined, err => {
-			if (!errors.isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
-			}
-			return undefined;
-		});
-	}
-	return always(promise, () => subscription.dispose());
+	});
 }
 
 export interface ITask<T> {
@@ -174,15 +129,11 @@ export class Throttler {
 
 				this.queuedPromise = new TPromise(c => {
 					this.activePromise.then(onComplete, onComplete).then(c);
-				}, () => {
-					this.activePromise.cancel();
 				});
 			}
 
 			return new TPromise((c, e) => {
 				this.queuedPromise.then(c, e);
-			}, () => {
-				// no-op
 			});
 		}
 
@@ -196,8 +147,6 @@ export class Throttler {
 				this.activePromise = null;
 				e(err);
 			});
-		}, () => {
-			this.activePromise.cancel();
 		});
 	}
 }
@@ -239,13 +188,14 @@ export class Delayer<T> {
 
 	private timeout: number;
 	private completionPromise: TPromise;
-	private onSuccess: ValueCallback;
+	private doResolve: ValueCallback;
+	private doReject: (err: any) => void;
 	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
 		this.completionPromise = null;
-		this.onSuccess = null;
+		this.doResolve = null;
 		this.task = null;
 	}
 
@@ -254,13 +204,12 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new TPromise((c) => {
-				this.onSuccess = c;
-			}, () => {
-				// no-op
+			this.completionPromise = new TPromise((c, e) => {
+				this.doResolve = c;
+				this.doReject = e;
 			}).then(() => {
 				this.completionPromise = null;
-				this.onSuccess = null;
+				this.doResolve = null;
 				const task = this.task;
 				this.task = null;
 
@@ -270,7 +219,7 @@ export class Delayer<T> {
 
 		this.timeout = setTimeout(() => {
 			this.timeout = null;
-			this.onSuccess(null);
+			this.doResolve(null);
 		}, delay);
 
 		return this.completionPromise;
@@ -284,7 +233,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.completionPromise.cancel();
+			this.doReject(errors.canceled());
 			this.completionPromise = null;
 		}
 	}
@@ -332,8 +281,6 @@ export class Barrier {
 		this._isOpen = false;
 		this._promise = new TPromise<boolean>((c, e) => {
 			this._completePromise = c;
-		}, () => {
-			console.warn('You should really not try to cancel this ready promise!');
 		});
 	}
 
@@ -348,26 +295,6 @@ export class Barrier {
 
 	wait(): TPromise<boolean> {
 		return this._promise;
-	}
-}
-
-export class ShallowCancelThenPromise<T> extends TPromise<T> {
-
-	constructor(outer: TPromise<T>) {
-
-		let completeCallback: ValueCallback,
-			errorCallback: ErrorCallback;
-
-		super((c, e) => {
-			completeCallback = c;
-			errorCallback = e;
-		}, () => {
-			// cancel this promise but not the
-			// outer promise
-			errorCallback(errors.canceled());
-		});
-
-		outer.then(completeCallback, errorCallback);
 	}
 }
 
@@ -388,14 +315,6 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 			reject(errors.canceled());
 		});
 	});
-}
-
-/**
- *
- * @returns `true` if candidate is a `WinJS.Promise`
- */
-export function isWinJSPromise(candidate: any): candidate is TPromise {
-	return isThenable(candidate) && typeof (candidate as any).done === 'function';
 }
 
 /**
@@ -598,17 +517,18 @@ export class ResourceQueue {
 	}
 }
 
-export function setDisposableTimeout(handler: Function, timeout: number, ...args: any[]): IDisposable {
-	const handle = setTimeout(handler, timeout, ...args);
-	return { dispose() { clearTimeout(handle); } };
-}
-
 export class TimeoutTimer extends Disposable {
 	private _token: number;
 
-	constructor() {
+	constructor();
+	constructor(runner: () => void, timeout: number);
+	constructor(runner?: () => void, timeout?: number) {
 		super();
 		this._token = -1;
+
+		if (typeof runner === 'function' && typeof timeout === 'number') {
+			this.setIfNotSet(runner, timeout);
+		}
 	}
 
 	dispose(): void {
@@ -764,11 +684,11 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): TPromise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
 }

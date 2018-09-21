@@ -6,7 +6,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Socket } from 'net';
 import { EventEmitter } from 'events';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
@@ -46,7 +45,7 @@ suite('IPC, Socket Protocol', () => {
 		const a = new Protocol(stream);
 		const b = new Protocol(stream);
 
-		return new TPromise(resolve => {
+		return new Promise(resolve => {
 			const sub = b.onMessage(data => {
 				sub.dispose();
 				assert.equal(data.toString(), 'foobarfarboo');
@@ -54,7 +53,7 @@ suite('IPC, Socket Protocol', () => {
 			});
 			a.send(Buffer.from('foobarfarboo'));
 		}).then(() => {
-			return new TPromise(resolve => {
+			return new Promise(resolve => {
 				const sub = b.onMessage(data => {
 					sub.dispose();
 					assert.equal(data.readInt8(0), 123);
@@ -82,7 +81,7 @@ suite('IPC, Socket Protocol', () => {
 
 		a.send(Buffer.from(JSON.stringify(data)));
 
-		return new TPromise(resolve => {
+		return new Promise(resolve => {
 			b.onMessage(msg => {
 				assert.deepEqual(JSON.parse(msg.toString()), data);
 				resolve(null);
@@ -92,7 +91,7 @@ suite('IPC, Socket Protocol', () => {
 
 	test('can devolve to a socket and evolve again without losing data', () => {
 		let resolve: (v: void) => void;
-		let result = new TPromise<void>((_resolve, _reject) => {
+		let result = new Promise<void>((_resolve, _reject) => {
 			resolve = _resolve;
 		});
 		const sender = new Protocol(stream);

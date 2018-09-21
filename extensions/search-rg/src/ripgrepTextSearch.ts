@@ -16,9 +16,6 @@ import { anchorGlob, createTextSearchResult } from './utils';
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-// TODO@roblou move to SearchService
-const MAX_TEXT_RESULTS = 10000;
-
 export class RipgrepTextSearchEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
@@ -39,7 +36,7 @@ export class RipgrepTextSearchEngine {
 		}
 	}
 
-	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -67,13 +64,15 @@ export class RipgrepTextSearchEngine {
 			});
 
 			let gotResult = false;
-			this.ripgrepParser = new RipgrepParser(MAX_TEXT_RESULTS, cwd, options.previewOptions);
+			this.ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
 			this.ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
 				gotResult = true;
 				progress.report(match);
 			});
 
+			let limitHit = false;
 			this.ripgrepParser.on('hitLimit', () => {
+				limitHit = true;
 				this.cancel();
 			});
 
@@ -96,7 +95,7 @@ export class RipgrepTextSearchEngine {
 				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
 				this.outputChannel.appendLine('');
 				if (this.isDone) {
-					resolve();
+					resolve({ limitHit });
 				} else {
 					// Trigger last result
 					this.ripgrepParser.flush();
@@ -105,7 +104,7 @@ export class RipgrepTextSearchEngine {
 					if (stderr && !gotData && (displayMsg = rgErrorMsgForDisplay(stderr))) {
 						reject(new Error(displayMsg));
 					} else {
-						resolve();
+						resolve({ limitHit });
 					}
 				}
 			});
@@ -218,16 +217,6 @@ export class RipgrepParser extends EventEmitter {
 		if (lineNum === 0) {
 			lineText = stripUTF8BOM(lineText);
 		}
-
-		// if (!this.currentFile) {
-		// 	// When searching a single file and no folderQueries, rg does not print the file line, so create it here
-		// 	const singleFile = this.extraSearchFiles[0];
-		// 	if (!singleFile) {
-		// 		throw new Error('Got match line for unknown file');
-		// 	}
-
-		// 	this.currentFile = this.getFileUri(singleFile);
-		// }
 
 		let lastMatchEndPos = 0;
 		let matchTextStartPos = -1;
@@ -372,8 +361,6 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 
 	return args;
 }
-
-// TODO@roblou organize away
 
 interface RegExpOptions {
 	matchCase?: boolean;

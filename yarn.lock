@@ -1956,9 +1956,9 @@ electron-download@^4.1.0:
     semver "^5.3.0"
     sumchecker "^2.0.1"
 
-electron-mksnapshot@~1.7.0:
-  version "1.7.1"
-  resolved "https://registry.yarnpkg.com/electron-mksnapshot/-/electron-mksnapshot-1.7.1.tgz#926be7c20cfe0593249df979b0a12a2a0c5b27f1"
+electron-mksnapshot@~2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/electron-mksnapshot/-/electron-mksnapshot-2.0.0.tgz#c7a9e95b86693fdfe60ea7b65df6c237009e4be8"
   dependencies:
     electron-download "^4.1.0"
     extract-zip "^1.6.5"
@@ -5017,10 +5017,6 @@ nan@^2.0.0:
   version "2.9.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.9.2.tgz#f564d75f5f8f36a6d9456cca7a6c4fe488ab7866"
 
-nan@^2.0.9:
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/nan/-/nan-2.4.0.tgz#fb3c59d45fe4effe215f0b890f8adf6eb32d2232"
-
 nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
@@ -5057,9 +5053,9 @@ native-keymap@1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
 
-native-watchdog@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-0.3.0.tgz#c7d952ca05e9877f1ff7a3ff80991610b6104bbb"
+native-watchdog@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.0.0.tgz#97344e83cd6815a8c8e6c44a52e7be05832e65ca"
 
 natives@^1.1.0:
   version "1.1.4"
@@ -5360,10 +5356,10 @@ onetime@^2.0.0:
     mimic-fn "^1.0.0"
 
 oniguruma@^7.0.0:
-  version "7.0.0"
-  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.0.tgz#cf258a8b1a2ec1d0d68964d6336df264008ebf4c"
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.0.2.tgz#a5c922cf7066da1dbcc60f6385a90437a83f8d0b"
   dependencies:
-    nan "^2.0.9"
+    nan "^2.10.0"
 
 optimist@0.3.5:
   version "0.3.5"
@@ -7518,9 +7514,9 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.0.1.tgz#43738f29585d3a87575520a4b93ab6026ef11fdb"
+typescript@3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.0.3.tgz#4853b3e275ecdaa27f78fda46dc273a7eb7fc1c8"
 
 typescript@^2.6.2:
   version "2.6.2"
@@ -7903,9 +7899,9 @@ vscode-chokidar@1.6.4:
   optionalDependencies:
     vscode-fsevents "0.3.9"
 
-vscode-debugprotocol@1.32.0-pre.0:
-  version "1.32.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0-pre.0.tgz#14b3c07b8d7016f91b6984ec18292c18a42d2705"
+vscode-debugprotocol@1.32.0:
+  version "1.32.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.32.0.tgz#cca9eccb3f73ded5e525e01621a72ca2bb577dc3"
 
 vscode-fsevents@0.3.9:
   version "0.3.9"
@@ -7949,9 +7945,9 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.8.0-beta1:
-  version "3.8.0-beta1"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta1.tgz#d4e7810bc61c9798f353832844974c18f213c053"
+vscode-xterm@3.8.0-beta3:
+  version "3.8.0-beta3"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta3.tgz#863a14bb08d6b752949b195306b469ab4e2f742e"
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
