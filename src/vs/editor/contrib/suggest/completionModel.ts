@@ -10,11 +10,13 @@ import { isDisposable } from 'vs/base/common/lifecycle';
 import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
 	score?: number;
 	idx?: number;
+	distance?: number;
 	word?: string;
 }
 
@@ -58,7 +60,13 @@ export class CompletionModel {
 	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest) {
+	constructor(
+		items: ISuggestionItem[],
+		column: number,
+		lineContext: LineContext,
+		private readonly _wordDistanceOracle: WordDistance,
+		options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest
+	) {
 		this._items = items;
 		this._column = column;
 		this._options = options;
@@ -209,7 +217,7 @@ export class CompletionModel {
 			}
 
 			item.idx = i;
-
+			item.distance = this._wordDistanceOracle.distance(item.position, suggestion.label);
 			target.push(item);
 
 			// update stats
@@ -228,6 +236,10 @@ export class CompletionModel {
 		if (a.score > b.score) {
 			return -1;
 		} else if (a.score < b.score) {
+			return 1;
+		} else if (a.distance < b.distance) {
+			return -1;
+		} else if (a.distance > b.distance) {
 			return 1;
 		} else if (a.idx < b.idx) {
 			return -1;

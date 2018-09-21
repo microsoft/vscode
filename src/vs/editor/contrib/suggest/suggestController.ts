@@ -32,6 +32,7 @@ import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { once, anyEvent } from 'vs/base/common/event';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 
 class AcceptOnCharacterOracle {
 
@@ -97,12 +98,13 @@ export class SuggestController implements IEditorContribution {
 
 	constructor(
 		private _editor: ICodeEditor,
+		@IEditorWorkerService editorWorker: IEditorWorkerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		this._model = new SuggestModel(this._editor);
+		this._model = new SuggestModel(this._editor, editorWorker);
 		this._memory = _instantiationService.createInstance(SuggestMemories, this._editor.getConfiguration().contribInfo.suggestSelection);
 
 		this._alternatives = new SuggestAlternatives(this._editor, item => this._onDidSelectItem(item, false, false), this._contextKeyService);
