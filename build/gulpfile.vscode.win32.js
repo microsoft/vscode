@@ -171,7 +171,7 @@ function makeAppX(arch){
 		fs.copySync(path.join(winstoreResourcePath, "package"), prepackagePath);
 
 		// Update Manifest with proper values.
-		var manifest = path.join(prepackagePath, "AppxManifest.xml");
+		let manifest = path.join(prepackagePath, "AppxManifest.xml");
 		fs.readFile(manifest, 'utf8', function (err,data) {
 			if (err) {
 				return console.log(err);
