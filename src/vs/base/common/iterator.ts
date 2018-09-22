@@ -25,7 +25,7 @@ export module Iterator {
 		return _empty;
 	}
 
-	export function iterate<T>(array: T[], index = 0, length = array.length): Iterator<T> {
+	export function fromArray<T>(array: T[], index = 0, length = array.length): Iterator<T> {
 		return {
 			next(): IteratorResult<T> {
 				if (index >= length) {
@@ -81,7 +81,7 @@ export type ISequence<T> = Iterator<T> | T[];
 
 export function getSequenceIterator<T>(arg: Iterator<T> | T[]): Iterator<T> {
 	if (Array.isArray(arg)) {
-		return Iterator.iterate(arg);
+		return Iterator.fromArray(arg);
 	} else {
 		return arg;
 	}

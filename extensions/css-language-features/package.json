@@ -708,8 +708,8 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^4.4.0",
-    "vscode-nls": "^3.2.4"
+    "vscode-languageclient": "^5.1.0",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^8.10.25",

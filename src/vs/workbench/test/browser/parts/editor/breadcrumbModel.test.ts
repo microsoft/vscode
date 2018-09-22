@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
@@ -16,7 +16,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 
 suite('Breadcrumb Model', function () {
 
-	const workspaceService = new TestContextService(new Workspace('ffff', 'Test', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
+	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
 	const configService = new class extends TestConfigurationService {
 		getValue(...args: any[]) {
 			if (args[0] === 'breadcrumbs.filePath') {

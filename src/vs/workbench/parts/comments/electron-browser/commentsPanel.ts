@@ -232,7 +232,6 @@ export class CommentsPanel extends Panel {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = ReviewController.get(control);
-					console.log(commentToReveal.command);
 					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
 				}
 				setCommentsForFile = null;
@@ -241,6 +240,18 @@ export class CommentsPanel extends Panel {
 
 
 		return true;
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		const wasVisible = this.isVisible();
+		return super.setVisible(visible)
+			.then(() => {
+				if (this.isVisible()) {
+					if (!wasVisible) {
+						this.refresh();
+					}
+				}
+			});
 	}
 
 	private refresh(): void {

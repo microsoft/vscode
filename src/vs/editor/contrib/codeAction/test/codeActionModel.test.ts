@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -151,5 +151,33 @@ suite('CodeAction', () => {
 
 		// 	oracle.trigger('manual');
 		// });
+	});
+
+	test('Orcale -> should only auto trigger once for cursor and marker update right after each other', done => {
+		const reg = CodeActionProviderRegistry.register(languageIdentifier.language, testProvider);
+		disposables.push(reg);
+
+		let triggerCount = 0;
+		const oracle = new CodeActionOracle(editor, markerService, e => {
+			assert.equal(e.trigger.type, 'auto');
+			++triggerCount;
+
+			// give time for second trigger before completing test
+			setTimeout(() => {
+				oracle.dispose();
+				assert.strictEqual(triggerCount, 1);
+				done();
+			}, 50);
+		}, 5 /*delay*/);
+
+		markerService.changeOne('fake', uri, [{
+			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
+			message: 'error',
+			severity: 1,
+			code: '',
+			source: ''
+		}]);
+
+		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 	});
 });

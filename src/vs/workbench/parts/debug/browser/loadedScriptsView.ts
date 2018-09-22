@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { normalize, isAbsolute, sep } from 'vs/base/common/paths';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -17,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { WorkbenchTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { renderViewTree, twistiePixels } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IAccessibilityProvider, ITree, IRenderer, IDataSource } from 'vs/base/parts/tree/browser/tree';
-import { ISession, IDebugService, IModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IDebugService, IDebugModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,8 +24,9 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const SMART = true;
 
@@ -47,7 +47,14 @@ class BaseTreeItem {
 		this._showedMoreThanOne = false;
 	}
 
-	setSource(session: ISession, source: Source): void {
+	getSession(): IDebugSession {
+		if (this._parent) {
+			return this._parent.getSession();
+		}
+		return undefined;
+	}
+
+	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
 	}
 
@@ -60,8 +67,21 @@ class BaseTreeItem {
 		return child;
 	}
 
+	getChild(key: string): BaseTreeItem {
+		return this._children[key];
+	}
+
 	remove(key: string): void {
 		delete this._children[key];
+	}
+
+	removeFromParent(): void {
+		if (this._parent) {
+			this._parent.remove(this._label);
+			if (Object.keys(this._parent._children).length === 0) {
+				this._parent.removeFromParent();
+			}
+		}
 	}
 
 	getTemplateId(): string {
@@ -77,13 +97,22 @@ class BaseTreeItem {
 	// skips intermediate single-child nodes
 	getParent(): BaseTreeItem {
 		if (this._parent) {
-			const child = this._parent.oneChild();
-			if (child) {
+			if (this._parent.isSkipped()) {
 				return this._parent.getParent();
 			}
 			return this._parent;
 		}
 		return undefined;
+	}
+
+	isSkipped(): boolean {
+		if (this._parent) {
+			if (this._parent.oneChild()) {
+				return true;	// skipped if I'm the only child of my parents
+			}
+			return false;
+		}
+		return true;	// roots are never skipped
 	}
 
 	// skips intermediate single-child nodes
@@ -118,10 +147,11 @@ class BaseTreeItem {
 	// skips intermediate single-child nodes
 	getHoverLabel(): string {
 		let label = this.getLabel(false);
-		if (this._parent) {
-			const parentLabel = this._parent.getHoverLabel();
-			if (parentLabel) {
-				return `${parentLabel}/${label}`;
+		const parent = this.getParent();
+		if (parent) {
+			const hover = parent.getHoverLabel();
+			if (hover) {
+				return `${hover}/${label}`;
 			}
 		}
 		return label;
@@ -171,15 +201,19 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
+	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
 		super(undefined, 'Root');
 		this._debugModel.getSessions().forEach(session => {
 			this.add(session);
 		});
 	}
 
-	add(session: ISession): SessionTreeItem {
+	add(session: IDebugSession): SessionTreeItem {
 		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this, session, this._environmentService, this._contextService));
+	}
+
+	find(session: IDebugSession): SessionTreeItem {
+		return <SessionTreeItem>this.getChild(session.getId());
 	}
 }
 
@@ -187,13 +221,19 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private static URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
-	private _session: ISession;
+	private _session: IDebugSession;
 	private _initialized: boolean;
+	private _map: Map<string, BaseTreeItem>;
 
-	constructor(parent: BaseTreeItem, session: ISession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getName(true));
 		this._initialized = false;
 		this._session = session;
+		this._map = new Map();
+	}
+
+	getSession(): IDebugSession {
+		return this._session;
 	}
 
 	getHoverLabel(): string {
@@ -284,18 +324,28 @@ class SessionTreeItem extends BaseTreeItem {
 			}
 		}
 
-		let x: BaseTreeItem = this;
+		let leaf: BaseTreeItem = this;
 		path.split(/[\/\\]/).forEach((segment, i) => {
 			if (i === 0 && folder) {
-				x = x.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
+				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
 			} else if (i === 0 && url) {
-				x = x.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
+				leaf = leaf.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
 			} else {
-				x = x.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
+				leaf = leaf.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
 			}
 		});
 
-		x.setSource(this._session, source);
+		leaf.setSource(this._session, source);
+		this._map.set(source.raw.path, leaf);
+	}
+
+	removePath(source: Source): boolean {
+		const leaf = this._map.get(source.raw.path);
+		if (leaf) {
+			leaf.removeFromParent();
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -306,7 +356,6 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	private treeContainer: HTMLElement;
 	private loadedScriptsItemType: IContextKey<string>;
 	private settings: any;
-
 
 	constructor(
 		options: IViewletViewOptions,
@@ -334,7 +383,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			{
 				dataSource: new LoadedScriptsDataSource(),
 				renderer: this.instantiationService.createInstance(LoadedScriptsRenderer),
-				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
+				accessibilityProvider: new LoadedSciptsAccessibilityProvider()
 			},
 			{
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
@@ -352,7 +401,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 				const source = element.getSource();
 				if (source && source.available) {
 					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
+					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 				}
 			}
 		}));
@@ -366,29 +415,45 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			}
 		}));
 
+		let nextRefreshIsRecursive = false;
+		const refreshScheduler = new RunOnceScheduler(() => {
+			if (this.tree) {
+				this.tree.refresh(undefined, nextRefreshIsRecursive);
+				nextRefreshIsRecursive = false;
+			}
+		}, 300);
+		this.disposables.push(refreshScheduler);
+
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 		this.tree.setInput(root);
 
-		let timeout: number;
-
-		this.disposables.push(this.debugService.onDidLoadedSource(event => {
-			const sessionRoot = root.add(event.session);
-			sessionRoot.addPath(event.source);
-
-			clearTimeout(timeout);
-			timeout = setTimeout(() => {
-				if (this.tree) {
-					this.tree.refresh(root, true);
+		const registerLoadedSourceListener = (session: IDebugSession) => {
+			this.disposables.push(session.onDidLoadedSource(event => {
+				let sessionRoot: SessionTreeItem;
+				switch (event.reason) {
+					case 'new':
+						sessionRoot = root.add(session);
+						sessionRoot.addPath(event.source);
+						nextRefreshIsRecursive = true;
+						refreshScheduler.schedule();
+						break;
+					case 'removed':
+						sessionRoot = root.find(session);
+						if (sessionRoot && sessionRoot.removePath(event.source)) {
+							nextRefreshIsRecursive = true;
+							refreshScheduler.schedule();
+						}
+						break;
 				}
-			}, 300);
-		}));
+			}));
+		};
+
+		this.disposables.push(this.debugService.onDidNewSession(registerLoadedSourceListener));
+		this.debugService.getModel().getSessions().forEach(registerLoadedSourceListener);
 
 		this.disposables.push(this.debugService.onDidEndSession(session => {
-			clearTimeout(timeout);
 			root.remove(session.getId());
-			if (this.tree) {
-				this.tree.refresh(root, false);
-			}
+			refreshScheduler.schedule();
 		}));
 	}
 
@@ -402,6 +467,11 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 	public shutdown(): void {
 		this.settings[LoadedScriptsView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
+	}
+
+	dispose(): void {
+		this.tree = undefined;
+		super.dispose();
 	}
 }
 
@@ -422,7 +492,7 @@ class LoadedScriptsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: any): TPromise<any> {
-		return element.getParent();
+		return TPromise.as(element.getParent());
 	}
 
 	shouldAutoexpand?(tree: ITree, element: any): boolean {

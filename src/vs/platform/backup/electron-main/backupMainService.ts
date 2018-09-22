@@ -16,7 +16,7 @@ import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/com
 import { ILogService } from 'vs/platform/log/common/log';
 
 import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { isEqual as areResourcesEquals, getComparisonKey, hasToIgnoreCase } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/paths';
 import { Schemas } from 'vs/base/common/network';
@@ -121,7 +121,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	public registerFolderBackupSync(folderUri: URI): string {
-		if (!this.folderWorkspaces.some(uri => areResourcesEquals(folderUri, uri, hasToIgnoreCase(folderUri)))) {
+		if (!this.folderWorkspaces.some(uri => areResourcesEquals(folderUri, uri))) {
 			this.folderWorkspaces.push(folderUri);
 			this.saveSync();
 		}
@@ -129,7 +129,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	public unregisterFolderBackupSync(folderUri: URI): void {
-		let index = arrays.firstIndex(this.folderWorkspaces, uri => areResourcesEquals(folderUri, uri, hasToIgnoreCase(folderUri)));
+		let index = arrays.firstIndex(this.folderWorkspaces, uri => areResourcesEquals(folderUri, uri));
 		if (index !== -1) {
 			this.folderWorkspaces.splice(index, 1);
 			this.saveSync();

@@ -707,6 +707,21 @@ declare module 'vscode-xterm' {
 		};
 	}
 
+	interface ISearchOptions  {
+		/**
+		 * Whether the find should be done as a regex.
+		 */
+		regex?: boolean;
+		/**
+		 * Whether only whole words should match.
+		 */
+		wholeWord?: boolean;
+		/**
+		 * Whether find should pay attention to case.
+		 */
+		caseSensitive?: boolean;
+	}
+
 	interface Terminal {
 		_core: TerminalCore;
 
@@ -716,17 +731,19 @@ declare module 'vscode-xterm' {
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findNext(term: string): boolean;
+		findNext(term: string, findOptions: ISearchOptions): boolean;
 
 		/**
 		 * Find the previous instance of the term, then scroll to and select it. If it
 		 * doesn't exist, do nothing.
-		 * @param term Tne search term.
+		 * @param term The search term.
+		 * @param findOptions Regex, whole word, and case sensitive options.
 		 * @return Whether a result was found.
 		 */
-		findPrevious(term: string): boolean;
+		findPrevious(term: string, findOptions: ISearchOptions): boolean;
 	}
 }

@@ -20,17 +20,25 @@ export class OutOfProcessWin32FolderWatcher {
 
 	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 
+	private ignored: glob.ParsedPattern[];
+
 	private handle: cp.ChildProcess;
 	private restartCounter: number;
 
 	constructor(
 		private watchedFolder: string,
-		private ignored: string[],
+		ignored: string[],
 		private eventCallback: (events: IRawFileChange[]) => void,
 		private errorCallback: (error: string) => void,
 		private verboseLogging: boolean
 	) {
 		this.restartCounter = 0;
+
+		if (Array.isArray(ignored)) {
+			this.ignored = ignored.map(i => glob.parse(i));
+		} else {
+			this.ignored = [];
+		}
 
 		this.startWatcher();
 	}
@@ -60,7 +68,11 @@ export class OutOfProcessWin32FolderWatcher {
 					if (changeType >= 0 && changeType < 3) {
 
 						// Support ignores
-						if (this.ignored && this.ignored.some(ignore => glob.match(ignore, absolutePath))) {
+						if (this.ignored && this.ignored.some(ignore => ignore(absolutePath))) {
+							if (this.verboseLogging) {
+								console.log('%c[File Watcher (C#)]', 'color: blue', ' >> ignored', absolutePath);
+							}
+
 							return;
 						}
 
@@ -73,7 +85,7 @@ export class OutOfProcessWin32FolderWatcher {
 
 					// 3 Logging
 					else {
-						console.log('%c[File Watcher]', 'color: darkgreen', eventParts[1]);
+						console.log('%c[File Watcher (C#)]', 'color: blue', eventParts[1]);
 					}
 				}
 			});
@@ -93,19 +105,19 @@ export class OutOfProcessWin32FolderWatcher {
 	}
 
 	private onError(error: Error | Buffer): void {
-		this.errorCallback('[FileWatcher] process error: ' + error.toString());
+		this.errorCallback('[File Watcher (C#)] process error: ' + error.toString());
 	}
 
 	private onExit(code: number, signal: string): void {
 		if (this.handle) { // exit while not yet being disposed is unexpected!
-			this.errorCallback(`[FileWatcher] terminated unexpectedly (code: ${code}, signal: ${signal})`);
+			this.errorCallback(`[File Watcher (C#)] terminated unexpectedly (code: ${code}, signal: ${signal})`);
 
 			if (this.restartCounter <= OutOfProcessWin32FolderWatcher.MAX_RESTARTS) {
-				this.errorCallback('[FileWatcher] is restarted again...');
+				this.errorCallback('[File Watcher (C#)] is restarted again...');
 				this.restartCounter++;
 				this.startWatcher(); // restart
 			} else {
-				this.errorCallback('[FileWatcher] Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
+				this.errorCallback('[File Watcher (C#)] Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
 			}
 		}
 	}

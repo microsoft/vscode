@@ -2299,8 +2299,8 @@
 /users/foo/src/vs/base/parts/ipc/test/node/ipc.test.ts
 /users/foo/src/vs/base/parts/ipc/test/node/testService.ts
 /users/foo/src/vs/base/parts/ipc/common
-/users/foo/src/vs/base/parts/ipc/common/ipc.electron.ts
-/users/foo/src/vs/base/parts/ipc/common/ipc.ts
+/users/foo/src/vs/base/parts/ipc/node/ipc.electron.ts
+/users/foo/src/vs/base/parts/ipc/node/ipc.ts
 /users/foo/src/vs/base/parts/ipc/electron-browser
 /users/foo/src/vs/base/parts/ipc/electron-browser/ipc.electron-browser.ts
 /users/foo/src/vs/base/parts/ipc/node

@@ -33,7 +33,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{ element: 0 },
 			{ element: 1 },
 			{ element: 2 }
@@ -55,9 +55,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
-				element: 0, children: Iterator.iterate([
+				element: 0, children: Iterator.fromArray([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -92,9 +92,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
-				element: 0, collapsed: true, children: Iterator.iterate([
+				element: 0, collapsed: true, children: Iterator.fromArray([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -120,7 +120,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{ element: 0 },
 			{ element: 1 },
 			{ element: 2 }
@@ -145,9 +145,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
-				element: 0, children: Iterator.iterate([
+				element: 0, children: Iterator.fromArray([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -179,9 +179,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
-				element: 0, children: Iterator.iterate([
+				element: 0, children: Iterator.fromArray([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -207,9 +207,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
-				element: 0, collapsed: true, children: Iterator.iterate([
+				element: 0, collapsed: true, children: Iterator.fromArray([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -232,9 +232,9 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
-				element: 0, children: Iterator.iterate([
+				element: 0, children: Iterator.fromArray([
 					{ element: 10 },
 					{ element: 11 },
 					{ element: 12 },
@@ -259,51 +259,51 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	// test('expand', function () {
-	// 	const list = [] as ITreeNode<number>[];
-	// 	const model = new TreeModel<number>(toSpliceable(list));
+	test('expand', function () {
+		const list = [] as ITreeNode<number>[];
+		const model = new TreeModel<number>(toSpliceable(list));
 
-	// 	model.splice([0], 0, Iterator.iterate([
-	// 		{
-	// 			element: 0, collapsed: true, children: Iterator.iterate([
-	// 				{ element: 10 },
-	// 				{ element: 11 },
-	// 				{ element: 12 },
-	// 			])
-	// 		},
-	// 		{ element: 1 },
-	// 		{ element: 2 }
-	// 	]));
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, collapsed: true, children: Iterator.fromArray([
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
+				])
+			},
+			{ element: 1 },
+			{ element: 2 }
+		]));
 
-	// 	assert.deepEqual(list.length, 3);
+		assert.deepEqual(list.length, 3);
 
-	// 	model.setCollapsed([0], false);
-	// 	assert.deepEqual(list.length, 6);
-	// 	assert.deepEqual(list[0].element, 0);
-	// 	assert.deepEqual(list[0].collapsed, false);
-	// 	assert.deepEqual(list[0].depth, 1);
-	// 	assert.deepEqual(list[1].element, 10);
-	// 	assert.deepEqual(list[1].collapsed, false);
-	// 	assert.deepEqual(list[1].depth, 2);
-	// 	assert.deepEqual(list[2].element, 11);
-	// 	assert.deepEqual(list[2].collapsed, false);
-	// 	assert.deepEqual(list[2].depth, 2);
-	// 	assert.deepEqual(list[3].element, 12);
-	// 	assert.deepEqual(list[3].collapsed, false);
-	// 	assert.deepEqual(list[3].depth, 2);
-	// 	assert.deepEqual(list[4].element, 1);
-	// 	assert.deepEqual(list[4].collapsed, false);
-	// 	assert.deepEqual(list[4].depth, 1);
-	// 	assert.deepEqual(list[5].element, 2);
-	// 	assert.deepEqual(list[5].collapsed, false);
-	// 	assert.deepEqual(list[5].depth, 1);
-	// });
+		model.setCollapsed([0], false);
+		assert.deepEqual(list.length, 6);
+		assert.deepEqual(list[0].element, 0);
+		assert.deepEqual(list[0].collapsed, false);
+		assert.deepEqual(list[0].depth, 1);
+		assert.deepEqual(list[1].element, 10);
+		assert.deepEqual(list[1].collapsed, false);
+		assert.deepEqual(list[1].depth, 2);
+		assert.deepEqual(list[2].element, 11);
+		assert.deepEqual(list[2].collapsed, false);
+		assert.deepEqual(list[2].depth, 2);
+		assert.deepEqual(list[3].element, 12);
+		assert.deepEqual(list[3].collapsed, false);
+		assert.deepEqual(list[3].depth, 2);
+		assert.deepEqual(list[4].element, 1);
+		assert.deepEqual(list[4].collapsed, false);
+		assert.deepEqual(list[4].depth, 1);
+		assert.deepEqual(list[5].element, 2);
+		assert.deepEqual(list[5].collapsed, false);
+		assert.deepEqual(list[5].depth, 1);
+	});
 
 	test('collapse should recursively adjust visible count', function () {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, Iterator.iterate([
+		model.splice([0], 0, Iterator.fromArray([
 			{
 				element: 1, children: [
 					{

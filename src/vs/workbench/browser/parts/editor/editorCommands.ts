@@ -13,15 +13,14 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
@@ -227,7 +226,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.nextChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, true)
 	});
 
@@ -235,7 +234,7 @@ function registerDiffEditorCommands(): void {
 		id: 'workbench.action.compareEditor.previousChange',
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
-		primary: null,
+		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 
@@ -254,23 +253,21 @@ function registerDiffEditorCommands(): void {
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
+			const configurationService = accessor.get(IConfigurationService);
 
-			const { control } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-			if (control instanceof TextDiffEditor) {
-				const widget = control.getControl();
-				const isInlineMode = !widget.renderSideBySide;
-				widget.updateOptions(<IDiffEditorOptions>{
-					renderSideBySide: isInlineMode
-				});
-			}
+			const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+			return configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
 		}
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_DIFF_INLINE_MODE,
-			title: nls.localize('toggleInlineView', "Compare: Toggle Inline View")
+			title: {
+				value: nls.localize('toggleInlineView', "Toggle Inline View"),
+				original: 'Compare: Toggle Inline View'
+			},
+			category: nls.localize('compare', "Compare")
 		},
 		when: ContextKeyExpr.has('textCompareEditorActive')
 	});

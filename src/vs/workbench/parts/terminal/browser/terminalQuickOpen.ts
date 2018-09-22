@@ -13,6 +13,7 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TerminalEntry extends QuickOpenEntry {
 
@@ -83,7 +84,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		super();
 	}
 
-	public getResults(searchValue: string): TPromise<QuickOpenModel> {
+	public getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 

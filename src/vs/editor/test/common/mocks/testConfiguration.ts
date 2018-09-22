@@ -39,6 +39,7 @@ export class TestConfiguration extends CommonEditorConfiguration {
 			isMonospace: true,
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
+			canUseHalfwidthRightwardsArrow: true,
 			spaceWidth: 10,
 			maxDigitWidth: 10,
 		}, true);

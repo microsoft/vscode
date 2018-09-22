@@ -17,10 +17,12 @@ import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 export class Controller extends WorkbenchTreeController {
 
 	constructor(
+		private readonly onType: () => any,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService private menuService: IMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -28,6 +30,21 @@ export class Controller extends WorkbenchTreeController {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({}, configurationService);
+	}
+
+	onKeyDown(tree: tree.ITree, event: IKeyboardEvent) {
+		let handled = super.onKeyDown(tree, event);
+		if (handled) {
+			return true;
+		}
+		if (this.upKeyBindingDispatcher.has(event.keyCode)) {
+			return false;
+		}
+		if (this._keybindingService.mightProducePrintableCharacter(event)) {
+			this.onType();
+			return true;
+		}
+		return false;
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {

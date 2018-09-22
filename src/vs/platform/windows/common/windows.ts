@@ -17,7 +17,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -248,7 +248,7 @@ export interface IWindowSettings {
 	clickThroughInactive: boolean;
 }
 
-export enum OpenContext {
+export const enum OpenContext {
 
 	// opening when running from the command line
 	CLI,
@@ -269,7 +269,7 @@ export enum OpenContext {
 	API
 }
 
-export enum ReadyState {
+export const enum ReadyState {
 
 	/**
 	 * This window has not loaded any HTML yet
@@ -335,6 +335,8 @@ export interface IWindowConfiguration extends ParsedArgs {
 	machineId: string;
 	windowId: number;
 	logLevel: LogLevel;
+
+	mainPid: number;
 
 	appRoot: string;
 	execPath: string;

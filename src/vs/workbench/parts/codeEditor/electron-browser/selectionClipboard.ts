@@ -19,7 +19,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
-
+	private static SELECTION_LENGTH_LIMIT = 65536;
 	private static readonly ID = 'editor.contrib.selectionClipboard';
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
@@ -74,13 +74,25 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 				selections = selections.slice(0);
 				selections.sort(Range.compareRangesUsingStarts);
 
-				let result: string[] = [];
+				let resultLength = 0;
 				for (let i = 0; i < selections.length; i++) {
 					let sel = selections[i];
 					if (sel.isEmpty()) {
 						// Only write if all cursors have selection
 						return;
 					}
+					resultLength += model.getValueLengthInRange(sel);
+				}
+
+				if (resultLength > SelectionClipboard.SELECTION_LENGTH_LIMIT) {
+					// This is a large selection!
+					// => do not write it to the selection clipboard
+					return;
+				}
+
+				let result: string[] = [];
+				for (let i = 0; i < selections.length; i++) {
+					let sel = selections[i];
 					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
 				}
 

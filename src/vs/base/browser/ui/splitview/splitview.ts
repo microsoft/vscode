@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./splitview';
-import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, mapEvent, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
@@ -86,7 +86,7 @@ export namespace Sizing {
 	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
 }
 
-export class SplitView implements IDisposable {
+export class SplitView extends Disposable {
 
 	readonly orientation: Orientation;
 	// TODO@Joao have the same pattern as grid here
@@ -102,9 +102,10 @@ export class SplitView implements IDisposable {
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 
-	private _onDidSashChange = new Emitter<number>();
+	private _onDidSashChange = this._register(new Emitter<number>());
 	readonly onDidSashChange = this._onDidSashChange.event;
-	private _onDidSashReset = new Emitter<number>();
+
+	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
 	get length(): number {
@@ -144,6 +145,8 @@ export class SplitView implements IDisposable {
 	}
 
 	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
+		super();
+
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 		this.inverseAltBehavior = !!options.inverseAltBehavior;
 
@@ -626,6 +629,8 @@ export class SplitView implements IDisposable {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		this.viewItems.forEach(i => i.disposable.dispose());
 		this.viewItems = [];
 

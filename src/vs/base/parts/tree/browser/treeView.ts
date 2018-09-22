@@ -6,7 +6,6 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as Browser from 'vs/base/browser/browser';
-import * as WinJS from 'vs/base/common/winjs.base';
 import * as Lifecycle from 'vs/base/common/lifecycle';
 import * as DOM from 'vs/base/browser/dom';
 import * as Diff from 'vs/base/common/diff/diff';
@@ -25,7 +24,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultTreestyler } from './treeDefaults';
-import { Delayer, CancelablePromise, createCancelablePromise, wireCancellationToken } from 'vs/base/common/async';
+import { Delayer, timeout } from 'vs/base/common/async';
 
 export interface IRow {
 	element: HTMLElement;
@@ -443,7 +442,7 @@ export class TreeView extends HeightMap {
 	private currentDropTarget: ViewItem;
 	private shouldInvalidateDropReaction: boolean;
 	private currentDropTargets: ViewItem[];
-	private currentDropPromise: CancelablePromise<any>;
+	private currentDropDisposable: Lifecycle.IDisposable = Lifecycle.Disposable.None;
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
 	private dragAndDropMouseY: number;
@@ -552,8 +551,8 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e) => this.onMouseMiddleClick(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
-		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e) => this.onClick(e))); // >= Chrome 56
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
@@ -668,12 +667,23 @@ export class TreeView extends HeightMap {
 	}
 
 	public getFirstVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop));
-		return item && item.model.getElement();
+		const firstIndex = this.indexAt(this.lastRenderTop);
+		let item = this.itemAtIndex(firstIndex);
+		if (!item) {
+			return item;
+		}
+
+		const itemMidpoint = item.top + item.height / 2;
+		if (itemMidpoint < this.scrollTop) {
+			const nextItem = this.itemAtIndex(firstIndex + 1);
+			item = nextItem || item;
+		}
+
+		return item.model.getElement();
 	}
 
 	public getLastVisibleElement(): any {
-		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight));
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop + this.lastRenderHeight - 1));
 		return item && item.model.getElement();
 	}
 
@@ -1203,6 +1213,20 @@ export class TreeView extends HeightMap {
 		this.context.controller.onClick(this.context.tree, item.model.getElement(), event);
 	}
 
+	private onMouseMiddleClick(e: MouseEvent): void {
+		if (!this.context.controller.onMouseMiddleClick) {
+			return;
+		}
+
+		var event = new Mouse.StandardMouseEvent(e);
+		var item = this.getItemAround(event.target);
+
+		if (!item) {
+			return;
+		}
+		this.context.controller.onMouseMiddleClick(this.context.tree, item.model.getElement(), event);
+	}
+
 	private onMouseDown(e: MouseEvent): void {
 		this.didJustPressContextMenuKey = false;
 
@@ -1315,13 +1339,13 @@ export class TreeView extends HeightMap {
 
 		this.didJustPressContextMenuKey = event.keyCode === KeyCode.ContextMenu || (event.shiftKey && event.keyCode === KeyCode.F10);
 
+		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
+			return; // Ignore event if target is a form input field (avoids browser specific issues)
+		}
+
 		if (this.didJustPressContextMenuKey) {
 			event.preventDefault();
 			event.stopPropagation();
-		}
-
-		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
-			return; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
 		this.context.controller.onKeyDown(this.context.tree, event);
@@ -1436,11 +1460,7 @@ export class TreeView extends HeightMap {
 
 				this.currentDropTargets.forEach(i => i.dropTarget = false);
 				this.currentDropTargets = [];
-
-				if (this.currentDropPromise) {
-					this.currentDropPromise.cancel();
-					this.currentDropPromise = null;
-				}
+				this.currentDropDisposable.dispose();
 			}
 
 			this.cancelDragAndDropScrollInterval();
@@ -1513,11 +1533,7 @@ export class TreeView extends HeightMap {
 			if (this.currentDropTarget) {
 				this.currentDropTargets.forEach(i => i.dropTarget = false);
 				this.currentDropTargets = [];
-
-				if (this.currentDropPromise) {
-					this.currentDropPromise.cancel();
-					this.currentDropPromise = null;
-				}
+				this.currentDropDisposable.dispose();
 			}
 
 			this.currentDropTarget = currentDropTarget;
@@ -1544,11 +1560,12 @@ export class TreeView extends HeightMap {
 				}
 
 				if (reaction.autoExpand) {
-					const promise = WinJS.TPromise.timeout(500)
+					const timeoutPromise = timeout(500);
+					this.currentDropDisposable = Lifecycle.toDisposable(() => timeoutPromise.cancel());
+
+					timeoutPromise
 						.then(() => this.context.tree.expand(this.currentDropElement))
 						.then(() => this.shouldInvalidateDropReaction = true);
-
-					this.currentDropPromise = createCancelablePromise(token => wireCancellationToken(token, promise));
 				}
 			}
 		}
@@ -1573,10 +1590,7 @@ export class TreeView extends HeightMap {
 			this.currentDropTargets = [];
 		}
 
-		if (this.currentDropPromise) {
-			this.currentDropPromise.cancel();
-			this.currentDropPromise = null;
-		}
+		this.currentDropDisposable.dispose();
 
 		this.cancelDragAndDropScrollInterval();
 		this.currentDragAndDropData = null;
@@ -1675,7 +1689,7 @@ export class TreeView extends HeightMap {
 				return candidate;
 			}
 
-			if (element === document.body) {
+			if (element === this.scrollableElement.getDomNode() || element === document.body) {
 				return null;
 			}
 		} while (element = element.parentElement);

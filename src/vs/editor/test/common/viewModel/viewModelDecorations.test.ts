@@ -81,6 +81,7 @@ suite('ViewModelDecorations', () => {
 			});
 
 			assert.deepEqual(actualDecorations, [
+				'dec1',
 				'dec2',
 				'dec3',
 				'dec4',

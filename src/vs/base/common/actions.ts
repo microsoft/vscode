@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isThenable } from 'vs/base/common/async';
 
@@ -61,7 +61,6 @@ export class Action implements IAction {
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _order: number;
 	protected _actionCallback: (event?: any) => TPromise<any>;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
@@ -174,14 +173,6 @@ export class Action implements IAction {
 		}
 	}
 
-	public get order(): number {
-		return this._order;
-	}
-
-	public set order(value: number) {
-		this._order = value;
-	}
-
 	public run(event?: any, data?: ITelemetryData): TPromise<any> {
 		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
@@ -196,18 +187,13 @@ export interface IRunEvent {
 	error?: any;
 }
 
-export class ActionRunner implements IActionRunner {
+export class ActionRunner extends Disposable implements IActionRunner {
 
-	private _onDidBeforeRun = new Emitter<IRunEvent>();
-	private _onDidRun = new Emitter<IRunEvent>();
+	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
+	public get onDidBeforeRun(): Event<IRunEvent> { return this._onDidBeforeRun.event; }
 
-	public get onDidRun(): Event<IRunEvent> {
-		return this._onDidRun.event;
-	}
-
-	public get onDidBeforeRun(): Event<IRunEvent> {
-		return this._onDidBeforeRun.event;
-	}
+	private _onDidRun = this._register(new Emitter<IRunEvent>());
+	public get onDidRun(): Event<IRunEvent> { return this._onDidRun.event; }
 
 	public run(action: IAction, context?: any): TPromise<any> {
 		if (!action.enabled) {
@@ -231,11 +217,6 @@ export class ActionRunner implements IActionRunner {
 		}
 
 		return TPromise.wrap(res);
-	}
-
-	public dispose(): void {
-		this._onDidBeforeRun.dispose();
-		this._onDidRun.dispose();
 	}
 }
 

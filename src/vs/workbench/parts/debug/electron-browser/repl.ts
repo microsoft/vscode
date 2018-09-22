@@ -5,8 +5,7 @@
 
 import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
-import uri from 'vs/base/common/uri';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { URI as uri } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
@@ -181,16 +180,23 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
 				this.historyNavigationEnablement.set(false);
-				const word = this.replInput.getModel().getWordAtPosition(position);
-				const overwriteBefore = word ? word.word.length : 0;
-				const text = this.replInput.getModel().getLineContent(position.lineNumber);
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+
 				const focusedSession = this.debugService.getViewModel().focusedSession;
-				const completions = focusedSession ? focusedSession.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
-				return wireCancellationToken(token, completions.then(suggestions => ({
-					suggestions
-				})));
+				if (focusedSession && focusedSession.capabilities.supportsCompletionsRequest) {
+
+					const word = this.replInput.getModel().getWordAtPosition(position);
+					const overwriteBefore = word ? word.word.length : 0;
+					const text = this.replInput.getModel().getLineContent(position.lineNumber);
+					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+					const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+
+					return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
+						return { suggestions };
+					}, err => {
+						return { suggestions: [] };
+					});
+				}
+				return TPromise.as({ suggestions: [] });
 			}
 		});
 

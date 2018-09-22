@@ -40,9 +40,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
@@ -179,7 +180,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private isEnabled(): boolean {
-		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
+		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentLocationURI;
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
@@ -714,7 +715,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		return this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
+		this.extensionsService.getInstalled(LocalExtensionType.User).then(local => {
 			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
 
 			if (!recommendations.length) {
@@ -898,7 +899,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				return null;
 			}
 
-			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }).then(context => {
+			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
 				if (context.res.statusCode !== 200) {
 					return TPromise.as(null);
 				}

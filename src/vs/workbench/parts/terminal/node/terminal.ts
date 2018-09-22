@@ -19,7 +19,13 @@ export interface ITerminalChildProcess {
 	onProcessIdReady: Event<number>;
 	onProcessTitleChanged: Event<string>;
 
-	shutdown(): void;
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
 	input(data: string): void;
 	resize(cols: number, rows: number): void;
 }
@@ -59,11 +65,14 @@ if (platform.isLinux) {
 		}
 		readFile(file).then(b => {
 			const contents = b.toString();
-			if (contents.indexOf('NAME=Fedora') >= 0) {
+			if (/NAME="?Fedora"?/.test(contents)) {
 				isFedora = true;
+			} else if (/NAME="?Ubuntu"?/.test(contents)) {
+				isUbuntu = true;
 			}
 		});
 	});
 }
 
 export let isFedora = false;
+export let isUbuntu = false;

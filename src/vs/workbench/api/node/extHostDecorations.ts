@@ -5,11 +5,11 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData, DecorationRequest, DecorationReply } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
@@ -43,7 +43,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		});
 	}
 
-	$provideDecorations(requests: DecorationRequest[]): TPromise<DecorationReply> {
+	$provideDecorations(requests: DecorationRequest[], token: CancellationToken): Thenable<DecorationReply> {
 		const result: DecorationReply = Object.create(null);
 		return TPromise.join(requests.map(request => {
 			const { handle, uri, id } = request;
@@ -52,7 +52,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 				return void 0;
 			}
 			const { provider, extensionId } = this._provider.get(handle);
-			return asWinJsPromise(token => provider.provideDecoration(URI.revive(uri), token)).then(data => {
+			return Promise.resolve(provider.provideDecoration(URI.revive(uri), token)).then(data => {
 				if (data && data.letter && data.letter.length !== 1) {
 					console.warn(`INVALID decoration from extension '${extensionId}'. The 'letter' must be set and be one character, not '${data.letter}'.`);
 				}

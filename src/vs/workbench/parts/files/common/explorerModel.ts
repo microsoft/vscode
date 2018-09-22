@@ -5,7 +5,7 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
@@ -15,7 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { rtrim } from 'vs/base/common/strings';
+import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class Model {
@@ -157,7 +157,7 @@ export class ExplorerItem {
 			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
 			// array of resource path to resolve.
 			stat.isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return resources.isEqualOrParent(r, stat.resource, resources.hasToIgnoreCase(r));
+				return resources.isEqualOrParent(r, stat.resource);
 			}));
 
 			// Recurse into children
@@ -342,7 +342,9 @@ export class ExplorerItem {
 	 */
 	public find(resource: URI): ExplorerItem {
 		// Return if path found
-		if (resource && resources.isEqualOrParent(resource, this.resource)) {
+		// For performance reasons try to do the comparison as fast as possible
+		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
+			(resources.hasToIgnoreCase(resource) ? startsWithIgnoreCase(resource.path, this.resource.path) : startsWith(resource.path, this.resource.path))) {
 			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 

@@ -17,6 +17,7 @@ export interface TocEntry {
 
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
+	readonly lineCount: number;
 	getText(): string;
 	lineAt(line: number): vscode.TextLine;
 }
@@ -61,7 +62,25 @@ export class TableOfContentsProvider {
 				location: new vscode.Location(document.uri, line.range)
 			});
 		}
-		return toc;
+
+		// Get full range of section
+		return toc.map((entry, startIndex): TocEntry => {
+			let end: number | undefined = undefined;
+			for (let i = startIndex + 1; i < toc.length; ++i) {
+				if (toc[i].level <= entry.level) {
+					end = toc[i].line - 1;
+					break;
+				}
+			}
+			const endLine = typeof end === 'number' ? end : document.lineCount - 1;
+			return {
+				...entry,
+				location: new vscode.Location(document.uri,
+					new vscode.Range(
+						entry.location.range.start,
+						new vscode.Position(endLine, document.lineAt(endLine).range.end.character)))
+			};
+		});
 	}
 
 	private static getHeaderLevel(markup: string): number {

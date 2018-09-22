@@ -174,7 +174,7 @@ class ModelRawTokenScanner {
 			this._model.forceTokenization(this._lineNumber);
 			this._lineTokens = this._model.getLineTokens(this._lineNumber);
 			this._tokenIndex = 0;
-			if (this._lineTokens.getCount() === 0) {
+			if (this._lineTokens.getLineContent().length === 0) {
 				// Skip empty lines
 				this._lineTokens = null;
 			}
@@ -428,7 +428,7 @@ export function find(node: Node, position: Position): Node {
 		}
 
 	} else if (node instanceof Block) {
-		result = find(node.open, position) || find(node.elements, position) || find(node.close, position);
+		result = find(node.elements, position) || find(node.open, position) || find(node.close, position);
 	}
 
 	return result || node;

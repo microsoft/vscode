@@ -17,11 +17,14 @@ export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEdito
 export interface ICodeEditorService {
 	_serviceBrand: any;
 
-	onCodeEditorAdd: Event<ICodeEditor>;
-	onCodeEditorRemove: Event<ICodeEditor>;
+	readonly onCodeEditorAdd: Event<ICodeEditor>;
+	readonly onCodeEditorRemove: Event<ICodeEditor>;
 
-	onDiffEditorAdd: Event<IDiffEditor>;
-	onDiffEditorRemove: Event<IDiffEditor>;
+	readonly onDiffEditorAdd: Event<IDiffEditor>;
+	readonly onDiffEditorRemove: Event<IDiffEditor>;
+
+	readonly onDidChangeTransientModelProperty: Event<ITextModel>;
+
 
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;

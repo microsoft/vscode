@@ -133,9 +133,9 @@ anymatch@^2.0.0:
     micromatch "^3.1.4"
     normalize-path "^2.1.1"
 
-applicationinsights@1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-1.0.1.tgz#53446b830fe8d5d619eee2a278b31d3d25030927"
+"applicationinsights@git://github.com/Microsoft/ApplicationInsights-node.js#e5160c1c29c00e430d414b381077212d4e5bd8b4":
+  version "1.0.4"
+  resolved "git://github.com/Microsoft/ApplicationInsights-node.js#e5160c1c29c00e430d414b381077212d4e5bd8b4"
   dependencies:
     diagnostic-channel "0.2.0"
     diagnostic-channel-publishers "0.2.1"
@@ -5456,15 +5456,15 @@ vm-browserify@0.0.4:
   dependencies:
     indexof "0.0.1"
 
-vscode-extension-telemetry@0.0.18:
-  version "0.0.18"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.18.tgz#602ba20d8c71453aa34533a291e7638f6e5c0327"
+vscode-extension-telemetry@0.0.20:
+  version "0.0.20"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.20.tgz#60fc09720098ed1bda76088bb9f88a036b6e77eb"
   dependencies:
-    applicationinsights "1.0.1"
+    applicationinsights "git://github.com/Microsoft/ApplicationInsights-node.js#e5160c1c29c00e430d414b381077212d4e5bd8b4"
 
-vscode-nls@^3.2.4:
-  version "3.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.4.tgz#2166b4183c8aea884d20727f5449e62be69fd398"
+vscode-nls@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
 
 vscode@^1.1.10:
   version "1.1.10"

@@ -7,7 +7,7 @@
 import 'vs/css!./media/editorpicker';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IAutoFocus, Mode, IEntryRunContext, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntry, QuickOpenEntryGroup, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -20,6 +20,7 @@ import { IEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'v
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class EditorPickerEntry extends QuickOpenEntryGroup {
 
@@ -91,7 +92,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 		this.scorerCache = Object.create(null);
 	}
 
-	getResults(searchValue: string): TPromise<QuickOpenModel> {
+	getResults(searchValue: string, token: CancellationToken): TPromise<QuickOpenModel> {
 		const editorEntries = this.getEditorEntries();
 		if (!editorEntries.length) {
 			return TPromise.as(null);

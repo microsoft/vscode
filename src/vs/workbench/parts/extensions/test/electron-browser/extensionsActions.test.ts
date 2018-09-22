@@ -34,7 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
@@ -223,6 +223,20 @@ suite('ExtensionsActions Test', () => {
 			});
 	});
 
+	test('Test Uninstall action when state is installing and is user extension', () => {
+		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
+		const local = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+			.then(extensions => {
+				const gallery = aGalleryExtension('a');
+				installEvent.fire({ identifier: gallery.identifier, gallery });
+				testObject.extension = extensions[0];
+				assert.ok(!testObject.enabled);
+			});
+	});
+
 	test('Test Uninstall action after extension is installed', () => {
 		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
 		const gallery = aGalleryExtension('a');
@@ -300,6 +314,22 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = paged.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
 
+				assert.ok(!testObject.enabled);
+				assert.equal('Installing', testObject.label);
+				assert.equal('extension-action install installing', testObject.class);
+			});
+	});
+
+	test('Test CombinedInstallAction when state is installing during update', () => {
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const local = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+
+		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+			.then(extensions => {
+				testObject.extension = extensions[0];
+				const gallery = aGalleryExtension('a');
+				installEvent.fire({ identifier: gallery.identifier, gallery });
 				assert.ok(!testObject.enabled);
 				assert.equal('Installing', testObject.label);
 				assert.equal('extension-action install installing', testObject.class);
@@ -999,7 +1029,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('Reload to activate', testObject.tooltip);
+				assert.equal('Reload to Activate', testObject.tooltip);
 				assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 			});
 	});
@@ -1034,7 +1064,7 @@ suite('ExtensionsActions Test', () => {
 				didUninstallEvent.fire({ identifier: local.identifier });
 
 				assert.ok(testObject.enabled);
-				assert.equal('Reload to deactivate', testObject.tooltip);
+				assert.equal('Reload to Deactivate', testObject.tooltip);
 				assert.equal(`Reload this window to deactivate the uninstalled extension 'a'?`, testObject.reloadMessage);
 			});
 	});
@@ -1074,7 +1104,7 @@ suite('ExtensionsActions Test', () => {
 				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
-				assert.equal('Reload to update', testObject.tooltip);
+				assert.equal('Reload to Update', testObject.tooltip);
 				assert.equal(`Reload this window to activate the updated extension 'a'?`, testObject.reloadMessage);
 			});
 	});
@@ -1111,7 +1141,7 @@ suite('ExtensionsActions Test', () => {
 			return workbenchService.setEnablement(extensions[0], EnablementState.Disabled)
 				.then(() => {
 					assert.ok(testObject.enabled);
-					assert.equal('Reload to deactivate', testObject.tooltip);
+					assert.equal('Reload to Deactivate', testObject.tooltip);
 					assert.equal(`Reload this window to deactivate the extension 'a'?`, testObject.reloadMessage);
 				});
 		});
@@ -1146,7 +1176,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to activate', testObject.tooltip);
+								assert.equal('Reload to Activate', testObject.tooltip);
 								assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 							});
 					});
@@ -1189,7 +1219,7 @@ suite('ExtensionsActions Test', () => {
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
-								assert.equal('Reload to activate', testObject.tooltip);
+								assert.equal('Reload to Activate', testObject.tooltip);
 								assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 							});
 

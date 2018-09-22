@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -30,6 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { getConfirmMessage, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -49,7 +50,8 @@ export class TextFileService extends AbstractTextFileService {
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDialogService private dialogService: IDialogService
+		@IDialogService private dialogService: IDialogService,
+		@IEditorService private editorService: IEditorService
 	) {
 		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
 	}
@@ -102,8 +104,12 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	promptForPath(defaultPath: string): TPromise<string> {
-		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
+	promptForPath(resource: URI, defaultPath: string): TPromise<string> {
+
+		// Help user to find a name for the file by opening it first
+		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {
+			return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
+		});
 	}
 
 	private getSaveDialogOptions(defaultPath: string): Electron.SaveDialogOptions {

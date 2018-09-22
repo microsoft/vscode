@@ -5,7 +5,7 @@
 'use strict';
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -40,12 +40,7 @@ export interface IModelDecorationOverviewRulerOptions {
 	 * CSS color to render in the overview ruler.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	darkColor: string | ThemeColor;
-	/**
-	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
-	 */
-	hcColor?: string | ThemeColor;
+	darkColor?: string | ThemeColor;
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -82,6 +77,11 @@ export interface IModelDecorationOptions {
 	 * @internal
 	 */
 	showIfCollapsed?: boolean;
+	/**
+	 * Collapse the decoration if its entire range is being replaced via an edit.
+	 * @internal
+	 */
+	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
 	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
@@ -734,33 +734,6 @@ export interface ITextModel {
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
 
 	/**
-	 * Get the language associated with this model.
-	 * @internal
-	 */
-	getLanguageIdentifier(): LanguageIdentifier;
-
-	/**
-	 * Get the language associated with this model.
-	 */
-	getModeId(): string;
-
-	/**
-	 * Get the word under or besides `position`.
-	 * @param position The position to look for a word.
-	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
-	 * @return The word under or besides `position`. Might be null.
-	 */
-	getWordAtPosition(position: IPosition): IWordAtPosition;
-
-	/**
-	 * Get the word under or besides `position` trimmed to `position`.column
-	 * @param position The position to look for a word.
-	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
-	 * @return The word under or besides `position`. Will never be null.
-	 */
-	getWordUntilPosition(position: IPosition): IWordAtPosition;
-
-	/**
 	 * Force tokenization information for `lineNumber` to be accurate.
 	 * @internal
 	 */
@@ -814,7 +787,6 @@ export interface ITextModel {
 	/**
 	 * Get the word under or besides `position`.
 	 * @param position The position to look for a word.
-	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
 	 * @return The word under or besides `position`. Might be null.
 	 */
 	getWordAtPosition(position: IPosition): IWordAtPosition;
@@ -822,7 +794,6 @@ export interface ITextModel {
 	/**
 	 * Get the word under or besides `position` trimmed to `position`.column
 	 * @param position The position to look for a word.
-	 * @param skipSyntaxTokens Ignore syntax tokens, as identified by the mode.
 	 * @return The word under or besides `position`. Will never be null.
 	 */
 	getWordUntilPosition(position: IPosition): IWordAtPosition;

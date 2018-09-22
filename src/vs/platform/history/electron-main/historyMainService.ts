@@ -14,15 +14,14 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, IWorkspaceSavedEvent, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspacesMainService, IWorkspaceSavedEvent, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { getComparisonKey, isEqual as areResourcesEqual, hasToIgnoreCase, dirname } from 'vs/base/common/resources';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { getComparisonKey, isEqual as areResourcesEqual, dirname } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface ISerializedRecentlyOpened {
 	workspaces2: (IWorkspaceIdentifier | string)[]; // IWorkspaceIdentifier or URI.toString()
@@ -52,8 +51,7 @@ export class HistoryMainService implements IHistoryMainService {
 		@IStateService private stateService: IStateService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUriLabelService private uriLabelService: IUriLabelService
+		@ILabelService private labelService: ILabelService
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
 
@@ -62,6 +60,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private registerListeners(): void {
 		this.workspacesMainService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+		this.labelService.onDidRegisterFormatter(() => this._onRecentlyOpenedChange.fire());
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
@@ -121,7 +120,7 @@ export class HistoryMainService implements IHistoryMainService {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
-		pathsToRemove.forEach((pathToRemove => {
+		pathsToRemove.forEach(pathToRemove => {
 
 			// Remove workspace
 			let index = arrays.firstIndex(mru.workspaces, workspace => {
@@ -129,11 +128,11 @@ export class HistoryMainService implements IHistoryMainService {
 					return isWorkspaceIdentifier(workspace) && isEqual(pathToRemove.configPath, workspace.configPath, !isLinux /* ignorecase */);
 				}
 				if (isSingleFolderWorkspaceIdentifier(pathToRemove)) {
-					return isSingleFolderWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove, workspace, hasToIgnoreCase(pathToRemove));
+					return isSingleFolderWorkspaceIdentifier(workspace) && areResourcesEqual(pathToRemove, workspace);
 				}
 				if (typeof pathToRemove === 'string') {
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace, hasToIgnoreCase(workspace));
+						return workspace.scheme === Schemas.file && isEqual(pathToRemove, workspace.fsPath, !isLinux /* ignorecase */);
 					}
 					if (isWorkspaceIdentifier(workspace)) {
 						return isEqual(pathToRemove, workspace.configPath, !isLinux /* ignorecase */);
@@ -147,15 +146,20 @@ export class HistoryMainService implements IHistoryMainService {
 			}
 
 			// Remove file
-			const pathToRemoveURI = pathToRemove instanceof URI ? pathToRemove : typeof pathToRemove === 'string' ? URI.file(pathToRemove) : null;
-			if (pathToRemoveURI) {
-				index = arrays.firstIndex(mru.files, file => areResourcesEqual(file, pathToRemoveURI, hasToIgnoreCase(pathToRemoveURI)));
-			}
+			index = arrays.firstIndex(mru.files, file => {
+				if (pathToRemove instanceof URI) {
+					return areResourcesEqual(file, pathToRemove);
+				} else if (typeof pathToRemove === 'string') {
+					return isEqual(file.fsPath, pathToRemove, !isLinux /* ignorecase */);
+				}
+				return false;
+			});
+
 			if (index >= 0) {
 				mru.files.splice(index, 1);
 				update = true;
 			}
-		}));
+		});
 
 		if (update) {
 			this.saveRecentlyOpened(mru);
@@ -368,11 +372,11 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = getWorkspaceLabel(workspace, this.environmentService, this.uriLabelService);
+					const title = this.labelService.getWorkspaceLabel(workspace);
 					let description;
 					let args;
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.uriLabelService.getLabel(dirname(workspace)));
+						description = nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), this.labelService.getUriLabel(dirname(workspace)));
 						args = `--folder-uri "${workspace.toString()}"`;
 					} else {
 						description = nls.localize('codeWorkspace', "Code Workspace");

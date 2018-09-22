@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SuggestRegistry } from 'vs/editor/common/modes';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
@@ -15,7 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ArrayNavigator } from 'vs/base/common/iterator';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionCtor, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -51,11 +51,11 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -108,20 +108,6 @@ export class PreferencesEditor extends BaseEditor {
 		DOM.addClass(parent, 'preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
-		const advertisement = DOM.append(this.headerContainer, DOM.$('.new-settings-ad'));
-		const advertisementLabel = DOM.append(advertisement, DOM.$('span.new-settings-ad-label'));
-		advertisementLabel.textContent = nls.localize('advertisementLabel', "Try a preview of our ") + ' ';
-		const openSettings2Button = this._register(new Button(advertisement, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		openSettings2Button.style({
-			buttonBackground: null,
-			buttonForeground: null,
-			buttonBorder: null,
-			buttonHoverBackground: null
-		});
-		openSettings2Button.label = nls.localize('openSettings2Label', "new settings editor");
-		openSettings2Button.element.classList.add('open-settings2-button');
-		this._register(openSettings2Button.onDidClick(() => this.preferencesService.openSettings(false)));
-
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
@@ -166,8 +152,12 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	public setInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	public setInput(newInput: PreferencesEditorInput, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.defaultSettingsEditorContextKey.set(true);
+		if (options && options.query) {
+			this.focusSearch(options.query);
+		}
+
 		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
 	}
 
@@ -261,7 +251,7 @@ export class PreferencesEditor extends BaseEditor {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.done(value => {
+		promise.then(value => {
 			if (target === ConfigurationTarget.USER) {
 				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource, true);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
@@ -788,6 +778,9 @@ class SideBySidePreferencesWidget extends Widget {
 	private lastFocusedEditor: BaseEditor;
 	private splitview: SplitView;
 
+	private isVisible: boolean;
+	private group: IEditorGroup;
+
 	get minimumWidth(): number { return this.splitview.minimumSize; }
 	get maximumWidth(): number { return this.splitview.maximumSize; }
 
@@ -909,11 +902,14 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		this.isVisible = visible;
+		this.group = group;
+
 		if (this.defaultPreferencesEditor) {
-			this.defaultPreferencesEditor.setVisible(visible, group);
+			this.defaultPreferencesEditor.setVisible(this.isVisible, this.group);
 		}
 		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.setVisible(visible, group);
+			this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
 		}
 	}
 
@@ -925,6 +921,7 @@ class SideBySidePreferencesWidget extends Widget {
 		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
+		this.editablePreferencesEditor.setVisible(this.isVisible, this.group);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 		this.layout();
@@ -990,9 +987,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {

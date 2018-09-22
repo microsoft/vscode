@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { escapeRegExp } from '../utils/regexp';
 import * as typeConverters from '../utils/typeConverters';
 
@@ -21,13 +21,13 @@ export class ReferencesCodeLens extends vscode.CodeLens {
 }
 
 export class CachedNavTreeResponse {
-	private response?: Promise<Proto.NavTreeResponse>;
+	private response?: Promise<ServerResponse<Proto.NavTreeResponse>>;
 	private version: number = -1;
 	private document: string = '';
 
 	public execute(
 		document: vscode.TextDocument,
-		f: () => Promise<Proto.NavTreeResponse>
+		f: () => Promise<ServerResponse<Proto.NavTreeResponse>>
 	) {
 		if (this.matches(document)) {
 			return this.response;
@@ -42,8 +42,8 @@ export class CachedNavTreeResponse {
 
 	private update(
 		document: vscode.TextDocument,
-		response: Promise<Proto.NavTreeResponse>
-	): Promise<Proto.NavTreeResponse> {
+		response: Promise<ServerResponse<Proto.NavTreeResponse>>
+	): Promise<ServerResponse<Proto.NavTreeResponse>> {
 		this.response = response;
 		this.version = document.version;
 		this.document = document.uri.toString();
@@ -69,21 +69,17 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 			return [];
 		}
 
-		try {
-			const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
-			if (!response) {
-				return [];
-			}
-
-			const tree = response.body;
-			const referenceableSpans: vscode.Range[] = [];
-			if (tree && tree.childItems) {
-				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
-			}
-			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		} catch {
+		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', { file: filepath }, token));
+		if (!response || response.type !== 'response') {
 			return [];
 		}
+
+		const tree = response.body;
+		const referenceableSpans: vscode.Range[] = [];
+		if (tree && tree.childItems) {
+			tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
+		}
+		return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
 	}
 
 	protected abstract extractSymbol(

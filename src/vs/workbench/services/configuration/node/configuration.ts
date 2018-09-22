@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
@@ -125,8 +125,13 @@ export class WorkspaceConfiguration extends Disposable {
 }
 
 function isFolderConfigurationFile(resource: URI): boolean {
-	const name = resources.basename(resource);
-	return [`${FOLDER_SETTINGS_NAME}.json`, `${TASKS_CONFIGURATION_KEY}.json`, `${LAUNCH_CONFIGURATION_KEY}.json`].some(p => p === name);// only workspace config files
+	const configurationNameResource = URI.from({ scheme: resource.scheme, path: resources.basename(resource) });
+	return [`${FOLDER_SETTINGS_NAME}.json`, `${TASKS_CONFIGURATION_KEY}.json`, `${LAUNCH_CONFIGURATION_KEY}.json`].some(configurationFileName =>
+		resources.isEqual(configurationNameResource, URI.from({ scheme: resource.scheme, path: configurationFileName })));  // only workspace config files
+}
+
+function isFolderSettingsConfigurationFile(resource: URI): boolean {
+	return resources.isEqual(URI.from({ scheme: resource.scheme, path: resources.basename(resource) }), URI.from({ scheme: resource.scheme, path: `${FOLDER_SETTINGS_NAME}.json` }));
 }
 
 export interface IFolderConfiguration {
@@ -193,10 +198,10 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 
 	private parseContents(contents: { resource: URI, value: string }[]): void {
 		for (const content of contents) {
-			const name = resources.basename(content.resource);
-			if (name === `${FOLDER_SETTINGS_NAME}.json`) {
+			if (isFolderSettingsConfigurationFile(content.resource)) {
 				this._folderSettingsModelParser.parse(content.value);
 			} else {
+				const name = resources.basename(content.resource);
 				const matches = /([^\.]*)*\.json/.exec(name);
 				if (matches && matches[1]) {
 					const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(content.resource.toString(), matches[1]);
@@ -338,7 +343,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
-			if (resources.isEqualOrParent(resource, this.folderConfigurationPath, resources.hasToIgnoreCase(resource))) {
+			if (resources.isEqualOrParent(resource, this.folderConfigurationPath)) {
 				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}

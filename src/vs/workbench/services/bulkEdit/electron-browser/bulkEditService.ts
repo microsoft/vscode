@@ -7,7 +7,7 @@
 
 import { mergeSort } from 'vs/base/common/arrays';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -24,7 +24,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriLabelService } from 'vs/platform/uriLabel/common/uriLabel';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class Recording {
 
@@ -233,7 +234,8 @@ export class BulkEdit {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IUriLabelService private readonly _uriLabelServie: IUriLabelService
+		@ILabelService private readonly _uriLabelServie: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -316,7 +318,7 @@ export class BulkEdit {
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
 				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
-					await this._textFileService.delete(edit.oldUri, { useTrash: true, recursive: options.recursive });
+					await this._textFileService.delete(edit.oldUri, { useTrash: this._configurationService.getValue<boolean>('files.enableTrash'), recursive: options.recursive });
 				}
 
 			} else if (edit.newUri && !edit.oldUri) {
@@ -339,7 +341,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => this._uriLabelServie.getLabel(edit.resource, true));
+			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, { relative: true }));
 
 		recording.stop();
 
@@ -369,7 +371,8 @@ export class BulkEditService implements IBulkEditService {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IUriLabelService private readonly _uriLabelService: IUriLabelService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
 	}
@@ -400,7 +403,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._uriLabelService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
 		bulkEdit.add(edits);
 
 		return TPromise.wrap(bulkEdit.perform().then(() => {

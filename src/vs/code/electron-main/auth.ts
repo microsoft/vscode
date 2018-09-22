@@ -14,8 +14,8 @@ import { BrowserWindow, app } from 'electron';
 type LoginEvent = {
 	event: Electron.Event;
 	webContents: Electron.WebContents;
-	req: Electron.LoginRequest;
-	authInfo: Electron.LoginAuthInfo;
+	req: Electron.Request;
+	authInfo: Electron.AuthInfo;
 	cb: (username: string, password: string) => void;
 };
 
@@ -56,10 +56,7 @@ export class ProxyAuthHandler {
 			width: 450,
 			height: 220,
 			show: true,
-			title: 'VS Code',
-			webPreferences: {
-				disableBlinkFeatures: 'Auxclick'
-			}
+			title: 'VS Code'
 		};
 
 		const focusedWindow = this.windowsMainService.getFocusedWindow();

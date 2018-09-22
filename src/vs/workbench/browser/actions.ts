@@ -6,7 +6,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import * as types from 'vs/base/common/types';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
@@ -162,36 +161,6 @@ export function prepareActions(actions: IAction[]): IAction[] {
 	if (!actions.length) {
 		return actions;
 	}
-
-	// Patch order if not provided
-	let lastOrder = -1;
-	let orderOffset = 0;
-	for (let l = 0; l < actions.length; l++) {
-		const a = <any>actions[l];
-		if (types.isUndefinedOrNull(a.order)) {
-			a.order = ++lastOrder;
-			orderOffset++;
-		} else {
-			a.order += orderOffset;
-		}
-
-		lastOrder = a.order;
-	}
-
-	// Sort by order
-	actions = actions.sort((first: Action, second: Action) => {
-		const firstOrder = first.order;
-		const secondOrder = second.order;
-		if (firstOrder < secondOrder) {
-			return -1;
-		}
-
-		if (firstOrder > secondOrder) {
-			return 1;
-		}
-
-		return 0;
-	});
 
 	// Clean up leading separators
 	let firstIndexOfAction = -1;

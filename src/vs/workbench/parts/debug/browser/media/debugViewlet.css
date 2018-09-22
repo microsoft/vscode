@@ -109,6 +109,7 @@
 	font-size: 0.9em;
 	padding: 0 3px;
 	margin-left: 0.8em;
+	line-height: 20px;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row.selected .line-number,
@@ -349,6 +350,10 @@
 }
 
 /* Breakpoints */
+
+.debug-viewlet .monaco-list-row {
+	line-height: 22px;
+}
 
 .debug-viewlet .debug-breakpoints .monaco-list-row .breakpoint {
 	padding-left: 2px;
