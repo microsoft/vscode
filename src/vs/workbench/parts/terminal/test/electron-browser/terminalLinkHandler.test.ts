@@ -62,7 +62,9 @@ suite('Workbench - TerminalLinkHandler', () => {
 					'c:/a/long/path',
 					'c:\\a\\long\\path',
 					'c:\\mixed/slash\\path',
-					'a/relative/path'
+					'a/relative/path',
+					'plain/path',
+					'plain\\path'
 				];
 
 				const supportedLinkFormats: LinkFormatInfo[] = [
@@ -175,6 +177,19 @@ suite('Workbench - TerminalLinkHandler', () => {
 			});
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\./src/file1');
 			assert.equal(linkHandler.preprocessPath('src\\file2'), 'C:\\base\\src\\file2');
+			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file3'), 'C:\\absolute\\path\\file3');
+
+			stub.restore();
+		});
+		test('Windows - spaces', () => {
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
+			linkHandler.initialCwd = 'C:\\base dir';
+
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
+				return arg1 + '\\' + arg2;
+			});
+			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base dir\\./src/file1');
+			assert.equal(linkHandler.preprocessPath('src\\file2'), 'C:\\base dir\\src\\file2');
 			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file3'), 'C:\\absolute\\path\\file3');
 
 			stub.restore();
