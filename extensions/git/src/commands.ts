@@ -327,6 +327,7 @@ export class CommandCenter {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
+			case Status.INTENT_TO_ADD:
 				const repository = this.model.getRepository(resource.resourceUri);
 
 				if (!repository) {

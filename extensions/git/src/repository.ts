@@ -42,6 +42,7 @@ export const enum Status {
 	DELETED,
 	UNTRACKED,
 	IGNORED,
+	INTENT_TO_ADD,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -117,6 +118,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_COPIED: return Resource.Icons[theme].Copied;
 			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
+			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -138,6 +140,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
 			case Status.UNTRACKED: return localize('untracked', "Untracked");
 			case Status.IGNORED: return localize('ignored', "Ignored");
+			case Status.INTENT_TO_ADD: return localize('intent to add', "Intent to Add");
 			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
 			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
 			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
@@ -188,6 +191,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.MODIFIED:
 				return 'M';
 			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
 				return 'A';
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
@@ -221,6 +225,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED:
 				return new ThemeColor('gitDecoration.deletedResourceForeground');
 			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
 			case Status.INDEX_RENAMED: // todo@joh - special color?
 			case Status.UNTRACKED:
@@ -1286,6 +1291,7 @@ export class Repository implements Disposable {
 			switch (raw.y) {
 				case 'M': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
 				case 'D': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
+				case 'A': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 			}
 		});
 
