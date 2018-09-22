@@ -66,7 +66,7 @@ const $ = dom.$;
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
-	private static readonly MAX_TEXT_RESULTS = 1000;
+	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private static readonly WIDE_CLASS_NAME = 'wide';
@@ -878,6 +878,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean): string {
 		if (!this.editorService.activeEditor) {
+			return null;
+		}
+
+		if (dom.isAncestor(document.activeElement, this.getContainer())) {
 			return null;
 		}
 
