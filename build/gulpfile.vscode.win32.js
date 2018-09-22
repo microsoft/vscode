@@ -7,7 +7,7 @@
 
 const gulp = require('gulp');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs-extra');
 const assert = require('assert');
 const cp = require('child_process');
 const _7z = require('7zip')['7z'];
@@ -135,3 +135,133 @@ function copyInnoUpdater(arch) {
 
 gulp.task('vscode-win32-ia32-copy-inno-updater', copyInnoUpdater('ia32'));
 gulp.task('vscode-win32-x64-copy-inno-updater', copyInnoUpdater('x64'));
+
+/**************** Windows Store Release ****************/
+const publisher = "CN=Microsoft, O=Microsoft Corporation, C=US";
+
+// Exes
+const windowsKitFolder = process.arch == "x64" ? "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\x64\\" : "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\x86\\";
+const makeappxExe = `"${windowsKitFolder}\\makeappx.exe"`;
+const signToolExe = `"${windowsKitFolder}\\SignTool.exe"`;
+
+const win32electronPath = arch => path.join(repoPath, '.build', `electron-win32-${arch}`);
+const winstoreArchPath = arch => path.join(repoPath, '.build', `winstore-${arch}`);
+const appxArchPath = arch => path.join(winstoreArchPath(arch), `vscode-${arch}.appx`);
+
+const winstoreResourcePath = path.join(__dirname, 'winstore');
+const winstoreBundlePath = path.join(repoPath, '.build', `winstore-bundle`);
+const appxCertPath = path.join(winstoreBundlePath, 'dev-certificate.pfx');
+
+// Dev Certificate Info
+const winstoreDevCertName = "VSCode-Dev";
+const winstoreDevCertPassword = "vscode";
+
+function makeAppX(arch){
+	return cb => {
+		const srcPath = win32electronPath(arch);
+		const destPath = winstoreArchPath(arch);
+		const prepackagePath = path.join(destPath, 'prepackage');
+		const packagePath = appxArchPath(arch);
+		const exe = "Code - OSS.exe";
+
+		// Get Copy from electron-win32-{arch}
+		fs.copySync(srcPath, prepackagePath);
+
+		// Copy Resources into Destination
+		fs.copySync(path.join(winstoreResourcePath, "package"), prepackagePath);
+
+		// Update Manifest with proper values.
+		var manifest = path.join(prepackagePath, "AppxManifest.xml");
+		fs.readFile(manifest, 'utf8', function (err,data) {
+			if (err) {
+				return console.log(err);
+			}
+
+			let output = data.replace('{{arch}}', arch);
+			output = output.replace('{{publisher}}', publisher);
+			output = output.replace("{{exe}}", exe);
+
+			fs.writeFile(manifest, output, 'utf8', function (err) {
+				if (err) return console.log(err);
+			});
+		});
+
+		const args = [
+			"Pack",
+			`/d ${prepackagePath}`,
+			`/p ${packagePath}`,
+			"/l"
+		];
+
+		// Create Appx from Prepackage folder.
+		cp.spawn(makeappxExe, args, { stdio: 'inherit', shell: true })
+			.on('error', cb)
+			.on('exit', () => {
+				// Remove PrePackage Folder.
+				fs.removeSync(prepackagePath);
+				cb(null);
+			});
+	};
+}
+
+gulp.task('uwp-create-cert', [], (cb) => {
+	// Make Bundle Folder
+	if(!fs.existsSync(winstoreBundlePath)){
+		fs.mkdirSync(winstoreBundlePath);
+	}
+
+	const args = [
+		`-File "${path.join(winstoreResourcePath, "makeDevCert.ps1")}"`,
+		`"${publisher}"`,
+		`"${winstoreDevCertName}"`,
+		`"${appxCertPath}"`,
+		`"${winstoreDevCertPassword}"`
+	];
+
+	// Create a Dev Certificate for the Appx.
+	cp.spawn("powershell.exe", args, { stdio: 'inherit', shell: true })
+	.on('error', cb)
+	.on('exit', () => {
+		cb(null);
+	});
+});
+
+function signWinstoreAppx(arch){
+	return cb => {
+
+		const args = [
+			"sign",
+			"/fd SHA256",
+			"/a",
+			`/f "${appxCertPath}"`,
+			`/p ${winstoreDevCertPassword}`,
+			`"${appxArchPath(arch)}"`
+		];
+
+		// Sign Appx with Certificate
+		cp.spawn(signToolExe, args, { stdio: 'inherit', shell: true })
+			.on('error', cb)
+			.on('exit', () => {
+				cb(null);
+			});
+	};
+}
+
+
+function defineWinStoreTasks(arch){
+	let archClean = `clean-vscode-winstore-${arch}`;
+	gulp.task(archClean, util.rimraf(winstoreArchPath(arch)));
+
+	if(arch != "bundle"){
+		gulp.task(`vscode-winstore-${arch}`, [archClean, `electron-win32-${arch}`], makeAppX(arch));
+	}
+	else{
+		gulp.task('vscode-winstore-bundle', [archClean, 'vscode-winstore-ia32', 'vscode-winstore-x64']);
+	}
+
+	gulp.task(`vscode-winstore-${arch}-devsign`, [`vscode-winstore-${arch}`, 'uwp-create-cert'], signWinstoreAppx(arch));
+}
+
+defineWinStoreTasks("ia32");
+defineWinStoreTasks("x64");
+defineWinStoreTasks("bundle");

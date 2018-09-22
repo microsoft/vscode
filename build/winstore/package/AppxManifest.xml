@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+	xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+	xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+	xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+	<Identity
+		Name="Microsoft.VSCode"
+		Version="1.0.0.0"
+		Publisher="{{publisher}}"
+		ProcessorArchitecture="{{arch}}" />
+	<Properties>
+		<DisplayName>Visual Studio Code</DisplayName>
+		<PublisherDisplayName>Microsoft Corporation</PublisherDisplayName>
+		<Description>Visual Studio Code Editor</Description>
+		<Logo>assets/Square150x150Logo.png</Logo>
+	</Properties>
+	<Resources>
+		<Resource Language="en-us" />
+	</Resources>
+	<Dependencies>
+		<TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.14316.0" MaxVersionTested="10.0.15063.0" />
+	</Dependencies>
+	<Capabilities>
+		<rescap:Capability Name="runFullTrust"/>
+	</Capabilities>
+	<Applications>
+		<Application
+			Id="VSCode"
+			Executable="{{exe}}"
+			EntryPoint="Windows.FullTrustApplication">
+			<uap:VisualElements
+				DisplayName="Visual Studio Code"
+				Description="Visual Studio Code Editor"
+				Square150x150Logo="assets/Square150x150Logo.png"
+				Square44x44Logo="assets/Square44x44Logo.png"
+				BackgroundColor="#464646" />
+		</Application>
+	</Applications>
+</Package>

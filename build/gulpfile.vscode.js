@@ -195,6 +195,23 @@ function getElectron(arch) {
 	};
 }
 
+function getElectronForPlatform(platform, arch){
+	return () => {
+		const electronOpts = _.extend({}, config, {
+			platform: platform,
+			arch,
+			ffmpegChromium: true,
+			keepDefaultApp: true
+		});
+
+		return gulp.src('package.json')
+			.pipe(json({ name: product.nameShort }))
+			.pipe(electron(electronOpts))
+			.pipe(filter(['**', '!**/app/package.json']))
+			.pipe(vfs.dest('.build/electron-'+ platform + '-' + arch));
+	};
+}
+
 gulp.task('clean-electron', util.rimraf('.build/electron'));
 gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
@@ -202,6 +219,15 @@ gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 gulp.task('electron-arm', ['clean-electron'], getElectron('arm'));
 gulp.task('electron-arm64', ['clean-electron'], getElectron('arm64'));
 
+// Electron Builds for UWP
+gulp.task('electron-win32-ia32', ['clean-electron'], getElectronForPlatform('win32', 'ia32'));
+gulp.task('electron-win32-x64', ['clean-electron'], getElectronForPlatform('win32', 'x64'));
+
+gulp.task('clean-electron-for-uwp', () => {
+	util.rimraf('.build/electron-win32-x64');
+	util.rimraf('.build/electron-win32-ia32');
+});
+gulp.task('electron-for-uwp', ['clean-electron-for-uwp' ,'electron-win32-x64', 'electron-win32-ia32']);
 
 /**
  * Compute checksums for some files.
