@@ -3,35 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
+import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
+import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { HistoryInputBox, IMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Action } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { IMessage, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { Delayer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { isSearchViewFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
-import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { attachInputBoxStyler, attachFindInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import * as env from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { attachFindInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-import { Delayer } from 'vs/base/common/async';
+import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/parts/search/browser/searchActions';
+import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -142,6 +145,7 @@ export class SearchWidget extends Widget {
 				this.updateAccessibilitySupport();
 			}
 		});
+		browser.onDidChangeAccessibilitySupport(() => this.updateAccessibilitySupport());
 		this.updateAccessibilitySupport();
 	}
 
@@ -244,9 +248,14 @@ export class SearchWidget extends Widget {
 		this.renderReplaceInput(this.domNode, options);
 	}
 
+	private isScreenReaderOptimized() {
+		const detected = browser.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+		return config === 'on' || (config === 'auto' && detected);
+	}
+
 	private updateAccessibilitySupport(): void {
-		const value = this.configurationService.getValue('editor.accessibilitySupport');
-		this.searchInput.setFocusInputOnOptionClick(value !== 'on');
+		this.searchInput.setFocusInputOnOptionClick(!this.isScreenReaderOptimized());
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {

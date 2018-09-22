@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -200,7 +201,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
-			this.toggleQueryDetails();
+			this.toggleQueryDetails(!this.isScreenReaderOptimized());
 		}));
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -297,6 +298,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		for (const action of this.actions) {
 			action.update();
 		}
+	}
+
+	private isScreenReaderOptimized() {
+		const detected = browser.getAccessibilitySupport() === env.AccessibilitySupport.Enabled;
+		const config = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
+		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	private createSearchWidget(container: HTMLElement): void {

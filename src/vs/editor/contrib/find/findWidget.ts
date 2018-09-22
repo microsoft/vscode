@@ -33,7 +33,6 @@ import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, co
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { toDisposable } from 'vs/base/common/lifecycle';
 
-
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
@@ -844,8 +843,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		findPart.appendChild(this._closeBtn.domNode);
-
-		this.updateAccessibilitySupport();
 
 		return findPart;
 	}
