@@ -143,7 +143,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			return;
 		}
 		// prevent copying an empty string by accident
-		if (editor.getSelections().length === 1) {
+		if (editor.getSelections().length === 1 && editor.getSelection().isEmpty()) {
 			const activeLineText = editor.getModel().getLineContent(editor.getSelection().positionLineNumber);
 			if (activeLineText.trim().length === 0) {
 				return;
