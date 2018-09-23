@@ -563,6 +563,11 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'included': isMacintosh
 		},
+		'workbench.editor.restoreViewState': {
+			'type': 'boolean',
+			'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),
+			'default': true,
+		},
 		'workbench.commandPalette.history': {
 			'type': 'number',
 			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),

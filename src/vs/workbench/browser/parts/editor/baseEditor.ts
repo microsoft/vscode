@@ -240,13 +240,21 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		return void 0;
 	}
 
-	clearState(resource: URI): void;
-	clearState(editor: EditorInput): void;
-	clearState(resourceOrEditor: URI | EditorInput): void {
+	clearState(resource: URI, group?: IEditorGroup): void;
+	clearState(editor: EditorInput, group?: IEditorGroup): void;
+	clearState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
-			cache.delete(resource.toString());
+
+			if (group) {
+				const resourceViewState = cache.get(resource.toString());
+				if (resourceViewState) {
+					delete resourceViewState[group.id];
+				}
+			} else {
+				cache.delete(resource.toString());
+			}
 		}
 	}
 

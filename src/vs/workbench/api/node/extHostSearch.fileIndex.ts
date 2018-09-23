@@ -222,12 +222,8 @@ export class FileIndexSearchEngine {
 						isLimitHit: this.isLimitHit,
 						stats
 					});
-				}, (errs: Error[]) => {
-					const errMsg = errs
-						.map(err => toErrorMessage(err))
-						.filter(msg => !!msg)[0];
-
-					reject(new Error(errMsg));
+				}, (err: Error) => {
+					reject(new Error(toErrorMessage(err)));
 				});
 		});
 	}

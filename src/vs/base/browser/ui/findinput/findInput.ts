@@ -46,6 +46,7 @@ export class FindInput extends Widget {
 	private placeholder: string;
 	private validation: IInputValidator;
 	private label: string;
+	private fixFocusOnOptionClickEnabled = true;
 
 	private inputActiveOptionBorder: Color;
 	private inputBackground: Color;
@@ -144,6 +145,10 @@ export class FindInput extends Widget {
 		this.regex.disable();
 		this.wholeWords.disable();
 		this.caseSensitive.disable();
+	}
+
+	public setFocusInputOnOptionClick(value: boolean): void {
+		this.fixFocusOnOptionClickEnabled = value;
 	}
 
 	public setEnabled(enabled: boolean): void {
@@ -312,7 +317,7 @@ export class FindInput extends Widget {
 		}));
 		this._register(this.regex.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard) {
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
 			this.setInputWidth();
@@ -329,7 +334,7 @@ export class FindInput extends Widget {
 		}));
 		this._register(this.wholeWords.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard) {
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
 			this.setInputWidth();
@@ -343,7 +348,7 @@ export class FindInput extends Widget {
 		}));
 		this._register(this.caseSensitive.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard) {
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
 			this.setInputWidth();

@@ -62,7 +62,6 @@ export class TerminalLinkHandler {
 	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 	private _initialCwd: string;
-
 	private _localLinkPattern: RegExp;
 
 	constructor(
@@ -71,7 +70,7 @@ export class TerminalLinkHandler {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
@@ -92,7 +91,14 @@ export class TerminalLinkHandler {
 		return this._xterm.registerLinkMatcher(regex, this._wrapLinkHandler(handler), {
 			matchIndex,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => validationCallback(uri, callback),
-			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			tooltipCallback: (e: MouseEvent) => {
+				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
+					const target = (e.target as HTMLElement);
+					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
+				} else {
+					this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
+				}
+			},
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
@@ -105,7 +111,14 @@ export class TerminalLinkHandler {
 		});
 		this._xterm.webLinksInit(wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(uri, callback),
-			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			tooltipCallback: (e: MouseEvent) => {
+				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
+					const target = (e.target as HTMLElement);
+					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
+				} else {
+					this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
+				}
+			},
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 		});
@@ -117,7 +130,14 @@ export class TerminalLinkHandler {
 		});
 		this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
-			tooltipCallback: (e: MouseEvent) => this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString()),
+			tooltipCallback: (e: MouseEvent) => {
+				if (this._terminalService && this._terminalService.configHelper.config.rendererType === 'dom') {
+					const target = (e.target as HTMLElement);
+					this._widgetManager.showMessage(target.offsetLeft, target.offsetTop, this._getLinkHoverString());
+				} else {
+					this._widgetManager.showMessage(e.offsetX, e.offsetY, this._getLinkHoverString());
+				}
+			},
 			leaveCallback: () => this._widgetManager.closeMessage(),
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY

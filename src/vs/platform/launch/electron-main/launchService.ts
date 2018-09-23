@@ -38,6 +38,7 @@ export interface IWindowInfo {
 
 export interface IMainProcessInfo {
 	mainPID: number;
+	// All arguments after argv[0], the exec path
 	mainArguments: string[];
 	windows: IWindowInfo[];
 }
@@ -263,7 +264,7 @@ export class LaunchService implements ILaunchService {
 
 		return TPromise.wrap({
 			mainPID: process.pid,
-			mainArguments: process.argv,
+			mainArguments: process.argv.slice(1),
 			windows
 		} as IMainProcessInfo);
 	}

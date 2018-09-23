@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { $, append, runAtThisOrScheduleAtNextAnimationFrame, addDisposableListener, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
@@ -45,21 +45,15 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { widgetShadow, editorWidgetBackground, foreground, darken, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { Schemas } from 'vs/base/common/network';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { timeout } from 'vs/base/common/async';
+import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -293,7 +287,7 @@ export class EditorStatus implements IStatusbarItem {
 	private activeEditorListeners: IDisposable[];
 	private delayedRender: IDisposable;
 	private toRender: StateChange;
-	private screenReaderExplanation: ScreenReaderDetectedExplanation;
+	private screenReaderNotification: INotificationHandle;
 
 	constructor(
 		@IEditorService private editorService: IEditorService,
@@ -303,6 +297,7 @@ export class EditorStatus implements IStatusbarItem {
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.toDispose = [];
 		this.activeEditorListeners = [];
@@ -504,17 +499,22 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onScreenReaderModeClick(): void {
-		const showExplanation = !this.screenReaderExplanation || !this.screenReaderExplanation.visible;
-
-		if (!this.screenReaderExplanation) {
-			this.screenReaderExplanation = this.instantiationService.createInstance(ScreenReaderDetectedExplanation);
-			this.toDispose.push(this.screenReaderExplanation);
-		}
-
-		if (showExplanation) {
-			this.screenReaderExplanation.show(this.screenRedearModeElement);
-		} else {
-			this.screenReaderExplanation.hide();
+		if (!this.screenReaderNotification) {
+			this.screenReaderNotification = this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
+				[{
+					label: nls.localize('screenReaderDetectedExplanation.answerYes', "Yes"),
+					run: () => {
+						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
+					}
+				}, {
+					label: nls.localize('screenReaderDetectedExplanation.answerNo', "No"),
+					run: () => {
+						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+					}
+				}]
+			);
 		}
 	}
 
@@ -688,8 +688,9 @@ export class EditorStatus implements IStatusbarItem {
 			screenReaderMode = (editorWidget.getConfiguration().accessibilitySupport === AccessibilitySupport.Enabled);
 		}
 
-		if (screenReaderMode === false && this.screenReaderExplanation && this.screenReaderExplanation.visible) {
-			this.screenReaderExplanation.hide();
+		if (screenReaderMode === false && this.screenReaderNotification) {
+			this.screenReaderNotification.close();
+			this.screenReaderNotification = null;
 		}
 
 		this.updateState({ screenReaderMode: screenReaderMode });
@@ -1250,149 +1251,5 @@ export class ChangeEncodingAction extends Action {
 					});
 				});
 		});
-	}
-}
-
-class ScreenReaderDetectedExplanation extends Themable {
-	private container: HTMLElement;
-	private hrElement: HTMLHRElement;
-	private _visible: boolean;
-
-	constructor(
-		@IThemeService themeService: IThemeService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IWorkspaceConfigurationService private readonly configurationService: IWorkspaceConfigurationService,
-	) {
-		super(themeService);
-	}
-
-	get visible(): boolean {
-		return this._visible;
-	}
-
-	protected updateStyles(): void {
-		if (this.container) {
-			const background = this.getColor(editorWidgetBackground);
-			this.container.style.backgroundColor = background ? background.toString() : null;
-
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.container.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : null;
-
-			const contrastBorderColor = this.getColor(contrastBorder);
-			this.container.style.border = contrastBorderColor ? `1px solid ${contrastBorderColor}` : null;
-
-			const foregroundColor = this.getColor(foreground);
-			this.hrElement.style.backgroundColor = foregroundColor ? foregroundColor.toString() : null;
-		}
-	}
-
-	show(anchorElement: HTMLElement): void {
-		this._visible = true;
-
-		this.contextViewService.showContextView({
-			getAnchor: () => {
-				const res = getDomNodePagePosition(anchorElement);
-
-				return {
-					x: res.left,
-					y: res.top - 9, /* above the status bar */
-					width: res.width,
-					height: res.height
-				} as IAnchor;
-			},
-			render: (container) => {
-				return this.renderContents(container);
-			},
-			onDOMEvent: (e, activeElement) => { },
-			onHide: () => {
-				this._visible = false;
-			}
-		});
-	}
-
-	hide(): void {
-		this.contextViewService.hideContextView();
-	}
-
-	protected renderContents(parent: HTMLElement): IDisposable {
-		const toDispose: IDisposable[] = [];
-
-		this.container = $('div.screen-reader-detected-explanation', {
-			'aria-hidden': 'true'
-		});
-
-		const title = $('h2.title', {}, nls.localize('screenReaderDetectedExplanation.title', "Screen Reader Optimized"));
-		this.container.appendChild(title);
-
-		const closeBtn = $('div.cancel');
-		toDispose.push(addDisposableListener(closeBtn, 'click', () => {
-			this.contextViewService.hideContextView();
-		}));
-		toDispose.push(addDisposableListener(closeBtn, 'mouseover', () => {
-			const theme = this.themeService.getTheme();
-			let darkenFactor: number;
-			switch (theme.type) {
-				case 'light':
-					darkenFactor = 0.1;
-					break;
-				case 'dark':
-					darkenFactor = 0.2;
-					break;
-			}
-
-			if (darkenFactor) {
-				closeBtn.style.backgroundColor = this.getColor(editorWidgetBackground, (color, theme) => darken(color, darkenFactor)(theme));
-			}
-		}));
-		toDispose.push(addDisposableListener(closeBtn, 'mouseout', () => {
-			closeBtn.style.backgroundColor = null;
-		}));
-		this.container.appendChild(closeBtn);
-
-		const question = $('p.question', {}, nls.localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"));
-		this.container.appendChild(question);
-
-		const buttonContainer = $('div.buttons');
-		this.container.appendChild(buttonContainer);
-
-		const yesBtn = new Button(buttonContainer);
-		yesBtn.label = nls.localize('screenReaderDetectedExplanation.answerYes', "Yes");
-		toDispose.push(attachButtonStyler(yesBtn, this.themeService));
-		toDispose.push(yesBtn.onDidClick(e => {
-			this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
-			this.contextViewService.hideContextView();
-		}));
-
-		const noBtn = new Button(buttonContainer);
-		noBtn.label = nls.localize('screenReaderDetectedExplanation.answerNo', "No");
-		toDispose.push(attachButtonStyler(noBtn, this.themeService));
-		toDispose.push(noBtn.onDidClick(e => {
-			this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
-			this.contextViewService.hideContextView();
-		}));
-
-		const clear = $('div');
-		clear.style.clear = 'both';
-		this.container.appendChild(clear);
-
-		const br = $('br');
-		this.container.appendChild(br);
-
-		this.hrElement = $('hr');
-		this.container.appendChild(this.hrElement);
-
-		const explanation1 = $('p.body1', {}, nls.localize('screenReaderDetectedExplanation.body1', "VS Code is now optimized for usage with a screen reader."));
-		this.container.appendChild(explanation1);
-
-		const explanation2 = $('p.body2', {}, nls.localize('screenReaderDetectedExplanation.body2', "Some editor features will have different behaviour: e.g. word wrapping, folding, etc."));
-		this.container.appendChild(explanation2);
-
-		parent.appendChild(this.container);
-
-		this.updateStyles();
-
-		return {
-			dispose: () => dispose(toDispose)
-		};
 	}
 }

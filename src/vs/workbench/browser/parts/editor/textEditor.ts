@@ -76,7 +76,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		return this._textFileService;
 	}
 
-	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
 			this.updateEditorConfiguration(configuration);
 		} else {
@@ -260,9 +260,9 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	/**
 	 * Clears the text editor view state for the given resources.
 	 */
-	protected clearTextEditorViewState(resources: URI[]): void {
+	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {
 		resources.forEach(resource => {
-			this.editorMemento.clearState(resource);
+			this.editorMemento.clearState(resource, group);
 		});
 	}
 

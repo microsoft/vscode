@@ -148,6 +148,7 @@ export interface IDebugSession extends ITreeElement {
 	getSourceForUri(modelUri: uri): Source;
 	getSource(raw: DebugProtocol.Source): Source;
 
+	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
 	// session events

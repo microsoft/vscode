@@ -69,6 +69,10 @@ export class DebugSession implements IDebugSession {
 		return this._configuration.unresolved;
 	}
 
+	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) {
+		this._configuration = configuration;
+	}
+
 	getName(includeRoot: boolean): string {
 		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
 	}

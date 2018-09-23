@@ -33,7 +33,6 @@ import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, co
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { toDisposable } from 'vs/base/common/lifecycle';
 
-
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
@@ -159,7 +158,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (e.layoutInfo) {
 				this._tryUpdateWidgetWidth();
 			}
+
+			if (e.accessibilitySupport) {
+				this.updateAccessibilitySupport();
+			}
 		}));
+		this.updateAccessibilitySupport();
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
@@ -958,6 +962,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._replaceInputBox.width = inputBoxWidth;
 			}
 		}));
+	}
+
+	private updateAccessibilitySupport(): void {
+		const value = this._codeEditor.getConfiguration().accessibilitySupport;
+		this._findInput.setFocusInputOnOptionClick(value !== platform.AccessibilitySupport.Enabled);
 	}
 }
 

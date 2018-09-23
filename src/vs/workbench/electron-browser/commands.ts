@@ -20,6 +20,7 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { InEditorZenModeContext, NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
+import { IDownloadService } from 'vs/platform/download/common/download';
 
 // --- List Commands
 
@@ -554,5 +555,11 @@ export function registerCommands(): void {
 		const windowsService = accessor.get(IWindowsService);
 
 		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);
+	});
+
+	CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI, to: string) {
+		const downloadService = accessor.get(IDownloadService);
+
+		return downloadService.download(resource, to);
 	});
 }

@@ -20,7 +20,7 @@ function normalizeLink(
 
 	// Assume it must be an relative or absolute file path
 	// Use a fake scheme to avoid parse warnings
-	const tempUri = vscode.Uri.parse(`fake-scheme:${link}`);
+	const tempUri = vscode.Uri.parse(`vscode-resource:${link}`);
 
 	let resourcePath = tempUri.path;
 	if (!tempUri.path) {

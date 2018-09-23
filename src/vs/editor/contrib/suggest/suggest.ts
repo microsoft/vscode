@@ -7,7 +7,7 @@ import { first2 } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -111,7 +111,15 @@ export function provideSuggestionItems(
 		}));
 	});
 
-	const result = first2(factory, () => hasResult).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+	const result = first2(factory, () => {
+		// stop on result or cancellation
+		return hasResult || token.isCancellationRequested;
+	}).then(() => {
+		if (token.isCancellationRequested) {
+			return Promise.reject(canceled());
+		}
+		return allSuggestions.sort(getSuggestionComparator(snippetConfig));
+	});
 
 	// result.then(items => {
 	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));

@@ -8,6 +8,9 @@
 
 const bootstrap = require('./bootstrap');
 
+// Avoid Monkey Patches from Application Insights
+bootstrap.avoidMonkeyPatchFromAppInsights();
+
 // Enable portable support
 bootstrap.configurePortable();
 

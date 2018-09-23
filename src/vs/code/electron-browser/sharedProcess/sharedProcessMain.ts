@@ -43,9 +43,8 @@ import { LocalizationsChannel } from 'vs/platform/localizations/node/localizatio
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -80,6 +79,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 	const windowsChannel = server.getChannel('windows', { routeCall: mainRoute, routeEvent: mainRoute });
 	const windowsService = new WindowsChannelClient(windowsChannel);
@@ -90,9 +90,6 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
-
-	const downloadChannel = server.getChannel('download', { routeCall: route, routeEvent: route });
-	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, DefaultURITransformer));
 
 	const instantiationService = new InstantiationService(services);
 

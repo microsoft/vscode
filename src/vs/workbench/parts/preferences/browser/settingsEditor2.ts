@@ -8,6 +8,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
+import { isArray } from 'vs/base/common/types';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
@@ -43,7 +44,7 @@ import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, IPreferencesSearchService, ISearchProvider, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -53,10 +54,20 @@ export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
+	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
+	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 
 	private static readonly SUGGESTIONS: string[] = [
 		'@modified', '@tag:usesOnlineServices'
 	];
+
+	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
+		if (isArray(type)) {
+			// nullable integer/number or complex
+			return false;
+		}
+		return type === SettingValueType.Enum || type === SettingValueType.Complex;
+	}
 
 	private defaultSettingsEditorModel: Settings2EditorModel;
 
@@ -88,7 +99,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private delayRefreshOnLayout: Delayer<void>;
 	private lastLayedoutWidth: number;
 
-	private settingUpdateDelayer: Delayer<void>;
+	private settingFastUpdateDelayer: Delayer<void>;
+	private settingSlowUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
 
 	private viewState: ISettingsEditorViewState;
@@ -126,7 +138,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 		this.delayRefreshOnLayout = new Delayer(100);
 
-		this.settingUpdateDelayer = new Delayer<void>(200);
+		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
+		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -543,7 +556,7 @@ export class SettingsEditor2 extends BaseEditor {
 		labelDiv.setAttribute('aria-label', '');
 
 		this.settingsTreeRenderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
-		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
+		this._register(this.settingsTreeRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
 		this._register(this.settingsTreeRenderer.onDidOpenSettings(settingKey => {
 			this.openSettingsFile(settingKey);
 		}));
@@ -581,7 +594,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	private onDidChangeSetting(key: string, value: any): void {
+	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
 		this.notifyNoSaveNeeded(false);
 
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
@@ -589,7 +602,11 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		this.pendingSettingUpdate = { key, value };
-		this.settingUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+		if (SettingsEditor2.shouldSettingUpdateFast(type)) {
+			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+		} else {
+			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+		}
 	}
 
 	private updateTreeScrollSync(): void {

@@ -15,6 +15,7 @@ import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostL
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributions } from '../markdownExtensions';
 import { isMarkdownFile } from '../util/file';
+import { resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
 const localize = nls.loadMessageBundle();
 
 export class MarkdownPreview {
@@ -128,10 +129,6 @@ export class MarkdownPreview {
 					this.onCacheImageSizes(e.body);
 					break;
 
-				case 'command':
-					vscode.commands.executeCommand(e.body.command, ...e.body.args);
-					break;
-
 				case 'revealLine':
 					this.onDidScrollPreview(e.body.line);
 					break;
@@ -140,6 +137,17 @@ export class MarkdownPreview {
 					this.onDidClickPreview(e.body.line);
 					break;
 
+				case 'clickLink':
+					this.onDidClickPreviewLink(e.body.path, e.body.fragement);
+					break;
+
+				case 'showPreviewSecuritySelector':
+					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.body.source);
+					break;
+
+				case 'previewStyleLoadError':
+					vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", e.body.unloadedStyles.join(', ')));
+					break;
 			}
 		}, null, this.disposables);
 
@@ -405,6 +413,20 @@ export class MarkdownPreview {
 		}
 
 		vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
+	}
+
+	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
+		const config = vscode.workspace.getConfiguration('markdown', this.resource);
+		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
+		if (openLinks === 'inPreview') {
+			const markdownLink = await resolveLinkToMarkdownFile(path);
+			if (markdownLink) {
+				this.update(markdownLink);
+				return;
+			}
+		}
+
+		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment });
 	}
 
 	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {

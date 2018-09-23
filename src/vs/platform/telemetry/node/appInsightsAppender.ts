@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+
 import * as appInsights from 'applicationinsights';
 import { isObject } from 'vs/base/common/types';
 import { safeStringify, mixin } from 'vs/base/common/objects';
@@ -11,28 +12,26 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ILogService } from 'vs/platform/log/common/log';
 
-let _initialized = false;
+function getClient(aiKey: string): appInsights.TelemetryClient {
 
-function ensureAIEngineIsInitialized(): void {
-	if (_initialized === false) {
-		// we need to pass some fake key, otherwise AI throws an exception
-		appInsights.setup('2588e01f-f6c9-4cd6-a348-143741f8d702')
-			.setAutoCollectConsole(false)
-			.setAutoCollectExceptions(false)
+	let client: appInsights.TelemetryClient;
+	if (appInsights.defaultClient) {
+		client = new appInsights.TelemetryClient(aiKey);
+		client.channel.setUseDiskRetryCaching(true);
+	} else {
+		appInsights.setup(aiKey)
+			.setAutoCollectRequests(false)
 			.setAutoCollectPerformance(false)
-			.setAutoCollectRequests(false);
-
-		_initialized = true;
+			.setAutoCollectExceptions(false)
+			.setAutoCollectDependencies(false)
+			.setAutoDependencyCorrelation(false)
+			.setAutoCollectConsole(false)
+			.setInternalLogging(false, false)
+			.setUseDiskRetryCaching(true)
+			.start();
+		client = appInsights.defaultClient;
 	}
-}
 
-function getClient(aiKey: string): typeof appInsights.client {
-
-	ensureAIEngineIsInitialized();
-
-	const client = appInsights.getClient(aiKey);
-	client.channel.setOfflineMode(true);
-	client.context.tags[client.context.keys.deviceMachineName] = ''; //prevent App Insights from reporting machine name
 	if (aiKey.indexOf('AIF-') === 0) {
 		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
 	}
@@ -49,12 +48,12 @@ interface Measurements {
 
 export class AppInsightsAppender implements ITelemetryAppender {
 
-	private _aiClient: typeof appInsights.client;
+	private _aiClient: appInsights.TelemetryClient;
 
 	constructor(
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any },
-		aiKeyOrClientFactory: string | (() => typeof appInsights.client), // allow factory function for testing
+		aiKeyOrClientFactory: string | (() => appInsights.ITelemetryClient), // allow factory function for testing
 		@ILogService private _logService?: ILogService
 	) {
 		if (!this._defaultData) {
@@ -140,16 +139,22 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		if (this._logService) {
 			this._logService.trace(`telemetry/${eventName}`, data);
 		}
-		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, data.properties, data.measurements);
+		this._aiClient.trackEvent({
+			name: this._eventPrefix + '/' + eventName,
+			properties: data.properties,
+			measurements: data.measurements
+		});
 	}
 
 	dispose(): TPromise<any> {
 		if (this._aiClient) {
 			return new TPromise(resolve => {
-				this._aiClient.sendPendingData(() => {
-					// all data flushed
-					this._aiClient = undefined;
-					resolve(void 0);
+				this._aiClient.flush({
+					callback: () => {
+						// all data flushed
+						this._aiClient = undefined;
+						resolve(void 0);
+					}
 				});
 			});
 		}
