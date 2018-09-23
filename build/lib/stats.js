@@ -105,18 +105,27 @@ function submitAllStats(productJson, commit) {
             .setAutoCollectExceptions(false)
             .setAutoCollectPerformance(false)
             .setAutoCollectRequests(false)
+            .setAutoCollectDependencies(false)
+            .setAutoDependencyCorrelation(false)
             .start();
-        var client = appInsights.getClient(productJson.aiConfig.asimovKey);
-        client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+        appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
         /* __GDPR__
             "monacoworkbench/packagemetrics" : {
                 "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-                "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+                "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
             }
         */
-        client.trackEvent("monacoworkbench/packagemetrics", { commit: commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) });
-        client.sendPendingData(function () { return resolve(); });
+        appInsights.defaultClient.trackEvent({
+            name: 'monacoworkbench/packagemetrics',
+            properties: { commit: commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) }
+        });
+        appInsights.defaultClient.flush({
+            callback: function () {
+                appInsights.dispose();
+                resolve();
+            }
+        });
     });
 }
 exports.submitAllStats = submitAllStats;
