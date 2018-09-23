@@ -142,6 +142,13 @@ class ExecCommandCopyAction extends ExecCommandAction {
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
+		// prevent copying an empty string by accident
+		if (editor.getSelections().length === 1) {
+			const activeLineText = editor.getModel().getLineContent(editor.getSelection().positionLineNumber);
+			if (activeLineText.trim().length === 0) {
+				return;
+			}
+		}
 
 		super.run(accessor, editor);
 	}
