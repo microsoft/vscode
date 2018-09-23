@@ -201,11 +201,11 @@ export class InMemoryLocalStorage implements IStorage {
 		this.store = {};
 	}
 
-	get length() {
+	public get length() {
 		return Object.keys(this.store).length;
 	}
 
-	key(index: number): string {
+	public key(index: number): string {
 		const keys = Object.keys(this.store);
 		if (keys.length > index) {
 			return keys[index];
@@ -214,11 +214,11 @@ export class InMemoryLocalStorage implements IStorage {
 		return null;
 	}
 
-	setItem(key: string, value: any): void {
+	public setItem(key: string, value: any): void {
 		this.store[key] = value.toString();
 	}
 
-	getItem(key: string): string {
+	public getItem(key: string): string {
 		const item = this.store[key];
 		if (!types.isUndefinedOrNull(item)) {
 			return item;
@@ -227,7 +227,7 @@ export class InMemoryLocalStorage implements IStorage {
 		return null;
 	}
 
-	removeItem(key: string): void {
+	public removeItem(key: string): void {
 		delete this.store[key];
 	}
 }

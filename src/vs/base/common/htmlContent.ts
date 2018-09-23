@@ -14,25 +14,25 @@ export interface IMarkdownString {
 
 export class MarkdownString implements IMarkdownString {
 
-	value: string;
-	isTrusted?: boolean;
+	public value: string;
+	public isTrusted?: boolean;
 
 	constructor(value: string = '') {
 		this.value = value;
 	}
 
-	appendText(value: string): MarkdownString {
+	public appendText(value: string): MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 		return this;
 	}
 
-	appendMarkdown(value: string): MarkdownString {
+	public appendMarkdown(value: string): MarkdownString {
 		this.value += value;
 		return this;
 	}
 
-	appendCodeblock(langId: string, code: string): MarkdownString {
+	public appendCodeblock(langId: string, code: string): MarkdownString {
 		this.value += '\n```';
 		this.value += langId;
 		this.value += '\n';

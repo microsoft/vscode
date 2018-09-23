@@ -18,7 +18,7 @@ export class Cache<T> {
 	private result: CacheResult<T> = null;
 	constructor(private task: (ct: CancellationToken) => Thenable<T>) { }
 
-	get(): CacheResult<T> {
+	public get(): CacheResult<T> {
 		if (this.result) {
 			return this.result;
 		}

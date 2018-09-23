@@ -148,7 +148,7 @@ export class Emitter<T> {
 		}
 	}
 
-	dispose() {
+	public dispose() {
 		if (this._listeners) {
 			this._listeners = undefined;
 		}
@@ -222,7 +222,7 @@ export class EventMultiplexer<T> implements IDisposable {
 		return this.emitter.event;
 	}
 
-	add(event: Event<T>): IDisposable {
+	public add(event: Event<T>): IDisposable {
 		const e = { event: event, listener: null };
 		this.events.push(e);
 
@@ -261,7 +261,7 @@ export class EventMultiplexer<T> implements IDisposable {
 		e.listener = null;
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.emitter.dispose();
 	}
 }
@@ -396,7 +396,7 @@ export class EventBufferer {
 
 	private buffers: Function[][] = [];
 
-	wrapEvent<T>(event: Event<T>): Event<T> {
+	public wrapEvent<T>(event: Event<T>): Event<T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
 				const buffer = this.buffers[this.buffers.length - 1];
@@ -410,7 +410,7 @@ export class EventBufferer {
 		};
 	}
 
-	bufferEvents(fn: () => void): void {
+	public bufferEvents(fn: () => void): void {
 		const buffer: Function[] = [];
 		this.buffers.push(buffer);
 		fn();
@@ -449,27 +449,27 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	constructor(private _event: Event<T>) { }
 
-	map<O>(fn: (i: T) => O): IChainableEvent<O> {
+	public map<O>(fn: (i: T) => O): IChainableEvent<O> {
 		return new ChainableEvent(mapEvent(this._event, fn));
 	}
 
-	forEach(fn: (i: T) => void): IChainableEvent<T> {
+	public forEach(fn: (i: T) => void): IChainableEvent<T> {
 		return new ChainableEvent(forEach(this._event, fn));
 	}
 
-	filter(fn: (e: T) => boolean): IChainableEvent<T> {
+	public filter(fn: (e: T) => boolean): IChainableEvent<T> {
 		return new ChainableEvent(filterEvent(this._event, fn));
 	}
 
-	latch(): IChainableEvent<T> {
+	public latch(): IChainableEvent<T> {
 		return new ChainableEvent(latch(this._event));
 	}
 
-	on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+	public on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return this._event(listener, thisArgs, disposables);
 	}
 
-	once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
+	public once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
 		return once(this._event)(listener, thisArgs, disposables);
 	}
 }
@@ -602,7 +602,7 @@ export class Relay<T> implements IDisposable {
 		}
 	}
 
-	dispose() {
+	public dispose() {
 		this.inputEventListener.dispose();
 		this.emitter.dispose();
 	}
