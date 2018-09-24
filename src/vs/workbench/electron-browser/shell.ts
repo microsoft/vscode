@@ -98,7 +98,6 @@ import { ExtensionManagementServerService } from 'vs/workbench/services/extensio
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { runWhenIdle } from 'vs/base/common/async';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 
@@ -208,7 +207,7 @@ export class WorkbenchShell extends Disposable {
 				this.logStartupTelemetry(startupInfos);
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
+				let eventuallPhaseTimeoutHandle = browser.runWhenIdle(() => {
 					eventuallPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
 				}, 5000);

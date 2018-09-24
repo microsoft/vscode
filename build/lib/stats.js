@@ -90,42 +90,49 @@ function submitAllStats(productJson, commit) {
     // send data as telementry event when the
     // product is configured to send telemetry
     if (!productJson || !productJson.aiConfig || typeof productJson.aiConfig.asimovKey !== 'string') {
-        return Promise.resolve();
+        return Promise.resolve(false);
     }
     return new Promise(function (resolve) {
-        var sizes = {};
-        var counts = {};
-        for (var _i = 0, sorted_2 = sorted; _i < sorted_2.length; _i++) {
-            var entry = sorted_2[_i];
-            sizes[entry.name] = entry.totalSize;
-            counts[entry.name] = entry.totalCount;
+        try {
+            var sizes = {};
+            var counts = {};
+            for (var _i = 0, sorted_2 = sorted; _i < sorted_2.length; _i++) {
+                var entry = sorted_2[_i];
+                sizes[entry.name] = entry.totalSize;
+                counts[entry.name] = entry.totalCount;
+            }
+            appInsights.setup(productJson.aiConfig.asimovKey)
+                .setAutoCollectConsole(false)
+                .setAutoCollectExceptions(false)
+                .setAutoCollectPerformance(false)
+                .setAutoCollectRequests(false)
+                .setAutoCollectDependencies(false)
+                .setAutoDependencyCorrelation(false)
+                .start();
+            appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+            /* __GDPR__
+                "monacoworkbench/packagemetrics" : {
+                    "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+                    "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+                    "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+                }
+            */
+            appInsights.defaultClient.trackEvent({
+                name: 'monacoworkbench/packagemetrics',
+                properties: { commit: commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) }
+            });
+            appInsights.defaultClient.flush({
+                callback: function () {
+                    appInsights.dispose();
+                    resolve(true);
+                }
+            });
         }
-        appInsights.setup(productJson.aiConfig.asimovKey)
-            .setAutoCollectConsole(false)
-            .setAutoCollectExceptions(false)
-            .setAutoCollectPerformance(false)
-            .setAutoCollectRequests(false)
-            .setAutoCollectDependencies(false)
-            .setAutoDependencyCorrelation(false)
-            .start();
-        appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-        /* __GDPR__
-            "monacoworkbench/packagemetrics" : {
-                "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                "size" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-                "count" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-            }
-        */
-        appInsights.defaultClient.trackEvent({
-            name: 'monacoworkbench/packagemetrics',
-            properties: { commit: commit, size: JSON.stringify(sizes), count: JSON.stringify(counts) }
-        });
-        appInsights.defaultClient.flush({
-            callback: function () {
-                appInsights.dispose();
-                resolve();
-            }
-        });
+        catch (err) {
+            console.error('ERROR sending build stats as telemetry event!');
+            console.error(err);
+            resolve(false);
+        }
     });
 }
 exports.submitAllStats = submitAllStats;

@@ -308,9 +308,9 @@ export async function main(argv: string[]): Promise<any> {
 
 				try {
 					// load and start profiler
-					const main = await Profiler.start('main', filenamePrefix, { port: portMain });
-					const extHost = await Profiler.start('extHost', filenamePrefix, { port: portExthost, tries: 300 });
-					const renderer = await Profiler.start('renderer', filenamePrefix, {
+					const mainProfileRequest = Profiler.start('main', filenamePrefix, { port: portMain });
+					const extHostProfileRequest = Profiler.start('extHost', filenamePrefix, { port: portExthost, tries: 300 });
+					const rendererProfileRequest = Profiler.start('renderer', filenamePrefix, {
 						port: portRenderer,
 						tries: 200,
 						chooseTab: function (targets) {
@@ -326,6 +326,10 @@ export async function main(argv: string[]): Promise<any> {
 							});
 						}
 					});
+
+					const main = await mainProfileRequest;
+					const extHost = await extHostProfileRequest;
+					const renderer = await rendererProfileRequest;
 
 					// wait for the renderer to delete the
 					// marker file

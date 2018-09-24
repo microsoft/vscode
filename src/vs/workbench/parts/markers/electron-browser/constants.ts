@@ -15,8 +15,8 @@ export default {
 	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
 	MARKER_SHOW_PANEL_ID: 'workbench.action.showErrorsWarnings',
 
-	MarkerPanelFocusContextKey: new RawContextKey<boolean>('problemsViewFocus', true),
-	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', true),
-	MarkerPanelFilterFocusContextKey: new RawContextKey<boolean>('problemsFilterFocus', true),
-	RelatedInformationFocusContextKey: new RawContextKey<boolean>('relatedInformationFocus', true)
+	MarkerPanelFocusContextKey: new RawContextKey<boolean>('problemsViewFocus', false),
+	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false),
+	MarkerPanelFilterFocusContextKey: new RawContextKey<boolean>('problemsFilterFocus', false),
+	RelatedInformationFocusContextKey: new RawContextKey<boolean>('relatedInformationFocus', false)
 };
