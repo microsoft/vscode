@@ -214,6 +214,14 @@ export class ViewItem implements IViewItem {
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
 		}
+
+		if (accessibility.getAriaRole) {
+			const ariaRole = accessibility.getAriaRole(this.context.tree, this.model.getElement());
+			if (ariaRole) {
+				this.element.setAttribute('role', ariaRole);
+			}
+		}
+
 		if (accessibility.getPosInSet && accessibility.getSetSize) {
 			this.element.setAttribute('aria-setsize', accessibility.getSetSize());
 			this.element.setAttribute('aria-posinset', accessibility.getPosInSet(this.context.tree, this.model.getElement()));
