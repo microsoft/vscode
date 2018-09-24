@@ -257,7 +257,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				break;
 			case WorkbenchState.FOLDER:
 				isSingleLocalWorkspaceFolder = workspace.folders[0].uri.scheme === Schemas.file;
-				workspaceId = crypto.createHash('sha1').update(isSingleLocalWorkspaceFolder ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex'); // TODO: #54483 @Ben
+				workspaceId = crypto.createHash('sha1').update(isSingleLocalWorkspaceFolder ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
 				break;
 			case WorkbenchState.WORKSPACE:
 				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
