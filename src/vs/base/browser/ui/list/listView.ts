@@ -346,7 +346,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	@memoize get onMouseClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'click'), e => this.toMouseEvent(e)), e => e.index >= 0); }
 	@memoize get onMouseDblClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'dblclick'), e => this.toMouseEvent(e)), e => e.index >= 0); }
-	@memoize get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'auxclick'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseMiddleClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'auxclick'), e => this.toMouseEvent(e)), e => e.index >= 0 && e.browserEvent.button === 1); }
 	@memoize get onMouseUp(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseup'), e => this.toMouseEvent(e)), e => e.index >= 0); }
 	@memoize get onMouseDown(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mousedown'), e => this.toMouseEvent(e)), e => e.index >= 0); }
 	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseover'), e => this.toMouseEvent(e)), e => e.index >= 0); }
