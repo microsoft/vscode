@@ -178,7 +178,7 @@ export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileSer
 
 export class WorkspaceStats implements IWorkbenchContribution {
 
-	private static DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.doNotPromptToOpen2';
+	private static DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
 	constructor(
 		@IFileService private fileService: IFileService,
