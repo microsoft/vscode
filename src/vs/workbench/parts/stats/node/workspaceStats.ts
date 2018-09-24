@@ -178,6 +178,8 @@ export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileSer
 
 export class WorkspaceStats implements IWorkbenchContribution {
 
+	static TAGS: Tags;
+
 	private static DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.dontPromptToOpen';
 
 	constructor(
@@ -190,11 +192,18 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		@IQuickInputService private quickInputService: IQuickInputService,
 		@IStorageService private storageService: IStorageService
 	) {
-		this.reportWorkspaceTags(windowService.getConfiguration());
-		this.reportCloudStats();
+		this.report();
 	}
 
-	static TAGS: Tags;
+	private report(): void {
+
+		// Workspace Stats
+		this.resolveWorkspaceTags(this.windowService.getConfiguration(), rootFiles => this.handleWorkspaceFiles(rootFiles))
+			.then(tags => this.reportWorkspaceTags(tags), error => onUnexpectedError(error));
+
+		// Cloud Stats
+		this.reportCloudStats();
+	}
 
 	private searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
@@ -243,21 +252,19 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
+	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
 		const workspace = this.contextService.getWorkspace();
 
 		let workspaceId: string;
-		let isSingleLocalWorkspaceFolder = false;
 		switch (state) {
 			case WorkbenchState.EMPTY:
 				workspaceId = void 0;
 				break;
 			case WorkbenchState.FOLDER:
-				isSingleLocalWorkspaceFolder = workspace.folders[0].uri.scheme === Schemas.file;
-				workspaceId = crypto.createHash('sha1').update(isSingleLocalWorkspaceFolder ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
+				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
 				break;
 			case WorkbenchState.WORKSPACE:
 				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
@@ -282,6 +289,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
+
+			if (participant) {
+				participant(names);
+			}
 
 			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
 			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
@@ -361,19 +372,24 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				});
 			});
 
-			// Handle top-level workspace files for local single folder workspace
-			if (isSingleLocalWorkspaceFolder) {
-				const workspaceFiles = names.filter(name => extname(name) === `.${WORKSPACE_EXTENSION}`);
-				if (workspaceFiles.length > 0) {
-					this.handleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
-				}
-			}
-
 			return TPromise.join(packageJsonPromises).then(() => tags);
 		});
 	}
 
-	private handleWorkspaceFiles(folder: URI, workspaces: string[]): void {
+	private handleWorkspaceFiles(rootFiles: string[]): void {
+		const state = this.contextService.getWorkbenchState();
+		const workspace = this.contextService.getWorkspace();
+
+		// Handle top-level workspace files for local single folder workspace
+		if (state === WorkbenchState.FOLDER && workspace.folders[0].uri.scheme === Schemas.file) {
+			const workspaceFiles = rootFiles.filter(name => extname(name) === `.${WORKSPACE_EXTENSION}`);
+			if (workspaceFiles.length > 0) {
+				this.doHandleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
+			}
+		}
+	}
+
+	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
 		if (this.storageService.getBoolean(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, StorageScope.WORKSPACE)) {
 			return; // prompt disabled by user
 		}
@@ -388,7 +404,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		if (workspaces.length === 1) {
 			const workspaceFile = workspaces[0];
 
-			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it (click [here]({1}) to learn more)?", workspaceFile, 'https://code.visualstudio.com/docs/editor/multi-root-workspaces'), [{
+			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it (click [here]({1}) to learn more)?", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
 				run: () => this.windowService.openWindow([URI.file(join(folder.fsPath, workspaceFile))])
 			}, doNotShowAgain]);
@@ -396,7 +412,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		// Prompt to select a workspace from many
 		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one (click [here]({0}) to learn more)?", 'https://code.visualstudio.com/docs/editor/multi-root-workspaces'), [{
+			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one (click [here]({0}) to learn more)?", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('selectWorkspace', "Select Workspace"),
 				run: () => {
 					this.quickInputService.pick(
@@ -433,18 +449,16 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
 	}
 
-	reportWorkspaceTags(configuration: IWindowConfiguration): void {
-		this.getWorkspaceTags(configuration).then((tags) => {
-			/* __GDPR__
-				"workspce.tags" : {
-					"${include}": [
-						"${WorkspaceTags}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('workspce.tags', tags);
-			WorkspaceStats.TAGS = tags;
-		}, error => onUnexpectedError(error));
+	private reportWorkspaceTags(tags: Tags): void {
+		/* __GDPR__
+			"workspce.tags" : {
+				"${include}": [
+					"${WorkspaceTags}"
+				]
+			}
+		*/
+		this.telemetryService.publicLog('workspce.tags', tags);
+		WorkspaceStats.TAGS = tags;
 	}
 
 	private reportRemoteDomains(workspaceUris: URI[]): void {
@@ -549,7 +563,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}).then(null, onUnexpectedError);
 	}
 
-	reportCloudStats(): void {
+	private reportCloudStats(): void {
 		const uris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		if (uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
