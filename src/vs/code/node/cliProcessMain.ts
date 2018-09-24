@@ -138,19 +138,23 @@ class Main {
 							}
 
 							const [installedExtension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
-							if (installedExtension && !force) {
+							if (installedExtension) {
 								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
 								if (outdated) {
-									const updateMessage = localize('updateMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
-									return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
-										.then(option => {
-											if (option === 0) {
-												return this.installFromGallery(id, extension);
-											}
-											console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
-											return TPromise.as(null);
-										});
-
+									if (force) {
+										console.log(localize('updateMessage', "Updating the Extension '{0}' to a newer version {2}", id, extension.version));
+										return this.installFromGallery(id, extension);
+									} else {
+										const updateMessage = localize('updateConfirmationMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);
+										return this.dialogService.show(Severity.Info, updateMessage, [localize('yes', "Yes"), localize('no', "No")])
+											.then(option => {
+												if (option === 0) {
+													return this.installFromGallery(id, extension);
+												}
+												console.log(localize('cancelInstall', "Cancelled installing Extension '{0}'.", id));
+												return TPromise.as(null);
+											});
+									}
 								} else {
 									console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
 									return TPromise.as(null);
