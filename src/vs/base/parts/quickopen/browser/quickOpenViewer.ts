@@ -56,6 +56,10 @@ export class AccessibilityProvider implements IAccessibilityProvider {
 		return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
 	}
 
+	public getAriaRole(tree: ITree, element: any): string {
+		return 'listitem';
+	}
+
 	getPosInSet(tree: ITree, element: any): string {
 		const model = this.modelProvider.getModel();
 		let i = 0;

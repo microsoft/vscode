@@ -310,6 +310,10 @@ class VariablesAccessibilityProvider implements IAccessibilityProvider {
 
 		return null;
 	}
+
+	public getAriaRole(tree: ITree, element: any): string {
+		return 'treeitem';
+	}
 }
 
 class VariablesController extends BaseDebugController {

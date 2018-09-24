@@ -422,6 +422,10 @@ class AriaProvider implements tree.IAccessibilityProvider {
 			return undefined;
 		}
 	}
+
+	public getAriaRole(tree: tree.ITree, element: any): string {
+		return 'treeitem';
+	}
 }
 
 class VSash {

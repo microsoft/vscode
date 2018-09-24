@@ -672,6 +672,7 @@ export class DefaultStyleController implements IStyleController {
 export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
+	ariaRole?: string;
 	mouseSupport?: boolean;
 	selectOnMouseDown?: boolean;
 	focusOnMouseDown?: boolean;
@@ -948,6 +949,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", options.ariaLabel));
+		}
+		if (options.ariaRole) {
+			this.view.domNode.setAttribute('role', options.ariaRole);
 		}
 
 		this.style(options);

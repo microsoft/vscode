@@ -556,4 +556,8 @@ class CallstackAccessibilityProvider implements IAccessibilityProvider {
 
 		return null;
 	}
+
+	public getAriaRole(tree: ITree, element: any): string {
+		return 'treeitem';
+	}
 }
