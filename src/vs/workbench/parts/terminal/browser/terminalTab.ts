@@ -362,26 +362,25 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
-		const newTerminalWidth = this._container.clientWidth / (this._terminalInstances.length + 1);
-		if (newTerminalWidth >= TERMINAL_MIN_USEFUL_SIZE) {
-			const instance = this._terminalService.createInstance(
-				terminalFocusContextKey,
-				configHelper,
-				undefined,
-				shellLaunchConfig,
-				true);
-			this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
-			this._initInstanceListeners(instance);
-			this._setActiveInstance(instance);
-
-			if (this._splitPaneContainer) {
-				this._splitPaneContainer.split(instance, this._activeInstanceIndex);
-			}
-
-			return instance;
-		} else {
+		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
+		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
 			return undefined;
 		}
+		const instance = this._terminalService.createInstance(
+			terminalFocusContextKey,
+			configHelper,
+			undefined,
+			shellLaunchConfig,
+			true);
+		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
+		this._initInstanceListeners(instance);
+		this._setActiveInstance(instance);
+
+		if (this._splitPaneContainer) {
+			this._splitPaneContainer.split(instance, this._activeInstanceIndex);
+		}
+
+		return instance;
 	}
 
 	public addDisposable(disposable: IDisposable): void {

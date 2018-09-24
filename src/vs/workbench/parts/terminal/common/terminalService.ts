@@ -12,9 +12,8 @@ import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { Disposable } from 'vs/base/common/lifecycle';
 
-export abstract class TerminalService extends Disposable implements ITerminalService {
+export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
 	protected _isShuttingDown: boolean;
@@ -51,8 +50,6 @@ export abstract class TerminalService extends Disposable implements ITerminalSer
 	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	private readonly _onTerminalNotSplit: Emitter<void> = new Emitter<void>();
-	public get onTerminalNotSplit(): Event<void> { return this._onTerminalNotSplit.event; }
 
 	public abstract get configHelper(): ITerminalConfigHelper;
 
@@ -63,7 +60,6 @@ export abstract class TerminalService extends Disposable implements ITerminalSer
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService protected readonly _storageService: IStorageService
 	) {
-		super();
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
@@ -87,6 +83,7 @@ export abstract class TerminalService extends Disposable implements ITerminalSer
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
+	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
@@ -273,7 +270,7 @@ export abstract class TerminalService extends Disposable implements ITerminalSer
 
 			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
 		} else {
-			this._onTerminalNotSplit.fire();
+			this._showNotEnoughSpaceToast();
 		}
 	}
 
