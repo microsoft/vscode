@@ -394,13 +394,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return join(pattern.base, pattern.pattern);
 		};
 
+		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
+			{
+				maxLines: 100,
+				totalChars: 10000
+			} :
+			options.previewOptions;
+
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
-			previewOptions: options.previewOptions,
+			previewOptions,
 
 			includePattern: options.include && globPatternToString(options.include),
 			excludePattern: options.exclude && globPatternToString(options.exclude)

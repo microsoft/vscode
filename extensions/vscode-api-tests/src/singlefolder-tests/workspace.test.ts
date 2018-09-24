@@ -514,7 +514,6 @@ suite('workspace-namespace', () => {
 		const options: vscode.FindTextInFilesOptions = {
 			include: '*.ts',
 			previewOptions: {
-				leadingChars: 2,
 				maxLines: 1,
 				totalChars: 100
 			}
@@ -526,7 +525,7 @@ suite('workspace-namespace', () => {
 		});
 
 		assert.equal(results.length, 1);
-		assert.equal(results[0].preview.text, 'n foo(): void {');
+		assert(results[0].preview.text.indexOf('foo') >= 0);
 		assert.equal(vscode.workspace.asRelativePath(results[0].uri), '10linefile.ts');
 	});
 
