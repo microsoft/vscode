@@ -316,7 +316,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
+			triggerCharacter: this.getTsTriggerCharacter(context)
 		};
 
 		let isNewIdentifierLocation = true;
@@ -345,6 +345,17 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 				isInValidCommitCharacterContext,
 				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
 			}));
+	}
+
+	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+		if (context.triggerCharacter === '@'
+			&& this.client.apiVersion.gte(API.v310) && !this.client.apiVersion.gte(API.v320)
+		) {
+			return undefined;
+		}
+
+		return context.triggerCharacter as Proto.CompletionsTriggerCharacter;
 	}
 
 	public async resolveCompletionItem(
