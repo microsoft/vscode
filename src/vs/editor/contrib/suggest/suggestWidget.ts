@@ -564,50 +564,50 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 
 		const item = e.elements[0];
-
-		this.firstFocusInCurrentList = !this.focusedItem;
-		if (item === this.focusedItem) {
-			return;
-		}
-
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-			this.currentSuggestionDetails = null;
-		}
-
 		const index = e.indexes[0];
 
-		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
+		this.firstFocusInCurrentList = !this.focusedItem;
+		if (item !== this.focusedItem) {
 
-		this.focusedItem = item;
 
-		this.list.reveal(index);
-
-		this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
-
-		this.currentSuggestionDetails.then(() => {
-			if (this.list.length < index) {
-				return;
-			}
-
-			// item can have extra information, so re-render
-			this.ignoreFocusEvents = true;
-			this.list.splice(index, 1, [item]);
-			this.list.setFocus([index]);
-			this.ignoreFocusEvents = false;
-
-			if (this.expandDocsSettingFromStorage()) {
-				this.showDetails();
-			} else {
-				removeClass(this.element, 'docs-side');
-			}
-
-			this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
-		}).catch(onUnexpectedError).then(() => {
-			if (this.focusedItem === item) {
+			if (this.currentSuggestionDetails) {
+				this.currentSuggestionDetails.cancel();
 				this.currentSuggestionDetails = null;
 			}
-		});
+
+
+			this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
+
+			this.focusedItem = item;
+
+			this.list.reveal(index);
+
+			this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
+
+			this.currentSuggestionDetails.then(() => {
+				if (this.list.length < index) {
+					return;
+				}
+
+				// item can have extra information, so re-render
+				this.ignoreFocusEvents = true;
+				this.list.splice(index, 1, [item]);
+				this.list.setFocus([index]);
+				this.ignoreFocusEvents = false;
+
+				if (this.expandDocsSettingFromStorage()) {
+					this.showDetails();
+				} else {
+					removeClass(this.element, 'docs-side');
+				}
+
+				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
+			}).catch(onUnexpectedError).then(() => {
+				if (this.focusedItem === item) {
+					this.currentSuggestionDetails = null;
+				}
+			});
+		}
 
 		// emit an event
 		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });
