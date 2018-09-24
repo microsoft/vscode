@@ -208,18 +208,15 @@ export class ViewItem implements IViewItem {
 		this.element.style.height = this.height + 'px';
 
 		// ARIA
-		this.element.setAttribute('role', 'treeitem');
 		const accessibility = this.context.accessibilityProvider;
 		const ariaLabel = accessibility.getAriaLabel(this.context.tree, this.model.getElement());
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
 		}
 
-		if (accessibility.getAriaRole) {
-			const ariaRole = accessibility.getAriaRole(this.context.tree, this.model.getElement());
-			if (ariaRole) {
-				this.element.setAttribute('role', ariaRole);
-			}
+		const ariaRole = accessibility.getAriaRole(this.context.tree, this.model.getElement());
+		if (ariaRole) {
+			this.element.setAttribute('role', ariaRole);
 		}
 
 		if (accessibility.getPosInSet && accessibility.getSetSize) {
