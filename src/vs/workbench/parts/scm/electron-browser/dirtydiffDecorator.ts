@@ -315,7 +315,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 			fixedOverflowWidgets: true,
 			minimap: { enabled: false },
 			renderSideBySide: false,
-			readOnly: true
+			readOnly: true,
+			ignoreTrimWhitespace: false
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
