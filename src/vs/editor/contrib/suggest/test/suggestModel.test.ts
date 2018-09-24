@@ -28,6 +28,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+
+export interface Ctor<T> {
+	new(): T;
+}
+
+export function mock<T>(): Ctor<T> {
+	return function () { } as any;
+}
+
 
 function createMockEditor(model: TextModel): TestCodeEditor {
 	let editor = createTestCodeEditor({
@@ -167,7 +177,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
-			const oracle = new SuggestModel(editor);
+			const oracle = new SuggestModel(editor, new class extends mock<IEditorWorkerService>() {
+				computeWordLines(): Promise<{ [word: string]: number[] }> {
+					return Promise.resolve({});
+				}
+
+			});
 			disposables.push(oracle, editor);
 
 			try {

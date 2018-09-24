@@ -9,47 +9,38 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 
 export abstract class WordDistance {
+
+	static readonly None = new class extends WordDistance {
+		distance() { return 0; }
+	};
 
 	static create(service: IEditorWorkerService, editor: ICodeEditor): Thenable<WordDistance> {
 
 		const model = editor.getModel();
 		const position = editor.getPosition();
+		const range = new Range(Math.max(1, position.lineNumber - 100), 1, Math.min(model.getLineCount() - 1, position.lineNumber + 100), 1);
 
-		return service.getWordRanges(model.uri, position).then(data => {
+		return service.computeWordLines(model.uri, range).then(lineNumbers => {
 
 			return new class extends WordDistance {
 				distance(anchor: IPosition, word: string) {
-					if (!data || !position.equals(editor.getPosition())) {
+					if (!lineNumbers || !position.equals(editor.getPosition())) {
 						return 0;
 					}
-
-					let lineNumbers = new Map<string, number[]>();
-					if (!lineNumbers.has(word)) {
-						let wordLineNumbers: number[];
-						let ranges = data[word];
-						if (ranges) {
-							wordLineNumbers = ranges.map(range => range.startLineNumber);
-							wordLineNumbers = wordLineNumbers.sort();
-						}
-						lineNumbers.set(word, wordLineNumbers);
-						delete data[word];
-					}
-
-					let offset = lineNumbers.get(word);
-					if (!offset) {
+					let lineNumber = lineNumbers[word];
+					if (!lineNumber) {
 						return Number.MAX_VALUE;
 					}
-
-					let idx = binarySearch(offset, anchor.lineNumber, (a, b) => a - b);
+					let idx = binarySearch(lineNumber, anchor.lineNumber, (a, b) => a - b);
 					if (idx >= 0) {
 						return 0;
 					} else {
-						idx = ~idx;
-						idx %= offset.length;
-						return Math.abs(offset[idx] - anchor.lineNumber);
+						idx = ~idx - 1;
+						return Math.abs(lineNumber[idx] - anchor.lineNumber);
 					}
 				}
 			};

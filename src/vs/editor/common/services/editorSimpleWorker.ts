@@ -500,15 +500,15 @@ export abstract class BaseEditorSimpleWorker {
 
 	//#region -- word ranges --
 
-	getWordRanges(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
+	computeWordLines(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: number[] }> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
 			return Promise.resolve({});
 		}
-		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-		let result: { [word: string]: IRange[] } = {};
-
-		function handleWords(words: IWordAtPosition[], lineNumber: number) {
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const result: { [word: string]: number[] } = {};
+		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
+			let words = model.getLineWords(line, wordDefRegExp);
 			for (const word of words) {
 				if (!isNaN(Number(word.word))) {
 					continue;
@@ -518,27 +518,9 @@ export abstract class BaseEditorSimpleWorker {
 					array = [];
 					result[word.word] = array;
 				}
-				array.push({
-					startLineNumber: lineNumber,
-					startColumn: word.startColumn,
-					endLineNumber: lineNumber,
-					endColumn: word.endColumn
-				});
+				array.push(line);
 			}
 		}
-
-		// up
-		for (let i = position.lineNumber; i > Math.max(position.lineNumber - 100, 0); i--) {
-			let words = model.getLineWords(i, wordDefRegExp);
-			handleWords(words, i);
-		}
-
-		// down
-		for (let i = position.lineNumber + 1; i < Math.min(position.lineNumber + 100, model.getLineCount()); i++) {
-			let words = model.getLineWords(i, wordDefRegExp);
-			handleWords(words, i);
-		}
-
 		return Promise.resolve(result);
 	}
 

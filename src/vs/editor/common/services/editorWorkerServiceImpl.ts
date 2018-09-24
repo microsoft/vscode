@@ -108,12 +108,12 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
 
-	canGetWordRanges(resource: URI): boolean {
+	canComputeWordLines(resource: URI): boolean {
 		return canSyncModel(this._modelService, resource);
 	}
 
-	getWordRanges(resource: URI, position: IPosition): TPromise<{ [word: string]: IRange[] }> {
-		return this._workerManager.withWorker().then(client => client.getWordRanges(resource, position));
+	computeWordLines(resource: URI, range: IRange): TPromise<{ [word: string]: number[] }> {
+		return this._workerManager.withWorker().then(client => client.computeWordLines(resource, range));
 	}
 }
 
@@ -422,7 +422,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	getWordRanges(resource: URI, position: IPosition): TPromise<{ [word: string]: IRange[] }> {
+	computeWordLines(resource: URI, range: IRange): TPromise<{ [word: string]: number[] }> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -431,7 +431,7 @@ export class EditorWorkerClient extends Disposable {
 			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
-			return proxy.getWordRanges(resource.toString(), position, wordDef, wordDefFlags);
+			return proxy.computeWordLines(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
 
