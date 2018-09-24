@@ -193,6 +193,10 @@ export interface ISuggestOptions {
 	 * Prevent quick suggestions when a snippet is active. Defaults to true.
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
+	/**
+	 * Favours words that appear close to the cursor.
+	 */
+	localityBonus?: boolean;
 }
 
 /**
@@ -893,6 +897,7 @@ export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 	readonly snippetsPreventQuickSuggestions: boolean;
+	readonly localityBonus: boolean;
 }
 
 export interface InternalParameterHintOptions {
@@ -1336,7 +1341,8 @@ export class InternalEditorOptions {
 		} else {
 			return a.filterGraceful === b.filterGraceful
 				&& a.snippets === b.snippets
-				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions;
+				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
+				&& a.localityBonus === b.localityBonus;
 		}
 	}
 
@@ -1866,6 +1872,7 @@ export class EditorOptionsValidator {
 			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
+			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 		};
 	}
 
@@ -2610,7 +2617,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggest: {
 			filterGraceful: true,
 			snippets: 'inline',
-			snippetsPreventQuickSuggestions: true
+			snippetsPreventQuickSuggestions: true,
+			localityBonus: false
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,
