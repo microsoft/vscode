@@ -192,7 +192,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.filter(p => p.enabled)
-			.sort((v1, v2) => v1.order - v2.order);
+			.sort((p1, p2) => p1.order - p2.order);
+	}
+
+	public getPinnedPanels(): PanelDescriptor[] {
+		const pinnedCompositeIds = this.compositeBar.getPinnedComposites();
+		return this.getPanels()
+			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)
+			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
 	}
 
 	setPanelEnablement(id: string, enabled: boolean): void {

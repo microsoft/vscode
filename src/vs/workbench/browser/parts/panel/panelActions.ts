@@ -170,6 +170,68 @@ export class PanelActivityAction extends ActivityAction {
 	}
 }
 
+export class SwitchPanelItemAction extends Action {
+	constructor(id: string,
+		name: string,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, name);
+	}
+
+	public run(offset: number): TPromise<any> {
+		const pinnedPanels = this.panelService.getPinnedPanels();
+		const activePanel = this.panelService.getActivePanel();
+
+		if (!activePanel) {
+			return TPromise.as(null);
+		}
+
+		let targetPanelId: string;
+		for (let i = 0; i < pinnedPanels.length; i++) {
+			if (pinnedPanels[i].id === activePanel.getId()) {
+				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
+				break;
+			}
+		}
+
+		return this.panelService.openPanel(targetPanelId, true);
+	}
+}
+
+export class PreviousPanelItemAction extends SwitchPanelItemAction {
+	static readonly ID = 'workbench.action.previousPanelItem';
+	static LABEL = nls.localize('previousPanelItem', 'Previous Panel Item');
+
+	constructor(id: string,
+		name: string,
+		@IPanelService panelService: IPanelService
+	) {
+		super(id, name, panelService);
+	}
+
+	public run(): TPromise<any> {
+		return super.run(-1);
+	}
+}
+
+export class NextPanelItemAction extends SwitchPanelItemAction {
+	static readonly ID = 'workbench.action.nextPanelItem';
+	static LABEL = nls.localize('nextPanelItem', 'Next Panel Item');
+
+	constructor(id: string,
+		name: string,
+		@IPanelService panelService: IPanelService
+	) {
+		super(id, name, panelService);
+	}
+
+
+	public run(): TPromise<any> {
+		return super.run(1);
+	}
+}
+
+
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelAction, TogglePanelAction.ID, TogglePanelAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_J }), 'View: Toggle Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(FocusPanelAction, FocusPanelAction.ID, FocusPanelAction.LABEL), 'View: Focus into Panel', nls.localize('view', "View"));
@@ -177,6 +239,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedP
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL), 'View: Close Panel', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL), 'View: Toggle Panel Position', nls.localize('view', "View"));
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, undefined), 'View: Toggle Panel Position', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(PreviousPanelItemAction, PreviousPanelItemAction.ID, PreviousPanelItemAction.LABEL), 'View: Open Previous Panel Item', nls.localize('view', "View"));
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(NextPanelItemAction, NextPanelItemAction.ID, NextPanelItemAction.LABEL), 'View: Open Next Panel Item', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
