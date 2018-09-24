@@ -115,6 +115,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/stats",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/surveys",
 			"project": "vscode-workbench"
 		},

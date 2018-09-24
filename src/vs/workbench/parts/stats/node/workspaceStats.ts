@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -17,6 +18,11 @@ import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { endsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
+import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { extname, join } from 'path';
+import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -62,13 +68,13 @@ const ModulesToLookFor = [
 type Tags = { [index: string]: boolean | number | string };
 
 function stripLowLevelDomains(domain: string): string {
-	let match = domain.match(SecondLevelDomainMatcher);
+	const match = domain.match(SecondLevelDomainMatcher);
 	return match ? match[1] : null;
 }
 
 function extractDomain(url: string): string {
 	if (url.indexOf('://') === -1) {
-		let match = url.match(SshProtocolMatcher);
+		const match = url.match(SshProtocolMatcher);
 		if (match) {
 			return stripLowLevelDomains(match[2]);
 		} else {
@@ -76,7 +82,7 @@ function extractDomain(url: string): string {
 		}
 	}
 	try {
-		let uri = URI.parse(url);
+		const uri = URI.parse(url);
 		if (uri.authority) {
 			return stripLowLevelDomains(uri.authority);
 		}
@@ -87,10 +93,10 @@ function extractDomain(url: string): string {
 }
 
 export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
-	let domains = new Set<string>();
+	const domains = new Set<string>();
 	let match: RegExpExecArray;
 	while (match = RemoteMatcher.exec(text)) {
-		let domain = extractDomain(match[1]);
+		const domain = extractDomain(match[1]);
 		if (domain) {
 			domains.add(domain);
 		}
@@ -160,8 +166,8 @@ export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: bool
 }
 
 export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileService, stripEndingDotGit: boolean = false): TPromise<string[]> {
-	let path = workspaceUri.path;
-	let uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+	const path = workspaceUri.path;
+	const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
 	return fileService.resolveFile(uri).then(() => {
 		return fileService.resolveContent(uri, { acceptTextOnly: true }).then(
 			content => getHashedRemotesFromConfig(content.value, stripEndingDotGit),
@@ -171,18 +177,24 @@ export function getHashedRemotesFromUri(workspaceUri: URI, fileService: IFileSer
 }
 
 export class WorkspaceStats implements IWorkbenchContribution {
+
+	private static DISABLE_WORKSPACE_PROMPT_KEY = 'workspaces.doNotPromptToOpen2';
+
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWindowService windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@INotificationService private notificationService: INotificationService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IStorageService private storageService: IStorageService
 	) {
 		this.reportWorkspaceTags(windowService.getConfiguration());
 		this.reportCloudStats();
 	}
 
-	public static tags: Tags;
+	static TAGS: Tags;
 
 	private searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
@@ -238,13 +250,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		let workspaceId: string;
+		let isSingleLocalWorkspaceFolder = false;
 		switch (state) {
 			case WorkbenchState.EMPTY:
 				workspaceId = void 0;
 				break;
 			case WorkbenchState.FOLDER:
-				// TODO: #54483 @Ben
-				workspaceId = crypto.createHash('sha1').update(workspace.folders[0].uri.scheme === Schemas.file ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex');
+				isSingleLocalWorkspaceFolder = workspace.folders[0].uri.scheme === Schemas.file;
+				workspaceId = crypto.createHash('sha1').update(isSingleLocalWorkspaceFolder ? workspace.folders[0].uri.fsPath : workspace.folders[0].uri.toString()).digest('hex'); // TODO: #54483 @Ben
 				break;
 			case WorkbenchState.WORKSPACE:
 				workspaceId = crypto.createHash('sha1').update(workspace.configuration.fsPath).digest('hex');
@@ -287,16 +300,16 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
-			let mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
-			let appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
-			let androidManifest = nameSet.has('androidmanifest.xml');
+			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
+			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
+			const androidManifest = nameSet.has('androidmanifest.xml');
 
-			let platforms = nameSet.has('platforms');
-			let plugins = nameSet.has('plugins');
-			let www = nameSet.has('www');
-			let properties = nameSet.has('properties');
-			let resources = nameSet.has('resources');
-			let jni = nameSet.has('jni');
+			const platforms = nameSet.has('platforms');
+			const plugins = nameSet.has('plugins');
+			const www = nameSet.has('www');
+			const properties = nameSet.has('properties');
+			const resources = nameSet.has('resources');
+			const jni = nameSet.has('jni');
 
 			if (tags['workspace.config.xml'] &&
 				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
@@ -347,8 +360,55 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					// Ignore missing file
 				});
 			});
+
+			// Handle top-level workspace files for local single folder workspace
+			if (isSingleLocalWorkspaceFolder) {
+				const workspaceFiles = names.filter(name => extname(name) === `.${WORKSPACE_EXTENSION}`);
+				if (workspaceFiles.length > 0) {
+					this.handleWorkspaceFiles(workspace.folders[0].uri, workspaceFiles);
+				}
+			}
+
 			return TPromise.join(packageJsonPromises).then(() => tags);
 		});
+	}
+
+	private handleWorkspaceFiles(folder: URI, workspaces: string[]): void {
+		if (this.storageService.getBoolean(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, StorageScope.WORKSPACE)) {
+			return; // prompt disabled by user
+		}
+
+		const doNotShowAgain: IPromptChoice = {
+			label: localize('never again', "Don't Show Again"),
+			isSecondary: true,
+			run: () => this.storageService.store(WorkspaceStats.DISABLE_WORKSPACE_PROMPT_KEY, true, StorageScope.WORKSPACE)
+		};
+
+		// Prompt to open one workspace
+		if (workspaces.length === 1) {
+			const workspaceFile = workspaces[0];
+
+			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it (click [here]({1}) to learn more)?", workspaceFile, 'https://code.visualstudio.com/docs/editor/multi-root-workspaces'), [{
+				label: localize('openWorkspace', "Open Workspace"),
+				run: () => this.windowService.openWindow([URI.file(join(folder.fsPath, workspaceFile))])
+			}, doNotShowAgain]);
+		}
+
+		// Prompt to select a workspace from many
+		else if (workspaces.length > 1) {
+			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one (click [here]({0}) to learn more)?", 'https://code.visualstudio.com/docs/editor/multi-root-workspaces'), [{
+				label: localize('selectWorkspace', "Select Workspace"),
+				run: () => {
+					this.quickInputService.pick(
+						workspaces.map(workspace => ({ label: workspace } as IQuickPickItem)),
+						{ placeHolder: localize('selectToOpen', "Select a workspace to open") }).then(pick => {
+							if (pick) {
+								this.windowService.openWindow([URI.file(join(folder.fsPath, pick.label))]);
+							}
+						});
+				}
+			}, doNotShowAgain]);
+		}
 	}
 
 	private findFolders(configuration: IWindowConfiguration): URI[] {
@@ -373,7 +433,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
 	}
 
-	public reportWorkspaceTags(configuration: IWindowConfiguration): void {
+	reportWorkspaceTags(configuration: IWindowConfiguration): void {
 		this.getWorkspaceTags(configuration).then((tags) => {
 			/* __GDPR__
 				"workspce.tags" : {
@@ -383,7 +443,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			*/
 			this.telemetryService.publicLog('workspce.tags', tags);
-			WorkspaceStats.tags = tags;
+			WorkspaceStats.TAGS = tags;
 		}, error => onUnexpectedError(error));
 	}
 
@@ -448,7 +508,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			});
 	}
 
-
 	/* __GDPR__FRAGMENT__
 		"AzureTags" : {
 			"java" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -490,7 +549,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		}).then(null, onUnexpectedError);
 	}
 
-	public reportCloudStats(): void {
+	reportCloudStats(): void {
 		const uris = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		if (uris.length && this.fileService) {
 			this.reportRemoteDomains(uris);
