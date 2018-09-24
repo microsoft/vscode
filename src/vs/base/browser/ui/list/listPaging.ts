@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IVirtualDelegate, IRenderer, IListEvent, IListOpenEvent } from './list';
+import { IVirtualDelegate, IRenderer, IListEvent, IListOpenEvent, IListContextMenuEvent } from './list';
 import { List, IListStyles, IListOptions } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import { Event, mapEvent } from 'vs/base/common/event';
@@ -121,6 +121,10 @@ export class PagedList<T> implements IDisposable {
 
 	get onPin(): Event<IListEvent<T>> {
 		return mapEvent(this.list.onPin, ({ elements, indexes }) => ({ elements: elements.map(e => this._model.get(e)), indexes }));
+	}
+
+	get onContextMenu(): Event<IListContextMenuEvent<T>> {
+		return mapEvent(this.list.onContextMenu, ({ element, index, anchor }) => ({ element: this._model.get(element), index, anchor }));
 	}
 
 	get model(): IPagedModel<T> {
