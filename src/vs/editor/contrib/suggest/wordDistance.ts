@@ -11,6 +11,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { find, build, Block } from 'vs/editor/contrib/smartSelect/tokenTree';
+import { ISuggestion } from 'vs/editor/common/modes';
 
 
 export abstract class WordDistance {
@@ -49,10 +50,14 @@ export abstract class WordDistance {
 		return service.computeWordRanges(model.uri, ranges[0]).then(wordRanges => {
 
 			return new class extends WordDistance {
-				distance(anchor: IPosition, word: string) {
+				distance(anchor: IPosition, suggestion: ISuggestion) {
 					if (!wordRanges || !position.equals(editor.getPosition())) {
 						return 0;
 					}
+					if (suggestion.type === 'keyword') {
+						return 2 << 20;
+					}
+					let word = suggestion.label;
 					let wordLines = wordRanges[word];
 					if (isFalsyOrEmpty(wordLines)) {
 						return 2 << 20;
@@ -72,7 +77,7 @@ export abstract class WordDistance {
 		});
 	}
 
-	abstract distance(anchor: IPosition, word: string): number;
+	abstract distance(anchor: IPosition, suggestion: ISuggestion): number;
 }
 
 

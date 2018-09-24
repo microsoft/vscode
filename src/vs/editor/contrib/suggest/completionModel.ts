@@ -217,7 +217,7 @@ export class CompletionModel {
 			}
 
 			item.idx = i;
-			item.distance = this._wordDistanceOracle.distance(item.position, suggestion.label);
+			item.distance = this._wordDistanceOracle.distance(item.position, suggestion);
 			target.push(item);
 
 			// update stats
