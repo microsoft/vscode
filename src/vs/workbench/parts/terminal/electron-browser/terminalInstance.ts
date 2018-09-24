@@ -35,6 +35,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { execFile } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -656,21 +657,21 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public preparePathForTerminalAsync(path: string): Promise<string> {
 		return new Promise<string>(c => {
-			let preparedPath = path;
-			const hasSpace = preparedPath.indexOf(' ') !== -1;
+			const hasSpace = path.indexOf(' ') !== -1;
 			if (platform.isWindows) {
 				const exe = this.shellLaunchConfig.executable;
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
 				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
-					preparedPath = 'runActive="$(wslpath ' + this._escapeNonWindowsPath(preparedPath) + ')" && "${runActive}"';
+					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+						c(this._escapeNonWindowsPath(stdout.trim()));
+					});
 				} else if (hasSpace) {
-					preparedPath = '"' + preparedPath + '"';
+					c('"' + path + '"');
 				}
 			} else if (!platform.isWindows) {
-				preparedPath = this._escapeNonWindowsPath(preparedPath);
+				c(this._escapeNonWindowsPath(path));
 			}
-			c(preparedPath);
 		});
 	}
 
