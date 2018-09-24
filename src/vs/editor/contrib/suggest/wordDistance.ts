@@ -20,6 +20,10 @@ export abstract class WordDistance {
 
 	static create(service: IEditorWorkerService, editor: ICodeEditor): Thenable<WordDistance> {
 
+		if (!editor.getConfiguration().contribInfo.suggest.localityBonus) {
+			return Promise.resolve(WordDistance.None);
+		}
+
 		const model = editor.getModel();
 		const position = editor.getPosition();
 		const range = new Range(Math.max(1, position.lineNumber - 100), 1, Math.min(model.getLineCount() - 1, position.lineNumber + 100), 1);
