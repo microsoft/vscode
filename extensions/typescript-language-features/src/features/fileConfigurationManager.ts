@@ -36,7 +36,7 @@ function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration):
 
 export default class FileConfigurationManager {
 	private onDidCloseTextDocumentSub: vscode.Disposable | undefined;
-	private formatOptions = new ResourceMap<FileConfiguration>();
+	private readonly formatOptions = new ResourceMap<Promise<FileConfiguration | undefined>>();
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -89,19 +89,27 @@ export default class FileConfigurationManager {
 			return;
 		}
 
-		const cachedOptions = this.formatOptions.get(document.uri);
 		const currentOptions = this.getFileOptions(document, options);
-		if (cachedOptions && areFileConfigurationsEqual(cachedOptions, currentOptions)) {
-			return;
+		const cachedOptions = this.formatOptions.get(document.uri);
+		if (cachedOptions) {
+			const cachedOptionsValue = await cachedOptions;
+			if (cachedOptionsValue && areFileConfigurationsEqual(cachedOptionsValue, currentOptions)) {
+				return;
+			}
 		}
+
+		let resolve: (x: FileConfiguration | undefined) => void;
+		this.formatOptions.set(document.uri, new Promise<FileConfiguration | undefined>(r => resolve = r));
 
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
 		};
-		const response = await this.client.execute('configure', args, token);
-		if (response.type === 'response') {
-			this.formatOptions.set(document.uri, currentOptions);
+		try {
+			const response = await this.client.execute('configure', args, token);
+			resolve!(response.type === 'response' ? currentOptions : undefined);
+		} finally {
+			resolve!(undefined);
 		}
 	}
 
