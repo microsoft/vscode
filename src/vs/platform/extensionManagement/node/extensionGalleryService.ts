@@ -24,6 +24,7 @@ import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -352,6 +353,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
+		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
@@ -521,6 +523,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string> {
+		this.logService.trace('ExtensionGalleryService#download', extension.identifier.id);
 		const zipPath = path.join(tmpdir(), generateUuid());
 		const data = getGalleryExtensionTelemetryData(extension);
 		const startTime = new Date().getTime();
