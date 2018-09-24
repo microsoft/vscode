@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { binarySearch } from 'vs/base/common/arrays';
+import { binarySearch, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -31,16 +31,16 @@ export abstract class WordDistance {
 					if (!lineNumbers || !position.equals(editor.getPosition())) {
 						return 0;
 					}
-					let lineNumber = lineNumbers[word];
-					if (!lineNumber) {
-						return Number.MAX_VALUE;
+					let wordLines = lineNumbers[word];
+					if (isFalsyOrEmpty(wordLines)) {
+						return 101;
 					}
-					let idx = binarySearch(lineNumber, anchor.lineNumber, (a, b) => a - b);
+					let idx = binarySearch(wordLines, anchor.lineNumber, (a, b) => a - b);
 					if (idx >= 0) {
 						return 0;
 					} else {
-						idx = ~idx - 1;
-						return Math.abs(lineNumber[idx] - anchor.lineNumber);
+						idx = Math.max(0, ~idx - 1);
+						return Math.abs(wordLines[idx] - anchor.lineNumber);
 					}
 				}
 			};
