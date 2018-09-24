@@ -100,11 +100,6 @@ declare module 'vscode' {
 		maxLines: number;
 
 		/**
-		 * The maximum number of characters included before the start of the match.
-		 */
-		leadingChars: number;
-
-		/**
 		 * The maximum number of characters included per line.
 		 */
 		totalChars: number;

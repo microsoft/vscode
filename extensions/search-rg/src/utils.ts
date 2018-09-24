@@ -22,7 +22,8 @@ export function anchorGlob(glob: string): string {
 export function createTextSearchResult(uri: vscode.Uri, fullText: string, range: vscode.Range, previewOptions?: vscode.TextSearchPreviewOptions): vscode.TextSearchResult {
 	let preview: vscode.TextSearchResultPreview;
 	if (previewOptions) {
-		const previewStart = Math.max(range.start.character - previewOptions.leadingChars, 0);
+		const leadingChars = Math.floor(previewOptions.totalChars / 5);
+		const previewStart = Math.max(range.start.character - leadingChars, 0);
 		const previewEnd = previewOptions.totalChars + previewStart;
 		const endOfMatchRangeInPreview = Math.min(previewEnd, range.end.character - previewStart);
 

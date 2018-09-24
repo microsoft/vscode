@@ -112,7 +112,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private readonly selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
-	private isWide: boolean;
 
 	private searchWithoutFolderMessageElement: HTMLElement;
 
@@ -802,10 +801,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
-			this.isWide = true;
 			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		} else {
-			this.isWide = false;
 			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		}
 
@@ -1065,8 +1062,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
 		// https://github.com/Microsoft/vscode/issues/58374
 		const totalChars = content.isRegExp ? 10000 :
-			this.isWide ? 250 :
-				75;
+			250;
 
 		const options: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
@@ -1076,7 +1072,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			excludePattern,
 			includePattern,
 			previewOptions: {
-				leadingChars: 20,
 				maxLines: 1,
 				totalChars
 			}

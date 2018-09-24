@@ -141,7 +141,6 @@ export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
 export interface ITextSearchPreviewOptions {
 	maxLines: number;
-	leadingChars: number;
 	totalChars: number;
 }
 
@@ -238,7 +237,8 @@ export class TextSearchResult implements ITextSearchResult {
 	constructor(fullLine: string, range: ISearchRange, previewOptions?: ITextSearchPreviewOptions) {
 		this.range = range;
 		if (previewOptions) {
-			const previewStart = Math.max(range.startColumn - previewOptions.leadingChars, 0);
+			const leadingChars = Math.floor(previewOptions.totalChars / 5);
+			const previewStart = Math.max(range.startColumn - leadingChars, 0);
 			const previewEnd = previewOptions.totalChars + previewStart;
 			const endOfMatchRangeInPreview = Math.min(previewEnd, range.endColumn - previewStart);
 
