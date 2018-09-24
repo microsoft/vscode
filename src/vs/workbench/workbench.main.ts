@@ -9,6 +9,9 @@
 import 'vs/base/common/strings';
 import 'vs/base/common/errors';
 
+// contributions logic
+import 'vs/workbench/browser/contributions';
+
 // Configuration
 import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
 
