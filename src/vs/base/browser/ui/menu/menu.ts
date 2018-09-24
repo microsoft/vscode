@@ -155,11 +155,13 @@ export class Menu extends ActionBar {
 		this.domNode.style.backgroundColor = bgColor;
 		container.style.boxShadow = shadow;
 
-		this.items.forEach(item => {
-			if (item instanceof MenuActionItem || item instanceof MenuSeparatorActionItem) {
-				item.style(style);
-			}
-		});
+		if (this.items) {
+			this.items.forEach(item => {
+				if (item instanceof MenuActionItem || item instanceof MenuSeparatorActionItem) {
+					item.style(style);
+				}
+			});
+		}
 	}
 
 	private focusItemByElement(element: HTMLElement) {
