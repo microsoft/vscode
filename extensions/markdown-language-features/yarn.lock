@@ -5456,9 +5456,9 @@ vm-browserify@0.0.4:
   dependencies:
     indexof "0.0.1"
 
-vscode-extension-telemetry@0.0.20:
-  version "0.0.20"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.20.tgz#60fc09720098ed1bda76088bb9f88a036b6e77eb"
+vscode-extension-telemetry@0.0.21:
+  version "0.0.21"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.21.tgz#293c172f959b7a9ae50f1eeb2e79abb43f7cd2ff"
   dependencies:
     applicationinsights "git://github.com/Microsoft/ApplicationInsights-node.js#e5160c1c29c00e430d414b381077212d4e5bd8b4"
 
