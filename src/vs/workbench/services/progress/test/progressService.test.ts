@@ -79,6 +79,10 @@ class TestPanelService implements IPanelService {
 		return [];
 	}
 
+	public getPinnedPanels(): any[] {
+		return [];
+	}
+
 	public getActivePanel(): IViewlet {
 		return activeViewlet;
 	}
