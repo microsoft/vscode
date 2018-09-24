@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
 import { Git, CommitOptions, Stash, ForcePushMode } from './git';
 import { Repository, Resource, Status, ResourceGroupType } from './repository';
 import { Model } from './model';
@@ -481,18 +481,22 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		let repositoryPath: string | undefined;
+		let repositoryPath: string | undefined = undefined;
 
-		if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
+		if (workspace.workspaceFolders) {
 			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
-			const items = workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder }));
+			const pick = { label: localize('choose', "Choose Folder...") };
+			const items: { label: string, folder?: WorkspaceFolder }[] = [
+				...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
+				pick
+			];
 			const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
 
 			if (!item) {
 				return;
+			} else if (item.folder) {
+				repositoryPath = item.folder.uri.fsPath;
 			}
-
-			repositoryPath = item.folder.uri.fsPath;
 		}
 
 		if (!repositoryPath) {
