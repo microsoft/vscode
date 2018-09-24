@@ -478,15 +478,19 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	showChannel(id: string, preserveFocus?: boolean): TPromise<void> {
 		const channel = this.getChannel(id);
 		if (!channel || this.isChannelShown(channel)) {
+			if (this._outputPanel && !preserveFocus) {
+				this._outputPanel.focus();
+			}
 			return TPromise.as(null);
 		}
 
 		this.activeChannel = channel;
-		let promise = TPromise.as(null);
+		let promise: TPromise<void> = TPromise.as(null);
 		if (this.isPanelShown()) {
 			this.doShowChannel(channel, preserveFocus);
 		} else {
-			promise = this.panelService.openPanel(OUTPUT_PANEL_ID) as TPromise;
+			promise = this.panelService.openPanel(OUTPUT_PANEL_ID)
+				.then(() => this.doShowChannel(this.activeChannel, preserveFocus));
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
@@ -517,7 +521,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
-				return this.doShowChannel(this.activeChannel, false);
+				return this.doShowChannel(this.activeChannel, true);
 			}
 		}
 		return TPromise.as(null);
@@ -596,7 +600,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
 		if (this._outputPanel) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel && channel.outputChannelDescriptor.log);
-			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }), CancellationToken.None)
+			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus }), CancellationToken.None)
 				.then(() => {
 					if (!preserveFocus) {
 						this._outputPanel.focus();
