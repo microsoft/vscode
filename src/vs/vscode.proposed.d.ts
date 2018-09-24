@@ -1040,4 +1040,14 @@ declare module 'vscode' {
 		oneLineAboveText?: RegExp;
 	}
 	//#endregion
+
+	//#region #59232
+
+	export interface QuickPickItem {
+		/**
+		 * Show this item always
+		 */
+		shouldAlwaysShow?: boolean;
+	}
+	//#endregion
 }
