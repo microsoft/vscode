@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import * as os from 'os';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -220,14 +219,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
 		let useWSLexe = false;
 
-		if (osVersion && osVersion.length === 4) {
-			const buildNumber = parseInt(osVersion[3]);
-			if (buildNumber >= 16299) {
-				useWSLexe = true;
-			}
+		if (TerminalInstance.getWindowsBuildNumber() >= 16299) {
+			useWSLexe = true;
 		}
 
 		const expectedLocations = {
