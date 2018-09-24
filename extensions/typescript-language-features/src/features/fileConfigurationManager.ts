@@ -95,12 +95,14 @@ export default class FileConfigurationManager {
 			return;
 		}
 
-		this.formatOptions.set(document.uri, currentOptions);
 		const args: Proto.ConfigureRequestArguments = {
 			file,
 			...currentOptions,
 		};
-		await this.client.execute('configure', args, token);
+		const response = await this.client.execute('configure', args, token);
+		if (response.type === 'response') {
+			this.formatOptions.set(document.uri, currentOptions);
+		}
 	}
 
 	public async setGlobalConfigurationFromDocument(
