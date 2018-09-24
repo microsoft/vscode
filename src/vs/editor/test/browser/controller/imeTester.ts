@@ -145,7 +145,6 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	};
 
 	handler.onType((e) => {
-		console.log('type text: ' + e.text + ', replaceCharCnt: ' + e.replaceCharCnt);
 		let text = model.getModelLineContent(1);
 		let preText = text.substring(0, cursorOffset - e.replaceCharCnt);
 		let postText = text.substring(cursorOffset + cursorLength);

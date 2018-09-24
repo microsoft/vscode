@@ -29,7 +29,7 @@ export class Graph<T> {
 		// empty
 	}
 
-	roots(): Node<T>[] {
+	public roots(): Node<T>[] {
 		const ret: Node<T>[] = [];
 		forEach(this._nodes, entry => {
 			if (isEmptyObject(entry.value.outgoing)) {
@@ -39,7 +39,7 @@ export class Graph<T> {
 		return ret;
 	}
 
-	traverse(start: T, inwards: boolean, callback: (data: T) => void): void {
+	public traverse(start: T, inwards: boolean, callback: (data: T) => void): void {
 		const startNode = this.lookup(start);
 		if (!startNode) {
 			return;
@@ -58,7 +58,7 @@ export class Graph<T> {
 		forEach(nodes, (entry) => this._traverse(entry.value, inwards, seen, callback));
 	}
 
-	insertEdge(from: T, to: T): void {
+	public insertEdge(from: T, to: T): void {
 		const fromNode = this.lookupOrInsertNode(from),
 			toNode = this.lookupOrInsertNode(to);
 
@@ -66,7 +66,7 @@ export class Graph<T> {
 		toNode.incoming[this._hashFn(from)] = fromNode;
 	}
 
-	removeNode(data: T): void {
+	public removeNode(data: T): void {
 		const key = this._hashFn(data);
 		delete this._nodes[key];
 		forEach(this._nodes, (entry) => {
@@ -75,7 +75,7 @@ export class Graph<T> {
 		});
 	}
 
-	lookupOrInsertNode(data: T): Node<T> {
+	public lookupOrInsertNode(data: T): Node<T> {
 		const key = this._hashFn(data);
 		let node = this._nodes[key];
 
@@ -87,7 +87,7 @@ export class Graph<T> {
 		return node;
 	}
 
-	lookup(data: T): Node<T> {
+	public lookup(data: T): Node<T> {
 		return this._nodes[this._hashFn(data)];
 	}
 
@@ -95,7 +95,7 @@ export class Graph<T> {
 		return Object.keys(this._nodes).length;
 	}
 
-	toString(): string {
+	public toString(): string {
 		let data: string[] = [];
 		forEach(this._nodes, entry => {
 			data.push(`${entry.key}, (incoming)[${Object.keys(entry.value.incoming).join(', ')}], (outgoing)[${Object.keys(entry.value.outgoing).join(',')}]`);

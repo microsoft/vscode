@@ -55,7 +55,7 @@ class MutableToken implements CancellationToken {
 	private _isCancelled: boolean = false;
 	private _emitter: Emitter<any>;
 
-	public cancel() {
+	public cancel(): void {
 		if (!this._isCancelled) {
 			this._isCancelled = true;
 			if (this._emitter) {
@@ -100,7 +100,7 @@ export class CancellationTokenSource {
 		return this._token;
 	}
 
-	cancel(): void {
+	public cancel(): void {
 		if (!this._token) {
 			// save an object by returning the default
 			// cancelled token when cancellation happens
@@ -113,7 +113,7 @@ export class CancellationTokenSource {
 		}
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		if (!this._token) {
 			// ensure to initialize with an empty token if we had none
 			this._token = CancellationToken.None;

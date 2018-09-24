@@ -48,28 +48,28 @@ export class StringIterator implements IKeyIterator {
 	private _value: string = '';
 	private _pos: number = 0;
 
-	reset(key: string): this {
+	public reset(key: string): this {
 		this._value = key;
 		this._pos = 0;
 		return this;
 	}
 
-	next(): this {
+	public next(): this {
 		this._pos += 1;
 		return this;
 	}
 
-	hasNext(): boolean {
+	public hasNext(): boolean {
 		return this._pos < this._value.length - 1;
 	}
 
-	cmp(a: string): number {
+	public cmp(a: string): number {
 		let aCode = a.charCodeAt(0);
 		let thisCode = this._value.charCodeAt(this._pos);
 		return aCode - thisCode;
 	}
 
-	value(): string {
+	public value(): string {
 		return this._value[this._pos];
 	}
 }
@@ -80,18 +80,18 @@ export class PathIterator implements IKeyIterator {
 	private _from: number;
 	private _to: number;
 
-	reset(key: string): this {
+	public reset(key: string): this {
 		this._value = key.replace(/\\$|\/$/, '');
 		this._from = 0;
 		this._to = 0;
 		return this.next();
 	}
 
-	hasNext(): boolean {
+	public hasNext(): boolean {
 		return this._to < this._value.length;
 	}
 
-	next(): this {
+	public next(): this {
 		// this._data = key.split(/[\\/]/).filter(s => !!s);
 		this._from = this._to;
 		let justSeps = true;
@@ -110,7 +110,7 @@ export class PathIterator implements IKeyIterator {
 		return this;
 	}
 
-	cmp(a: string): number {
+	public cmp(a: string): number {
 
 		let aPos = 0;
 		let aLen = a.length;
@@ -134,7 +134,7 @@ export class PathIterator implements IKeyIterator {
 		}
 	}
 
-	value(): string {
+	public value(): string {
 		return this._value.substring(this._from, this._to);
 	}
 }
@@ -147,7 +147,7 @@ class TernarySearchTreeNode<E> {
 	mid: TernarySearchTreeNode<E>;
 	right: TernarySearchTreeNode<E>;
 
-	isEmpty(): boolean {
+	public isEmpty(): boolean {
 		return !this.left && !this.mid && !this.right && !this.value;
 	}
 }
@@ -169,11 +169,11 @@ export class TernarySearchTree<E> {
 		this._iter = segments;
 	}
 
-	clear(): void {
+	public clear(): void {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): E {
+	public set(key: string, element: E): E {
 		let iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<E>;
 
@@ -219,7 +219,7 @@ export class TernarySearchTree<E> {
 		return oldElement;
 	}
 
-	get(key: string): E {
+	public get(key: string): E {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -241,7 +241,7 @@ export class TernarySearchTree<E> {
 		return node ? node.value : undefined;
 	}
 
-	delete(key: string): void {
+	public delete(key: string): void {
 
 		let iter = this._iter.reset(key);
 		let stack: [-1 | 0 | 1, TernarySearchTreeNode<E>][] = [];
@@ -282,7 +282,7 @@ export class TernarySearchTree<E> {
 		}
 	}
 
-	findSubstr(key: string): E {
+	public findSubstr(key: string): E {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		let candidate: E;
@@ -306,7 +306,7 @@ export class TernarySearchTree<E> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: string): Iterator<E> {
+	public findSuperstr(key: string): Iterator<E> {
 		let iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -331,6 +331,10 @@ export class TernarySearchTree<E> {
 			}
 		}
 		return undefined;
+	}
+
+	public forEach(callback: (value: E, index: string) => any) {
+		this._forEach(this._root, callback);
 	}
 
 	private _nodeIterator(node: TernarySearchTreeNode<E>): Iterator<E> {
@@ -359,9 +363,6 @@ export class TernarySearchTree<E> {
 		return { next };
 	}
 
-	forEach(callback: (value: E, index: string) => any) {
-		this._forEach(this._root, callback);
-	}
 
 	private _forEach(node: TernarySearchTreeNode<E>, callback: (value: E, index: string) => any) {
 		if (node) {
@@ -424,15 +425,6 @@ export class ResourceMap<T> {
 		return values(this.map);
 	}
 
-	private toKey(resource: URI): string {
-		let key = resource.toString();
-		if (this.ignoreCase) {
-			key = key.toLowerCase();
-		}
-
-		return key;
-	}
-
 	public keys(): URI[] {
 		return keys(this.map).map(URI.parse);
 	}
@@ -444,6 +436,16 @@ export class ResourceMap<T> {
 
 		return resourceMap;
 	}
+
+	private toKey(resource: URI): string {
+		let key = resource.toString();
+		if (this.ignoreCase) {
+			key = key.toLowerCase();
+		}
+
+		return key;
+	}
+
 }
 
 // We should fold BoundedMap and LinkedMap. See https://github.com/Microsoft/vscode/issues/28496
