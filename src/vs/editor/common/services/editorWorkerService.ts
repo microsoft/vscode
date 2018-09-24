@@ -25,8 +25,8 @@ export interface IEditorWorkerService {
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): TPromise<TextEdit[]>;
 
-	canComputeWordLines(resource: URI): boolean;
-	computeWordLines(resource: URI, range: IRange): TPromise<{ [word: string]: number[] }>;
+	canComputeWordRanges(resource: URI): boolean;
+	computeWordRanges(resource: URI, range: IRange): TPromise<{ [word: string]: IRange[] }>;
 
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<IInplaceReplaceSupportResult>;

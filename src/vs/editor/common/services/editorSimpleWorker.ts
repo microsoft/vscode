@@ -500,13 +500,13 @@ export abstract class BaseEditorSimpleWorker {
 
 	//#region -- word ranges --
 
-	computeWordLines(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: number[] }> {
+	computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
-			return Promise.resolve({});
+			return Promise.resolve(Object.create(null));
 		}
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-		const result: { [word: string]: number[] } = Object.create(null);
+		const result: { [word: string]: IRange[] } = Object.create(null);
 		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
 			let words = model.getLineWords(line, wordDefRegExp);
 			for (const word of words) {
@@ -518,7 +518,12 @@ export abstract class BaseEditorSimpleWorker {
 					array = [];
 					result[word.word] = array;
 				}
-				array.push(line);
+				array.push({
+					startLineNumber: line,
+					startColumn: word.startColumn,
+					endLineNumber: line,
+					endColumn: word.endColumn
+				});
 			}
 		}
 		return Promise.resolve(result);

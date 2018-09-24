@@ -178,7 +178,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
 			const oracle = new SuggestModel(editor, new class extends mock<IEditorWorkerService>() {
-				computeWordLines(): Promise<{ [word: string]: number[] }> {
+				computeWordRanges() {
 					return Promise.resolve({});
 				}
 

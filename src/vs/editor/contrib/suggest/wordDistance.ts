@@ -28,52 +28,45 @@ export abstract class WordDistance {
 		const model = editor.getModel();
 		const position = editor.getPosition();
 
+		if (!service.canComputeWordRanges(model.uri)) {
+			return Promise.resolve(WordDistance.None);
+		}
+
 		// use token tree ranges
 		let node = find(build(model), position);
-		let blockScores = new Map<number, number>();
-		let score = 0;
-
+		let ranges: Range[] = [];
 		let stop = false;
-		let lastRange: Range;
 		while (node && !stop) {
 			if (node instanceof Block || !node.parent) {
 				// assign block score
-				score += 1;
-				if (!lastRange) {
-					for (let line = node.start.lineNumber; line <= node.end.lineNumber; line++) {
-						blockScores.set(line, score);
-					}
-				} else {
-					for (let line = node.start.lineNumber; line < lastRange.startLineNumber; line++) {
-						blockScores.set(line, score);
-					}
-					for (let line = lastRange.endLineNumber; line <= node.end.lineNumber; line++) {
-						blockScores.set(line, score);
-					}
-				}
-				lastRange = node.range;
+				ranges.push(node.range);
 				stop = node.end.lineNumber - node.start.lineNumber >= 100;
 			}
 			node = node.parent;
 		}
+		ranges.reverse();
 
-		return service.computeWordLines(model.uri, lastRange).then(lineNumbers => {
+		return service.computeWordRanges(model.uri, ranges[0]).then(wordRanges => {
 
 			return new class extends WordDistance {
 				distance(anchor: IPosition, word: string) {
-					if (!lineNumbers || !position.equals(editor.getPosition())) {
+					if (!wordRanges || !position.equals(editor.getPosition())) {
 						return 0;
 					}
-					let wordLines = lineNumbers[word];
+					let wordLines = wordRanges[word];
 					if (isFalsyOrEmpty(wordLines)) {
-						return 101;
+						return 2 << 20;
 					}
-					let idx = binarySearch(wordLines, anchor.lineNumber, (a, b) => a - b);
-					let wordLineNumber = idx >= 0 ? wordLines[idx] : wordLines[Math.max(0, ~idx - 1)];
-					if (!blockScores.has(wordLineNumber)) {
-						return 101;
+					let idx = binarySearch(wordLines, Range.fromPositions(anchor), Range.compareRangesUsingStarts);
+					let bestWordRange = idx >= 0 ? wordLines[idx] : wordLines[Math.max(0, ~idx - 1)];
+					let blockDistance = ranges.length;
+					for (const range of ranges) {
+						if (!Range.containsRange(range, bestWordRange)) {
+							break;
+						}
+						blockDistance -= 1;
 					}
-					return blockScores.get(wordLineNumber);
+					return blockDistance;
 				}
 			};
 		});
