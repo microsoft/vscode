@@ -28,4 +28,9 @@ export class ActivityService implements IActivityService {
 
 		return this.activitybarPart.showActivity(compositeOrActionId, badge, clazz, priority);
 	}
+
+	getPinnedViewletIds(): string[] {
+		return this.activitybarPart.getPinnedViewletIds();
+	}
+
 }

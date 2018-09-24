@@ -762,7 +762,7 @@ export class Workbench extends Disposable implements IPartService {
 
 			return {
 				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-				pinnedViewlets: this.activitybarPart.getPinned(),
+				pinnedViewlets: this.activitybarPart.getPinnedViewletIds(),
 				restoredViewlet: viewletIdToRestore,
 				restoredEditorsCount: this.editorService.visibleEditors.length
 			};

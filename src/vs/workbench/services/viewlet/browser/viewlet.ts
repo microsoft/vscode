@@ -42,7 +42,7 @@ export interface IViewletService {
 	getViewlet(id: string): ViewletDescriptor;
 
 	/**
-	 * Returns all viewlets
+	 * Returns all enabled viewlets following the default order (Explorer - Search - SCM - Debug - Extensions)
 	 */
 	getAllViewlets(): ViewletDescriptor[];
 
