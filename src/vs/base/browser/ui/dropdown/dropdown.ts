@@ -310,7 +310,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 			options.actionProvider = this.menuActionsOrProvider;
 		}
 
-		this.dropdownMenu = new DropdownMenu(container, options);
+		this.dropdownMenu = this._register(new DropdownMenu(container, options));
 
 		this.dropdownMenu.menuOptions = {
 			actionItemProvider: this.actionItemProvider,
@@ -332,11 +332,5 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		if (this.dropdownMenu) {
 			this.dropdownMenu.show();
 		}
-	}
-
-	dispose(): void {
-		this.dropdownMenu.dispose();
-
-		super.dispose();
 	}
 }
