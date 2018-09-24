@@ -1209,6 +1209,10 @@ export class Repository {
 			} else if (/Pull is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
 				err.stderr = err.stderr.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
 				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
+			} else if (/cannot lock ref|unable to update local ref/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.CantLockRef;
+			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
 			}
 
 			throw err;

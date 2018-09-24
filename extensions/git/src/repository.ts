@@ -1171,7 +1171,7 @@ export class Repository implements Disposable {
 		this._onRunOperation.fire(operation);
 
 		try {
-			const result = await this.retryRun(runOperation);
+			const result = await this.retryRun(operation, runOperation);
 
 			if (!isReadOnly(operation)) {
 				await this.updateModelState();
@@ -1192,7 +1192,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async retryRun<T>(runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		let attempt = 0;
 
 		while (true) {
@@ -1200,7 +1200,12 @@ export class Repository implements Disposable {
 				attempt++;
 				return await runOperation();
 			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.RepositoryIsLocked && attempt <= 10) {
+				const shouldRetry = attempt <= 10 && (
+					(err.gitErrorCode === GitErrorCodes.RepositoryIsLocked)
+					|| ((operation === Operation.Pull || operation === Operation.Sync) && (err.gitErrorCode === GitErrorCodes.CantLockRef || err.gitErrorCode === GitErrorCodes.CantRebaseMultipleBranches))
+				);
+
+				if (shouldRetry) {
 					// quatratic backoff
 					await timeout(Math.pow(attempt, 2) * 50);
 				} else {

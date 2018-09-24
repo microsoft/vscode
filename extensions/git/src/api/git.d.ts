@@ -168,4 +168,6 @@ export const enum GitErrorCodes {
 	NoUpstreamBranch = 'NoUpstreamBranch',
 	IsInSubmodule = 'IsInSubmodule',
 	WrongCase = 'WrongCase',
+	CantLockRef = 'CantLockRef',
+	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
 }
