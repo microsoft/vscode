@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { SuggestRegistry } from 'vs/editor/common/modes';
+import { SuggestRegistry, SuggestionKind } from 'vs/editor/common/modes';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -27,15 +27,15 @@ suite('Suggest', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'aaa',
-						type: 'snippet',
+						kind: SuggestionKind.Snippet,
 						insertText: 'aaa'
 					}, {
 						label: 'zzz',
-						type: 'snippet',
+						kind: SuggestionKind.Snippet,
 						insertText: 'zzz'
 					}, {
 						label: 'fff',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'fff'
 					}]
 				};

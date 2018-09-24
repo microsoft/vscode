@@ -278,7 +278,7 @@ export class SuggestController implements IEditorContribution {
 			}
 		*/
 		service.publicLog('acceptSuggestion', {
-			type: item.type,
+			type: item.kind,
 			multiline: item.insertText.match(/\r|\n/)
 		});
 	}
