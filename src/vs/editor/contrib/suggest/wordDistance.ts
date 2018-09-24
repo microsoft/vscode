@@ -10,6 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { find, build, Block } from 'vs/editor/contrib/smartSelect/tokenTree';
 
 
 export abstract class WordDistance {
@@ -26,9 +27,37 @@ export abstract class WordDistance {
 
 		const model = editor.getModel();
 		const position = editor.getPosition();
-		const range = new Range(Math.max(1, position.lineNumber - 100), 1, Math.min(model.getLineCount() - 1, position.lineNumber + 100), 1);
 
-		return service.computeWordLines(model.uri, range).then(lineNumbers => {
+		// use token tree ranges
+		let node = find(build(model), position);
+		let blockScores = new Map<number, number>();
+		let score = 0;
+
+		let stop = false;
+		let lastRange: Range;
+		while (node && !stop) {
+			if (node instanceof Block || !node.parent) {
+				// assign block score
+				score += 1;
+				if (!lastRange) {
+					for (let line = node.start.lineNumber; line <= node.end.lineNumber; line++) {
+						blockScores.set(line, score);
+					}
+				} else {
+					for (let line = node.start.lineNumber; line < lastRange.startLineNumber; line++) {
+						blockScores.set(line, score);
+					}
+					for (let line = lastRange.endLineNumber; line <= node.end.lineNumber; line++) {
+						blockScores.set(line, score);
+					}
+				}
+				lastRange = node.range;
+				stop = node.end.lineNumber - node.start.lineNumber >= 100;
+			}
+			node = node.parent;
+		}
+
+		return service.computeWordLines(model.uri, lastRange).then(lineNumbers => {
 
 			return new class extends WordDistance {
 				distance(anchor: IPosition, word: string) {
@@ -40,12 +69,11 @@ export abstract class WordDistance {
 						return 101;
 					}
 					let idx = binarySearch(wordLines, anchor.lineNumber, (a, b) => a - b);
-					if (idx >= 0) {
-						return 0;
-					} else {
-						idx = Math.max(0, ~idx - 1);
-						return Math.abs(wordLines[idx] - anchor.lineNumber);
+					let wordLineNumber = idx >= 0 ? wordLines[idx] : wordLines[Math.max(0, ~idx - 1)];
+					if (!blockScores.has(wordLineNumber)) {
+						return 101;
 					}
+					return blockScores.get(wordLineNumber);
 				}
 			};
 		});
