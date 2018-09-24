@@ -351,12 +351,13 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
-			.then(content => {
-				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
-				this.etag = content.etag;
-				return this.createModel(content.value);
-			});
+		return this.readContent()
+			.then(content => this.createModel(content));
+	}
+
+	clear(): void {
+		this.readContent() // Read content from the file before clearing
+			.then(() => super.clear());
 	}
 
 	append(message: string): void {
@@ -389,6 +390,15 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	protected onUpdateModelCancelled(): void {
 		this.updateInProgress = false;
+	}
+
+	private readContent(): TPromise<string> {
+		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
+			.then(content => {
+				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
+				this.etag = content.etag;
+				return content.value;
+			});
 	}
 
 	private onDidContentChange(size: number): void {
