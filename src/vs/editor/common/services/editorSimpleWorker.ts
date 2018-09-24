@@ -506,7 +506,7 @@ export abstract class BaseEditorSimpleWorker {
 			return Promise.resolve({});
 		}
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-		const result: { [word: string]: number[] } = {};
+		const result: { [word: string]: number[] } = Object.create(null);
 		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
 			let words = model.getLineWords(line, wordDefRegExp);
 			for (const word of words) {
