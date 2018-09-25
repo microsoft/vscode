@@ -410,7 +410,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				});
 			}
 
-			const addPythonTags = (packageName: string) => {
+			function addPythonTags(packageName: string): void {
 				if (PyModulesToLookFor.indexOf(packageName) > -1) {
 					tags['workspace.py.' + packageName] = true;
 				}
@@ -421,45 +421,37 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				if (!tags['workspace.py.any-azure']) {
 					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
 				}
-			};
+			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
-				try {
-					let dependencies: string[] = content.value.split('\n');
-
-					for (let dependency of dependencies) {
-						// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
-						const format1 = dependency.split('==');
-						const format2 = dependency.split('>=');
-						const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
-						addPythonTags(packageName);
-					}
-				} catch (e) {
-					// Ignore errors when resolving file or parsing file contents
+				const dependencies: string[] = content.value.split('\n');
+				for (let dependency of dependencies) {
+					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
+					const format1 = dependency.split('==');
+					const format2 = dependency.split('>=');
+					const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
+					addPythonTags(packageName);
 				}
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
-				try {
-					let dependencies: string[] = content.value.split('\n');
+				let dependencies: string[] = content.value.split('\n');
 
-					// We're only interested in the '[packages]' section of the Pipfile
-					dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
+				// We're only interested in the '[packages]' section of the Pipfile
+				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
 
-					for (let dependency of dependencies) {
-						if (dependency.trim().indexOf('[') > -1) {
-							break;
-						}
-						// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
-						if (dependency.indexOf('=') === -1) {
-							continue;
-						}
-						let packageName = dependency.split('=')[0];
-						addPythonTags(packageName);
+				for (let dependency of dependencies) {
+					if (dependency.trim().indexOf('[') > -1) {
+						break;
 					}
-				} catch (e) {
-					// Ignore errors when resolving file or parsing file contents
+					// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
+					if (dependency.indexOf('=') === -1) {
+						continue;
+					}
+					const packageName = dependency.split('=')[0];
+					addPythonTags(packageName);
 				}
+
 			});
 
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, content => {
