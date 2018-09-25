@@ -410,55 +410,48 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				});
 			}
 
-			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
-				try {
-					let dependencies: string[] = content.value.split('\n');
-					if (!tags['workspace.py.any-azure']) {
-						tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
-					}
+			function addPythonTags(packageName: string): void {
+				if (PyModulesToLookFor.indexOf(packageName) > -1) {
+					tags['workspace.py.' + packageName] = true;
+				}
+				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+				if (packageName.indexOf('azure-cognitiveservices') > -1) {
+					tags['workspace.py.cognitiveservices'] = true;
+				}
+				if (!tags['workspace.py.any-azure']) {
+					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
+				}
+			}
 
-					for (let dependency of dependencies) {
-						// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
-						const format1 = dependency.split('==');
-						const format2 = dependency.split('>=');
-						let packageName = format1.length > format2.length ? format1[0].trim() : format2[0].trim();
-						if (PyModulesToLookFor.indexOf(packageName) > -1) {
-							tags['workspace.py.' + packageName] = true;
-						}
-						// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
-						if (packageName.indexOf('azure-cognitiveservices') > -1) {
-							tags['workspace.py.cognitiveservices'] = true;
-						}
-					}
-				} catch (e) {
-					// Ignore errors when resolving file or parsing file contents
+			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
+				const dependencies: string[] = content.value.split('\r\n|\n');
+				for (let dependency of dependencies) {
+					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
+					const format1 = dependency.split('==');
+					const format2 = dependency.split('>=');
+					const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
+					addPythonTags(packageName);
 				}
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
-				try {
-					let dependencies: string[] = content.value.split('\n');
-					if (!tags['workspace.py.any-azure']) {
-						tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
-					}
+				let dependencies: string[] = content.value.split('\r\n|\n');
 
-					// We're only interested in the '[packages]' section of the Pipfile
-					dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1, dependencies.indexOf('[dev-packages]'));
+				// We're only interested in the '[packages]' section of the Pipfile
+				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
 
-					for (let dependency of dependencies) {
-						// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
-						let packageName = dependency.split('=')[0].trim();
-						if (PyModulesToLookFor.indexOf(packageName) > -1) {
-							tags['workspace.py.' + packageName] = true;
-						}
-						// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
-						if (packageName.indexOf('azure-cognitiveservices') > -1) {
-							tags['workspace.py.cognitiveservices'] = true;
-						}
+				for (let dependency of dependencies) {
+					if (dependency.trim().indexOf('[') > -1) {
+						break;
 					}
-				} catch (e) {
-					// Ignore errors when resolving file or parsing file contents
+					// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
+					if (dependency.indexOf('=') === -1) {
+						continue;
+					}
+					const packageName = dependency.split('=')[0];
+					addPythonTags(packageName);
 				}
+
 			});
 
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, content => {
