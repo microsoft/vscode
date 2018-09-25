@@ -419,7 +419,7 @@ export class DebugService implements IDebugService {
 	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		return session.initialize(dbgr).then(() => {
-			session.launchOrAttach(session.configuration).then(() => {
+			return session.launchOrAttach(session.configuration).then(() => {
 				if (focus) {
 					this.focusStackFrame(undefined, undefined, session);
 				}
