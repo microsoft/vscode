@@ -424,7 +424,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			}
 
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
-				const dependencies: string[] = content.value.split('\n');
+				const dependencies: string[] = content.value.split('\r\n|\n');
 				for (let dependency of dependencies) {
 					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
 					const format1 = dependency.split('==');
@@ -435,7 +435,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
-				let dependencies: string[] = content.value.split('\n');
+				let dependencies: string[] = content.value.split('\r\n|\n');
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
