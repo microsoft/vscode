@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeNode } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeFilter, Visibility } from 'vs/base/browser/ui/tree/treeModel';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator } from 'vs/base/common/iterator';
 
@@ -330,5 +330,41 @@ suite('TreeModel2', function () {
 		model.setCollapsed([1], true);
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(toArray(list), [1, 11, 2]);
+	});
+
+	test('simple filter', function () {
+		const list = [] as ITreeNode<number>[];
+		const filter = new class implements ITreeFilter<number> {
+			getVisibility(element: number): Visibility {
+				return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{ element: 0 },
+			{ element: 1 },
+			{ element: 2 },
+			{ element: 3 },
+			{ element: 4 },
+			{ element: 5 },
+			{ element: 6 },
+			{ element: 7 }
+		]));
+
+		assert.deepEqual(list.length, 4);
+		assert.deepEqual(list[0].element, 0);
+		assert.deepEqual(list[0].collapsed, false);
+		assert.deepEqual(list[0].depth, 1);
+		assert.deepEqual(list[1].element, 2);
+		assert.deepEqual(list[1].collapsed, false);
+		assert.deepEqual(list[1].depth, 1);
+		assert.deepEqual(list[2].element, 4);
+		assert.deepEqual(list[2].collapsed, false);
+		assert.deepEqual(list[2].depth, 1);
+		assert.deepEqual(list[3].element, 6);
+		assert.deepEqual(list[3].collapsed, false);
+		assert.deepEqual(list[3].depth, 1);
 	});
 });

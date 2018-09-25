@@ -52,12 +52,12 @@ function isFilterResult<T>(obj: any): obj is IFilterResult<T> {
 	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
 }
 
-export interface IFilter<T, TFilterData> {
+export interface ITreeFilter<T, TFilterData = void> {
 	getVisibility(element: T): Visibility | IFilterResult<TFilterData>;
 }
 
 function visibleCountReducer<T>(result: number, node: IMutableTreeNode<T, any>): number {
-	return result + (node.collapsed ? 1 : node.revealedCount);
+	return result + (node.visible ? (node.collapsed ? 1 : node.revealedCount) : 0);
 }
 
 function getVisibleCount<T>(nodes: IMutableTreeNode<T, any>[]): number {
@@ -71,8 +71,14 @@ function getVisibleCount<T>(nodes: IMutableTreeNode<T, any>[]): number {
 function updateVisibleCount<T, TFilterData>(node: IMutableTreeNode<T, TFilterData>): ITreeNode<T, TFilterData>[] {
 	const previousVisibleCount = node.revealedCount;
 	const result: ITreeNode<T, TFilterData>[] = [];
+	let first = true;
 
 	function _updateVisibleCount(node: IMutableTreeNode<T, TFilterData>): number {
+		if (!first && !node.visible) {
+			return 0;
+		}
+
+		first = false;
 		result.push(node);
 		node.revealedCount = 1;
 
@@ -127,7 +133,7 @@ export function getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
 }
 
 export interface ITreeOptions<T, TFilterData = void> {
-	filter?: IFilter<T, TFilterData>;
+	filter?: ITreeFilter<T, TFilterData>;
 }
 
 export class TreeModel<T, TFilterData = void> {
@@ -147,7 +153,7 @@ export class TreeModel<T, TFilterData = void> {
 	private _onDidChangeCollapseState = new Emitter<ITreeNode<T, TFilterData>>();
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this._onDidChangeCollapseState.event;
 
-	private filter?: IFilter<T, TFilterData>;
+	private filter?: ITreeFilter<T, TFilterData>;
 
 	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData> = {}) {
 		this.filter = options.filter;
@@ -186,11 +192,13 @@ export class TreeModel<T, TFilterData = void> {
 		if (isFilterResult(visibility)) {
 			visible = visibility.visibility === Visibility.Visible;
 			filterData = visibility.data;
+		} else {
+			visible = visibility === Visibility.Visible;
 		}
 
 		const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, revealedCount: 1, visible, filterData };
 
-		if (revealed) {
+		if (revealed && visible) {
 			treeListElements.push(node);
 		}
 
