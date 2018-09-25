@@ -101,7 +101,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
 		renderTwistie(node, templateData.twistie);
-		templateData.count.textContent = `${node.visibleCount}`;
+		templateData.count.textContent = `${node.revealedCount}`;
 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
@@ -122,7 +122,7 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 		}
 
 		renderTwistie(node, templateData.twistie);
-		templateData.count.textContent = `${node.visibleCount}`;
+		templateData.count.textContent = `${node.revealedCount}`;
 	}
 
 	dispose(): void {
