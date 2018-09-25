@@ -228,7 +228,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 	}
 
-	private searchArray(arr: string[], regEx: RegExp): boolean {
+	private static searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
@@ -354,8 +354,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.config.xml'] = nameSet.has('config.xml');
 			tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
 
-			tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
-			tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
+			tags['workspace.ASP5'] = nameSet.has('project.json') && WorkspaceStats.searchArray(names, /^.+\.cs$/i);
+			tags['workspace.sln'] = WorkspaceStats.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
@@ -363,9 +363,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
 			tags['workspace.py.requirements'] = nameSet.has('requirements.txt');
-			tags['workspace.py.requirements.star'] = this.searchArray(names, /^(.*)requirements(.*)+\.txt$/i);
+			tags['workspace.py.requirements.star'] = WorkspaceStats.searchArray(names, /^(.*)requirements(.*)+\.txt$/i);
 			tags['workspace.py.Pipfile'] = nameSet.has('Pipfile');
-			tags['workspace.py.conda'] = this.searchArray(names, /^environment+(\.yml$|\.yaml$)/i);
+			tags['workspace.py.conda'] = WorkspaceStats.searchArray(names, /^environment+(\.yml$|\.yaml$)/i);
 
 			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
 			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
@@ -415,7 +415,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
 				console.log(content.value);
 				let dependencies: string[] = content.value.split('\n');
-				tags['workspace.py.any-azure'] = this.searchArray(dependencies, /azure/i);
+				tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
 				for (let dependency of dependencies) {
 					let packageName = dependency.split('==')[0];
 					if (PyModulesToLookFor.indexOf(packageName) > -1) {
@@ -591,7 +591,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
-				const referencesAzure = this.searchArray(names, /azure/i);
+				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;
 				}
