@@ -97,12 +97,12 @@ declare module 'vscode' {
 		 * The maximum number of lines in the preview.
 		 * Only search providers that support multiline search will ever return more than one line in the match.
 		 */
-		maxLines: number;
+		matchLines: number;
 
 		/**
 		 * The maximum number of characters included per line.
 		 */
-		totalChars: number;
+		charsPerLine: number;
 	}
 
 	/**

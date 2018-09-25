@@ -10,8 +10,8 @@ import { ITextSearchPreviewOptions, OneLineRange, TextSearchResult } from 'vs/pl
 suite('TextSearchResult', () => {
 
 	const previewOptions1: ITextSearchPreviewOptions = {
-		maxLines: 1,
-		totalChars: 100
+		matchLines: 1,
+		charsPerLine: 100
 	};
 
 	function assertPreviewRangeText(text: string, result: TextSearchResult): void {
@@ -71,8 +71,8 @@ suite('TextSearchResult', () => {
 
 	test('truncating match', () => {
 		const previewOptions: ITextSearchPreviewOptions = {
-			maxLines: 1,
-			totalChars: 1
+			matchLines: 1,
+			charsPerLine: 1
 		};
 
 		const range = new OneLineRange(0, 4, 7);

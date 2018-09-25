@@ -396,8 +396,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
 			{
-				maxLines: 100,
-				totalChars: 10000
+				matchLines: 100,
+				charsPerLine: 10000
 			} :
 			options.previewOptions;
 

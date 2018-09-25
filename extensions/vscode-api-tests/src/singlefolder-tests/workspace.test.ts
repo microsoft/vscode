@@ -514,8 +514,8 @@ suite('workspace-namespace', () => {
 		const options: vscode.FindTextInFilesOptions = {
 			include: '*.ts',
 			previewOptions: {
-				maxLines: 1,
-				totalChars: 100
+				matchLines: 1,
+				charsPerLine: 100
 			}
 		};
 
