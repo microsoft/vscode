@@ -464,9 +464,7 @@ export class DebugService implements IDebugService {
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
 		}).then(() => session, (error: Error | string) => {
 
-			if (session) {
-				session.shutdown();
-			}
+			session.shutdown();
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
@@ -480,12 +478,12 @@ export class DebugService implements IDebugService {
 
 			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
 				// ignore attach timeouts in auto attach mode
-			} else {
-				const errorMessage = error instanceof Error ? error.message : error;
-				this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				return TPromise.as(undefined);
 			}
-			return TPromise.as(undefined);
+
+			const errorMessage = error instanceof Error ? error.message : error;
+			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
+			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 		});
 	}
 
