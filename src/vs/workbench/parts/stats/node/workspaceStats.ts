@@ -419,9 +419,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 					for (let dependency of dependencies) {
 						// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
-						const format1 = dependency.split('==')[0];
-						const format2 = dependency.split('>=')[0];
-						let packageName = format1.length > format2.length ? format1.trim() : format2.trim();
+						const format1 = dependency.split('==');
+						const format2 = dependency.split('>=');
+						let packageName = format1.length > format2.length ? format1[0].trim() : format2[0].trim();
 						if (PyModulesToLookFor.indexOf(packageName) > -1) {
 							tags['workspace.py.' + packageName] = true;
 						}
