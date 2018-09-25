@@ -72,7 +72,6 @@ const PyModulesToLookFor = [
 	'azure-storage-queue',
 	'azure-mgmt',
 	'azure-shell',
-	'pulumi-azure',
 	'azure-cosmos',
 	'azure-devtools',
 	'azure-elasticluster',
@@ -411,6 +410,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				});
 			}
 
+			let dependencyFilePromises;
+
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
 				console.log(content.value);
 				let dependencies: string[] = content.value.split('\n');
@@ -449,7 +450,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			});
 
-			return TPromise.join(packageJsonPromises.concat(requirementsTxtPromises)).then(() => tags);
+			dependencyFilePromises = packageJsonPromises.concat(requirementsTxtPromises);
+
+			return TPromise.join(dependencyFilePromises).then(() => tags);
 		});
 	}
 
