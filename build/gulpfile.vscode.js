@@ -195,39 +195,12 @@ function getElectron(arch) {
 	};
 }
 
-function getElectronForPlatform(platform, arch){
-	return () => {
-		const electronOpts = _.extend({}, config, {
-			platform: platform,
-			arch,
-			ffmpegChromium: true,
-			keepDefaultApp: true
-		});
-
-		return gulp.src('package.json')
-			.pipe(json({ name: product.nameShort }))
-			.pipe(electron(electronOpts))
-			.pipe(filter(['**', '!**/app/package.json']))
-			.pipe(vfs.dest('.build/electron-'+ platform + '-' + arch));
-	};
-}
-
 gulp.task('clean-electron', util.rimraf('.build/electron'));
 gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 gulp.task('electron-arm', ['clean-electron'], getElectron('arm'));
 gulp.task('electron-arm64', ['clean-electron'], getElectron('arm64'));
-
-// Electron Builds for UWP
-gulp.task('electron-win32-ia32', ['clean-electron'], getElectronForPlatform('win32', 'ia32'));
-gulp.task('electron-win32-x64', ['clean-electron'], getElectronForPlatform('win32', 'x64'));
-
-gulp.task('clean-electron-for-uwp', () => {
-	util.rimraf('.build/electron-win32-x64');
-	util.rimraf('.build/electron-win32-ia32');
-});
-gulp.task('electron-for-uwp', ['clean-electron-for-uwp' ,'electron-win32-x64', 'electron-win32-ia32']);
 
 /**
  * Compute checksums for some files.
@@ -443,41 +416,35 @@ function packageTask(platform, arch, opts) {
 
 const buildRoot = path.dirname(root);
 
-gulp.task('clean-vscode-win32-ia32', util.rimraf(path.join(buildRoot, 'VSCode-win32-ia32')));
-gulp.task('clean-vscode-win32-x64', util.rimraf(path.join(buildRoot, 'VSCode-win32-x64')));
+function defineVSCodeTasks(os, arch){
+	gulp.task(`clean-vscode-${os}-${arch}`, util.rimraf(path.join(buildRoot, `VSCode-${os}-${arch}`)));
+	gulp.task(`vscode-${os}-${arch}`, ['optimize-vscode', `clean-vscode-${os}-${arch}`], packageTask(os, arch));
+	gulp.task(`vscode-${os}-${arch}-internal`, ['optimize-vscode', `clean-vscode-${os}-${arch}`], packageTask(os, arch, { buildinternal: true }));
+	gulp.task(`vscode-${os}-${arch}-min`, ['minify-vscode', `clean-vscode-${os}-${arch}`], packageTask(os, arch, { minified: true }));
+	gulp.task(`vscode-${os}-${arch}-internal-min`, ['minify-vscode', `clean-vscode-${os}-${arch}`], packageTask(os, arch, { buildinternal: true, minified: true }));
+}
+
+defineVSCodeTasks("win32", "ia32");
+defineVSCodeTasks("win32", "x64");
+defineVSCodeTasks("linux", "ia32");
+defineVSCodeTasks("linux", "x64");
+defineVSCodeTasks("linux", "arm");
+defineVSCodeTasks("linux", "arm64");
+
 gulp.task('clean-vscode-darwin', util.rimraf(path.join(buildRoot, 'VSCode-darwin')));
-gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(buildRoot, 'VSCode-linux-ia32')));
-gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(buildRoot, 'VSCode-linux-x64')));
-gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(buildRoot, 'VSCode-linux-arm')));
-gulp.task('clean-vscode-linux-arm64', util.rimraf(path.join(buildRoot, 'VSCode-linux-arm64')));
-
-gulp.task('vscode-win32-ia32', ['optimize-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32'));
-gulp.task('vscode-win32-x64', ['optimize-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64'));
-gulp.task('vscode-win32-ia32-internal', ['optimize-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32', { buildinternal: true }));
-gulp.task('vscode-win32-x64-internal', ['optimize-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64', { buildinternal: true }));
-
-// Build all Win32 Internally
-gulp.task('vscode-win32-bundle', ['optimize-vscode', 'clean-vscode-win32-ia32', 'clean-vscode-win32-x64', 'vscode-win32-ia32-internal', 'vscode-win32-x64-internal']);
-
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { stats: true }));
-gulp.task('vscode-linux-ia32', ['optimize-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32'));
-gulp.task('vscode-linux-x64', ['optimize-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64'));
-gulp.task('vscode-linux-arm', ['optimize-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm'));
-gulp.task('vscode-linux-arm64', ['optimize-vscode', 'clean-vscode-linux-arm64'], packageTask('linux', 'arm64'));
-
-gulp.task('vscode-win32-ia32-min', ['minify-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32', { minified: true }));
-gulp.task('vscode-win32-x64-min', ['minify-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64', { minified: true }));
-gulp.task('vscode-win32-ia32-min-internal', ['minify-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32', { buildinternal: true, minified: true }));
-gulp.task('vscode-win32-x64-min-internal', ['minify-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64', { buildinternal: true, minified: true }));
-
-// Build all min Win32 Internally
-gulp.task('vscode-win32-bundle-min', ['minify-vscode', 'clean-vscode-win32-ia32', 'clean-vscode-win32-x64', 'vscode-win32-ia32-min-internal', 'vscode-win32-x64-min-internal']);
-
 gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true, stats: true }));
-gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
-gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
-gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
-gulp.task('vscode-linux-arm64-min', ['minify-vscode', 'clean-vscode-linux-arm64'], packageTask('linux', 'arm64', { minified: true }));
+
+// Win32 Bundles for Windows Store
+gulp.task('vscode-win32-bundle', ['optimize-vscode', 'clean-vscode-win32-ia32', 'clean-vscode-win32-x64'], () => {
+	packageTask("win32", "ia32", { buildinternal: true })();
+	packageTask("win32", "x64", { buildinternal: true })();
+});
+
+gulp.task('vscode-win32-bundle-min', ['minify-vscode', 'clean-vscode-win32-ia32', 'clean-vscode-win32-x64'], () => {
+	packageTask("win32", "ia32", { buildinternal: true, minified: true })();
+	packageTask("win32", "x64", { buildinternal: true, minified: true })();
+});
 
 // Transifex Localizations
 
