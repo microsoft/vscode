@@ -363,9 +363,9 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
 			tags['workspace.py.requirements'] = nameSet.has('requirements.txt');
-			tags['workspace.py.requirements.star'] = WorkspaceStats.searchArray(names, /^(.*)requirements(.*)+\.txt$/i);
-			tags['workspace.py.Pipfile'] = nameSet.has('Pipfile');
-			tags['workspace.py.conda'] = WorkspaceStats.searchArray(names, /^environment+(\.yml$|\.yaml$)/i);
+			tags['workspace.py.requirements.star'] = WorkspaceStats.searchArray(names, /^(.*)requirements(.*)\.txt$/i);
+			tags['workspace.py.Pipfile'] = nameSet.has('pipfile');
+			tags['workspace.py.conda'] = WorkspaceStats.searchArray(names, /^environment(\.yml$|\.yaml$)/i);
 
 			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
 			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
@@ -410,21 +410,54 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				});
 			}
 
-			let dependencyFilePromises;
-
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
-				console.log(content.value);
-				let dependencies: string[] = content.value.split('\n');
-				tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
-				for (let dependency of dependencies) {
-					let packageName = dependency.split('==')[0];
-					if (PyModulesToLookFor.indexOf(packageName) > -1) {
-						tags['workspace.py.' + packageName] = true;
+				try {
+					let dependencies: string[] = content.value.split('\n');
+					if (!tags['workspace.py.any-azure']) {
+						tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
 					}
-					// congitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
-					if (packageName.indexOf('azure-cognitiveservices') > -1) {
-						tags['workspace.py.cognitiveservices'] = true;
+
+					for (let dependency of dependencies) {
+						// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
+						const format1 = dependency.split('==')[0];
+						const format2 = dependency.split('>=')[0];
+						let packageName = format1.length > format2.length ? format1.trim() : format2.trim();
+						if (PyModulesToLookFor.indexOf(packageName) > -1) {
+							tags['workspace.py.' + packageName] = true;
+						}
+						// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+						if (packageName.indexOf('azure-cognitiveservices') > -1) {
+							tags['workspace.py.cognitiveservices'] = true;
+						}
 					}
+				} catch (e) {
+					// Ignore errors when resolving file or parsing file contents
+				}
+			});
+
+			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
+				try {
+					let dependencies: string[] = content.value.split('\n');
+					if (!tags['workspace.py.any-azure']) {
+						tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
+					}
+
+					// We're only interested in the '[packages]' section of the Pipfile
+					dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1, dependencies.indexOf('[dev-packages]'));
+
+					for (let dependency of dependencies) {
+						// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
+						let packageName = dependency.split('=')[0].trim();
+						if (PyModulesToLookFor.indexOf(packageName) > -1) {
+							tags['workspace.py.' + packageName] = true;
+						}
+						// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+						if (packageName.indexOf('azure-cognitiveservices') > -1) {
+							tags['workspace.py.cognitiveservices'] = true;
+						}
+					}
+				} catch (e) {
+					// Ignore errors when resolving file or parsing file contents
 				}
 			});
 
@@ -449,10 +482,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-
-			dependencyFilePromises = packageJsonPromises.concat(requirementsTxtPromises);
-
-			return TPromise.join(dependencyFilePromises).then(() => tags);
+			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
 		});
 	}
 
