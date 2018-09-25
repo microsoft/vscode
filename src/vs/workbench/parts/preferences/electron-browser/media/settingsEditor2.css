@@ -9,6 +9,7 @@
 
 .settings-editor {
 	padding: 11px 0px 0px;
+	overflow: hidden;
 }
 
 /* header styling */
@@ -104,6 +105,10 @@
 	padding-top: 7px;
 	padding-left: 8px;
 	padding-right: 8px;
+}
+
+.settings-editor > .settings-body {
+	position: relative;
 }
 
 .settings-editor > .settings-body > .no-results {
