@@ -258,16 +258,6 @@
 				color: var(--vscode-textPreformat-foreground);
 			}
 
-			code span.hljs-addition {
-				background: var(--vscode-diffEditor-insertedTextBackground, rgba(155, 185, 85, 0.2));
-				color: rgb(155, 185, 85) !important;
-			}
-
-			code span.hljs-deletion {
-				background: var(--vscode-diffEditor-removedTextBackground, rgba(255, 0, 0, 0.2));
-				color: rgb(255, 0, 0) !important;
-			}
-
 			blockquote {
 				background: var(--vscode-textBlockQuote-background);
 				border-color: var(--vscode-textBlockQuote-border);
