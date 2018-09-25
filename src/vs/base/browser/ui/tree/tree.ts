@@ -15,13 +15,13 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { tail2 } from 'vs/base/common/arrays';
 
-function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
+function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T, any>> {
 	if (!options) {
 		return undefined;
 	}
 
-	let identityProvider: IIdentityProvider<ITreeNode<T>> | undefined = undefined;
-	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T>> | undefined = undefined;
+	let identityProvider: IIdentityProvider<ITreeNode<T, any>> | undefined = undefined;
+	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T, any>> | undefined = undefined;
 
 	if (options.identityProvider) {
 		identityProvider = el => options.identityProvider(el.element);
@@ -45,15 +45,15 @@ function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode
 	};
 }
 
-class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T>> {
+class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T, any>> {
 
 	constructor(private delegate: IVirtualDelegate<T>) { }
 
-	getHeight(element: ITreeNode<T>): number {
+	getHeight(element: ITreeNode<T, any>): number {
 		return this.delegate.getHeight(element.element);
 	}
 
-	getTemplateId(element: ITreeNode<T>): string {
+	getTemplateId(element: ITreeNode<T, any>): string {
 		return this.delegate.getTemplateId(element.element);
 	}
 }
@@ -64,7 +64,7 @@ interface ITreeListTemplateData<T> {
 	templateData: T;
 }
 
-function renderTwistie<T>(node: ITreeNode<T>, twistie: HTMLElement): void {
+function renderTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
 	if (node.children.length === 0 && !node.collapsible) {
 		twistie.innerText = '';
 	} else {
@@ -72,15 +72,15 @@ function renderTwistie<T>(node: ITreeNode<T>, twistie: HTMLElement): void {
 	}
 }
 
-class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeListTemplateData<TTemplateData>> {
+class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
-	private renderedNodes = new Map<ITreeNode<T>, ITreeListTemplateData<TTemplateData>>();
+	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private renderer: IRenderer<T, TTemplateData>,
-		onDidChangeCollapseState: Event<ITreeNode<T>>
+		onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>
 	) {
 		this.templateId = renderer.templateId;
 		onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
@@ -96,7 +96,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		return { twistie, count, templateData };
 	}
 
-	renderElement(node: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
+	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
 		this.renderedNodes.set(node, templateData);
 
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
@@ -106,7 +106,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
 
-	disposeElement(node: ITreeNode<T>): void {
+	disposeElement(node: ITreeNode<T, TFilterData>): void {
 		this.renderedNodes.delete(node);
 	}
 
@@ -114,7 +114,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		this.renderer.disposeTemplate(templateData.templateData);
 	}
 
-	private onDidChangeCollapseState(node: ITreeNode<T>): void {
+	private onDidChangeCollapseState(node: ITreeNode<T, TFilterData>): void {
 		const templateData = this.renderedNodes.get(node);
 
 		if (!templateData) {
@@ -137,10 +137,10 @@ function isInputElement(e: HTMLElement): boolean {
 
 export interface ITreeOptions<T> extends IListOptions<T> { }
 
-export class Tree<T> implements IDisposable {
+export class Tree<T, TFilterData = void> implements IDisposable {
 
-	private view: List<ITreeNode<T>>;
-	private model: TreeModel<T>;
+	private view: List<ITreeNode<T, TFilterData>>;
+	private model: TreeModel<T, TFilterData>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -151,14 +151,14 @@ export class Tree<T> implements IDisposable {
 	) {
 		const treeDelegate = new TreeDelegate(delegate);
 
-		const onDidChangeCollapseStateRelay = new Relay<ITreeNode<T>>();
+		const onDidChangeCollapseStateRelay = new Relay<ITreeNode<T, TFilterData>>();
 		const treeRenderers = renderers.map(r => new TreeRenderer(r, onDidChangeCollapseStateRelay.event));
 		this.disposables.push(...treeRenderers);
 
 		const treeOptions = toTreeListOptions(options);
 
 		this.view = new List(container, treeDelegate, treeRenderers, treeOptions);
-		this.model = new TreeModel<T>(this.view);
+		this.model = new TreeModel<T, TFilterData>(this.view);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
@@ -176,7 +176,7 @@ export class Tree<T> implements IDisposable {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
-	private onMouseClick(e: IListMouseEvent<ITreeNode<T>>): void {
+	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const node = e.element;
 		const location = getNodeLocation(node);
 
