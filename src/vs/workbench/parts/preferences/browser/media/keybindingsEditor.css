@@ -17,37 +17,36 @@
 	position: relative;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar {
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container {
 	position: absolute;
 	top: 0;
 	right: 10px;
 	margin-top: 5px;
+	display: flex;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item {
-	width: 28px;
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
+	margin-right: 8px;
+	padding: 0px 8px;
+	border-radius: 2px;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item > .sort-by-precedence {
+.keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge.disabled {
+	display: none;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item {
+	margin-right: 4px;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence.svg') center center no-repeat;
 }
 
-.hc-black .keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item > .sort-by-precedence,
-.vs-dark .keybindings-editor > .keybindings-header > .search-container > .monaco-action-bar .action-item > .sort-by-precedence {
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence_inverse.svg') center center no-repeat;
-}
-
-.keybindings-editor > .keybindings-header .search-container > .settings-search-input {
-	vertical-align: middle;
-}
-
-.keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox {
-	height: 30px;
-}
-
-.keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox .input {
-	font-size: 14px;
-	padding-left:10px;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
