@@ -187,16 +187,14 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 class FocusTrait<T> extends Trait<T> {
 
 	constructor(
-		private getDomId: IIdentityProvider<number>,
-		private ariaRole: string
+		private getDomId: IIdentityProvider<number>
 	) {
 		super('focused');
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
-
-		container.setAttribute('role', this.ariaRole || 'treeitem');
+		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
 
 		if (this.contains(index)) {
@@ -674,7 +672,6 @@ export class DefaultStyleController implements IStyleController {
 export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
-	ariaRole?: string;
 	mouseSupport?: boolean;
 	selectOnMouseDown?: boolean;
 	focusOnMouseDown?: boolean;
@@ -903,7 +900,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
-		this.focus = new FocusTrait(i => this.getElementDomId(i), options.ariaRole);
+		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 
 		mixin(options, defaultStyles, false);

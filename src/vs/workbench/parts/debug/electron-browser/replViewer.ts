@@ -312,10 +312,6 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 
 		return null;
 	}
-
-	public getAriaRole(tree: ITree, element: any): string {
-		return 'treeitem';
-	}
 }
 
 export class ReplExpressionsActionProvider implements IActionProvider {

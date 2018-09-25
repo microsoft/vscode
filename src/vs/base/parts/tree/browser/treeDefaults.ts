@@ -467,10 +467,6 @@ export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
 	getAriaLabel(tree: _.ITree, element: any): string {
 		return null;
 	}
-
-	getAriaRole(tree: _.ITree, element: any): string {
-		return null;
-	}
 }
 
 export class DefaultTreestyler implements _.ITreeStyler {
