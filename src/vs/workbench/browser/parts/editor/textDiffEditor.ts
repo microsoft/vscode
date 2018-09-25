@@ -5,11 +5,9 @@
 
 'use strict';
 
-import 'vs/css!./media/textdiffeditor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
-import { Action, IAction } from 'vs/base/common/actions';
 import * as types from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -28,7 +26,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -48,14 +45,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	private diffNavigator: DiffNavigator;
 	private diffNavigatorDisposables: IDisposable[] = [];
-	private toggleIgnoreTrimWhitespaceAction: ToggleIgnoreTrimWhitespaceAction;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IConfigurationService private readonly _actualConfigurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -63,12 +58,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IWindowService windowService: IWindowService
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService, windowService);
-
-		this._register(this._actualConfigurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')) {
-				this.updateIgnoreTrimWhitespaceAction();
-			}
-		}));
 	}
 
 	protected getEditorMemento<T>(storageService: IStorageService, editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
@@ -84,11 +73,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
-
-		// Actions
-		this.toggleIgnoreTrimWhitespaceAction = new ToggleIgnoreTrimWhitespaceAction(this._actualConfigurationService);
-		this.updateIgnoreTrimWhitespaceAction();
-
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
@@ -137,9 +121,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 				});
 				this.diffNavigatorDisposables.push(this.diffNavigator);
 
-				// Enablement of actions
-				this.updateIgnoreTrimWhitespaceAction();
-
 				// Readonly flag
 				diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
 			}, error => {
@@ -176,13 +157,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}
 
 		return false;
-	}
-
-	private updateIgnoreTrimWhitespaceAction(): void {
-		const ignoreTrimWhitespace = this.configurationService.getValue<boolean>(this.getResource(), 'diffEditor.ignoreTrimWhitespace');
-		if (this.toggleIgnoreTrimWhitespaceAction) {
-			this.toggleIgnoreTrimWhitespaceAction.updateClassName(ignoreTrimWhitespace);
-		}
 	}
 
 	private openAsBinary(input: EditorInput, options: EditorOptions): boolean {
@@ -283,12 +257,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		return this.diffNavigator;
 	}
 
-	getActions(): IAction[] {
-		return [
-			this.toggleIgnoreTrimWhitespaceAction
-		];
-	}
-
 	getControl(): IDiffEditor {
 		return super.getControl() as IDiffEditor;
 	}
@@ -370,28 +338,5 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
 
 		super.dispose();
-	}
-}
-
-class ToggleIgnoreTrimWhitespaceAction extends Action {
-	static ID = 'workbench.action.compareEditor.toggleIgnoreTrimWhitespace';
-
-	private _isChecked: boolean;
-
-	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService
-	) {
-		super(ToggleIgnoreTrimWhitespaceAction.ID);
-		this.label = nls.localize('toggleIgnoreTrimWhitespace.label', "Ignore Trim Whitespace");
-	}
-
-	updateClassName(ignoreTrimWhitespace: boolean): void {
-		this._isChecked = ignoreTrimWhitespace;
-		this.class = `textdiff-editor-action toggleIgnoreTrimWhitespace${this._isChecked ? ' is-checked' : ''}`;
-	}
-
-	run(): TPromise<any> {
-		this._configurationService.updateValue(`diffEditor.ignoreTrimWhitespace`, !this._isChecked);
-		return null;
 	}
 }

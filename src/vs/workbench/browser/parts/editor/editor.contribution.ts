@@ -566,6 +566,30 @@ appendEditorToolItem(
 	11
 );
 
+// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Enabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
+		iconDark: 'paragraph-inverse.svg',
+		iconLight: 'paragraph.svg'
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
+	20
+);
+
+// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Disabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
+		iconDark: 'paragraph-disabled-inverse.svg',
+		iconLight: 'paragraph-disabled.svg'
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
+	20
+);
+
 // Editor Commands for Command Palette
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: { value: nls.localize('keepEditor', "Keep Editor"), original: 'View: Keep Editor' }, category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'View: Close All Editors in Group' }, category } });
