@@ -48,8 +48,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	private diffNavigator: DiffNavigator;
 	private diffNavigatorDisposables: IDisposable[] = [];
-	private nextDiffAction: NavigateAction;
-	private previousDiffAction: NavigateAction;
 	private toggleIgnoreTrimWhitespaceAction: ToggleIgnoreTrimWhitespaceAction;
 
 	constructor(
@@ -88,8 +86,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
 
 		// Actions
-		this.nextDiffAction = new NavigateAction(this, true);
-		this.previousDiffAction = new NavigateAction(this, false);
 		this.toggleIgnoreTrimWhitespaceAction = new ToggleIgnoreTrimWhitespaceAction(this._actualConfigurationService);
 		this.updateIgnoreTrimWhitespaceAction();
 
@@ -140,11 +136,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 				});
 				this.diffNavigatorDisposables.push(this.diffNavigator);
-
-				this.diffNavigatorDisposables.push(this.diffNavigator.onDidUpdate(() => {
-					this.nextDiffAction.updateEnablement();
-					this.previousDiffAction.updateEnablement();
-				}));
 
 				// Enablement of actions
 				this.updateIgnoreTrimWhitespaceAction();
@@ -294,9 +285,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	getActions(): IAction[] {
 		return [
-			this.toggleIgnoreTrimWhitespaceAction,
-			this.previousDiffAction,
-			this.nextDiffAction
+			this.toggleIgnoreTrimWhitespaceAction
 		];
 	}
 
@@ -381,39 +370,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		this.diffNavigatorDisposables = dispose(this.diffNavigatorDisposables);
 
 		super.dispose();
-	}
-}
-
-class NavigateAction extends Action {
-	static ID_NEXT = 'workbench.action.compareEditor.nextChange';
-	static ID_PREV = 'workbench.action.compareEditor.previousChange';
-
-	private editor: TextDiffEditor;
-	private next: boolean;
-
-	constructor(editor: TextDiffEditor, next: boolean) {
-		super(next ? NavigateAction.ID_NEXT : NavigateAction.ID_PREV);
-
-		this.editor = editor;
-		this.next = next;
-
-		this.label = this.next ? nls.localize('navigate.next.label', "Next Change") : nls.localize('navigate.prev.label', "Previous Change");
-		this.class = this.next ? 'textdiff-editor-action next' : 'textdiff-editor-action previous';
-		this.enabled = false;
-	}
-
-	run(): TPromise<any> {
-		if (this.next) {
-			this.editor.getDiffNavigator().next();
-		} else {
-			this.editor.getDiffNavigator().previous();
-		}
-
-		return null;
-	}
-
-	updateEnablement(): void {
-		this.enabled = this.editor.getDiffNavigator().canNavigate();
 	}
 }
 
