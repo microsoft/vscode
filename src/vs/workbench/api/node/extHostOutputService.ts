@@ -95,6 +95,11 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 		this._appender.append(value);
 	}
 
+	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+		this._appender.flush();
+		super.show(columnOrPreserveFocus, preserveFocus);
+	}
+
 	clear(): void {
 		this._appender.flush();
 		super.clear();
