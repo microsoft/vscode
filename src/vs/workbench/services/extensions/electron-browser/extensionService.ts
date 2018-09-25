@@ -438,6 +438,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private _onResponsiveStateChanged(state: ResponsiveState): void {
+		if (this._isDev) {
+			return; // do not show any notification when developing an extension (https://github.com/Microsoft/vscode/issues/59251)
+		}
+
 		if (this._unresponsiveNotificationHandle) {
 			this._unresponsiveNotificationHandle.close();
 			this._unresponsiveNotificationHandle = null;
