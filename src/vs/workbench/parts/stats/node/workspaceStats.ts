@@ -435,7 +435,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			});
 
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
-				let dependencies: string[] = content.value.split('\r\n|\n');
+				let dependencies: string[] = content.value.split(/\r\n|\n/);
 
 				// We're only interested in the '[packages]' section of the Pipfile
 				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
@@ -448,7 +448,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					if (dependency.indexOf('=') === -1) {
 						continue;
 					}
-					const packageName = dependency.split('=')[0];
+					const packageName = dependency.split('=')[0].trim();
 					addPythonTags(packageName);
 				}
 
@@ -475,7 +475,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					// Ignore errors when resolving file or parsing file contents
 				}
 			});
-			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(() => tags);
+			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(function () {
+				return tags;
+			}
+			);
 		});
 	}
 
