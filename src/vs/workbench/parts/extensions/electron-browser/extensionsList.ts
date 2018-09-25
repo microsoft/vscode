@@ -43,7 +43,7 @@ export class Delegate implements IVirtualDelegate<IExtension> {
 	getTemplateId() { return 'extension'; }
 }
 
-const actionOptions = { icon: true, label: true };
+const actionOptions = { icon: true, label: true, disableTabstops: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
@@ -103,7 +103,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installAction = this.instantiationService.createInstance(InstallAction);
 		const updateAction = this.instantiationService.createInstance(UpdateAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction, false);
-		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
+		const manageAction = this.instantiationService.createInstance(ManageExtensionAction, true);
 
 		actionbar.push([updateAction, reloadAction, installAction, disabledStatusAction, maliciousStatusAction, manageAction], actionOptions);
 		const disposables = [versionWidget, installCountWidget, ratingsWidget, maliciousStatusAction, disabledStatusAction, updateAction, installAction, reloadAction, manageAction, actionbar, bookmarkStyler];

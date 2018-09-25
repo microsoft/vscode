@@ -398,10 +398,10 @@ export class DropDownMenuActionItem extends ActionItem {
 	get menuActionGroups(): IAction[][] { return this._menuActionGroups; }
 	set menuActionGroups(menuActionGroups: IAction[][]) { this._menuActionGroups = menuActionGroups; }
 
-	constructor(action: IAction, menuActionGroups: IAction[][],
+	constructor(action: IAction, menuActionGroups: IAction[][], disableTabstops: boolean,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		super(null, action, { icon: true, label: true });
+		super(null, action, { icon: true, label: true, disableTabstops });
 		this.menuActionGroups = menuActionGroups;
 	}
 
@@ -447,13 +447,14 @@ export class ManageExtensionAction extends Action {
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
 	constructor(
+		private disableTabstops: boolean = false,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(ManageExtensionAction.ID);
 
 		this.tooltip = localize('manage', "Manage");
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups());
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups(), this.disableTabstops);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -615,7 +616,7 @@ export class EnableAction extends Action {
 			instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
 			instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
 		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions]);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._enableActions], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
@@ -761,7 +762,7 @@ export class DisableAction extends Action {
 			instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
 			instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
 		];
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions]);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._disableActions], false);
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(extension => {
