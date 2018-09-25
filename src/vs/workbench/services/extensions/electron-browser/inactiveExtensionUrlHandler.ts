@@ -206,7 +206,7 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					type: 'question'
 				}).then(async result => {
 					if (result.confirmed) {
-						let notificationHandle = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing {0}...", galleryExtension.displayName || galleryExtension.name) });
+						let notificationHandle = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name) });
 						notificationHandle.progress.infinite();
 						notificationHandle.onDidClose(() => notificationHandle = null);
 						try {
