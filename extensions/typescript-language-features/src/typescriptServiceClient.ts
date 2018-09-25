@@ -350,7 +350,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
-		if (!this.apiVersion.gte(API.v222)) {
+		if (this.apiVersion.lt(API.v222)) {
 			vscode.window.showErrorMessage(
 				localize(
 					'typescript.openTsServerLog.notSupported',
@@ -409,7 +409,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		if (!this.apiVersion.gte(API.v206)) {
+		if (this.apiVersion.lt(API.v206)) {
 			return;
 		}
 

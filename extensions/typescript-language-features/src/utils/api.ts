@@ -56,4 +56,8 @@ export default class API {
 	public gte(other: API): boolean {
 		return semver.gte(this.version, other.version);
 	}
+
+	public lt(other: API): boolean {
+		return !this.gte(other);
+	}
 }

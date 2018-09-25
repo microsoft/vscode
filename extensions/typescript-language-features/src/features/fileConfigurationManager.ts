@@ -176,7 +176,7 @@ export default class FileConfigurationManager {
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		if (!this.client.apiVersion.gte(API.v290)) {
+		if (this.client.apiVersion.lt(API.v290)) {
 			return {};
 		}
 

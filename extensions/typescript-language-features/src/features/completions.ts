@@ -350,7 +350,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/27321
 		if (context.triggerCharacter === '@'
-			&& this.client.apiVersion.gte(API.v310) && !this.client.apiVersion.gte(API.v320)
+			&& this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)
 		) {
 			return undefined;
 		}
@@ -480,7 +480,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
-		if (context.triggerCharacter && !this.client.apiVersion.gte(API.v290)) {
+		if (context.triggerCharacter && this.client.apiVersion.lt(API.v290)) {
 			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
 				// make sure we are in something that looks like the start of an import
 				const pre = line.text.slice(0, position.character);
