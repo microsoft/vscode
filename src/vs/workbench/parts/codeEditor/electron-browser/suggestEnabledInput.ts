@@ -33,6 +33,7 @@ import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPrevent
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { mixin } from 'vs/base/common/objects';
+import { SelectionClipboard } from 'vs/workbench/parts/codeEditor/electron-browser/selectionClipboard';
 
 interface SuggestResultsProvider {
 	/**
@@ -130,7 +131,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer],
+				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
 				isSimpleWidget: true,
 			});
 
