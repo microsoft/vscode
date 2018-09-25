@@ -20,6 +20,8 @@ import { CompletionModel } from './completionModel';
 import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -91,13 +93,12 @@ export const enum State {
 
 export class SuggestModel implements IDisposable {
 
-	private _editor: ICodeEditor;
 	private _toDispose: IDisposable[] = [];
 	private _quickSuggestDelay: number;
 	private _triggerCharacterListener: IDisposable;
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private readonly _triggerRefilter = new TimeoutTimer();
-	private _state: State;
+	private _state: State = State.Idle;
 
 	private _requestToken: CancellationTokenSource;
 	private _context: LineContext;
@@ -112,9 +113,10 @@ export class SuggestModel implements IDisposable {
 	readonly onDidTrigger: Event<ITriggerEvent> = this._onDidTrigger.event;
 	readonly onDidSuggest: Event<ISuggestEvent> = this._onDidSuggest.event;
 
-	constructor(editor: ICodeEditor) {
-		this._editor = editor;
-		this._state = State.Idle;
+	constructor(
+		private readonly _editor: ICodeEditor,
+		private readonly _editorWorker: IEditorWorkerService
+	) {
 		this._completionModel = null;
 		this._context = null;
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
@@ -385,15 +387,18 @@ export class SuggestModel implements IDisposable {
 
 		this._requestToken = new CancellationTokenSource();
 
-		provideSuggestionItems(
+		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
+
+		let items = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
 			this._editor.getConfiguration().contribInfo.suggest.snippets,
 			onlyFrom,
 			suggestCtx,
 			this._requestToken.token
+		);
 
-		).then(items => {
+		Promise.all([items, wordDistance]).then(([items, wordDistance]) => {
 
 			this._requestToken.dispose();
 
@@ -416,6 +421,7 @@ export class SuggestModel implements IDisposable {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this._context ? ctx.column - this._context.column : 0
 			},
+				wordDistance,
 				this._editor.getConfiguration().contribInfo.suggest
 			);
 			this._onNewContext(ctx);

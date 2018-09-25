@@ -7,14 +7,16 @@
 
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
-import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestResult, ISuggestSupport, SuggestionKind } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
 	score?: number;
 	idx?: number;
+	distance?: number;
 	word?: string;
 }
 
@@ -58,7 +60,13 @@ export class CompletionModel {
 	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest) {
+	constructor(
+		items: ISuggestionItem[],
+		column: number,
+		lineContext: LineContext,
+		private readonly _wordDistanceOracle: WordDistance,
+		options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest
+	) {
 		this._items = items;
 		this._column = column;
 		this._options = options;
@@ -209,14 +217,14 @@ export class CompletionModel {
 			}
 
 			item.idx = i;
-
+			item.distance = this._wordDistanceOracle.distance(item.position, suggestion);
 			target.push(item);
 
 			// update stats
 			this._stats.suggestionCount++;
-			switch (suggestion.type) {
-				case 'snippet': this._stats.snippetCount++; break;
-				case 'text': this._stats.textCount++; break;
+			switch (suggestion.kind) {
+				case SuggestionKind.Snippet: this._stats.snippetCount++; break;
+				case SuggestionKind.Text: this._stats.textCount++; break;
 			}
 		}
 
@@ -229,6 +237,10 @@ export class CompletionModel {
 			return -1;
 		} else if (a.score < b.score) {
 			return 1;
+		} else if (a.distance < b.distance) {
+			return -1;
+		} else if (a.distance > b.distance) {
+			return 1;
 		} else if (a.idx < b.idx) {
 			return -1;
 		} else if (a.idx > b.idx) {
@@ -239,10 +251,10 @@ export class CompletionModel {
 	}
 
 	private static _compareCompletionItemsSnippetsDown(a: ICompletionItem, b: ICompletionItem): number {
-		if (a.suggestion.type !== b.suggestion.type) {
-			if (a.suggestion.type === 'snippet') {
+		if (a.suggestion.kind !== b.suggestion.kind) {
+			if (a.suggestion.kind === SuggestionKind.Snippet) {
 				return 1;
-			} else if (b.suggestion.type === 'snippet') {
+			} else if (b.suggestion.kind === SuggestionKind.Snippet) {
 				return -1;
 			}
 		}
@@ -250,10 +262,10 @@ export class CompletionModel {
 	}
 
 	private static _compareCompletionItemsSnippetsUp(a: ICompletionItem, b: ICompletionItem): number {
-		if (a.suggestion.type !== b.suggestion.type) {
-			if (a.suggestion.type === 'snippet') {
+		if (a.suggestion.kind !== b.suggestion.kind) {
+			if (a.suggestion.kind === SuggestionKind.Snippet) {
 				return -1;
-			} else if (b.suggestion.type === 'snippet') {
+			} else if (b.suggestion.kind === SuggestionKind.Snippet) {
 				return 1;
 			}
 		}

@@ -258,32 +258,108 @@ export interface HoverProvider {
 /**
  * @internal
  */
-export type SuggestionType = 'method'
-	| 'function'
-	| 'constructor'
-	| 'field'
-	| 'variable'
-	| 'class'
-	| 'struct'
-	| 'interface'
-	| 'module'
-	| 'property'
-	| 'event'
-	| 'operator'
-	| 'unit'
-	| 'value'
-	| 'constant'
-	| 'enum'
-	| 'enum-member'
-	| 'keyword'
-	| 'snippet'
-	| 'text'
-	| 'color'
-	| 'file'
-	| 'reference'
-	| 'customcolor'
-	| 'folder'
-	| 'type-parameter';
+export const enum SuggestionKind {
+	Method,
+	Function,
+	Constructor,
+	Field,
+	Variable,
+	Class,
+	Struct,
+	Interface,
+	Module,
+	Property,
+	Event,
+	Operator,
+	Unit,
+	Value,
+	Constant,
+	Enum,
+	EnumMember,
+	Keyword,
+	Snippet,
+	Text,
+	Color,
+	File,
+	Reference,
+	Customcolor,
+	Folder,
+	TypeParameter,
+}
+
+/**
+ * @internal
+ */
+export let suggestionKindToCssClass = (function () {
+	let data = Object.create(null);
+	data[SuggestionKind.Method] = 'method';
+	data[SuggestionKind.Function] = 'function';
+	data[SuggestionKind.Constructor] = 'constructor';
+	data[SuggestionKind.Field] = 'field';
+	data[SuggestionKind.Variable] = 'variable';
+	data[SuggestionKind.Class] = 'class';
+	data[SuggestionKind.Struct] = 'struct';
+	data[SuggestionKind.Interface] = 'interface';
+	data[SuggestionKind.Module] = 'module';
+	data[SuggestionKind.Property] = 'property';
+	data[SuggestionKind.Event] = 'event';
+	data[SuggestionKind.Operator] = 'operator';
+	data[SuggestionKind.Unit] = 'unit';
+	data[SuggestionKind.Value] = 'value';
+	data[SuggestionKind.Constant] = 'constant';
+	data[SuggestionKind.Enum] = 'enum';
+	data[SuggestionKind.EnumMember] = 'enum-member';
+	data[SuggestionKind.Keyword] = 'keyword';
+	data[SuggestionKind.Snippet] = 'snippet';
+	data[SuggestionKind.Text] = 'text';
+	data[SuggestionKind.Color] = 'color';
+	data[SuggestionKind.File] = 'file';
+	data[SuggestionKind.Reference] = 'reference';
+	data[SuggestionKind.Customcolor] = 'customcolor';
+	data[SuggestionKind.Folder] = 'folder';
+	data[SuggestionKind.TypeParameter] = 'type-parameter';
+
+	return function (kind: SuggestionKind) {
+		return data[kind] || 'property';
+	};
+})();
+
+/**
+ * @internal
+ */
+export let suggestionKindFromLegacyString = (function () {
+	let data = Object.create(null);
+	data['method'] = SuggestionKind.Method;
+	data['function'] = SuggestionKind.Function;
+	data['constructor'] = SuggestionKind.Constructor;
+	data['field'] = SuggestionKind.Field;
+	data['variable'] = SuggestionKind.Variable;
+	data['class'] = SuggestionKind.Class;
+	data['struct'] = SuggestionKind.Struct;
+	data['interface'] = SuggestionKind.Interface;
+	data['module'] = SuggestionKind.Module;
+	data['property'] = SuggestionKind.Property;
+	data['event'] = SuggestionKind.Event;
+	data['operator'] = SuggestionKind.Operator;
+	data['unit'] = SuggestionKind.Unit;
+	data['value'] = SuggestionKind.Value;
+	data['constant'] = SuggestionKind.Constant;
+	data['enum'] = SuggestionKind.Enum;
+	data['enum-member'] = SuggestionKind.EnumMember;
+	data['keyword'] = SuggestionKind.Keyword;
+	data['snippet'] = SuggestionKind.Snippet;
+	data['text'] = SuggestionKind.Text;
+	data['color'] = SuggestionKind.Color;
+	data['file'] = SuggestionKind.File;
+	data['reference'] = SuggestionKind.Reference;
+	data['customcolor'] = SuggestionKind.Customcolor;
+	data['folder'] = SuggestionKind.Folder;
+	data['type-parameter'] = SuggestionKind.TypeParameter;
+
+	return function (value: string) {
+		return data[value] || 'property';
+	};
+})();
 
 /**
  * @internal
@@ -292,7 +368,7 @@ export interface ISuggestion {
 	label: string;
 	insertText: string;
 	insertTextIsSnippet?: boolean;
-	type: SuggestionType;
+	kind: SuggestionKind;
 	detail?: string;
 	documentation?: string | IMarkdownString;
 	filterText?: string;

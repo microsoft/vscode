@@ -532,7 +532,7 @@ export class FileService extends Disposable implements IFileService {
 							TPromise.as(encoding.detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								(options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-								(options && options.restrictGuessedEncodings) || this.textResourceConfigurationService.getValue(resource, 'files.restrictGuessedEncodings')
+								(options && options.guessableEncodings) || this.textResourceConfigurationService.getValue(resource, 'files.guessableEncodings')
 							)).then(detected => {
 
 								if (options && options.acceptTextOnly && detected.seemsBinary) {

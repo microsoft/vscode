@@ -208,12 +208,17 @@ export class ViewItem implements IViewItem {
 		this.element.style.height = this.height + 'px';
 
 		// ARIA
-		this.element.setAttribute('role', 'treeitem');
 		const accessibility = this.context.accessibilityProvider;
 		const ariaLabel = accessibility.getAriaLabel(this.context.tree, this.model.getElement());
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
 		}
+
+		const ariaRole = accessibility.getAriaRole(this.context.tree, this.model.getElement());
+		if (ariaRole) {
+			this.element.setAttribute('role', ariaRole);
+		}
+
 		if (accessibility.getPosInSet && accessibility.getSetSize) {
 			this.element.setAttribute('aria-setsize', accessibility.getSetSize());
 			this.element.setAttribute('aria-posinset', accessibility.getPosInSet(this.context.tree, this.model.getElement()));
@@ -551,7 +556,11 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
-		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e) => this.onMouseMiddleClick(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e: MouseEvent) => {
+			if (e && e.button === 1) {
+				this.onMouseMiddleClick(e);
+			}
+		}));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));

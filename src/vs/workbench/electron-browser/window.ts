@@ -231,7 +231,7 @@ export class ElectronWindow extends Themable {
 		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
 	}
 
-	private onContextMenu(e: PointerEvent): void {
+	private onContextMenu(e: MouseEvent): void {
 		if (e.target instanceof HTMLElement) {
 			const target = <HTMLElement>e.target;
 			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
@@ -423,7 +423,7 @@ export class ElectronWindow extends Themable {
 
 	private onOpenFiles(request: IOpenFileRequest): void {
 		const inputs: IResourceEditor[] = [];
-		const diffMode = (request.filesToDiff.length === 2);
+		const diffMode = request.filesToDiff && (request.filesToDiff.length === 2);
 
 		if (!diffMode && request.filesToOpen) {
 			inputs.push(...this.toInputs(request.filesToOpen, false));

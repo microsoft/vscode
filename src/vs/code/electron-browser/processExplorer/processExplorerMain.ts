@@ -83,12 +83,16 @@ function updateProcessInfo(processList): void {
 	const highestMemoryProcess = getProcessIdWithHighestProperty(processList, 'memory');
 
 	let tableHtml = `
-		<tr>
-			<th class="cpu">${localize('cpu', "CPU %")}</th>
-			<th class="memory">${localize('memory', "Memory (MB)")}</th>
-			<th class="pid">${localize('pid', "pid")}</th>
-			<th class="nameLabel">${localize('name', "Name")}</th>
-		</tr>`;
+		<thead>
+			<tr>
+				<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
+				<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
+				<th scope="col" class="pid">${localize('pid', "pid")}</th>
+				<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
+			</tr>
+		</thead>`;
+
+	tableHtml += `<tbody>`;
 
 	processList.forEach(p => {
 		const cpuClass = p.pid === highestCPUProcess ? 'highest' : '';
@@ -103,7 +107,9 @@ function updateProcessInfo(processList): void {
 			</tr>`;
 	});
 
-	target.innerHTML = `<table>${tableHtml}</table>`;
+	tableHtml += `</tbody>`;
+
+	target.innerHTML = tableHtml;
 }
 
 function applyStyles(styles: ProcessExplorerStyles): void {

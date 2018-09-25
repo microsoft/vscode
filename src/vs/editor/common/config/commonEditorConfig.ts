@@ -636,6 +636,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('suggest.filterGraceful', "Controls whether filtering and sorting suggestions accounts for small typos.")
 		},
+		'editor.suggest.localityBonus': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
+		},
 		'editor.suggest.snippetsPreventQuickSuggestions': {
 			type: 'boolean',
 			default: true,

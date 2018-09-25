@@ -81,7 +81,7 @@ class UpdateImportsOnFileRenameHandler {
 		this.client.bufferSyncSupport.closeResource(targetResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
-		if (!this.client.apiVersion.gte(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
+		if (this.client.apiVersion.lt(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52967
 			// Never attempt to update import paths if the file does not contain something the looks like an export
 			try {
@@ -253,7 +253,7 @@ class UpdateImportsOnFileRenameHandler {
 		const edits: Proto.FileCodeEdits[] = [];
 		for (const edit of response.body) {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52675
-			if (!this.client.apiVersion.gte(API.v300)) {
+			if (this.client.apiVersion.lt(API.v300)) {
 				if ((edit as Proto.FileCodeEdits).fileName.match(/[\/\\]node_modules[\/\\]/gi)) {
 					continue;
 				}

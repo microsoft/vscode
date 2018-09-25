@@ -14,7 +14,7 @@ import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SuggestContext, SuggestionType } from 'vs/editor/common/modes';
+import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SuggestContext, SuggestionKind } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
@@ -345,7 +345,7 @@ export class SnippetSuggestion implements ISuggestion {
 	overwriteBefore: number;
 	sortText: string;
 	noAutoAccept: boolean;
-	type: SuggestionType;
+	kind: SuggestionKind;
 	insertTextIsSnippet: true;
 
 	constructor(
@@ -358,7 +358,7 @@ export class SnippetSuggestion implements ISuggestion {
 		this.overwriteBefore = overwriteBefore;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
-		this.type = 'snippet';
+		this.kind = SuggestionKind.Snippet;
 		this.insertTextIsSnippet = true;
 	}
 

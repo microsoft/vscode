@@ -26,7 +26,7 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
     exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-min" }
-    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-copy-inno-updater" }
+    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
   name: build
 
 - powershell: |

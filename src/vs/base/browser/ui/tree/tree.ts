@@ -170,9 +170,6 @@ export class Tree<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
-
-		// TODO@joao cleanup
-		onKeyDown.filter(e => e.keyCode === KeyCode.KEY_A).on(() => this.model.setCollapsedAll(true), null, this.disposables);
 	}
 
 	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {

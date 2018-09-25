@@ -7,7 +7,7 @@
 
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
-import { dispose, Disposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { once } from 'vs/base/common/event';
 
 export class NotificationService extends Disposable implements INotificationService {
@@ -55,6 +55,10 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
+		const toDispose: IDisposable[] = [];
+
+		let choiceClicked = false;
+		let handle: INotificationHandle;
 
 		// Convert choices into primary/secondary actions
 		const actions: INotificationActions = { primary: [], secondary: [] };
@@ -65,18 +69,30 @@ export class NotificationService extends Disposable implements INotificationServ
 			} else {
 				actions.secondary.push(action);
 			}
+
+			// React to action being clicked
+			toDispose.push(action.onDidRun(() => {
+				choiceClicked = true;
+
+				// Close notification unless we are told to keep open
+				if (!choice.keepOpen) {
+					handle.close();
+				}
+			}));
+
+			toDispose.push(action);
 		});
 
 		// Show notification with actions
-		const handle = this.notify({ severity, message, actions });
+		handle = this.notify({ severity, message, actions });
 
 		once(handle.onDidClose)(() => {
 
 			// Cleanup when notification gets disposed
-			dispose(...actions.primary, ...actions.secondary);
+			dispose(toDispose);
 
 			// Indicate cancellation to the outside if no action was executed
-			if (typeof onCancel === 'function' && ![...actions.primary, ...actions.secondary].some((action: ChoiceAction) => action.clicked)) {
+			if (typeof onCancel === 'function' && !choiceClicked) {
 				onCancel();
 			}
 		});

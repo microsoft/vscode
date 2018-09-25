@@ -185,7 +185,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 							insertText: result,
 							overwriteBefore: alreadyTypedCount,
 							sortText: validatedSuggestProvider.sortKey(result),
-							type: <modes.SuggestionType>'keyword'
+							kind: modes.SuggestionKind.Keyword
 						};
 					})
 				};

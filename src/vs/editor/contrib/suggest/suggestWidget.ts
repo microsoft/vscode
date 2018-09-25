@@ -34,6 +34,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { SuggestionKind, suggestionKindToCssClass } from 'vs/editor/common/modes';
 
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
@@ -137,10 +138,10 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<ICompletionItem>element).suggestion;
 
-		data.icon.className = 'icon ' + suggestion.type;
+		data.icon.className = 'icon ' + suggestionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
-		if (suggestion.type === 'color') {
+		if (suggestion.kind === SuggestionKind.Color) {
 			let color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation);
 			if (color) {
 				data.icon.className = 'icon customcolor';
@@ -501,7 +502,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	}
 
 	private _getSuggestionAriaAlertLabel(item: ICompletionItem): string {
-		const isSnippet = item.suggestion.type === 'snippet';
+		const isSnippet = item.suggestion.kind === SuggestionKind.Snippet;
 
 		if (!canExpandCompletionItem(item)) {
 			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.suggestion.label)
@@ -564,50 +565,50 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		}
 
 		const item = e.elements[0];
-
-		this.firstFocusInCurrentList = !this.focusedItem;
-		if (item === this.focusedItem) {
-			return;
-		}
-
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-			this.currentSuggestionDetails = null;
-		}
-
 		const index = e.indexes[0];
 
-		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
+		this.firstFocusInCurrentList = !this.focusedItem;
+		if (item !== this.focusedItem) {
 
-		this.focusedItem = item;
 
-		this.list.reveal(index);
-
-		this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
-
-		this.currentSuggestionDetails.then(() => {
-			if (this.list.length < index) {
-				return;
-			}
-
-			// item can have extra information, so re-render
-			this.ignoreFocusEvents = true;
-			this.list.splice(index, 1, [item]);
-			this.list.setFocus([index]);
-			this.ignoreFocusEvents = false;
-
-			if (this.expandDocsSettingFromStorage()) {
-				this.showDetails();
-			} else {
-				removeClass(this.element, 'docs-side');
-			}
-
-			this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
-		}).catch(onUnexpectedError).then(() => {
-			if (this.focusedItem === item) {
+			if (this.currentSuggestionDetails) {
+				this.currentSuggestionDetails.cancel();
 				this.currentSuggestionDetails = null;
 			}
-		});
+
+
+			this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
+
+			this.focusedItem = item;
+
+			this.list.reveal(index);
+
+			this.currentSuggestionDetails = createCancelablePromise(token => item.resolve(token));
+
+			this.currentSuggestionDetails.then(() => {
+				if (this.list.length < index) {
+					return;
+				}
+
+				// item can have extra information, so re-render
+				this.ignoreFocusEvents = true;
+				this.list.splice(index, 1, [item]);
+				this.list.setFocus([index]);
+				this.ignoreFocusEvents = false;
+
+				if (this.expandDocsSettingFromStorage()) {
+					this.showDetails();
+				} else {
+					removeClass(this.element, 'docs-side');
+				}
+
+				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
+			}).catch(onUnexpectedError).then(() => {
+				if (this.focusedItem === item) {
+					this.currentSuggestionDetails = null;
+				}
+			});
+		}
 
 		// emit an event
 		this.onDidFocusEmitter.fire({ item, index, model: this.completionModel });

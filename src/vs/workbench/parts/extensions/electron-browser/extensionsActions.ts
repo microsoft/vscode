@@ -416,7 +416,7 @@ export class DropDownMenuActionItem extends ActionItem {
 		});
 	}
 
-	private getActions(): IAction[] {
+	getActions(): IAction[] {
 		let actions: IAction[] = [];
 		const menuActionGroups = this.menuActionGroups;
 		for (const menuActions of menuActionGroups) {
@@ -439,7 +439,7 @@ export class ManageExtensionAction extends Action {
 	private static readonly HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
 
 	private _actionItem: DropDownMenuActionItem;
-	get actionItem(): IActionItem { return this._actionItem; }
+	get actionItem(): DropDownMenuActionItem { return this._actionItem; }
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;

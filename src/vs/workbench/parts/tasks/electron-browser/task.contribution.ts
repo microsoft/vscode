@@ -494,12 +494,9 @@ class TaskService implements ITaskService {
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
 		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
-		this.configurationService.onDidChangeConfiguration(() => {
+		this.contextService.onDidChangeWorkspaceFolders(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
-			}
-			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
-				this._outputChannel.clear();
 			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
@@ -522,6 +519,15 @@ class TaskService implements ITaskService {
 				}
 			}
 			this.updateSetup(folderSetup);
+			this.updateWorkspaceTasks();
+		});
+		this.configurationService.onDidChangeConfiguration(() => {
+			if (!this._taskSystem && !this._workspaceTasksPromise) {
+				return;
+			}
+			if (!this._taskSystem || this._taskSystem instanceof TerminalTaskSystem) {
+				this._outputChannel.clear();
+			}
 			this.updateWorkspaceTasks();
 		});
 		this._taskRunningState = TASK_RUNNING_STATE.bindTo(contextKeyService);

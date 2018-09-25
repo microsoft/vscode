@@ -450,8 +450,8 @@ export class DebugService implements IDebugService {
 			}
 
 			const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-			// Open debug viewlet based on the visibility of the side bar and openDebug setting
-			if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
+			// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
+			if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
 				this.viewletService.openViewlet(VIEWLET_ID);
 			}
 			this.viewModel.firstSessionStart = false;

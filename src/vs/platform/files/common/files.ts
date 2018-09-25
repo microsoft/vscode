@@ -556,7 +556,7 @@ export interface IResolveContentOptions {
 	 * The optional list of encodings that can be used when guessing. If not provided, all encodings
 	 * will be supported for guessing.
 	 */
-	restrictGuessedEncodings?: string[];
+	guessableEncodings?: string[];
 
 	/**
 	 * Is an integer specifying where to begin reading from in the file. If position is null,
@@ -667,7 +667,7 @@ export interface IFilesConfiguration {
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
 		autoGuessEncoding: boolean;
-		restrictGuessedEncodings: string[];
+		guessableEncodings: string[];
 		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;

@@ -361,6 +361,10 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 		return undefined;
 	}
+
+	public getAriaRole(tree: ITree, element: any): string {
+		return 'treeitem';
+	}
 }
 
 export class SearchFilter implements IFilter {

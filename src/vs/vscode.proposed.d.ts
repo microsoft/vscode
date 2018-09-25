@@ -97,17 +97,12 @@ declare module 'vscode' {
 		 * The maximum number of lines in the preview.
 		 * Only search providers that support multiline search will ever return more than one line in the match.
 		 */
-		maxLines: number;
-
-		/**
-		 * The maximum number of characters included before the start of the match.
-		 */
-		leadingChars: number;
+		matchLines: number;
 
 		/**
 		 * The maximum number of characters included per line.
 		 */
-		totalChars: number;
+		charsPerLine: number;
 	}
 
 	/**
@@ -1038,6 +1033,16 @@ declare module 'vscode' {
 		 * This rule will only execute if the text above the this line matches this regular expression.
 		 */
 		oneLineAboveText?: RegExp;
+	}
+	//#endregion
+
+	//#region #59232
+
+	export interface QuickPickItem {
+		/**
+		 * Show this item always
+		 */
+		shouldAlwaysShow?: boolean;
 	}
 	//#endregion
 }
