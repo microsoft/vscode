@@ -410,25 +410,29 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				});
 			}
 
+			const addPythonTags = (packageName: string) => {
+				if (PyModulesToLookFor.indexOf(packageName) > -1) {
+					tags['workspace.py.' + packageName] = true;
+				}
+				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+				if (packageName.indexOf('azure-cognitiveservices') > -1) {
+					tags['workspace.py.cognitiveservices'] = true;
+				}
+				if (!tags['workspace.py.any-azure']) {
+					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
+				}
+			};
+
 			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
 				try {
 					let dependencies: string[] = content.value.split('\n');
-					if (!tags['workspace.py.any-azure']) {
-						tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
-					}
 
 					for (let dependency of dependencies) {
 						// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
-						const format1 = dependency.split('==')[0];
-						const format2 = dependency.split('>=')[0];
-						let packageName = format1.length > format2.length ? format1.trim() : format2.trim();
-						if (PyModulesToLookFor.indexOf(packageName) > -1) {
-							tags['workspace.py.' + packageName] = true;
-						}
-						// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
-						if (packageName.indexOf('azure-cognitiveservices') > -1) {
-							tags['workspace.py.cognitiveservices'] = true;
-						}
+						const format1 = dependency.split('==');
+						const format2 = dependency.split('>=');
+						const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
+						addPythonTags(packageName);
 					}
 				} catch (e) {
 					// Ignore errors when resolving file or parsing file contents
@@ -438,23 +442,20 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
 				try {
 					let dependencies: string[] = content.value.split('\n');
-					if (!tags['workspace.py.any-azure']) {
-						tags['workspace.py.any-azure'] = WorkspaceStats.searchArray(dependencies, /azure/i);
-					}
 
 					// We're only interested in the '[packages]' section of the Pipfile
-					dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1, dependencies.indexOf('[dev-packages]'));
+					dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
 
 					for (let dependency of dependencies) {
+						if (dependency.trim().indexOf('[') > -1) {
+							break;
+						}
 						// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
-						let packageName = dependency.split('=')[0].trim();
-						if (PyModulesToLookFor.indexOf(packageName) > -1) {
-							tags['workspace.py.' + packageName] = true;
+						if (dependency.indexOf('=') === -1) {
+							continue;
 						}
-						// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
-						if (packageName.indexOf('azure-cognitiveservices') > -1) {
-							tags['workspace.py.cognitiveservices'] = true;
-						}
+						let packageName = dependency.split('=')[0];
+						addPythonTags(packageName);
 					}
 				} catch (e) {
 					// Ignore errors when resolving file or parsing file contents
