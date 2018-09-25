@@ -187,14 +187,16 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 class FocusTrait<T> extends Trait<T> {
 
 	constructor(
-		private getDomId: IIdentityProvider<number>
+		private getDomId: IIdentityProvider<number>,
+		private ariaRole: string
 	) {
 		super('focused');
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
-		container.setAttribute('role', 'treeitem');
+
+		container.setAttribute('role', this.ariaRole || 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
 
 		if (this.contains(index)) {
@@ -901,7 +903,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T> = DefaultOptions
 	) {
-		this.focus = new FocusTrait(i => this.getElementDomId(i));
+		this.focus = new FocusTrait(i => this.getElementDomId(i), options.ariaRole);
 		this.selection = new Trait('selected');
 
 		mixin(options, defaultStyles, false);
@@ -949,9 +951,6 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", options.ariaLabel));
-		}
-		if (options.ariaRole) {
-			this.view.domNode.setAttribute('role', options.ariaRole);
 		}
 
 		this.style(options);
