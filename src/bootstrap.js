@@ -218,3 +218,14 @@ exports.configurePortable = function () {
 	};
 };
 //#endregion
+
+//#region ApplicationInsights
+/**
+ * Prevents appinsights from monkey patching modules.
+ * This should be called before importing the applicationinsights module
+ */
+exports.avoidMonkeyPatchFromAppInsights = function () {
+	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
+	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
+};
+//#endregion

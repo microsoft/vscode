@@ -147,7 +147,6 @@ suite('languages namespace tests', () => {
 		}).then((result: vscode.CompletionList | undefined) => {
 			r1.dispose();
 			assert.ok(ran);
-			console.log(result!.items);
 			assert.equal(result!.items[0].label, 'foo');
 		});
 	});

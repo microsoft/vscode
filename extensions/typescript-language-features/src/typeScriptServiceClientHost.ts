@@ -103,7 +103,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
-			if (!this.client.apiVersion.gte(API.v230)) {
+			if (this.client.apiVersion.lt(API.v230)) {
 				return;
 			}
 

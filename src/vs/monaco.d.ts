@@ -2540,6 +2540,10 @@ declare namespace monaco.editor {
 		 * Prevent quick suggestions when a snippet is active. Defaults to true.
 		 */
 		snippetsPreventQuickSuggestions?: boolean;
+		/**
+		 * Favours words that appear close to the cursor.
+		 */
+		localityBonus?: boolean;
 	}
 
 	/**
@@ -3169,6 +3173,7 @@ declare namespace monaco.editor {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 		readonly snippetsPreventQuickSuggestions: boolean;
+		readonly localityBonus: boolean;
 	}
 
 	export interface InternalParameterHintOptions {

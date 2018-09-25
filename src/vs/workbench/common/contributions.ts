@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry } from 'vs/platform/registry/common/platform';
+
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 // --- Workbench Contribution Registry
 
@@ -40,7 +40,8 @@ export interface IWorkbenchContributionsRegistry {
 	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void;
 }
 
-export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+
+class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
 	private instantiationService: IInstantiationService;
 	private lifecycleService: ILifecycleService;
 
@@ -91,31 +92,12 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
-		if (!toBeInstantiated) {
-			return;
-		}
-		if (phase !== LifecyclePhase.Eventually) {
-			// instantiate every synchronously and blocking
+		if (toBeInstantiated) {
+			// instantiate everything synchronously and blocking
 			for (const ctor of toBeInstantiated) {
 				instantiationService.createInstance(ctor);
 			}
-		} else {
-			// for the Eventually-phase we instantiate contributions
-			// only when idle. this might take a few idle-busy-cycles
-			// but will finish within one second
-			let i = 0;
-			const instantiateSome = (idle: IdleDeadline) => {
-				while (i < toBeInstantiated.length) {
-					const ctor = toBeInstantiated[i++];
-					instantiationService.createInstance(ctor);
-					if (idle.timeRemaining() < 1) {
-						// time is up -> reschedule
-						runWhenIdle(instantiateSome, 1000);
-						break;
-					}
-				}
-			};
-			runWhenIdle(instantiateSome, 1000);
+			this.toBeInstantiated.delete(phase);
 		}
 	}
 }

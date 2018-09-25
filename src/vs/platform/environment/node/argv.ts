@@ -36,7 +36,8 @@ const options: minimist.Opts = {
 		'upload-logs',
 		'driver',
 		'trace-category-filter',
-		'trace-options'
+		'trace-options',
+		'_'
 	],
 	boolean: [
 		'help',

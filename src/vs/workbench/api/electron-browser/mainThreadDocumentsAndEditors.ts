@@ -174,6 +174,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
+		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);

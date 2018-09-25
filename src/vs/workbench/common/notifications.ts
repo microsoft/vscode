@@ -549,14 +549,18 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 }
 
 export class ChoiceAction extends Action {
-	private _clicked: boolean;
+
+	private _onDidRun = new Emitter<void>();
+	get onDidRun(): Event<void> { return this._onDidRun.event; }
 
 	constructor(id: string, private choice: IPromptChoice) {
 		super(id, choice.label, null, true, () => {
-			this._clicked = true;
 
 			// Pass to runner
 			choice.run();
+
+			// Emit Event
+			this._onDidRun.fire();
 
 			return TPromise.as(void 0);
 		});
@@ -566,7 +570,11 @@ export class ChoiceAction extends Action {
 		return this.choice.keepOpen;
 	}
 
-	get clicked(): boolean {
-		return this._clicked;
+	dispose(): void {
+		super.dispose();
+
+		this.choice = null;
+
+		this._onDidRun.dispose();
 	}
 }

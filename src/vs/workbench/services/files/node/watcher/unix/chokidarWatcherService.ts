@@ -292,7 +292,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 		if (paths.isEqualOrParent(path, request.basePath)) {
 			if (!request.parsedPattern) {
 				if (request.ignored && request.ignored.length > 0) {
-					let pattern = `{${request.ignored.map(i => i + '/**').join(',')}}`;
+					let pattern = `{${request.ignored.join(',')}}`;
 					request.parsedPattern = glob.parse(pattern);
 				} else {
 					request.parsedPattern = () => false;

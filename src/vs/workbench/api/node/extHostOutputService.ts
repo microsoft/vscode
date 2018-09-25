@@ -94,6 +94,11 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 		this.validate();
 		this._appender.append(value);
 	}
+
+	clear(): void {
+		this._appender.flush();
+		super.clear();
+	}
 }
 
 export class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {

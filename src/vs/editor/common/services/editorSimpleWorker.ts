@@ -15,7 +15,7 @@ import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
+import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit, SuggestionKind } from 'vs/editor/common/modes';
 import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
@@ -60,6 +60,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
 	createWordIterator(wordDefinition: RegExp): Iterator<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
@@ -179,6 +180,20 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			return obj;
 		};
 		return { next };
+	}
+
+	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
+		let content = this._lines[lineNumber - 1];
+		let ranges = this._wordenize(content, wordDefinition);
+		let words: IWordAtPosition[] = [];
+		for (const range of ranges) {
+			words.push({
+				word: content.substring(range.start, range.end),
+				startColumn: range.start + 1,
+				endColumn: range.end + 1
+			});
+		}
+		return words;
 	}
 
 	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
@@ -467,7 +482,7 @@ export abstract class BaseEditorSimpleWorker {
 				}
 
 				suggestions.push({
-					type: 'text',
+					kind: SuggestionKind.Text,
 					label: word,
 					insertText: word,
 					noAutoAccept: true,
@@ -482,6 +497,39 @@ export abstract class BaseEditorSimpleWorker {
 
 
 	// ---- END suggest --------------------------------------------------------------------------
+
+	//#region -- word ranges --
+
+	computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
+		let model = this._getModel(modelUrl);
+		if (!model) {
+			return Promise.resolve(Object.create(null));
+		}
+		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		const result: { [word: string]: IRange[] } = Object.create(null);
+		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
+			let words = model.getLineWords(line, wordDefRegExp);
+			for (const word of words) {
+				if (!isNaN(Number(word.word))) {
+					continue;
+				}
+				let array = result[word.word];
+				if (!array) {
+					array = [];
+					result[word.word] = array;
+				}
+				array.push({
+					startLineNumber: line,
+					startColumn: word.startColumn,
+					endLineNumber: line,
+					endColumn: word.endColumn
+				});
+			}
+		}
+		return Promise.resolve(result);
+	}
+
+	//#endregion
 
 	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
 		let model = this._getModel(modelUrl);

@@ -7,11 +7,12 @@
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPosition } from 'vs/editor/common/core/position';
-import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestionType } from 'vs/editor/common/modes';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestionKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, type: SuggestionType = 'property', incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
+export function createSuggestItem(label: string, overwriteBefore: number, kind = SuggestionKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
 	return new class implements ISuggestionItem {
 
@@ -21,7 +22,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, type: 
 			label,
 			overwriteBefore,
 			insertText: label,
-			type
+			kind
 		};
 
 		container: ISuggestResult = {
@@ -54,7 +55,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 'foo',
 				characterCountDelta: 0
-			});
+			}, WordDistance.None);
 	});
 
 	test('filtering - cached', function () {
@@ -85,7 +86,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: 'foo',
 				characterCountDelta: 0
-			});
+			}, WordDistance.None);
 		assert.equal(incompleteModel.incomplete.size, 1);
 	});
 
@@ -94,7 +95,7 @@ suite('CompletionModel', function () {
 		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
 		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
 
-		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 });
+		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None);
 		assert.equal(model.incomplete.size, 1);
 		assert.equal(model.items.length, 2);
 
@@ -123,7 +124,7 @@ suite('CompletionModel', function () {
 				completeItem4,
 				completeItem5,
 				incompleteItem1,
-			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }
+			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None
 		);
 		assert.equal(model.incomplete.size, 1);
 		assert.equal(model.items.length, 6);
@@ -147,7 +148,7 @@ suite('CompletionModel', function () {
 		], 1, {
 				leadingLineContent: '   <',
 				characterCountDelta: 0
-			});
+			}, WordDistance.None);
 
 		assert.equal(model.items.length, 4);
 
@@ -161,13 +162,13 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: top, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('Snippet1', 1, 'snippet'),
-			createSuggestItem('tnippet2', 1, 'snippet'),
-			createSuggestItem('semver', 1, 'property'),
+			createSuggestItem('Snippet1', 1, SuggestionKind.Snippet),
+			createSuggestItem('tnippet2', 1, SuggestionKind.Snippet),
+			createSuggestItem('semver', 1, SuggestionKind.Property),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, { snippets: 'top', snippetsPreventQuickSuggestions: true, filterGraceful: true });
+			}, WordDistance.None, { snippets: 'top', snippetsPreventQuickSuggestions: true, filterGraceful: true, localityBonus: false });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -180,13 +181,13 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: bottom, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, 'snippet'),
-			createSuggestItem('tnippet2', 1, 'snippet'),
-			createSuggestItem('Semver', 1, 'property'),
+			createSuggestItem('snippet1', 1, SuggestionKind.Snippet),
+			createSuggestItem('tnippet2', 1, SuggestionKind.Snippet),
+			createSuggestItem('Semver', 1, SuggestionKind.Property),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, { snippets: 'bottom', snippetsPreventQuickSuggestions: true, filterGraceful: true });
+			}, WordDistance.None, { snippets: 'bottom', snippetsPreventQuickSuggestions: true, filterGraceful: true, localityBonus: false });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -198,13 +199,13 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: inline, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, 'snippet'),
-			createSuggestItem('tnippet2', 1, 'snippet'),
-			createSuggestItem('Semver', 1, 'property'),
+			createSuggestItem('snippet1', 1, SuggestionKind.Snippet),
+			createSuggestItem('tnippet2', 1, SuggestionKind.Snippet),
+			createSuggestItem('Semver', 1),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
-			}, { snippets: 'inline', snippetsPreventQuickSuggestions: true, filterGraceful: true });
+			}, WordDistance.None, { snippets: 'inline', snippetsPreventQuickSuggestions: true, filterGraceful: true, localityBonus: false });
 
 		assert.equal(model.items.length, 2);
 		const [a, b] = model.items;
@@ -215,14 +216,14 @@ suite('CompletionModel', function () {
 
 	test('filterText seems ignored in autocompletion, #26874', function () {
 
-		const item1 = createSuggestItem('Map - java.util', 1, 'property');
+		const item1 = createSuggestItem('Map - java.util', 1);
 		item1.suggestion.filterText = 'Map';
-		const item2 = createSuggestItem('Map - java.util', 1, 'property');
+		const item2 = createSuggestItem('Map - java.util', 1);
 
 		model = new CompletionModel([item1, item2], 1, {
 			leadingLineContent: 'M',
 			characterCountDelta: 0
-		});
+		}, WordDistance.None);
 
 		assert.equal(model.items.length, 2);
 
@@ -235,11 +236,11 @@ suite('CompletionModel', function () {
 
 	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 
-		const item1 = createSuggestItem('<- groups', 2, 'property', false, { lineNumber: 1, column: 3 });
+		const item1 = createSuggestItem('<- groups', 2, SuggestionKind.Property, false, { lineNumber: 1, column: 3 });
 		item1.suggestion.filterText = '  groups';
 		item1.suggestion.sortText = '00002';
 
-		const item2 = createSuggestItem('source', 0, 'property', false, { lineNumber: 1, column: 3 });
+		const item2 = createSuggestItem('source', 0, SuggestionKind.Property, false, { lineNumber: 1, column: 3 });
 		item2.suggestion.filterText = 'source';
 		item2.suggestion.sortText = '00001';
 
@@ -248,7 +249,7 @@ suite('CompletionModel', function () {
 		model = new CompletionModel(items, 3, {
 			leadingLineContent: '  ',
 			characterCountDelta: 0
-		});
+		}, WordDistance.None);
 
 		assert.equal(model.items.length, 2);
 
@@ -259,15 +260,15 @@ suite('CompletionModel', function () {
 
 	test('Score only filtered items when typing more, score all when typing less', function () {
 		model = new CompletionModel([
-			createSuggestItem('console', 0, 'property'),
-			createSuggestItem('co_new', 0, 'property'),
-			createSuggestItem('bar', 0, 'property'),
-			createSuggestItem('car', 0, 'property'),
-			createSuggestItem('foo', 0, 'property'),
+			createSuggestItem('console', 0),
+			createSuggestItem('co_new', 0),
+			createSuggestItem('bar', 0),
+			createSuggestItem('car', 0),
+			createSuggestItem('foo', 0),
 		], 1, {
 				leadingLineContent: '',
 				characterCountDelta: 0
-			});
+			}, WordDistance.None);
 
 		assert.equal(model.items.length, 5);
 
@@ -286,15 +287,15 @@ suite('CompletionModel', function () {
 
 	test('Have more relaxed suggest matching algorithm #15419', function () {
 		model = new CompletionModel([
-			createSuggestItem('result', 0, 'property'),
-			createSuggestItem('replyToUser', 0, 'property'),
-			createSuggestItem('randomLolut', 0, 'property'),
-			createSuggestItem('car', 0, 'property'),
-			createSuggestItem('foo', 0, 'property'),
+			createSuggestItem('result', 0),
+			createSuggestItem('replyToUser', 0),
+			createSuggestItem('randomLolut', 0),
+			createSuggestItem('car', 0),
+			createSuggestItem('foo', 0),
 		], 1, {
 				leadingLineContent: '',
 				characterCountDelta: 0
-			});
+			}, WordDistance.None);
 
 		// query gets longer, narrow down the narrow-down'ed-set from before
 		model.lineContext = { leadingLineContent: 'rlut', characterCountDelta: 4 };
@@ -308,15 +309,15 @@ suite('CompletionModel', function () {
 
 	test('Emmet suggestion not appearing at the top of the list in jsx files, #39518', function () {
 		model = new CompletionModel([
-			createSuggestItem('from', 0, 'property'),
-			createSuggestItem('form', 0, 'property'),
-			createSuggestItem('form:get', 0, 'property'),
-			createSuggestItem('testForeignMeasure', 0, 'property'),
-			createSuggestItem('fooRoom', 0, 'property'),
+			createSuggestItem('from', 0),
+			createSuggestItem('form', 0),
+			createSuggestItem('form:get', 0),
+			createSuggestItem('testForeignMeasure', 0),
+			createSuggestItem('fooRoom', 0),
 		], 1, {
 				leadingLineContent: '',
 				characterCountDelta: 0
-			});
+			}, WordDistance.None);
 
 		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
 		assert.equal(model.items.length, 5);

@@ -858,7 +858,7 @@ namespace CommandConfiguration {
 			osConfig = fromBase(config.linux, context);
 		}
 		if (osConfig) {
-			result = assignProperties(result, osConfig);
+			result = assignProperties(result, osConfig, context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
 		}
 		return isEmpty(result) ? undefined : result;
 	}
@@ -929,7 +929,7 @@ namespace CommandConfiguration {
 		return _isEmpty(value, properties);
 	}
 
-	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
+	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration, overwriteArgs: boolean): Tasks.CommandConfiguration {
 		if (isEmpty(source)) {
 			return target;
 		}
@@ -941,7 +941,7 @@ namespace CommandConfiguration {
 		assignProperty(target, source, 'taskSelector');
 		assignProperty(target, source, 'suppressTaskName');
 		if (source.args !== void 0) {
-			if (target.args === void 0) {
+			if (target.args === void 0 || overwriteArgs) {
 				target.args = source.args;
 			} else {
 				target.args = target.args.concat(source.args);

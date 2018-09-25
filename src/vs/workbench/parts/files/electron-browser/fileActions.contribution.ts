@@ -124,19 +124,18 @@ const copyRelativePathCommand = {
 };
 
 // Editor Title Context Menu
+appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
+appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste');
 appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, ResourceContextKey.Scheme.isEqualTo(Schemas.file));
-appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource);
-appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource);
 appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"), ResourceContextKey.IsFileSystemResource);
 
-function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, alt?: { id: string, title: string }): void {
+function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpr, group?: string): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: { id, title },
 		when,
-		group: '2_files',
-		alt
+		group: group || '2_files'
 	});
 }
 
@@ -215,10 +214,16 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: 'navigation',
-	order: 40,
+	group: '1_cutcopypaste',
+	order: 10,
 	command: copyPathCommand,
-	alt: copyRelativePathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: '1_cutcopypaste',
+	order: 20,
+	command: copyRelativePathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 

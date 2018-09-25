@@ -7,35 +7,20 @@
 import * as assert from 'assert';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ILogService, AbstractLogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
+import { ITelemetryClient, EventTelemetry } from 'applicationinsights';
 
-interface IAppInsightsEvent {
-	eventName: string;
-	properties?: { [x: string]: string; };
-	measurements?: { [x: string]: number; };
-}
-
-class AppInsightsMock {
-
-	public events: IAppInsightsEvent[] = [];
+class AppInsightsMock implements ITelemetryClient {
+	public config: any;
+	public channel: any;
+	public events: EventTelemetry[] = [];
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] = [];
 
-	public trackEvent(eventName: string, properties?: { string?: string; }, measurements?: { string?: number; }): void {
-		this.events.push({
-			eventName,
-			properties,
-			measurements
-		});
-	}
-	public trackPageView(): void {
-		this.IsTrackingPageView = true;
+	public trackEvent(event: any) {
+		this.events.push(event);
 	}
 
-	public trackException(exception: any): void {
-		this.exceptions.push(exception);
-	}
-
-	public sendPendingData(_callback: any): void {
+	public flush(options: any): void {
 		// called on dispose
 	}
 }
@@ -108,7 +93,7 @@ suite('AIAdapter', () => {
 		adapter.log('testEvent');
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
+		assert.equal(appInsightsMock.events[0].name, `${prefix}/testEvent`);
 	});
 
 	test('addional data', () => {
@@ -117,7 +102,7 @@ suite('AIAdapter', () => {
 
 		assert.equal(appInsightsMock.events.length, 1);
 		let [first] = appInsightsMock.events;
-		assert.equal(first.eventName, `${prefix}/testEvent`);
+		assert.equal(first.name, `${prefix}/testEvent`);
 		assert.equal(first.properties['first'], '1st');
 		assert.equal(first.measurements['second'], '2');
 		assert.equal(first.measurements['third'], 1);
@@ -154,7 +139,7 @@ suite('AIAdapter', () => {
 		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber: 1, favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford'] });
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
+		assert.equal(appInsightsMock.events[0].name, `${prefix}/testEvent`);
 		assert.equal(appInsightsMock.events[0].properties['favoriteColor'], 'blue');
 		assert.equal(appInsightsMock.events[0].measurements['likeRed'], 0);
 		assert.equal(appInsightsMock.events[0].measurements['likeBlue'], 1);
@@ -183,7 +168,7 @@ suite('AIAdapter', () => {
 		});
 
 		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, `${prefix}/testEvent`);
+		assert.equal(appInsightsMock.events[0].name, `${prefix}/testEvent`);
 
 		assert.equal(appInsightsMock.events[0].properties['window.title'], 'some title');
 		assert.equal(appInsightsMock.events[0].measurements['window.measurements.width'], 100);

@@ -124,7 +124,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			return this.dialogService.confirm({
 				message: localize('confirmUrl', "Allow an extension to open this URL?", extensionId),
-				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URL:\n\n${uri.toString()}`,
+				primaryButton: localize('open', "&&Open"),
+				type: 'question'
 			}).then(result => {
 
 				if (!result.confirmed) {
@@ -164,7 +166,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			if (enabled) {
 				this.dialogService.confirm({
 					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`
+					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+					primaryButton: localize('reload&Open', "&&Reload Window and Open"),
+					type: 'question'
 				}).then(result => {
 					if (result.confirmed) {
 						return this.reloadAndHandle(uri);
@@ -177,7 +181,9 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			else {
 				this.dialogService.confirm({
 					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`
+					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+					primaryButton: localize('enableAndReload', "&&Enable and Open"),
+					type: 'question'
 				}).then(result => {
 					if (result.confirmed) {
 						return this.extensionEnablementService.setEnablement(extension, EnablementState.Enabled)
@@ -195,16 +201,18 @@ export class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				// Install the Extension and reload the window to handle.
 				this.dialogService.confirm({
 					message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and reload the window to open this URL?", galleryExtension.displayName || galleryExtension.name),
-					detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`
+					detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+					primaryButton: localize('install', "&&Install"),
+					type: 'question'
 				}).then(async result => {
 					if (result.confirmed) {
-						let notificationHandle = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing {0}...", galleryExtension.displayName || galleryExtension.name) });
+						let notificationHandle = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name) });
 						notificationHandle.progress.infinite();
 						notificationHandle.onDidClose(() => notificationHandle = null);
 						try {
 							await this.extensionManagementService.installFromGallery(galleryExtension);
 							const reloadMessage = localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString());
-							const reloadActionLabel = localize('Reload', "Reload Window and Open URL");
+							const reloadActionLabel = localize('Reload', "Reload Window and Open");
 							if (notificationHandle) {
 								notificationHandle.progress.done();
 								notificationHandle.updateMessage(reloadMessage);

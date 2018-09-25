@@ -23,6 +23,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -36,7 +37,7 @@ export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
-export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
+export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
@@ -247,22 +248,31 @@ function registerDiffEditorCommands(): void {
 		}
 	}
 
+	function toggleDiffSideBySide(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
+	}
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_DIFF_INLINE_MODE,
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const configurationService = accessor.get(IConfigurationService);
+		handler: accessor => toggleDiffSideBySide(accessor)
+	});
 
-			const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-			return configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
-		}
+	// TODO@Ben remove me after a while
+	CommandsRegistry.registerCommand('toggle.diff.editorMode', accessor => {
+		toggleDiffSideBySide(accessor);
+
+		accessor.get(INotificationService).warn(nls.localize('diffCommandDeprecation', "Command 'toggle.diff.editorMode' has been deprecated. Please use '{0}' instead.", TOGGLE_DIFF_SIDE_BY_SIDE));
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
-			id: TOGGLE_DIFF_INLINE_MODE,
+			id: TOGGLE_DIFF_SIDE_BY_SIDE,
 			title: {
 				value: nls.localize('toggleInlineView', "Toggle Inline View"),
 				original: 'Compare: Toggle Inline View'

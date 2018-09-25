@@ -665,7 +665,7 @@ class SuggestAdapter {
 			_parentId,
 			//
 			label: item.label,
-			type: typeConvert.CompletionItemKind.from(item.kind),
+			kind: typeConvert.CompletionItemKind.from(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
 			filterText: item.filterText,

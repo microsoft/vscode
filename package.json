@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.28.0",
-  "distro": "522635a4482922678ade4bdaca2d4032684ed37a",
+  "distro": "bb8334ce2b57364a0e7ae9e4d3dab1428099d26a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -25,7 +25,7 @@
     "download-builtin-extensions": "node build/lib/builtInExtensions.js"
   },
   "dependencies": {
-    "applicationinsights": "0.18.0",
+    "applicationinsights": "1.0.3",
     "fast-plist": "0.1.2",
     "fs-extra": "^7.0.0",
     "gc-signals": "^0.0.1",
@@ -116,6 +116,7 @@
     "p-all": "^1.0.0",
     "pump": "^1.0.1",
     "queue": "3.0.6",
+    "rcedit": "^1.1.0",
     "remap-istanbul": "^0.6.4",
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",

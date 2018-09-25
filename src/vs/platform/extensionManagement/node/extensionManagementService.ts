@@ -161,12 +161,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	zip(extension: ILocalExtension): TPromise<URI> {
+		this.logService.trace('ExtensionManagementService#zip', extension.identifier.id);
 		return TPromise.wrap(this.collectFiles(extension))
 			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
 			.then(path => URI.file(path));
 	}
 
 	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
+		this.logService.trace('ExtensionManagementService#unzip', zipLocation.toString());
 		return this.install(zipLocation, type);
 	}
 
@@ -197,6 +199,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	install(vsix: URI, type: LocalExtensionType = LocalExtensionType.User): TPromise<IExtensionIdentifier> {
+		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 		return TPromise.wrap(createCancelablePromise(token => {
 			return this.downloadVsix(vsix)
 				.then(downloadLocation => {
@@ -288,6 +291,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		this.logService.trace('ExtensionManagementService#installFromGallery', extension.identifier.id);
 		let cancellablePromise = this.installingExtensions.get(extension.identifier.id);
 		if (!cancellablePromise) {
 
@@ -342,6 +346,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): TPromise<void> {
+		this.logService.trace('ExtensionManagementService#reinstallFromGallery', extension.identifier.id);
 		if (!this.galleryService.isEnabled()) {
 			return TPromise.wrapError(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}
@@ -536,6 +541,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
+		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		return this.toNonCancellablePromise(this.getInstalled(LocalExtensionType.User)
 			.then(installed => {
 				const extensionsToUninstall = installed
@@ -550,6 +556,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
+		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
 		local.metadata = metadata;
 		return this.saveMetadataForLocalExtension(local)
 			.then(localExtension => {

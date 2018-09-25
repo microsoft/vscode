@@ -27,7 +27,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
-import { isWindows } from 'vs/base/common/platform';
 import { Command } from 'vs/editor/browser/editorExtensions';
 import { timeout } from 'vs/base/common/async';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -655,23 +654,11 @@ export class RunActiveFileInTerminalAction extends Action {
 			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
-		let uriPath: string = uri.fsPath;
-		const hasSpace = uriPath.indexOf(' ') !== -1;
-		if (hasSpace && isWindows) {
-			uriPath = '"' + uriPath + '"';
-		} else if (!isWindows) {
-			if (uriPath.indexOf('\\') !== 0) {
-				uriPath = uriPath.replace(/\\/g, '\\\\');
-			}
-			const hasDoubleQuote = uriPath.indexOf('"') !== -1;
-			if (!hasSpace && hasDoubleQuote) {
-				uriPath = '\'' + uriPath + '\'';
-			} else if (hasSpace) {
-				uriPath = uriPath.replace(/ /g, '\\ ');
-			}
-		}
-		instance.sendText(uriPath, true);
-		return this.terminalService.showPanel();
+
+		return instance.preparePathForTerminalAsync(uri.fsPath).then(path => {
+			instance.sendText(path, true);
+			return this.terminalService.showPanel();
+		});
 	}
 }
 

@@ -700,29 +700,29 @@ export interface CompletionItemProvider {
 interface ISuggestion2 extends modes.ISuggestion {
 	_actual: CompletionItem;
 }
-function convertKind(kind: CompletionItemKind): modes.SuggestionType {
+function convertKind(kind: CompletionItemKind): modes.SuggestionKind {
 	switch (kind) {
-		case CompletionItemKind.Method: return 'method';
-		case CompletionItemKind.Function: return 'function';
-		case CompletionItemKind.Constructor: return 'constructor';
-		case CompletionItemKind.Field: return 'field';
-		case CompletionItemKind.Variable: return 'variable';
-		case CompletionItemKind.Class: return 'class';
-		case CompletionItemKind.Interface: return 'interface';
-		case CompletionItemKind.Module: return 'module';
-		case CompletionItemKind.Property: return 'property';
-		case CompletionItemKind.Unit: return 'unit';
-		case CompletionItemKind.Value: return 'value';
-		case CompletionItemKind.Enum: return 'enum';
-		case CompletionItemKind.Keyword: return 'keyword';
-		case CompletionItemKind.Snippet: return 'snippet';
-		case CompletionItemKind.Text: return 'text';
-		case CompletionItemKind.Color: return 'color';
-		case CompletionItemKind.File: return 'file';
-		case CompletionItemKind.Reference: return 'reference';
-		case CompletionItemKind.Folder: return 'folder';
+		case CompletionItemKind.Method: return modes.SuggestionKind.Method;
+		case CompletionItemKind.Function: return modes.SuggestionKind.Function;
+		case CompletionItemKind.Constructor: return modes.SuggestionKind.Constructor;
+		case CompletionItemKind.Field: return modes.SuggestionKind.Field;
+		case CompletionItemKind.Variable: return modes.SuggestionKind.Variable;
+		case CompletionItemKind.Class: return modes.SuggestionKind.Class;
+		case CompletionItemKind.Interface: return modes.SuggestionKind.Interface;
+		case CompletionItemKind.Module: return modes.SuggestionKind.Module;
+		case CompletionItemKind.Property: return modes.SuggestionKind.Property;
+		case CompletionItemKind.Unit: return modes.SuggestionKind.Unit;
+		case CompletionItemKind.Value: return modes.SuggestionKind.Value;
+		case CompletionItemKind.Enum: return modes.SuggestionKind.Enum;
+		case CompletionItemKind.Keyword: return modes.SuggestionKind.Keyword;
+		case CompletionItemKind.Snippet: return modes.SuggestionKind.Snippet;
+		case CompletionItemKind.Text: return modes.SuggestionKind.Text;
+		case CompletionItemKind.Color: return modes.SuggestionKind.Color;
+		case CompletionItemKind.File: return modes.SuggestionKind.File;
+		case CompletionItemKind.Reference: return modes.SuggestionKind.Reference;
+		case CompletionItemKind.Folder: return modes.SuggestionKind.Folder;
 	}
-	return 'property';
+	return modes.SuggestionKind.Property;
 }
 
 class SuggestAdapter {
@@ -738,7 +738,7 @@ class SuggestAdapter {
 			_actual: item,
 			label: item.label,
 			insertText: item.label,
-			type: convertKind(item.kind),
+			kind: convertKind(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
 			command: item.command,

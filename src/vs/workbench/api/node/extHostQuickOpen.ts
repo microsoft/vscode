@@ -36,10 +36,10 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		this._commands = commands;
 	}
 
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
-	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, enableProposedApi: boolean, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, enableProposedApi: boolean, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
+	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, enableProposedApi: boolean, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
@@ -78,7 +78,9 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						description = item.description;
 						detail = item.detail;
 						picked = item.picked;
-						alwaysShow = item.shouldAlwaysShow;
+						if (enableProposedApi) {
+							alwaysShow = item.shouldAlwaysShow;
+						}
 					}
 					pickItems.push({
 						label,

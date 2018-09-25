@@ -419,7 +419,7 @@ export class DebugService implements IDebugService {
 	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		return session.initialize(dbgr).then(() => {
-			session.launchOrAttach(session.configuration).then(() => {
+			return session.launchOrAttach(session.configuration).then(() => {
 				if (focus) {
 					this.focusStackFrame(undefined, undefined, session);
 				}
@@ -450,8 +450,8 @@ export class DebugService implements IDebugService {
 			}
 
 			const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
-			// Open debug viewlet based on the visibility of the side bar and openDebug setting
-			if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart)) {
+			// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
+			if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
 				this.viewletService.openViewlet(VIEWLET_ID);
 			}
 			this.viewModel.firstSessionStart = false;
@@ -464,9 +464,7 @@ export class DebugService implements IDebugService {
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
 		}).then(() => session, (error: Error | string) => {
 
-			if (session) {
-				session.shutdown();
-			}
+			session.shutdown();
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
@@ -480,12 +478,12 @@ export class DebugService implements IDebugService {
 
 			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
 				// ignore attach timeouts in auto attach mode
-			} else {
-				const errorMessage = error instanceof Error ? error.message : error;
-				this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				return TPromise.as(undefined);
 			}
-			return TPromise.as(undefined);
+
+			const errorMessage = error instanceof Error ? error.message : error;
+			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
+			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 		});
 	}
 

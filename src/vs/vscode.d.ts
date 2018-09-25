@@ -1575,11 +1575,6 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
-		 * Show this item always
-		 */
-		shouldAlwaysShow?: boolean;
-
-		/**
 		 * Optional flag indicating if this item is picked initially.
 		 * (Only honored when the picker allows multiple selections.)
 		 *
