@@ -253,7 +253,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_SEARCH,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
