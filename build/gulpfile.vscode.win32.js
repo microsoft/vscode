@@ -144,7 +144,7 @@ const windowsKitFolder = process.arch == "x64" ? "C:\\Program Files (x86)\\Windo
 const makeappxExe = `"${windowsKitFolder}\\makeappx.exe"`;
 const signToolExe = `"${windowsKitFolder}\\SignTool.exe"`;
 
-const win32electronPath = arch => path.join(repoPath, '.build', `electron-win32-${arch}`);
+const win32VSCodePath = arch => path.join(repoPath, '.build', `VSCode-win32-${arch}`);
 const winstoreArchPath = arch => path.join(repoPath, '.build', `winstore-${arch}`);
 const appxArchPath = arch => path.join(winstoreArchPath(arch), `vscode-${arch}.appx`);
 
@@ -158,7 +158,7 @@ const winstoreDevCertPassword = "vscode";
 
 function makeAppX(arch){
 	return cb => {
-		const srcPath = win32electronPath(arch);
+		const srcPath = win32VSCodePath(arch);
 		const destPath = winstoreArchPath(arch);
 		const prepackagePath = path.join(destPath, 'prepackage');
 		const packagePath = appxArchPath(arch);
@@ -253,7 +253,7 @@ function defineWinStoreTasks(arch){
 	gulp.task(archClean, util.rimraf(winstoreArchPath(arch)));
 
 	if(arch != "bundle"){
-		gulp.task(`vscode-winstore-${arch}`, [archClean, `electron-win32-${arch}`], makeAppX(arch));
+		gulp.task(`vscode-winstore-${arch}`, [archClean, `vscode-win32-${arch}-internal-min`], makeAppX(arch));
 	}
 	else{
 		gulp.task('vscode-winstore-bundle', [archClean, 'vscode-winstore-ia32', 'vscode-winstore-x64']);
