@@ -110,6 +110,7 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item.expanded > .notification-list-item-details-row {
 	display: flex;
+	overflow: visible;
 }
 
 /** Notification: Source */
@@ -125,7 +126,6 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container {
 	display: flex;
-	overflow: hidden;
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
@@ -133,7 +133,7 @@
 	padding: 5px 10px;
 	margin-left: 10px;
 	font-size: 12px;
-	overflow: hidden;
+	overflow: visible;
 	text-overflow: ellipsis;
 }
 
