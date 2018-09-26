@@ -127,7 +127,7 @@ class BaseTreeItem {
 	// skips intermediate single-child nodes
 	getChildren(): TPromise<BaseTreeItem[]> {
 		const child = this.oneChild();
-		if (child) {
+		if (child && !child.hasSource()) {
 			return child.getChildren();
 		}
 		const array = Object.keys(this._children).map(key => this._children[key]);
@@ -185,6 +185,10 @@ class BaseTreeItem {
 			}
 		}
 		return undefined;
+	}
+
+	private hasSource(): boolean {
+		return this._source !== undefined;
 	}
 }
 
