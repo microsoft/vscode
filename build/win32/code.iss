@@ -993,18 +993,26 @@ begin
   Result := True;
 
   #if "user" == InstallTarget
+    if not WizardSilent() and IsAdminLoggedOn() then begin
+      if MsgBox('This User Installer is not meant to be run as an Administrator. If you would like to install VS Code for all users in this system, download the System Installer instead from https://code.visualstudio.com. Are you sure you want to continue?', mbError, MB_OKCANCEL) = IDCANCEL then begin
+        Result := False;
+      end;
+    end;
+  #endif
+
+  #if "user" == InstallTarget
     #if "ia32" == Arch
       #define IncompatibleArchRootKey "HKLM32"
     #else
       #define IncompatibleArchRootKey "HKLM64"
     #endif
 
-    if not WizardSilent() then begin
+    if Result and not WizardSilent() then begin
       RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleTargetAppId}', 2, 38) + '_is1';
 
       if RegKeyExists({#IncompatibleArchRootKey}, RegKey) then begin
         if MsgBox('{#NameShort} is already installed on this system for all users. We recommend first uninstalling that version before installing this one. Are you sure you want to continue the installation?', mbConfirmation, MB_YESNO) = IDNO then begin
-          Result := false;
+          Result := False;
         end;
       end;
     end;
