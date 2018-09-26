@@ -24,7 +24,7 @@ export class ContextSubMenu extends SubmenuAction {
 }
 
 export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; };
+	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
 	getActions(): TPromise<(IAction | ContextSubMenu)[]>;
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(event?: IContextMenuEvent): any;
