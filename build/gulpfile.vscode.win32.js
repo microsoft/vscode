@@ -159,48 +159,58 @@ const signToolExe = `"${windowsKitFolder}\\SignTool.exe"`;
 const win32VSCodePath = arch => path.join(repoPath, '.build', `VSCode-win32-${arch}`);
 const winstoreArchPath = arch => path.join(repoPath, '.build', `winstore-${arch}`);
 const appxArchPath = arch => path.join(winstoreArchPath(arch), `vscode-${arch}.appx`);
+const prepackagePath = arch => path.join(winstoreArchPath(arch), 'prepackage');
 
 const winstoreResourcePath = path.join(__dirname, 'winstore');
 const winstoreBundlePath = path.join(repoPath, '.build', `winstore-bundle`);
-const appxCertPath = path.join(winstoreBundlePath, 'dev-certificate.pfx');
+const appxCertPath = path.join(winstoreBundlePath, 'dev-certificate.cer');
 
 // Dev Certificate Info
 const winstoreDevCertName = "VSCode-Dev";
-const winstoreDevCertPassword = "vscode";
 
-function makeAppX(arch){
-	return cb => {
+function makeWinstoreFolder(arch){
+	return () => {
 		const srcPath = win32VSCodePath(arch);
-		const destPath = winstoreArchPath(arch);
-		const prepackagePath = path.join(destPath, 'prepackage');
-		const packagePath = appxArchPath(arch);
-		const exe = "Code - OSS.exe";
+		const destPath = prepackagePath(arch);
+
+		const exe = product.nameShort + ".exe";
 
 		// Get Copy from electron-win32-{arch}
-		fs.copySync(srcPath, prepackagePath);
+		fs.copySync(srcPath, destPath);
 
 		// Copy Resources into Destination
-		fs.copySync(path.join(winstoreResourcePath, "package"), prepackagePath);
+		fs.copySync(path.join(winstoreResourcePath, "package"), destPath);
 
 		// Update Manifest with proper values.
-		let manifest = path.join(prepackagePath, "AppxManifest.xml");
+		let manifest = path.join(destPath, "AppxManifest.xml");
 		fs.readFile(manifest, 'utf8', function (err,data) {
 			if (err) {
 				return console.log(err);
 			}
 
-			let output = data.replace('{{arch}}', arch);
-			output = output.replace('{{publisher}}', publisher);
-			output = output.replace("{{exe}}", exe);
+			let output = data
+				.replace('{{publisher}}', publisher)
+				.replace("{{version}}", pkg.version)
+				.replace("{{appid}}", product.win32AppUserModelId)
+				.replace("{{appname}}", product.nameLong)
+				.replace("{{arch}}", arch)
+				.replace("{{exe}}", exe);
 
 			fs.writeFile(manifest, output, 'utf8', function (err) {
 				if (err) return console.log(err);
 			});
 		});
+	};
+}
+
+function makeAppX(arch){
+	return cb => {
+		const srcPath = prepackagePath(arch);
+		const packagePath = appxArchPath(arch);
 
 		const args = [
 			"Pack",
-			`/d ${prepackagePath}`,
+			`/d ${srcPath}`,
 			`/p ${packagePath}`,
 			"/l"
 		];
@@ -226,8 +236,7 @@ gulp.task('uwp-create-cert', [], (cb) => {
 		`-File "${path.join(winstoreResourcePath, "makeDevCert.ps1")}"`,
 		`"${publisher}"`,
 		`"${winstoreDevCertName}"`,
-		`"${appxCertPath}"`,
-		`"${winstoreDevCertPassword}"`
+		`"${appxCertPath}"`
 	];
 
 	// Create a Dev Certificate for the Appx.
@@ -240,13 +249,11 @@ gulp.task('uwp-create-cert', [], (cb) => {
 
 function signWinstoreAppx(arch){
 	return cb => {
-
 		const args = [
 			"sign",
 			"/fd SHA256",
 			"/a",
 			`/f "${appxCertPath}"`,
-			`/p ${winstoreDevCertPassword}`,
 			`"${appxArchPath(arch)}"`
 		];
 
@@ -259,21 +266,33 @@ function signWinstoreAppx(arch){
 	};
 }
 
-
 function defineWinStoreTasks(arch){
 	let archClean = `clean-vscode-winstore-${arch}`;
 	gulp.task(archClean, util.rimraf(winstoreArchPath(arch)));
 
 	if(arch != "bundle"){
-		gulp.task(`vscode-winstore-${arch}`, [archClean, `vscode-win32-${arch}-internal-min`], makeAppX(arch));
+		gulp.task(`vscode-winstore-${arch}`, [archClean, `vscode-win32-${arch}-internal-min`], makeWinstoreFolder(arch));
+		gulp.task(`vscode-winstore-${arch}-appx`, [`vscode-winstore-${arch}`], makeAppX(arch));
+		gulp.task(`vscode-winstore-${arch}-appx-sign`, [`vscode-winstore-${arch}-appx`, 'uwp-create-cert'], signWinstoreAppx(arch));
 	}
 	else{
-		gulp.task('vscode-winstore-bundle', [archClean, 'vscode-winstore-ia32', 'vscode-winstore-x64']);
+		gulp.task('vscode-winstore-appx-bundle', [archClean, 'vscode-winstore-ia32-appx', 'vscode-winstore-x64-appx']);
+		gulp.task('vscode-winstore-appx-bundle-sign', [`vscode-winstore-appx-bundle`, 'uwp-create-cert'], signWinstoreAppx(arch));
 	}
-
-	gulp.task(`vscode-winstore-${arch}-devsign`, [`vscode-winstore-${arch}`, 'uwp-create-cert'], signWinstoreAppx(arch));
 }
 
 defineWinStoreTasks("ia32");
 defineWinStoreTasks("x64");
 defineWinStoreTasks("bundle");
+
+// Build and Run
+gulp.task('winstore-unpackaged-install', () => {
+	cp.execSync(`powershell -command "Add-AppxPackage -Path '${prepackagePath(process.arch)}\\AppxManifest.xml' -Register`);
+});
+
+gulp.task('winstore-unpackaged-run', () => {
+	cp.execSync(`powershell.exe explorer.exe shell:AppsFolder\\$(get-appxpackage -name ${product.win32AppUserModelId} ^| select -expandproperty PackageFamilyName)!App`);
+});
+
+gulp.task('vscode-winstore-install', [`vscode-winstore-${process.arch}`, 'winstore-unpackaged-install']);
+gulp.task('vscode-winstore-run', ['vscode-winstore-install', 'winstore-unpackaged-run']);

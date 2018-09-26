@@ -4,8 +4,8 @@
 	xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
 	xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
 	<Identity
-		Name="Microsoft.VSCode"
-		Version="1.0.0.0"
+		Name="{{appid}}"
+		Version="{{version}}.0"
 		Publisher="{{publisher}}"
 		ProcessorArchitecture="{{arch}}" />
 	<Properties>
@@ -26,11 +26,11 @@
 	</Capabilities>
 	<Applications>
 		<Application
-			Id="VSCode"
+			Id="App"
 			Executable="{{exe}}"
 			EntryPoint="Windows.FullTrustApplication">
 			<uap:VisualElements
-				DisplayName="Visual Studio Code"
+				DisplayName="{{appname}}"
 				Description="Visual Studio Code Editor"
 				Square150x150Logo="assets/Square150x150Logo.png"
 				Square44x44Logo="assets/Square44x44Logo.png"
