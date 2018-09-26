@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-
+import { URL } from 'url';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
@@ -289,7 +289,7 @@ export class ExtensionLinter {
 	}
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
-		const uri = parseUri(src);
+		const uri = parseUri(src, document.uri.toString());
 		if (!uri) {
 			return;
 		}
@@ -345,13 +345,14 @@ function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-function parseUri(src: string) {
+function parseUri(src: string, base?: string, retry: boolean = true) {
 	try {
-		return Uri.parse(src);
+		let url = new URL(src, base);
+		return Uri.parse(url.toString());
 	} catch (err) {
-		try {
-			return Uri.parse(encodeURI(src));
-		} catch (err) {
+		if (retry) {
+			return parseUri(encodeURI(src), base, false);
+		} else {
 			return null;
 		}
 	}
