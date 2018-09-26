@@ -424,6 +424,9 @@ export class DebugService implements IDebugService {
 					this.focusStackFrame(undefined, undefined, session);
 				}
 			});
+		}, err => {
+			session.shutdown();
+			return TPromise.wrapError(err);
 		});
 	}
 
@@ -463,8 +466,6 @@ export class DebugService implements IDebugService {
 
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
 		}).then(() => session, (error: Error | string) => {
-
-			session.shutdown();
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
