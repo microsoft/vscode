@@ -400,4 +400,44 @@ suite('TreeModel2', function () {
 		model.setCollapsed([0], false);
 		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
 	});
+
+	test('refilter', function () {
+		const list = [] as ITreeNode<number>[];
+		let shouldFilter = false;
+		const filter = new class implements ITreeFilter<number> {
+			getVisibility(element: number): Visibility {
+				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		shouldFilter = true;
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+
+		shouldFilter = false;
+		model.refilter();
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+	});
 });
