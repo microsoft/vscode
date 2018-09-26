@@ -91,6 +91,7 @@ function getVisibleState(visibility: Visibility): boolean | undefined {
 	}
 }
 
+// TODO fix with visibility
 export function getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
 	const location = [];
 
