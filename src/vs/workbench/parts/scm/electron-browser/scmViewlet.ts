@@ -53,6 +53,7 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import * as platform from 'vs/base/common/platform';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -820,7 +821,10 @@ export class RepositoryPanel extends ViewletPanel {
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
 		const updatePlaceholder = () => {
-			const placeholder = format(this.repository.input.placeholder, this.keybindingService.lookupKeybinding('scm.acceptInput').getLabel());
+			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
+			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			const placeholder = format(this.repository.input.placeholder, label);
+
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
