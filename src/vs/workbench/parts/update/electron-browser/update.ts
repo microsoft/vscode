@@ -50,8 +50,11 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const uri = URI.parse(product.releaseNotesUrl);
-		return this.openerService.open(uri);
+		if (product.releaseNotesUrl) {
+			const uri = URI.parse(product.releaseNotesUrl);
+			return this.openerService.open(uri);
+		}
+		return TPromise.as(void 0);
 	}
 }
 
