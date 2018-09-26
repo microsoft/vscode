@@ -44,7 +44,7 @@ import { INotificationService, Severity, INotificationHandle } from 'vs/platform
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { isEqualOrParent } from 'vs/base/common/resources';
+import { isEqualOrParent, fsPath } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
 
@@ -959,7 +959,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			let developedExtensions = TPromise.as([]);
 			if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI.scheme === Schemas.file) {
 				developedExtensions = ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionDevelopmentLocationURI.fsPath, false, true, translations), log
+					new ExtensionScannerInput(version, commit, locale, devMode, fsPath(environmentService.extensionDevelopmentLocationURI), false, true, translations), log
 				);
 			}
 
