@@ -64,6 +64,29 @@ const ModulesToLookFor = [
 	'@google-cloud/common',
 	'heroku-cli'
 ];
+const PyModulesToLookFor = [
+	'azure',
+	'azure-storage-common',
+	'azure-storage-blob',
+	'azure-storage-file',
+	'azure-storage-queue',
+	'azure-mgmt',
+	'azure-shell',
+	'azure-cosmos',
+	'azure-devtools',
+	'azure-elasticluster',
+	'azure-eventgrid',
+	'azure-functions',
+	'azure-graphrbac',
+	'azure-keybault',
+	'azure-loganalytics',
+	'azure-monitor',
+	'azure-servicebus',
+	'azure-servicefabric',
+	'azure-storage',
+	'azure-translator',
+	'azure-iothub-device-client'
+];
 
 type Tags = { [index: string]: boolean | number | string };
 
@@ -205,7 +228,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 	}
 
-	private searchArray(arr: string[], regEx: RegExp): boolean {
+	private static searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
 
@@ -249,7 +272,35 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.xamarin.android" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.xamarin.ios" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.android.cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.conda" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.any-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-storage-common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-storage-blob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-storage-file" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-storage-queue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-mgmt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.pulumi-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-devtools" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-elasticluster" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-eventgrid" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-functions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-graphrbac" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-keybault" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-loganalytics" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-monitor" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-servicebus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-servicefabric" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-translator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-iothub-device-client : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
 	private resolveWorkspaceTags(configuration: IWindowConfiguration, participant?: (rootFiles: string[]) => void): TPromise<Tags> {
@@ -303,13 +354,18 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.config.xml'] = nameSet.has('config.xml');
 			tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
 
-			tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
-			tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
+			tags['workspace.ASP5'] = nameSet.has('project.json') && WorkspaceStats.searchArray(names, /^.+\.cs$/i);
+			tags['workspace.sln'] = WorkspaceStats.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
+
+			tags['workspace.py.requirements'] = nameSet.has('requirements.txt');
+			tags['workspace.py.requirements.star'] = WorkspaceStats.searchArray(names, /^(.*)requirements(.*)\.txt$/i);
+			tags['workspace.py.Pipfile'] = nameSet.has('pipfile');
+			tags['workspace.py.conda'] = WorkspaceStats.searchArray(names, /^environment(\.yml$|\.yaml$)/i);
 
 			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
 			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
@@ -343,36 +399,86 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			const packageJsonPromises = !nameSet.has('package.json') ? [] : folders.map(workspaceUri => {
-				const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-				return this.fileService.resolveFile(uri).then(() => {
-					return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(content => {
-						try {
-							const packageJsonContents = JSON.parse(content.value);
-							if (packageJsonContents['dependencies']) {
-								for (let module of ModulesToLookFor) {
-									if ('react-native' === module) {
-										if (packageJsonContents['dependencies'][module]) {
-											tags['workspace.reactNative'] = true;
-										}
-									} else {
-										if (packageJsonContents['dependencies'][module]) {
-											tags['workspace.npm.' + module] = true;
-										}
-									}
+			function getFilePromises(filename, fileService, contentHandler): TPromise<void>[] {
+				return !nameSet.has(filename) ? [] : folders.map(workspaceUri => {
+					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/${filename}` });
+					return fileService.resolveFile(uri).then(() => {
+						return fileService.resolveContent(uri, { acceptTextOnly: true }).then(contentHandler);
+					}, err => {
+						// Ignore missing file
+					});
+				});
+			}
+
+			function addPythonTags(packageName: string): void {
+				if (PyModulesToLookFor.indexOf(packageName) > -1) {
+					tags['workspace.py.' + packageName] = true;
+				}
+				// cognitive services has a lot of tiny packages. eg. 'azure-cognitiveservices-search-autosuggest'
+				if (packageName.indexOf('azure-cognitiveservices') > -1) {
+					tags['workspace.py.cognitiveservices'] = true;
+				}
+				if (!tags['workspace.py.any-azure']) {
+					tags['workspace.py.any-azure'] = /azure/i.test(packageName);
+				}
+			}
+
+			const requirementsTxtPromises = getFilePromises('requirements.txt', this.fileService, content => {
+				const dependencies: string[] = content.value.split('\r\n|\n');
+				for (let dependency of dependencies) {
+					// Dependencies in requirements.txt can have 3 formats: `foo==3.1, foo>=3.1, foo`
+					const format1 = dependency.split('==');
+					const format2 = dependency.split('>=');
+					const packageName = (format1.length === 2 ? format1[0] : format2[0]).trim();
+					addPythonTags(packageName);
+				}
+			});
+
+			const pipfilePromises = getFilePromises('pipfile', this.fileService, content => {
+				let dependencies: string[] = content.value.split(/\r\n|\n/);
+
+				// We're only interested in the '[packages]' section of the Pipfile
+				dependencies = dependencies.slice(dependencies.indexOf('[packages]') + 1);
+
+				for (let dependency of dependencies) {
+					if (dependency.trim().indexOf('[') > -1) {
+						break;
+					}
+					// All dependencies in Pipfiles follow the format: `<package> = <version, or git repo, or something else>`
+					if (dependency.indexOf('=') === -1) {
+						continue;
+					}
+					const packageName = dependency.split('=')[0].trim();
+					addPythonTags(packageName);
+				}
+
+			});
+
+			const packageJsonPromises = getFilePromises('package.json', this.fileService, content => {
+				try {
+					const packageJsonContents = JSON.parse(content.value);
+					if (packageJsonContents['dependencies']) {
+						for (let module of ModulesToLookFor) {
+							if ('react-native' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.reactNative'] = true;
+								}
+							} else {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.npm.' + module] = true;
 								}
 							}
 						}
-						catch (e) {
-							// Ignore errors when resolving file or parsing file contents
-						}
-					});
-				}, err => {
-					// Ignore missing file
-				});
+					}
+				}
+				catch (e) {
+					// Ignore errors when resolving file or parsing file contents
+				}
 			});
-
-			return TPromise.join(packageJsonPromises).then(() => tags);
+			return TPromise.join([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises]).then(function () {
+				return tags;
+			}
+			);
 		});
 	}
 
@@ -511,7 +617,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		return this.fileService.resolveFiles(uris.map(resource => ({ resource }))).then(
 			results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
-				const referencesAzure = this.searchArray(names, /azure/i);
+				const referencesAzure = WorkspaceStats.searchArray(names, /azure/i);
 				if (referencesAzure) {
 					tags['node'] = true;
 				}
