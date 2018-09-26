@@ -210,15 +210,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Use a debouncer to make sure to capture the correct cursor position
 			// after the model content has changed.
 			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
-				const position = activeTextEditorWidget.getPosition();
+				this.lastEditLocation = { input: activeEditor };
 
-				this.lastEditLocation = {
-					input: activeEditor,
-					selection: {
+				const position = activeTextEditorWidget.getPosition();
+				if (position) {
+					this.lastEditLocation.selection = {
 						startLineNumber: position.lineNumber,
 						startColumn: position.column
-					}
-				};
+					};
+				}
 			})));
 		}
 	}
