@@ -60,7 +60,11 @@
 							this.pattern = new RegExp(filter.value, 'i');
 						}
 
+						performance.mark('before refilter');
+						const start = performance.now();
 						tree.refilter();
+						console.log('refilter took', performance.now() - start);
+						performance.mark('after refilter');
 					}
 					filter(el) {
 						return (this.pattern ? this.pattern.test(el) : true) ? Visibility.Visible : Visibility.Recurse;
