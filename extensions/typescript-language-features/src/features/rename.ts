@@ -108,7 +108,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		newName: string,
 	): vscode.WorkspaceEdit {
 		// Make sure we preserve file exension if none provided
-		if (path.extname(newName)) {
+		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
 		}
 
