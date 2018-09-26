@@ -51,6 +51,7 @@ export class ExtensionsListView extends ViewletPanel {
 	protected badgeContainer: HTMLElement;
 	private list: WorkbenchPagedList<IExtension>;
 	private searchExperiments: IExperiment[] = [];
+	private previouslyFocusedActions: NodeListOf<Element>;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -95,6 +96,20 @@ export class ExtensionsListView extends ViewletPanel {
 			multipleSelectionSupport: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
+		this.list.onFocusChange(e => {
+			if (this.previouslyFocusedActions) {
+				this.previouslyFocusedActions.forEach(node => {
+					node.removeAttribute('tabindex');
+				});
+			}
+			const nodes = container.querySelectorAll('.focused .extension .footer .monaco-action-bar ul.actions-container > li:not(.disabled) > a.action-label');
+			nodes.forEach(node => {
+				node.setAttribute('tabindex', '0');
+			});
+			this.previouslyFocusedActions = nodes;
+
+		}, this, this.disposables);
+
 		this.disposables.push(this.list);
 
 		chain(this.list.onOpen)
@@ -183,7 +198,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
 		if (e.element) {
-			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+			const manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction, false);
 			manageExtensionAction.extension = e.element;
 			if (manageExtensionAction.enabled) {
 				this.contextMenuService.showContextMenu({

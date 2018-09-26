@@ -233,6 +233,7 @@ export interface IActionItemOptions extends IBaseActionItemOptions {
 	icon?: boolean;
 	label?: boolean;
 	keybinding?: string;
+	disableTabstops?: boolean;
 }
 
 export class ActionItem extends BaseActionItem {
@@ -330,7 +331,9 @@ export class ActionItem extends BaseActionItem {
 			this.label.removeAttribute('aria-disabled');
 			DOM.removeClass(this.element, 'disabled');
 			DOM.removeClass(this.label, 'disabled');
-			this.label.tabIndex = 0;
+			if (!this.options.disableTabstops) {
+				this.label.tabIndex = 0;
+			}
 		} else {
 			this.label.setAttribute('aria-disabled', 'true');
 			DOM.addClass(this.element, 'disabled');
