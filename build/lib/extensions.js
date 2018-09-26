@@ -25,7 +25,6 @@ var vsce = require("vsce");
 var stats_1 = require("./stats");
 var util2 = require("./util");
 var remote = require("gulp-remote-src");
-var flatmap = require('gulp-flatmap');
 var vzip = require('gulp-vinyl-zip');
 var filter = require('gulp-filter');
 var rename = require('gulp-rename');
@@ -44,7 +43,6 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
         return fromLocalNormal(extensionPath);
     }
 }
-exports.fromLocal = fromLocal;
 function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
     var result = es.through();
     var packagedDependencies = [];
@@ -173,18 +171,15 @@ function fromMarketplace(extensionName, version, metadata) {
             headers: baseHeaders
         }
     };
+    var packageJsonFilter = filter('package.json', { restore: true });
     return remote('', options)
-        .pipe(flatmap(function (stream) {
-        var packageJsonFilter = filter('package.json', { restore: true });
-        return stream
-            .pipe(vzip.src())
-            .pipe(filter('extension/**'))
-            .pipe(rename(function (p) { return p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
-            .pipe(packageJsonFilter)
-            .pipe(buffer())
-            .pipe(json({ __metadata: metadata }))
-            .pipe(packageJsonFilter.restore);
-    }));
+        .pipe(vzip.src())
+        .pipe(filter('extension/**'))
+        .pipe(rename(function (p) { return p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
+        .pipe(packageJsonFilter)
+        .pipe(buffer())
+        .pipe(json({ __metadata: metadata }))
+        .pipe(packageJsonFilter.restore);
 }
 exports.fromMarketplace = fromMarketplace;
 var excludedExtensions = [

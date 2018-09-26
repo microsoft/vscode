@@ -14,7 +14,6 @@ import * as vsce from 'vsce';
 import { createStatsStream } from './stats';
 import * as util2 from './util';
 import remote = require('gulp-remote-src');
-const flatmap = require('gulp-flatmap');
 const vzip = require('gulp-vinyl-zip');
 const filter = require('gulp-filter');
 const rename = require('gulp-rename');
@@ -26,7 +25,7 @@ const webpackGulp = require('webpack-stream');
 
 const root = path.resolve(path.join(__dirname, '..', '..'));
 
-export function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
+function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream {
 	const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
 	if (fs.existsSync(webpackFilename)) {
 		return fromLocalWebpack(extensionPath, sourceMappingURLBase);
@@ -201,19 +200,16 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 		}
 	};
 
-	return remote('', options)
-		.pipe(flatmap(stream => {
-			const packageJsonFilter = filter('package.json', { restore: true });
+	const packageJsonFilter = filter('package.json', { restore: true });
 
-			return stream
-				.pipe(vzip.src())
-				.pipe(filter('extension/**'))
-				.pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
-				.pipe(packageJsonFilter)
-				.pipe(buffer())
-				.pipe(json({ __metadata: metadata }))
-				.pipe(packageJsonFilter.restore);
-		}));
+	return remote('', options)
+		.pipe(vzip.src())
+		.pipe(filter('extension/**'))
+		.pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
+		.pipe(packageJsonFilter)
+		.pipe(buffer())
+		.pipe(json({ __metadata: metadata }))
+		.pipe(packageJsonFilter.restore);
 }
 
 interface IPackageExtensionsOptions {
