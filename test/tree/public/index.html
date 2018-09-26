@@ -28,7 +28,7 @@
 	<script>
 		require.config({ baseUrl: '/static' });
 
-		require(['vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ Tree }, { iter }) => {
+		require(['vs/base/browser/ui/tree/tree', 'vs/base/browser/ui/tree/treeModel', 'vs/base/common/iterator'], ({ Tree }, { Visibility }, { iter }) => {
 			const delegate = {
 				getHeight() { return 22; },
 				getTemplateId() { return 'template'; }
@@ -63,7 +63,7 @@
 						tree.refilter();
 					}
 					filter(el) {
-						return this.pattern ? this.pattern.test(el) : true;
+						return (this.pattern ? this.pattern.test(el) : true) ? Visibility.Visible : Visibility.Recurse;
 					}
 				}
 			});

@@ -24,7 +24,6 @@ export interface ITreeNode<T, TFilterData = void> {
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
 	readonly revealedCount: number;
-	readonly visible: boolean;
 	readonly filterData: TFilterData | undefined;
 }
 
@@ -34,14 +33,16 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	collapsible: boolean;
 	collapsed: boolean;
 	revealedCount: number;
-	visible: boolean;
 	filterData: TFilterData | undefined;
+
+	// internal state
+	visible: boolean | undefined;
 }
 
 export const enum Visibility {
 	Hidden,
 	Visible,
-	// Recurse // TODO@joao come up with a better name
+	Recurse // TODO@joao come up with a better name
 }
 
 export interface IFilterResult<TFilterData> {
@@ -80,6 +81,14 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
 
 	return { element, children, collapsed };
+}
+
+function getVisibleState(visibility: Visibility): boolean | undefined {
+	switch (visibility) {
+		case Visibility.Hidden: return false;
+		case Visibility.Visible: return true;
+		case Visibility.Recurse: return undefined;
+	}
 }
 
 export function getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
@@ -232,7 +241,7 @@ export class TreeModel<T, TFilterData = void> {
 		const { element, collapsible, collapsed } = treeElement;
 		const node: IMutableTreeNode<T, TFilterData> = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, revealedCount: 1, visible: true, filterData: undefined };
 
-		this.filterNode(node);
+		this.updateNodeFilterState(node);
 
 		if (revealed && node.visible) {
 			treeListElements.push(node);
@@ -242,7 +251,14 @@ export class TreeModel<T, TFilterData = void> {
 		node.children = Iterator.collect(Iterator.map(children, el => this.createTreeNode(el, node, revealed && !treeElement.collapsed, treeListElements)));
 		node.collapsible = node.collapsible || node.children.length > 0;
 
-		if (!collapsed) {
+		if (typeof node.visible === 'undefined' && node.children.length === 0) {
+			node.visible = false;
+			treeListElements.pop();
+		} else {
+			node.visible = true;
+		}
+
+		if (node.visible && !collapsed) {
 			node.revealedCount += getRevealedCount(node.children);
 		}
 
@@ -260,10 +276,10 @@ export class TreeModel<T, TFilterData = void> {
 
 		const recurse = (node: IMutableTreeNode<T, TFilterData>): number => {
 			if (!first || filterFirst) {
-				this.filterNode(node);
+				this.updateNodeFilterState(node);
 			}
 
-			if (!node.visible) {
+			if (node.visible === false) {
 				return 0;
 			}
 
@@ -271,11 +287,20 @@ export class TreeModel<T, TFilterData = void> {
 			result.push(node);
 			node.revealedCount = 1;
 
+			let childrenRevealedCount = 0;
 			if (!node.collapsed) {
 				for (const child of node.children) {
-					node.revealedCount += recurse(child);
+					childrenRevealedCount += recurse(child);
 				}
 			}
+
+			if (typeof node.visible === 'undefined' && childrenRevealedCount === 0) {
+				node.visible = false;
+				result.pop();
+				return 0;
+			}
+
+			node.revealedCount += childrenRevealedCount;
 
 			return node.revealedCount;
 		};
@@ -298,17 +323,17 @@ export class TreeModel<T, TFilterData = void> {
 		return result;
 	}
 
-	private filterNode(node: IMutableTreeNode<T, TFilterData>): void {
-		const visibility = this.filter ? this.filter.filter(node.element) : Visibility.Visible;
+	private updateNodeFilterState(node: IMutableTreeNode<T, TFilterData>): void {
+		const result = this.filter ? this.filter.filter(node.element) : Visibility.Visible;
 
-		if (typeof visibility === 'boolean') {
-			node.visible = visibility;
+		if (typeof result === 'boolean') {
+			node.visible = result;
 			node.filterData = undefined;
-		} else if (isFilterResult<TFilterData>(visibility)) {
-			node.visible = visibility.visibility === Visibility.Visible;
-			node.filterData = visibility.data;
+		} else if (isFilterResult<TFilterData>(result)) {
+			node.visible = getVisibleState(result.visibility);
+			node.filterData = result.data;
 		} else {
-			node.visible = visibility === Visibility.Visible;
+			node.visible = getVisibleState(result);
 			node.filterData = undefined;
 		}
 	}
