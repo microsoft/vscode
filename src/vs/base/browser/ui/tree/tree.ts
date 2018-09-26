@@ -174,6 +174,10 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
+	collapseAll(): void {
+		this.model.setCollapsedAll(true);
+	}
+
 	refilter(location?: number[]): void {
 		this.model.refilter(location);
 	}

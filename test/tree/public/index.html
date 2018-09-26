@@ -22,10 +22,19 @@
 
 <body>
 	<input type="text" id="filter" />
+	<button id="collapseall">Collapse All</button>
 	<div id="container"></div>
 
 	<script src="/static/vs/loader.js"></script>
 	<script>
+		function perf(name, fn) {
+			performance.mark('before ' + name);
+			const start = performance.now();
+			fn();
+			console.log(name + ' took', performance.now() - start);
+			performance.mark('after ' + name);
+		}
+
 		require.config({ baseUrl: '/static' });
 
 		require(['vs/base/browser/ui/tree/tree', 'vs/base/browser/ui/tree/treeModel', 'vs/base/common/iterator'], ({ Tree }, { Visibility }, { iter }) => {
@@ -60,11 +69,7 @@
 							this.pattern = new RegExp(filter.value, 'i');
 						}
 
-						performance.mark('before refilter');
-						const start = performance.now();
-						tree.refilter();
-						console.log('refilter took', performance.now() - start);
-						performance.mark('after refilter');
+						perf('refilter', () => tree.refilter());
 					}
 					filter(el) {
 						return (this.pattern ? this.pattern.test(el) : true) ? Visibility.Visible : Visibility.Recurse;
@@ -75,7 +80,7 @@
 			function setModel(model) {
 				performance.mark('before splice');
 				const start = performance.now();
-				tree.splice([0], 0, model);
+				;
 				console.log('splice took', performance.now() - start);
 				performance.mark('after splice');
 			}
@@ -92,7 +97,8 @@
 
 						files.push({ element: `file #${i}`, children: errors });
 					}
-					setModel(files);
+
+					perf('splice', () => tree.splice([0], 0, files));
 					break;
 				}
 				default:
@@ -101,10 +107,12 @@
 					xhr.send();
 					xhr.onreadystatechange = function () {
 						if (this.readyState == 4 && this.status == 200) {
-							setModel([JSON.parse(this.responseText)]);
+							perf('splice', () => tree.splice([0], 0, [JSON.parse(this.responseText)]));
 						}
 					};
 			}
+
+			collapseall.onclick = () => tree.collapseAll();
 		});
 	</script>
 </body>

@@ -64,6 +64,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
+	private didRequestScrollableElementUpdate: boolean = false;
 	private splicing = false;
 	private dragAndDropScrollInterval: number;
 	private dragAndDropScrollTimeout: number;
@@ -198,7 +199,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		const scrollHeight = this.getContentHeight();
 		this.rowsContainer.style.height = `${scrollHeight}px`;
-		this.scrollableElement.setScrollDimensions({ scrollHeight });
+
+		if (!this.didRequestScrollableElementUpdate) {
+			DOM.scheduleAtNextAnimationFrame(() => {
+				this.scrollableElement.setScrollDimensions({ scrollHeight });
+				this.didRequestScrollableElementUpdate = false;
+			});
+
+			this.didRequestScrollableElementUpdate = true;
+		}
 
 		return deleted.map(i => i.element);
 	}
