@@ -670,6 +670,9 @@ export class DebugService implements IDebugService {
 		if (!taskId) {
 			return TPromise.as(null);
 		}
+		if (!root) {
+			return TPromise.wrapError(new Error(nls.localize('invalidTaskReference', "Task '{0}' can not be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
+		}
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskId).then(task => {
 			if (!task) {
