@@ -10,17 +10,22 @@ import { URI } from 'vs/base/common/uri';
 import { posix } from 'path';
 import { OutputAppender } from 'vs/platform/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export abstract class AbstractExtHostOutputChannel implements vscode.OutputChannel {
+export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
 	readonly _id: Thenable<string>;
 	private readonly _name: string;
 	protected readonly _proxy: MainThreadOutputServiceShape;
 	private _disposed: boolean;
 
-	visible: boolean = false;
+	protected _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
+	get onDidAppend(): Event<void> { return this._onDidAppend.event; }
 
 	constructor(name: string, log: boolean, file: URI, proxy: MainThreadOutputServiceShape) {
+		super();
+
 		this._name = name;
 		this._proxy = proxy;
 		this._id = proxy.$register(this.name, log, file);
@@ -31,6 +36,10 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 	}
 
 	abstract append(value: string): void;
+
+	update(): void {
+		this._id.then(id => this._proxy.$update(id));
+	}
 
 	appendLine(value: string): void {
 		this.validate();
@@ -59,6 +68,8 @@ export abstract class AbstractExtHostOutputChannel implements vscode.OutputChann
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		if (!this._disposed) {
 			this._id
 				.then(id => this._proxy.$dispose(id))
@@ -76,6 +87,7 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 	append(value: string): void {
 		this.validate();
 		this._id.then(id => this._proxy.$append(id, value));
+		this._onDidAppend.fire();
 	}
 }
 
@@ -95,10 +107,12 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 	append(value: string): void {
 		this.validate();
 		this._appender.append(value);
-		if (this.visible) {
-			this._appender.flush();
-			this._id.then(id => this._proxy.$update(id));
-		}
+		this._onDidAppend.fire();
+	}
+
+	update(): void {
+		this._appender.flush();
+		super.update();
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -128,7 +142,7 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	private _proxy: MainThreadOutputServiceShape;
 	private _outputDir: string;
 	private _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
-	private _visibleChannel: AbstractExtHostOutputChannel;
+	private _visibleChannelDisposable: IDisposable;
 
 	constructor(logsLocation: URI, mainContext: IMainContext) {
 		this._outputDir = posix.join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
@@ -136,15 +150,13 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 	}
 
 	$setVisibleChannel(channelId: string): void {
-		if (this._visibleChannel) {
-			this._visibleChannel.visible = false;
+		if (this._visibleChannelDisposable) {
+			this._visibleChannelDisposable = dispose(this._visibleChannelDisposable);
 		}
-		this._visibleChannel = null;
 		if (channelId) {
 			const channel = this._channels.get(channelId);
 			if (channel) {
-				this._visibleChannel = channel;
-				this._visibleChannel.visible = true;
+				this._visibleChannelDisposable = channel.onDidAppend(() => channel.update());
 			}
 		}
 	}
