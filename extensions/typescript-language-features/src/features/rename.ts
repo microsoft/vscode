@@ -32,7 +32,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		}
 
 		if (this.client.apiVersion.gte(API.v310)) {
-			const triggerSpan = (renameInfo as any).triggerSpan;
+			const triggerSpan = renameInfo.triggerSpan;
 			if (triggerSpan) {
 				return typeConverters.Range.fromTextSpan(triggerSpan);
 			}
