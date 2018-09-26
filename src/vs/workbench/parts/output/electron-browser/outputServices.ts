@@ -113,7 +113,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		return this.outputChannelDescriptor.label;
 	}
 
-	clear(): void {
+	clear(till?: number): void {
 		if (this.modelUpdater.isScheduled()) {
 			this.modelUpdater.cancel();
 			this.onUpdateModelCancelled();
@@ -121,6 +121,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		if (this.model) {
 			this.model.setValue('');
 		}
+		this.endOffset = isNumber(till) ? till : this.endOffset;
 		this.startOffset = this.endOffset;
 	}
 
@@ -208,8 +209,8 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 		}
 	}
 
-	clear(): void {
-		super.clear();
+	clear(till?: number): void {
+		super.clear(till);
 		this.appendedMessage = '';
 	}
 
@@ -338,6 +339,7 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 
 	private updateInProgress: boolean = false;
 	private etag: string = '';
+	private loadModelPromise: TPromise<ITextModel> = TPromise.as(null);
 
 	constructor(
 		outputChannelDescriptor: IOutputChannelDescriptor,
@@ -354,12 +356,20 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
+		this.loadModelPromise = this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
 			.then(content => {
 				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
 				this.etag = content.etag;
 				return this.createModel(content.value);
 			});
+		return this.loadModelPromise;
+	}
+
+	clear(till?: number): void {
+		this.loadModelPromise.then(() => {
+			super.clear(till);
+			this.update();
+		});
 	}
 
 	append(message: string): void {

@@ -305,7 +305,7 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 	$register(label: string, log: boolean, file?: UriComponents): Thenable<string>;
 	$append(channelId: string, value: string): Thenable<void>;
 	$update(channelId: string): Thenable<void>;
-	$clear(channelId: string): Thenable<void>;
+	$clear(channelId: string, till: number): Thenable<void>;
 	$reveal(channelId: string, preserveFocus: boolean): Thenable<void>;
 	$close(channelId: string): Thenable<void>;
 	$dispose(channelId: string): Thenable<void>;

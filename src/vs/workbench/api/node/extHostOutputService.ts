@@ -19,6 +19,7 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	private readonly _name: string;
 	protected readonly _proxy: MainThreadOutputServiceShape;
 	private _disposed: boolean;
+	private _offset: number;
 
 	protected _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
 	get onDidAppend(): Event<void> { return this._onDidAppend.event; }
@@ -29,13 +30,17 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 		this._name = name;
 		this._proxy = proxy;
 		this._id = proxy.$register(this.name, log, file);
+		this._offset = 0;
 	}
 
 	get name(): string {
 		return this._name;
 	}
 
-	abstract append(value: string): void;
+	append(value: string): void {
+		this.validate();
+		this._offset += value ? Buffer.from(value).byteLength : 0;
+	}
 
 	update(): void {
 		this._id.then(id => this._proxy.$update(id));
@@ -48,7 +53,8 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 
 	clear(): void {
 		this.validate();
-		this._id.then(id => this._proxy.$clear(id));
+		const till = this._offset;
+		this._id.then(id => this._proxy.$clear(id, till));
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -85,7 +91,7 @@ export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
 	}
 
 	append(value: string): void {
-		this.validate();
+		super.append(value);
 		this._id.then(id => this._proxy.$append(id, value));
 		this._onDidAppend.fire();
 	}
@@ -105,7 +111,7 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 	}
 
 	append(value: string): void {
-		this.validate();
+		super.append(value);
 		this._appender.append(value);
 		this._onDidAppend.fire();
 	}

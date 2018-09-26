@@ -38,11 +38,13 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostOutputService);
 
-		this._register(anyEvent<any>(this._outputService.onActiveOutputChannel, this._panelService.onDidPanelOpen, this._panelService.onDidPanelClose)(() => {
+		const setVisibleChannel = () => {
 			const panel = this._panelService.getActivePanel();
 			const visibleChannel: IOutputChannel = panel && panel.getId() === OUTPUT_PANEL_ID ? this._outputService.getActiveChannel() : null;
 			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
-		}));
+		};
+		this._register(anyEvent<any>(this._outputService.onActiveOutputChannel, this._panelService.onDidPanelOpen, this._panelService.onDidPanelClose)(() => setVisibleChannel()));
+		setVisibleChannel();
 	}
 
 	public dispose(): void {
@@ -72,10 +74,10 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		return undefined;
 	}
 
-	public $clear(channelId: string): Thenable<void> {
+	public $clear(channelId: string, till: number): Thenable<void> {
 		const channel = this._getChannel(channelId);
 		if (channel) {
-			channel.clear();
+			channel.clear(till);
 		}
 		return undefined;
 	}
