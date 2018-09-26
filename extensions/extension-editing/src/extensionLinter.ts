@@ -40,6 +40,7 @@ interface TokenAndPosition {
 interface PackageJsonInfo {
 	isExtension: boolean;
 	hasHttpsRepository: boolean;
+	repository: Uri;
 }
 
 export class ExtensionLinter {
@@ -253,7 +254,8 @@ export class ExtensionLinter {
 		const uri = repo && parseUri(repo.value);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https')
+			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
+			repository: uri
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -289,13 +291,13 @@ export class ExtensionLinter {
 	}
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
-		const uri = parseUri(src, document.uri.toString());
+		const uri = parseUri(src, info.repository ? info.repository.toString() : document.uri.toString());
 		if (!uri) {
 			return;
 		}
 		const scheme = uri.scheme.toLowerCase();
 
-		if (scheme && scheme !== 'https' && scheme !== 'data') {
+		if (scheme !== 'https' && scheme !== 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, httpsRequired, DiagnosticSeverity.Warning));
 		}
@@ -305,7 +307,7 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!scheme && !info.hasHttpsRepository) {
+		if (!info.hasHttpsRepository) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			let message = (() => {
 				switch (context) {
@@ -345,7 +347,7 @@ function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-function parseUri(src: string, base?: string, retry: boolean = true) {
+function parseUri(src: string, base?: string, retry: boolean = true): Uri {
 	try {
 		let url = new URL(src, base);
 		return Uri.parse(url.toString());
