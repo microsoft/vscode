@@ -236,6 +236,30 @@ interface IBuiltInExtension {
 
 const builtInExtensions: IBuiltInExtension[] = require('../builtInExtensions.json');
 
+/**
+ * We're doing way too much stuff at once, with webpack et al. So much stuff
+ * that while downloading extensions from the marketplace, node js doesn't get enough
+ * stack frames to complete the download in under 2 minutes, at which point the
+ * marketplace server cuts off the http request. So, we sequentialize the extensino tasks.
+ */
+function sequence(streamProviders: { (): Stream }[]): Stream {
+	const result = es.through();
+
+	function pop() {
+		if (streamProviders.length === 0) {
+			result.emit('end');
+		} else {
+			const fn = streamProviders.shift();
+			fn()
+				.on('end', function () { setTimeout(pop, 0); })
+				.pipe(result, { end: false });
+		}
+	}
+
+	pop();
+	return result;
+}
+
 export function packageExtensionsStream(opts?: IPackageExtensionsOptions): NodeJS.ReadWriteStream {
 	opts = opts || {};
 
@@ -249,14 +273,14 @@ export function packageExtensionsStream(opts?: IPackageExtensionsOptions): NodeJ
 		.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
 		.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
-	const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
+	const localExtensions = () => es.merge(...localExtensionDescriptions.map(extension => {
 		return fromLocal(extension.path, opts.sourceMappingURLBase)
 			.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 	}));
 
-	const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
+	const localExtensionDependencies = () => gulp.src('extensions/node_modules/**', { base: '.' });
 
-	const marketplaceExtensions = es.merge(
+	const marketplaceExtensions = () => es.merge(
 		...builtInExtensions
 			.filter(({ name }) => opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true)
 			.map(extension => {
@@ -265,7 +289,7 @@ export function packageExtensionsStream(opts?: IPackageExtensionsOptions): NodeJ
 			})
 	);
 
-	return es.merge(localExtensions, localExtensionDependencies, marketplaceExtensions)
+	return sequence([localExtensions, localExtensionDependencies, marketplaceExtensions])
 		.pipe(util2.setExecutableBit(['**/*.sh']))
 		.pipe(filter(['**', '!**/*.js.map']));
 }
