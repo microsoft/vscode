@@ -68,7 +68,9 @@ import { hasArgs } from 'vs/platform/environment/node/argv';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { THEME_STORAGE_KEY, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
-import { nativeSep } from 'vs/base/common/paths';
+import { nativeSep, join } from 'vs/base/common/paths';
+import { homedir } from 'os';
+import { localize } from 'vs/nls';
 
 export class CodeApplication {
 
@@ -379,11 +381,16 @@ export class CodeApplication {
 
 						recordingStopped = true; // only once
 
-						contentTracing.stopRecording('', path => {
-							if (timeout) {
-								this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+						contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace`), path => {
+							if (!timeout) {
+								this.windowsMainService.showMessageBox({
+									type: 'info',
+									message: localize('trace.message', "Successfully created trace."),
+									detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+									buttons: [localize('trace.ok', "Ok")]
+								}, this.windowsMainService.getLastActiveWindow());
 							} else {
-								this.logService.info(`Tracing: data recorded to ${path}`);
+								this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
 							}
 						});
 					};
