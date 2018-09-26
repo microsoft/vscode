@@ -510,7 +510,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		if (workspaces.length === 1) {
 			const workspaceFile = workspaces[0];
 
-			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}'. Do you want to open it (click [here]({1}) to learn more)?", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
+			this.notificationService.prompt(Severity.Info, localize('workspaceFound', "This folder contains a workspace file '{0}' (click [here]({1}) to learn more). Do you want to open it?", workspaceFile, 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('openWorkspace', "Open Workspace"),
 				run: () => this.windowService.openWindow([URI.file(join(folder.fsPath, workspaceFile))])
 			}, doNotShowAgain]);
@@ -518,7 +518,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 		// Prompt to select a workspace from many
 		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files. Do you want to open one (click [here]({0}) to learn more)?", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
+			this.notificationService.prompt(Severity.Info, localize('workspacesFound', "This folder contains multiple workspace files (click [here]({0}) to learn more). Do you want to open one?", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
 				label: localize('selectWorkspace', "Select Workspace"),
 				run: () => {
 					this.quickInputService.pick(
