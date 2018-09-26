@@ -148,16 +148,16 @@
           "scope": "resource",
           "deprecationMessage": "%typescript.useCodeSnippetsOnMethodSuggest.deprecationMessage%"
         },
-        "javascript.suggest.insertParametersForFunctionCalls": {
+        "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.suggest.insertParametersForFunctionCalls%",
+          "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
-        "typescript.suggest.insertParametersForFunctionCalls": {
+        "typescript.suggest.completeFunctionCalls": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.suggest.insertParametersForFunctionCalls%",
+          "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
