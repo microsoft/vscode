@@ -672,7 +672,14 @@ declare module 'vscode' {
 	 */
 
 	interface CommentInfo {
+		/**
+		 * All of the comment threads associated with the document.
+		 */
 		threads: CommentThread[];
+
+		/**
+		 * The ranges of the document which support commenting.
+		 */
 		commentingRanges?: Range[];
 	}
 
@@ -687,14 +694,40 @@ declare module 'vscode' {
 		Expanded = 1
 	}
 
+	/**
+	 * A collection of comments representing a conversation at a particular range in a document.
+	 */
 	interface CommentThread {
+		/**
+		 * A unique identifier of the comment thread.
+		 */
 		threadId: string;
+
+		/**
+		 * The uri of the document the thread has been created on.
+		 */
 		resource: Uri;
+
+		/**
+		 * The range the comment thread is located within the document. The thread icon will be shown
+		 * at the first line of the range.
+		 */
 		range: Range;
+
+		/**
+		 * The ordered comments of the thread.
+		 */
 		comments: Comment[];
+
+		/**
+		 * Whether the thread should be collapsed or expanded when opening the document. Defaults to Collapsed.
+		 */
 		collapsibleState?: CommentThreadCollapsibleState;
 	}
 
+	/**
+	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 */
 	interface Comment {
 		/**
 		 * The id of the comment
@@ -712,9 +745,15 @@ declare module 'vscode' {
 		userName: string;
 
 		/**
-		 * The avatar src of the user who created the comment
+		 * The icon path for the user who created the comment
 		 */
-		gravatar: string;
+		userIconPath?: Uri;
+
+
+		/**
+		 * @deprecated Use userIconPath instead. The avatar src of the user who created the comment
+		 */
+		gravatar?: string;
 
 		/**
 		 * Whether the current user has permission to edit the comment.

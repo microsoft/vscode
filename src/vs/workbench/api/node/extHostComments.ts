@@ -186,11 +186,20 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 }
 
 function convertFromComment(comment: modes.Comment): vscode.Comment {
+	let userIconPath: URI;
+	if (comment.userIconPath) {
+		try {
+			userIconPath = URI.parse(comment.userIconPath);
+		} catch (e) {
+			// Ignore
+		}
+	}
+
 	return {
 		commentId: comment.commentId,
 		body: extHostTypeConverter.MarkdownString.to(comment.body),
 		userName: comment.userName,
-		gravatar: comment.gravatar,
+		userIconPath: userIconPath,
 		canEdit: comment.canEdit,
 		canDelete: comment.canDelete
 	};
@@ -199,11 +208,12 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 function convertToComment(provider: vscode.DocumentCommentProvider | vscode.WorkspaceCommentProvider, vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
 	const canEdit = !!(provider as vscode.DocumentCommentProvider).editComment && vscodeComment.canEdit;
 	const canDelete = !!(provider as vscode.DocumentCommentProvider).deleteComment && vscodeComment.canDelete;
+	const iconPath = vscodeComment.userIconPath ? vscodeComment.userIconPath.toString() : vscodeComment.gravatar;
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
-		gravatar: vscodeComment.gravatar,
+		userIconPath: iconPath,
 		canEdit: canEdit,
 		canDelete: canDelete,
 		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null

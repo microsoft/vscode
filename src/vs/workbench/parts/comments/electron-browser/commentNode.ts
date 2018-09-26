@@ -71,8 +71,10 @@ export class CommentNode extends Disposable {
 		this._domNode = dom.$('div.review-comment');
 		this._domNode.tabIndex = 0;
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
-		const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
-		img.src = comment.gravatar;
+		if (comment.userIconPath) {
+			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
+			img.src = comment.userIconPath.toString();
+		}
 		const commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
 
 		this.createHeader(commentDetailsContainer);
@@ -158,6 +160,9 @@ export class CommentNode extends Disposable {
 
 		try {
 			const editedComment = await this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue());
+			if (!(editedComment instanceof Comment)) {
+				throw Error();
+			}
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
 			this._commentEditor.getDomNode().style.outline = '';
@@ -168,7 +173,9 @@ export class CommentNode extends Disposable {
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
 
 			this._commentEditor.getDomNode().style.outline = `1px solid ${this.themeService.getTheme().getColor(inputValidationErrorBorder)}`;
-			this._errorEditingContainer.textContent = nls.localize('commentCreationError', "Updating the comment failed: {0}.", e.message);
+			this._errorEditingContainer.textContent = e.message
+				? nls.localize('commentEditError', "Updating the comment failed: {0}.", e.message)
+				: nls.localize('commentEditDefaultError', "Updating the comment failed.");
 			this._errorEditingContainer.classList.remove('hidden');
 			this._commentEditor.focus();
 		}
@@ -187,9 +194,14 @@ export class CommentNode extends Disposable {
 						const didDelete = await this.commentService.deleteComment(this.owner, this.resource, this.comment);
 						if (didDelete) {
 							this._onDidDelete.fire(this);
+						} else {
+							throw Error();
 						}
 					} catch (e) {
-						this.notificationService.error(nls.localize('commentDeletionError', "Deleting the comment failed: {0}.", e.message));
+						const error = e.message
+							? nls.localize('commentDeletionError', "Deleting the comment failed: {0}.", e.message)
+							: nls.localize('commentDeletionDefaultError', "Deleting the comment failed");
+						this.notificationService.error(error);
 					}
 				}
 			});
