@@ -46,6 +46,7 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 class Item extends BreadcrumbsItem {
 
@@ -157,6 +158,7 @@ export class BreadcrumbsControl {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -409,7 +411,7 @@ export class BreadcrumbsControl {
 	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): void {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
-				// open file in editor
+				// open file in any editor
 				this._editorService.openEditor({ resource: element.uri }, group);
 			} else {
 				// show next picker
@@ -420,15 +422,15 @@ export class BreadcrumbsControl {
 			}
 
 		} else if (element instanceof OutlineElement) {
-			// open symbol in editor
+			// open symbol in code editor
 			let model = OutlineModel.get(element);
-			this._editorService.openEditor({
+			this._codeEditorService.openCodeEditor({
 				resource: model.textModel.uri,
 				options: {
 					selection: Range.collapseToStart(element.symbol.selectionRange),
 					revealInCenterIfOutsideViewport: true
 				}
-			}, group);
+			}, this._getActiveCodeEditor(), group === SIDE_GROUP);
 		}
 	}
 
