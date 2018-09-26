@@ -6,7 +6,7 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement, getNodeLocation } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeElement, getNodeLocation, ITreeModelOptions } from 'vs/base/browser/ui/tree/treeModel';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
@@ -135,7 +135,7 @@ function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-export interface ITreeOptions<T> extends IListOptions<T> { }
+export interface ITreeOptions<T, TFilterData = void> extends IListOptions<T>, ITreeModelOptions<T, TFilterData> { }
 
 export class Tree<T, TFilterData = void> implements IDisposable {
 
@@ -147,7 +147,7 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options?: ITreeOptions<T>
+		options?: ITreeOptions<T, TFilterData>
 	) {
 		const treeDelegate = new TreeDelegate(delegate);
 
@@ -155,10 +155,8 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		const treeRenderers = renderers.map(r => new TreeRenderer(r, onDidChangeCollapseStateRelay.event));
 		this.disposables.push(...treeRenderers);
 
-		const treeOptions = toTreeListOptions(options);
-
-		this.view = new List(container, treeDelegate, treeRenderers, treeOptions);
-		this.model = new TreeModel<T, TFilterData>(this.view);
+		this.view = new List(container, treeDelegate, treeRenderers, toTreeListOptions(options));
+		this.model = new TreeModel<T, TFilterData>(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
@@ -174,6 +172,10 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 
 	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
 		return this.model.splice(location, deleteCount, toInsert);
+	}
+
+	refilter(location?: number[]): void {
+		this.model.refilter(location);
 	}
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {

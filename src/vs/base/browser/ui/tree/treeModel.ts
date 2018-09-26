@@ -54,7 +54,7 @@ function isFilterResult<T>(obj: any): obj is IFilterResult<T> {
 }
 
 export interface ITreeFilter<T, TFilterData = void> {
-	getVisibility(element: T): Visibility | IFilterResult<TFilterData>;
+	filter(element: T): boolean | Visibility | IFilterResult<TFilterData>;
 }
 
 function revealedCountReducer<T>(result: number, node: IMutableTreeNode<T, any>): number {
@@ -93,7 +93,7 @@ export function getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
 	return location.reverse();
 }
 
-export interface ITreeOptions<T, TFilterData = void> {
+export interface ITreeModelOptions<T, TFilterData = void> {
 	filter?: ITreeFilter<T, TFilterData>;
 }
 
@@ -116,7 +116,7 @@ export class TreeModel<T, TFilterData = void> {
 
 	private filter?: ITreeFilter<T, TFilterData>;
 
-	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData> = {}) {
+	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
 		this.filter = options.filter;
 	}
 
@@ -299,9 +299,12 @@ export class TreeModel<T, TFilterData = void> {
 	}
 
 	private filterNode(node: IMutableTreeNode<T, TFilterData>): void {
-		const visibility = this.filter ? this.filter.getVisibility(node.element) : Visibility.Visible;
+		const visibility = this.filter ? this.filter.filter(node.element) : Visibility.Visible;
 
-		if (isFilterResult(visibility)) {
+		if (typeof visibility === 'boolean') {
+			node.visible = visibility;
+			node.filterData = undefined;
+		} else if (isFilterResult<TFilterData>(visibility)) {
 			node.visible = visibility.visibility === Visibility.Visible;
 			node.filterData = visibility.data;
 		} else {

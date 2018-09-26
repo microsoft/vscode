@@ -335,7 +335,7 @@ suite('TreeModel2', function () {
 	test('simple filter', function () {
 		const list = [] as ITreeNode<number>[];
 		const filter = new class implements ITreeFilter<number> {
-			getVisibility(element: number): Visibility {
+			filter(element: number): Visibility {
 				return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
 			}
 		};
@@ -370,7 +370,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		let shouldFilter = false;
 		const filter = new class implements ITreeFilter<number> {
-			getVisibility(element: number): Visibility {
+			filter(element: number): Visibility {
 				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
 			}
 		};
@@ -405,7 +405,7 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		let shouldFilter = false;
 		const filter = new class implements ITreeFilter<number> {
-			getVisibility(element: number): Visibility {
+			filter(element: number): Visibility {
 				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
 			}
 		};

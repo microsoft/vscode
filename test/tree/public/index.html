@@ -21,6 +21,7 @@
 </head>
 
 <body>
+	<input type="text" id="filter" />
 	<div id="container"></div>
 
 	<script src="/static/vs/loader.js"></script>
@@ -42,7 +43,30 @@
 				disposeTemplate() { }
 			};
 
-			const tree = new Tree(container, delegate, [renderer]);
+			const tree = new Tree(container, delegate, [renderer], {
+				filter: new class {
+					constructor() {
+						this.pattern = null;
+						let timeout;
+						filter.oninput = () => {
+							clearTimeout(timeout);
+							timeout = setTimeout(() => this.updatePattern(), 300);
+						};
+					}
+					updatePattern() {
+						if (!filter.value) {
+							this.pattern = null;
+						} else {
+							this.pattern = new RegExp(filter.value, 'i');
+						}
+
+						tree.refilter();
+					}
+					filter(el) {
+						return this.pattern ? this.pattern.test(el) : true;
+					}
+				}
+			});
 
 			function setModel(model) {
 				performance.mark('before splice');
@@ -77,7 +101,6 @@
 						}
 					};
 			}
-
 		});
 	</script>
 </body>
