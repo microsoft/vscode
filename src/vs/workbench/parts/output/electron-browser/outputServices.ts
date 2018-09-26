@@ -41,6 +41,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OutputAppender } from 'vs/platform/output/node/outputAppender';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isNumber } from 'vs/base/common/types';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -122,6 +123,8 @@ abstract class AbstractFileOutputChannel extends Disposable {
 		}
 		this.startOffset = this.endOffset;
 	}
+
+	update(): void { }
 
 	protected createModel(content: string): ITextModel {
 		if (this.model) {
@@ -346,18 +349,17 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		super(outputChannelDescriptor, modelUri, fileService, modelService, modeService);
 
 		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
-		this._register(this.fileHandler.onDidContentChange(size => this.onDidContentChange(size)));
+		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		return this.readContent()
-			.then(content => this.createModel(content));
-	}
-
-	clear(): void {
-		this.readContent() // Read content from the file before clearing
-			.then(() => super.clear());
+		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
+			.then(content => {
+				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
+				this.etag = content.etag;
+				return this.createModel(content.value);
+			});
 	}
 
 	append(message: string): void {
@@ -392,19 +394,10 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		this.updateInProgress = false;
 	}
 
-	private readContent(): TPromise<string> {
-		return this.fileService.resolveContent(this.file, { position: this.startOffset, encoding: 'utf8' })
-			.then(content => {
-				this.endOffset = this.startOffset + Buffer.from(content.value).byteLength;
-				this.etag = content.etag;
-				return content.value;
-			});
-	}
-
-	private onDidContentChange(size: number): void {
+	update(size?: number): void {
 		if (!this.updateInProgress) {
 			this.updateInProgress = true;
-			if (this.endOffset > size) { // Reset - Content is removed
+			if (isNumber(size) && this.endOffset > size) { // Reset - Content is removed
 				this.startOffset = this.endOffset = 0;
 				this.model.setValue('');
 			}
@@ -711,6 +704,8 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 			this.modelUpdater.schedule();
 		}
 	}
+
+	update(): void { }
 
 	clear(): void {
 		if (this.modelUpdater.isScheduled()) {
