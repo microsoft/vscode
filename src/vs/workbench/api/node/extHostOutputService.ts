@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { MainContext, MainThreadOutputServiceShape, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadOutputServiceShape, IMainContext, ExtHostOutputServiceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { posix } from 'path';
@@ -13,10 +13,12 @@ import { toLocalISOString } from 'vs/base/common/date';
 
 export abstract class AbstractExtHostOutputChannel implements vscode.OutputChannel {
 
-	protected readonly _id: Thenable<string>;
+	readonly _id: Thenable<string>;
 	private readonly _name: string;
 	protected readonly _proxy: MainThreadOutputServiceShape;
 	private _disposed: boolean;
+
+	visible: boolean = false;
 
 	constructor(name: string, log: boolean, file: URI, proxy: MainThreadOutputServiceShape) {
 		this._name = name;
@@ -93,6 +95,10 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 	append(value: string): void {
 		this.validate();
 		this._appender.append(value);
+		if (this.visible) {
+			this._appender.flush();
+			this._id.then(id => this._proxy.$update(id));
+		}
 	}
 
 	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
@@ -117,17 +123,39 @@ export class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
 	}
 }
 
-export class ExtHostOutputService {
+export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	private _proxy: MainThreadOutputServiceShape;
 	private _outputDir: string;
+	private _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
+	private _visibleChannel: AbstractExtHostOutputChannel;
 
 	constructor(logsLocation: URI, mainContext: IMainContext) {
 		this._outputDir = posix.join(logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
+	$setVisibleChannel(channelId: string): void {
+		if (this._visibleChannel) {
+			this._visibleChannel.visible = false;
+		}
+		this._visibleChannel = null;
+		if (channelId) {
+			const channel = this._channels.get(channelId);
+			if (channel) {
+				this._visibleChannel = channel;
+				this._visibleChannel.visible = true;
+			}
+		}
+	}
+
 	createOutputChannel(name: string): vscode.OutputChannel {
+		const channel = this._createOutputChannel(name);
+		channel._id.then(id => this._channels.set(id, channel));
+		return channel;
+	}
+
+	private _createOutputChannel(name: string): AbstractExtHostOutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
