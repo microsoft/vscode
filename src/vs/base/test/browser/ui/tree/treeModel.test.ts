@@ -343,28 +343,61 @@ suite('TreeModel2', function () {
 		const model = new TreeModel<number>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
-			{ element: 0 },
-			{ element: 1 },
-			{ element: 2 },
-			{ element: 3 },
-			{ element: 4 },
-			{ element: 5 },
-			{ element: 6 },
-			{ element: 7 }
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			}
 		]));
 
 		assert.deepEqual(list.length, 4);
-		assert.deepEqual(list[0].element, 0);
-		assert.deepEqual(list[0].collapsed, false);
-		assert.deepEqual(list[0].depth, 1);
-		assert.deepEqual(list[1].element, 2);
-		assert.deepEqual(list[1].collapsed, false);
-		assert.deepEqual(list[1].depth, 1);
-		assert.deepEqual(list[2].element, 4);
-		assert.deepEqual(list[2].collapsed, false);
-		assert.deepEqual(list[2].depth, 1);
-		assert.deepEqual(list[3].element, 6);
-		assert.deepEqual(list[3].collapsed, false);
-		assert.deepEqual(list[3].depth, 1);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+	});
+
+	test('collapse & expand should refilter', function () {
+		const list = [] as ITreeNode<number>[];
+		let shouldFilter = false;
+		const filter = new class implements ITreeFilter<number> {
+			getVisibility(element: number): Visibility {
+				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), [0]);
+
+		shouldFilter = true;
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
 	});
 });
