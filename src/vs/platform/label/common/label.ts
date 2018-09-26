@@ -43,6 +43,7 @@ export interface LabelRules {
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
+		authorityPrefix?: string;
 	};
 	workspace?: {
 		suffix: string;
@@ -167,6 +168,9 @@ export class LabelService implements ILabelService {
 
 		if (formatter.uri.tildify && !forceNoTildify) {
 			label = tildify(label, this.environmentService.userHome);
+		}
+		if (formatter.uri.authorityPrefix && resource.authority) {
+			label = formatter.uri.authorityPrefix + label;
 		}
 
 		return label.replace(sepRegexp, formatter.uri.separator);
