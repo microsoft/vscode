@@ -813,7 +813,7 @@ declare module 'vscode' {
 		/**
 		 * Called when a user edits the comment body to the be new text text.
 		 */
-		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<Comment>;
+		editComment?(document: TextDocument, comment: Comment, text: string, token: CancellationToken): Promise<void>;
 
 		/**
 		 * Called when a user deletes the comment.

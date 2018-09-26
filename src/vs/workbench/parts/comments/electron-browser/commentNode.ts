@@ -29,6 +29,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { assign } from 'vs/base/common/objects';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -159,14 +161,14 @@ export class CommentNode extends Disposable {
 		this._updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
 
 		try {
-			const editedComment = await this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue());
-			if (!(editedComment instanceof Comment)) {
-				throw Error();
-			}
+			const newBody = this._commentEditor.getValue();
+			await this.commentService.editComment(this.owner, this.resource, this.comment, newBody);
+
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
 			this._commentEditor.getDomNode().style.outline = '';
 			this.removeCommentEditor();
+			const editedComment = assign({}, this.comment, { body: new MarkdownString(newBody) });
 			this.update(editedComment);
 		} catch (e) {
 			this._updateCommentButton.enabled = true;

@@ -93,7 +93,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		}).then(commentThread => commentThread ? convertToCommentThread(provider, commentThread, this._commandsConverter) : null);
 	}
 
-	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Thenable<modes.Comment> {
+	$editComment(handle: number, uri: UriComponents, comment: modes.Comment, text: string): Thenable<void> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
 
 		if (!data || !data.document) {
@@ -103,7 +103,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		const provider = this._documentProviders.get(handle);
 		return asThenable(() => {
 			return provider.editComment(data.document, convertFromComment(comment), text, CancellationToken.None);
-		}).then(comment => convertToComment(provider, comment, this._commandsConverter));
+		});
 	}
 
 	$deleteComment(handle: number, uri: UriComponents, comment: modes.Comment): Thenable<void> {
