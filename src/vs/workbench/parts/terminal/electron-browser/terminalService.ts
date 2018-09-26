@@ -282,7 +282,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	protected _showNotEnoughSpaceToast(): void {
-		this._notificationService.warn(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
+		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

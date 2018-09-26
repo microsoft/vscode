@@ -28,6 +28,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Emitter, Event } from 'vs/base/common/event';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const UPDATE_COMMENT_LABEL = nls.localize('label.updateComment', "Update comment");
 const UPDATE_IN_PROGRESS_LABEL = nls.localize('label.updatingComment', "Updating comment...");
@@ -62,7 +63,8 @@ export class CommentNode extends Disposable {
 		private commentService: ICommentService,
 		private modelService: IModelService,
 		private modeService: IModeService,
-		private dialogService: IDialogService
+		private dialogService: IDialogService,
+		private notificationService: INotificationService
 	) {
 		super();
 
@@ -150,18 +152,17 @@ export class CommentNode extends Disposable {
 		this._commentEditContainer.remove();
 	}
 
-	private editComment(): void {
+	private async editComment(): Promise<void> {
 		this._updateCommentButton.enabled = false;
 		this._updateCommentButton.label = UPDATE_IN_PROGRESS_LABEL;
 
 		try {
-			this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue()).then(editedComment => {
-				this._updateCommentButton.enabled = true;
-				this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
-				this._commentEditor.getDomNode().style.outline = '';
-				this.removeCommentEditor();
-				this.update(editedComment);
-			});
+			const editedComment = await this.commentService.editComment(this.owner, this.resource, this.comment, this._commentEditor.getValue());
+			this._updateCommentButton.enabled = true;
+			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
+			this._commentEditor.getDomNode().style.outline = '';
+			this.removeCommentEditor();
+			this.update(editedComment);
 		} catch (e) {
 			this._updateCommentButton.enabled = true;
 			this._updateCommentButton.label = UPDATE_COMMENT_LABEL;
@@ -180,13 +181,16 @@ export class CommentNode extends Disposable {
 				message: nls.localize('confirmDelete', "Delete comment?"),
 				type: 'question',
 				primaryButton: nls.localize('label.delete', "Delete")
-			}).then(result => {
+			}).then(async result => {
 				if (result.confirmed) {
-					this.commentService.deleteComment(this.owner, this.resource, this.comment).then((didDelete) => {
+					try {
+						const didDelete = await this.commentService.deleteComment(this.owner, this.resource, this.comment);
 						if (didDelete) {
 							this._onDidDelete.fire(this);
 						}
-					});
+					} catch (e) {
+						this.notificationService.error(nls.localize('commentDeletionError', "Deleting the comment failed: {0}.", e.message));
+					}
 				}
 			});
 		});

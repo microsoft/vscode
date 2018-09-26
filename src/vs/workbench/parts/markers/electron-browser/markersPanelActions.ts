@@ -191,6 +191,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.focusContextKey.set(false)));
+		this._register(toDisposable(() => this.focusContextKey.reset()));
 	}
 
 	private createControls(container: HTMLElement): void {

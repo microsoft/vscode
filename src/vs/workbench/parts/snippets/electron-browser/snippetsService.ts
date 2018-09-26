@@ -29,6 +29,7 @@ import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/parts/snippets
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 namespace schema {
 
@@ -289,8 +290,10 @@ class SnippetsService implements ISnippetsService {
 		};
 
 		return this._fileService.resolveFile(folder).then(stat => {
-			for (const entry of stat.children) {
-				addUserSnippet(entry.resource);
+			if (!isFalsyOrEmpty(stat.children)) {
+				for (const entry of stat.children) {
+					addUserSnippet(entry.resource);
+				}
 			}
 		}).then(() => {
 			// watch

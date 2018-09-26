@@ -80,9 +80,7 @@ export abstract class BreadcrumbsPicker {
 		const color = theme.getColor(breadcrumbsPickerBackground);
 
 		this._arrow = document.createElement('div');
-		this._arrow.style.width = '0';
-		this._arrow.style.borderStyle = 'solid';
-		this._arrow.style.borderWidth = '8px';
+		this._arrow.className = 'arrow';
 		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
 		this._domNode.appendChild(this._arrow);
 
@@ -186,6 +184,7 @@ export abstract class BreadcrumbsPicker {
 
 		this._domNode.style.height = `${totalHeight}px`;
 		this._domNode.style.width = `${info.width}px`;
+		this._arrow.style.top = `-${2 * info.arrowSize}px`;
 		this._arrow.style.borderWidth = `${info.arrowSize}px`;
 		this._arrow.style.marginLeft = `${info.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;

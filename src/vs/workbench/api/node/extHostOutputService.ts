@@ -95,6 +95,11 @@ export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChann
 		this._appender.append(value);
 	}
 
+	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+		this._appender.flush();
+		super.show(columnOrPreserveFocus, preserveFocus);
+	}
+
 	clear(): void {
 		this._appender.flush();
 		super.clear();
@@ -122,21 +127,17 @@ export class ExtHostOutputService {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadOutputService);
 	}
 
-	createOutputChannel(name: string, options?: { force?: boolean }): vscode.OutputChannel {
+	createOutputChannel(name: string): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		} else {
-			if (options && options.force) {
+			// Do not crash if logger cannot be created
+			try {
+				return new ExtHostOutputChannelBackedByFile(name, this._outputDir, this._proxy);
+			} catch (error) {
+				console.log(error);
 				return new ExtHostPushOutputChannel(name, this._proxy);
-			} else {
-				// Do not crash if logger cannot be created
-				try {
-					return new ExtHostOutputChannelBackedByFile(name, this._outputDir, this._proxy);
-				} catch (error) {
-					console.log(error);
-					return new ExtHostPushOutputChannel(name, this._proxy);
-				}
 			}
 		}
 	}

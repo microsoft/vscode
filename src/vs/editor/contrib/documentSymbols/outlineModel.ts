@@ -150,13 +150,13 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		return this._getItemEnclosingPosition(position, this.children);
+		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
 
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.range, position)) {
+			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;

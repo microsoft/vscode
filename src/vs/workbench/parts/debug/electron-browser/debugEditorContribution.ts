@@ -414,7 +414,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		if (!this.configurationService.getValue<IDebugConfiguration>('debug').enableAllHovers) {
+		if (this.configurationService.getValue<IDebugConfiguration>('debug').enableAllHovers && mouseEvent.target.position) {
 			this.nonDebugHoverPosition = mouseEvent.target.position;
 			this.provideNonDebugHoverScheduler.schedule();
 		}

@@ -419,7 +419,7 @@ export class DebugService implements IDebugService {
 	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		return session.initialize(dbgr).then(() => {
-			session.launchOrAttach(session.configuration).then(() => {
+			return session.launchOrAttach(session.configuration).then(() => {
 				if (focus) {
 					this.focusStackFrame(undefined, undefined, session);
 				}
@@ -464,9 +464,7 @@ export class DebugService implements IDebugService {
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
 		}).then(() => session, (error: Error | string) => {
 
-			if (session) {
-				session.shutdown();
-			}
+			session.shutdown();
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
@@ -480,12 +478,12 @@ export class DebugService implements IDebugService {
 
 			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
 				// ignore attach timeouts in auto attach mode
-			} else {
-				const errorMessage = error instanceof Error ? error.message : error;
-				this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-				this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				return TPromise.as(undefined);
 			}
-			return TPromise.as(undefined);
+
+			const errorMessage = error instanceof Error ? error.message : error;
+			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
+			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 		});
 	}
 
@@ -671,6 +669,9 @@ export class DebugService implements IDebugService {
 	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId) {
 			return TPromise.as(null);
+		}
+		if (!root) {
+			return TPromise.wrapError(new Error(nls.localize('invalidTaskReference', "Task '{0}' can not be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
 		}
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskId).then(task => {

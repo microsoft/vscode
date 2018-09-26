@@ -47,6 +47,10 @@ export abstract class WordDistance {
 		}
 		ranges.reverse();
 
+		if (ranges.length === 0) {
+			return Promise.resolve(WordDistance.None);
+		}
+
 		return service.computeWordRanges(model.uri, ranges[0]).then(wordRanges => {
 
 			return new class extends WordDistance {
