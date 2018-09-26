@@ -99,11 +99,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// been disposed and we can safely persist the view state still as needed.
 		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
 			if (e.editor === this.input) {
-				if (this.restoreViewState) {
-					this.doSaveTextEditorViewState(this.input);
-				} else {
-					this.clearTextEditorViewState([this.input.getResource()], this.group);
-				}
+				this.doSaveOrClearTextEditorViewState(this.input);
 			}
 		}));
 	}
@@ -117,8 +113,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
-		// Remember view settings if input changes
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear view settings if input changes
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Set input and resolve
 		return super.setInput(input, options, token).then(() => {
@@ -259,8 +255,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 	clearInput(): void {
 
-		// Keep editor view state in settings to restore when coming back
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear editor view state in settings
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -271,15 +267,26 @@ export class TextFileEditor extends BaseTextEditor {
 
 	shutdown(): void {
 
-		// Save View State
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear editor view State
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Call Super
 		super.shutdown();
 	}
 
-	private doSaveTextEditorViewState(input: FileEditorInput): void {
-		if (input && !input.isDisposed()) {
+	private doSaveOrClearTextEditorViewState(input: FileEditorInput): void {
+		if (!input) {
+			return; // ensure we have an input to handle view state for
+		}
+
+		// If the user configured to not restore view state, we clear the view
+		// state unless the editor is still opened in the group.
+		if (!this.restoreViewState && (!this.group || !this.group.isOpened(input))) {
+			this.clearTextEditorViewState([input.getResource()], this.group);
+		}
+
+		// Otherwise we save the view state to restore it later
+		else if (!input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource());
 		}
 	}
