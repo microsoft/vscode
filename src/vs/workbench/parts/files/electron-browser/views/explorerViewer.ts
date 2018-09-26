@@ -391,10 +391,6 @@ export class FileAccessibilityProvider implements IAccessibilityProvider {
 	public getAriaLabel(tree: ITree, stat: ExplorerItem): string {
 		return stat.name;
 	}
-
-	public getAriaRole(tree: ITree, element: any): string {
-		return 'treeitem';
-	}
 }
 
 // Explorer Controller

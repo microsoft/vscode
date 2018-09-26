@@ -592,7 +592,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.ui.list.focus('First');
 			}
 		}
-		if (this.ui.container.classList.contains('show-checkboxes') !== this.canSelectMany) {
+		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
 			if (this.canSelectMany) {
 				this.ui.list.clearFocus();
 			} else if (!this.ui.isScreenReaderOptimized()) {

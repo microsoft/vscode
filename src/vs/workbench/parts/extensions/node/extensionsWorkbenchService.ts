@@ -741,7 +741,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private checkAndEnableDisabledDependencies(extensionIdentifier: IExtensionIdentifier): TPromise<void> {
-		const extension = this.local.filter(e => areSameExtensions(extensionIdentifier, e.local.identifier))[0];
+		const extension = this.local.filter(e => (e.local || e.gallery) && areSameExtensions(extensionIdentifier, e.local ? e.local.identifier : e.gallery.identifier))[0];
 		if (extension) {
 			const disabledDepencies = this.getExtensionsRecursively([extension], this.local, EnablementState.Enabled, { dependencies: true, pack: false });
 			if (disabledDepencies.length) {

@@ -276,7 +276,7 @@ export class DebugSession implements IDebugSession {
 
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
 		if (this.raw) {
-			if (this.raw.readyForBreakpoints && exbpts.length > 0) {
+			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) });
 			}
 			return TPromise.as(null);

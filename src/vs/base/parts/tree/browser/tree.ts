@@ -447,13 +447,6 @@ export interface IAccessibilityProvider {
 	getAriaLabel(tree: ITree, element: any): string;
 
 	/**
-	 * Given an element in the tree, return the ARIA role that should be associated with the
-	 * item. This helps screen readers to provide a meaningful role for the currently focused
-	 * tree element.
-	 */
-	getAriaRole(tree: ITree, element: any): string;
-
-	/**
 	 * Given an element in the tree return its aria-posinset. Should be between 1 and aria-setsize
 	 * https://www.w3.org/TR/wai-aria/states_and_properties#aria-posinset
 	 */

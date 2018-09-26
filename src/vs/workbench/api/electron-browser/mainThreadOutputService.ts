@@ -9,15 +9,18 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { MainThreadOutputServiceShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { anyEvent } from 'vs/base/common/event';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
-export class MainThreadOutputService implements MainThreadOutputServiceShape {
+export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
 
 	private static _idPool = 1;
 
+	private _proxy: ExtHostOutputServiceShape;
 	private readonly _outputService: IOutputService;
 	private readonly _partService: IPartService;
 	private readonly _panelService: IPanelService;
@@ -28,12 +31,22 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
+		super();
 		this._outputService = outputService;
 		this._partService = partService;
 		this._panelService = panelService;
+
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostOutputService);
+
+		this._register(anyEvent<any>(this._outputService.onActiveOutputChannel, this._panelService.onDidPanelOpen, this._panelService.onDidPanelClose)(() => {
+			const panel = this._panelService.getActivePanel();
+			const visibleChannel: IOutputChannel = panel && panel.getId() === OUTPUT_PANEL_ID ? this._outputService.getActiveChannel() : null;
+			this._proxy.$setVisibleChannel(visibleChannel ? visibleChannel.id : null);
+		}));
 	}
 
 	public dispose(): void {
+		super.dispose();
 		// Leave all the existing channels intact (e.g. might help with troubleshooting)
 	}
 
@@ -47,6 +60,14 @@ export class MainThreadOutputService implements MainThreadOutputServiceShape {
 		const channel = this._getChannel(channelId);
 		if (channel) {
 			channel.append(value);
+		}
+		return undefined;
+	}
+
+	public $update(channelId: string): Thenable<void> {
+		const channel = this._getChannel(channelId);
+		if (channel) {
+			channel.update();
 		}
 		return undefined;
 	}

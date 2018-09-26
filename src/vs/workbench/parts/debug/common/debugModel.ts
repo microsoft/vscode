@@ -1095,7 +1095,12 @@ export class DebugModel implements IDebugModel {
 	}
 
 	public sourceIsNotAvailable(uri: uri): void {
-		this.sessions.forEach(p => p.getSourceForUri(uri).available = false);
+		this.sessions.forEach(s => {
+			const source = s.getSourceForUri(uri);
+			if (source) {
+				source.available = false;
+			}
+		});
 		this._onDidChangeCallStack.fire();
 	}
 

@@ -424,6 +424,9 @@ export class DebugService implements IDebugService {
 					this.focusStackFrame(undefined, undefined, session);
 				}
 			});
+		}, err => {
+			session.shutdown();
+			return TPromise.wrapError(err);
 		});
 	}
 
@@ -463,8 +466,6 @@ export class DebugService implements IDebugService {
 
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
 		}).then(() => session, (error: Error | string) => {
-
-			session.shutdown();
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
@@ -669,6 +670,9 @@ export class DebugService implements IDebugService {
 	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId) {
 			return TPromise.as(null);
+		}
+		if (!root) {
+			return TPromise.wrapError(new Error(nls.localize('invalidTaskReference', "Task '{0}' can not be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
 		}
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskId).then(task => {

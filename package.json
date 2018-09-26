@@ -25,7 +25,7 @@
     "download-builtin-extensions": "node build/lib/builtInExtensions.js"
   },
   "dependencies": {
-    "applicationinsights": "1.0.3",
+    "applicationinsights": "1.0.5",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.4.1",

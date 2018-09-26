@@ -37,7 +37,11 @@ export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
+export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
+export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
+export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
@@ -224,7 +228,7 @@ export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
 
 function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.compareEditor.nextChange',
+		id: GOTO_NEXT_CHANGE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: KeyMod.Alt | KeyCode.F5,
@@ -232,7 +236,7 @@ function registerDiffEditorCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.compareEditor.previousChange',
+		id: GOTO_PREVIOUS_CHANGE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
@@ -253,6 +257,13 @@ function registerDiffEditorCommands(): void {
 
 		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
 		configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
+	}
+
+	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const newValue = !configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
+		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue, ConfigurationTarget.USER);
 	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -280,6 +291,14 @@ function registerDiffEditorCommands(): void {
 			category: nls.localize('compare', "Compare")
 		},
 		when: ContextKeyExpr.has('textCompareEditorActive')
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: void 0,
+		primary: void 0,
+		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
 	});
 }
 

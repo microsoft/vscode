@@ -1396,10 +1396,6 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 
 		return '';
 	}
-
-	public getAriaRole(tree: ITree, element: any): string {
-		return 'treeitem';
-	}
 }
 
 class NonExpandableOrSelectableTree extends Tree {

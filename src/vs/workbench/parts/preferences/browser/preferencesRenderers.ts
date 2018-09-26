@@ -645,7 +645,7 @@ class EditSettingRenderer extends Disposable {
 	private editPreferenceWidgetForCursorPosition: EditPreferenceWidget<IIndexedSetting>;
 	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<IIndexedSetting>;
 
-	private settingsGroups: ISettingsGroup[];
+	private settingsGroups: ISettingsGroup[] = [];
 	public associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
