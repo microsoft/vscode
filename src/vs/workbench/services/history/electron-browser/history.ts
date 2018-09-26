@@ -207,7 +207,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			})));
 
 			// Track the last edit location by tracking model content change events
-			this.activeEditorListeners.push(activeTextEditorWidget.onDidChangeModelContent(() => {
+			// Use a debouncer to make sure to capture the correct cursor position
+			// after the model content has changed.
+			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
 				const position = activeTextEditorWidget.getPosition();
 
 				this.lastEditLocation = {
@@ -217,7 +219,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 						startColumn: position.column
 					}
 				};
-			}));
+			})));
 		}
 	}
 
