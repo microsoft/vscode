@@ -182,7 +182,7 @@ export class InstantiationService implements IInstantiationService {
 			// if there is no more roots but still
 			// nodes in the graph we have a cycle
 			if (roots.length === 0) {
-				if (graph.length !== 0) {
+				if (!graph.isEmpty()) {
 					throwCycleError();
 				}
 				break;
