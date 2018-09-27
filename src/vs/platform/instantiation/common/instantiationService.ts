@@ -51,62 +51,51 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	createInstance(param: any, ...rest: any[]): any {
-
-		if (param instanceof SyncDescriptor) {
-			// sync
-			return this._createInstance(param, rest);
-
+	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
+		if (ctorOrDescriptor instanceof SyncDescriptor) {
+			return this._createInstance(ctorOrDescriptor.ctor, ctorOrDescriptor.staticArguments.concat(rest));
 		} else {
-			// sync, just ctor
-			return this._createInstance(new SyncDescriptor(param), rest);
+			return this._createInstance(ctorOrDescriptor, rest);
 		}
 	}
 
-	private _createInstance<T>(desc: SyncDescriptor<T>, args: any[]): T {
-
-		// arguments given by createInstance-call and/or the descriptor
-		let staticArgs = desc.staticArguments.concat(args);
+	private _createInstance<T>(ctor: any, args: any[] = []): T {
 
 		// arguments defined by service decorators
-		let serviceDependencies = _util.getServiceDependencies(desc.ctor).sort((a, b) => a.index - b.index);
+		let serviceDependencies = _util.getServiceDependencies(ctor).sort((a, b) => a.index - b.index);
 		let serviceArgs: any[] = [];
 		for (const dependency of serviceDependencies) {
 			let service = this._getOrCreateServiceInstance(dependency.id);
 			if (!service && this._strict && !dependency.optional) {
-				throw new Error(`[createInstance] ${desc.ctor.name} depends on UNKNOWN service ${dependency.id}.`);
+				throw new Error(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`);
 			}
 			serviceArgs.push(service);
 		}
 
-		let firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : staticArgs.length;
+		let firstServiceArgPos = serviceDependencies.length > 0 ? serviceDependencies[0].index : args.length;
 
 		// check for argument mismatches, adjust static args if needed
-		if (staticArgs.length !== firstServiceArgPos) {
-			console.warn(`[createInstance] First service dependency of ${desc.ctor.name} at position ${
-				firstServiceArgPos + 1} conflicts with ${staticArgs.length} static arguments`);
+		if (args.length !== firstServiceArgPos) {
+			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${
+				firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
 
-			let delta = firstServiceArgPos - staticArgs.length;
+			let delta = firstServiceArgPos - args.length;
 			if (delta > 0) {
-				staticArgs = staticArgs.concat(new Array(delta));
+				args = args.concat(new Array(delta));
 			} else {
-				staticArgs = staticArgs.slice(0, firstServiceArgPos);
+				args = args.slice(0, firstServiceArgPos);
 			}
 		}
 
 		// // check for missing args
 		// for (let i = 0; i < serviceArgs.length; i++) {
 		// 	if (!serviceArgs[i]) {
-		// 		console.warn(`${desc.ctor.name} MISSES service dependency ${serviceDependencies[i].id}`, new Error().stack);
+		// 		console.warn(`${ctor.name} MISSES service dependency ${serviceDependencies[i].id}`, new Error().stack);
 		// 	}
 		// }
 
 		// now create the instance
-		const argArray = [desc.ctor];
-		argArray.push(...staticArgs);
-		argArray.push(...serviceArgs);
-
-		return <T>create.apply(null, argArray);
+		return <T>create.apply(null, [ctor].concat(args, serviceArgs));
 	}
 
 	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {
@@ -190,7 +179,7 @@ export class InstantiationService implements IInstantiationService {
 
 			for (let root of roots) {
 				// create instance and overwrite the service collections
-				const instance = this._createInstance(root.data.desc, []);
+				const instance = this._createInstance(root.data.desc.ctor, root.data.desc.staticArguments);
 				this._setServiceInstance(root.data.id, instance);
 				graph.removeNode(root.data);
 			}
