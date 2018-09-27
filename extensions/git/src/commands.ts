@@ -1373,7 +1373,7 @@ export class CommandCenter {
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
-			throw new Error('Cancelled');
+			return;
 		}
 
 		await choice.run(repository);
@@ -1948,10 +1948,6 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {
-				if (err.message === 'Cancelled') {
-					return;
-				}
-
 				const options: MessageOptions = {
 					modal: true
 				};
