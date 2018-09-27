@@ -562,8 +562,8 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
 		const downloadService = accessor.get(IDownloadService);
-		const to = posix.join(tmpdir(), generateUuid());
+		const location = posix.join(tmpdir(), generateUuid());
 
-		return downloadService.download(resource, to);
+		return downloadService.download(resource, location).then(() => location);
 	});
 }
