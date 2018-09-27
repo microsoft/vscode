@@ -309,7 +309,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => TPromise.as(actions),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => this.focus()
 		});
 	}
@@ -723,6 +722,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	openEditor(editor: EditorInput, options?: EditorOptions): TPromise<void> {
 
+		// Guard against invalid inputs
+		if (!editor) {
+			return TPromise.as(void 0);
+		}
+
 		// Editor opening event allows for prevention
 		const event = new EditorOpeningEvent(this._group.id, editor, options);
 		this._onWillOpenEditor.fire(event);
@@ -958,7 +962,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.doCloseInactiveEditor(editor);
 		}
 
-		// Forward to title control & breadcrumbs
+		// Forward to title control
 		this.titleAreaControl.closeEditor(editor);
 	}
 
@@ -1373,6 +1377,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();
+		// this.editorControl = null;
 
 		super.dispose();
 	}

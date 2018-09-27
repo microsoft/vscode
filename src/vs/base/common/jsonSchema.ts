@@ -46,6 +46,12 @@ export interface IJSONSchema {
 	contains?: IJSONSchema;
 	propertyNames?: IJSONSchema;
 
+	// schema draft 07
+	$comment?: string;
+	if?: IJSONSchema;
+	then?: IJSONSchema;
+	else?: IJSONSchema;
+
 	// VSCode extensions
 	defaultSnippets?: IJSONSchemaSnippet[]; // VSCode extension
 	errorMessage?: string; // VSCode extension

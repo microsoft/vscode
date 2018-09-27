@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -76,9 +75,7 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private doRender(): void {
 		if (!this.statusBarItem && this.container) {
 			this.statusBarItem = dom.append(this.container, $('.debug-statusbar-item'));
-			this._register(dom.addDisposableListener(this.statusBarItem, 'click', () => {
-				this.quickOpenService.show('debug ').done(undefined, errors.onUnexpectedError);
-			}));
+			this._register(dom.addDisposableListener(this.statusBarItem, 'click', () => this.quickOpenService.show('debug ')));
 			this.statusBarItem.title = nls.localize('selectAndStartDebug', "Select and start debug configuration");
 			const a = dom.append(this.statusBarItem, $('a'));
 			this.icon = dom.append(a, $('.icon'));

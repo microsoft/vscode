@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OS } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
@@ -13,8 +13,8 @@ import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/comm
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
-import { IPreferencesService } from './preferences';
-import { DefaultSettingsEditorModel } from './preferencesModels';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -82,11 +82,18 @@ export class KeybindingsEditorInput extends EditorInput {
 export class SettingsEditor2Input extends EditorInput {
 
 	public static readonly ID: string = 'workbench.input.settings2';
+	private readonly _settingsModel: Settings2EditorModel;
 
 	constructor(
-		@IPreferencesService private preferencesService: IPreferencesService
+		@IPreferencesService _preferencesService: IPreferencesService,
 	) {
 		super();
+
+		this._settingsModel = _preferencesService.createSettings2EditorModel();
+	}
+
+	matches(otherInput: any): boolean {
+		return otherInput instanceof SettingsEditor2Input;
 	}
 
 	getTypeId(): string {
@@ -94,14 +101,17 @@ export class SettingsEditor2Input extends EditorInput {
 	}
 
 	getName(): string {
-		return nls.localize('settingsEditor2InputName', "Settings (Preview)");
+		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	resolve(): TPromise<DefaultSettingsEditorModel> {
-		return <TPromise<DefaultSettingsEditorModel>>this.preferencesService.createPreferencesEditorModel(URI.parse('vscode://defaultsettings/0/settings.json'));
+	resolve(): TPromise<Settings2EditorModel> {
+		return TPromise.as(this._settingsModel);
 	}
 
-	matches(otherInput: any): boolean {
-		return otherInput instanceof SettingsEditor2Input;
+	public getResource(): URI {
+		return URI.from({
+			scheme: 'vscode-settings',
+			path: `settingseditor`
+		});
 	}
 }

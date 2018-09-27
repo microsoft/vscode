@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -89,7 +88,7 @@ export abstract class TreeViewsViewletPanel extends ViewletPanel {
 		// Make sure the current selected element is revealed
 		const selectedElement = this.tree.getSelection()[0];
 		if (selectedElement) {
-			this.tree.reveal(selectedElement, 0.5).done(null, errors.onUnexpectedError);
+			this.tree.reveal(selectedElement, 0.5);
 		}
 
 		// Pass Focus to Viewer
@@ -377,7 +376,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 	private computeInitialSizes(): { [id: string]: number } {
 		let sizes = {};
 		if (this.dimension) {
-			let totalWeight = 0;
+			const totalWeight = this.viewsModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
 			for (const viewDescriptor of this.viewsModel.visibleViewDescriptors) {
 				sizes[viewDescriptor.id] = this.dimension.height * (viewDescriptor.weight || 20) / totalWeight;
 			}

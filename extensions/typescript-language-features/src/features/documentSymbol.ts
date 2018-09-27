@@ -40,16 +40,13 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 			return undefined;
 		}
 
-
-		let tree: Proto.NavigationTree | undefined;
-		try {
-			const args: Proto.FileRequestArgs = { file };
-			const response = await this.client.execute('navtree', args, token);
-			tree = response.body;
-		} catch {
+		const args: Proto.FileRequestArgs = { file };
+		const response = await this.client.execute('navtree', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
+		let tree = response.body;
 		if (tree && tree.childItems) {
 			// The root represents the file. Ignore this when showing in the UI
 			const result: vscode.DocumentSymbol[] = [];
@@ -61,26 +58,31 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	}
 
 	private static convertNavTree(resource: vscode.Uri, bucket: vscode.DocumentSymbol[], item: Proto.NavigationTree): boolean {
-		const symbolInfo = new vscode.DocumentSymbol(
-			item.text,
-			'',
-			getSymbolKind(item.kind),
-			typeConverters.Range.fromTextSpan(item.spans[0]),
-			typeConverters.Range.fromTextSpan(item.spans[0]),
-		);
-
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
 
-		if (item.childItems) {
-			for (const child of item.childItems) {
-				const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, symbolInfo.children, child);
-				shouldInclude = shouldInclude || includedChild;
+		const children = new Set(item.childItems || []);
+		for (const span of item.spans) {
+			const range = typeConverters.Range.fromTextSpan(span);
+			const symbolInfo = new vscode.DocumentSymbol(
+				item.text,
+				'',
+				getSymbolKind(item.kind),
+				range,
+				range);
+
+			for (const child of children) {
+				if (child.spans.some(span => !!range.intersection(typeConverters.Range.fromTextSpan(span)))) {
+					const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, symbolInfo.children, child);
+					shouldInclude = shouldInclude || includedChild;
+					children.delete(child);
+				}
+			}
+
+			if (shouldInclude) {
+				bucket.push(symbolInfo);
 			}
 		}
 
-		if (shouldInclude) {
-			bucket.push(symbolInfo);
-		}
 		return shouldInclude;
 	}
 

@@ -9,14 +9,13 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX } from 'vs/workbench/parts/execution/electron-browser/terminal';
-import uri from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -38,8 +37,7 @@ export class WinTerminalService implements ITerminalService {
 	public openTerminal(cwd?: string): void {
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
-		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd)
-			.done(null, errors.onUnexpectedError);
+		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
@@ -126,7 +124,7 @@ export class MacTerminalService implements ITerminalService {
 	public openTerminal(cwd?: string): void {
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
-		this.spawnTerminal(cp, configuration, cwd).done(null, errors.onUnexpectedError);
+		this.spawnTerminal(cp, configuration, cwd);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
@@ -143,7 +141,7 @@ export class MacTerminalService implements ITerminalService {
 				// and then launches the program inside that window.
 
 				const script = terminalApp === DEFAULT_TERMINAL_OSX ? 'TerminalHelper' : 'iTermHelper';
-				const scriptpath = uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${script}.scpt`)).fsPath;
+				const scriptpath = getPathFromAmdModule(require, `vs/workbench/parts/execution/electron-browser/${script}.scpt`);
 
 				const osaArgs = [
 					scriptpath,
@@ -218,8 +216,7 @@ export class LinuxTerminalService implements ITerminalService {
 	public openTerminal(cwd?: string): void {
 		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
-		this.spawnTerminal(cp, configuration, cwd)
-			.done(null, errors.onUnexpectedError);
+		this.spawnTerminal(cp, configuration, cwd);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {

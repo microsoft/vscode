@@ -21,6 +21,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled } from 'vs/base/common/errors';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -90,6 +92,9 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 }
 
 export class LocalSearchProvider implements ISearchProvider {
+	static readonly EXACT_MATCH_SCORE = 10000;
+	static readonly START_SCORE = 1000;
+
 	constructor(private _filter: string) {
 		// Remove " and : which are likely to be copypasted as part of a setting name.
 		// Leave other special characters which the user might want to search for.
@@ -99,30 +104,41 @@ export class LocalSearchProvider implements ISearchProvider {
 			.trim();
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
 		if (!this._filter) {
 			return TPromise.wrap(null);
 		}
 
-		let score = 1000; // Sort is not stable
+		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
 			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const score = this._filter === setting.key ?
+				LocalSearchProvider.EXACT_MATCH_SCORE :
+				orderedScore--;
+
 			return matches && matches.length ?
 				{
 					matches,
-					score: score--
+					score
 				} :
 				null;
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		return TPromise.wrap({
-			filterMatches
-		});
+		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+			return TPromise.wrap({
+				filterMatches: filterMatches.slice(0, 1),
+				exactMatch: true
+			});
+		} else {
+			return TPromise.wrap({
+				filterMatches
+			});
+		}
 	}
 
 	private getGroupFilter(filter: string): IGroupFilter {
-		const regex = strings.createRegExp(this._filter, false, { global: true });
+		const regex = strings.createRegExp(filter, false, { global: true });
 		return (group: ISettingsGroup) => {
 			return regex.test(group.title);
 		};
@@ -144,8 +160,9 @@ interface IBingRequestDetails {
 
 class RemoteSearchProvider implements ISearchProvider {
 	// Must keep extension filter size under 8kb. 42 filters puts us there.
-	private static MAX_REQUEST_FILTERS = 42;
-	private static MAX_REQUESTS = 10;
+	private static readonly MAX_REQUEST_FILTERS = 42;
+	private static readonly MAX_REQUESTS = 10;
+	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
 
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
@@ -159,10 +176,14 @@ class RemoteSearchProvider implements ISearchProvider {
 			TPromise.wrap(null);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel): TPromise<ISearchResult> {
+	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): TPromise<ISearchResult> {
 		return this._remoteSearchP.then(remoteResult => {
 			if (!remoteResult) {
 				return null;
+			}
+
+			if (token && token.isCancellationRequested) {
+				throw canceled();
 			}
 
 			const resultKeys = Object.keys(remoteResult.scoredResults);
@@ -170,21 +191,31 @@ class RemoteSearchProvider implements ISearchProvider {
 			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
 			const minScore = highScore / 5;
 			if (this.options.newExtensionsOnly) {
-				const passingScoreKeys = resultKeys.filter(k => remoteResult.scoredResults[k].score >= minScore);
-				const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
-					const remoteSetting = remoteResult.scoredResults[k];
-					const setting = remoteSettingToISetting(remoteSetting);
-					return <ISettingMatch>{
-						setting,
-						score: remoteSetting.score,
-						matches: [] // TODO
+				return this.installedExtensions.then(installedExtensions => {
+					const newExtsMinScore = Math.max(RemoteSearchProvider.NEW_EXTENSIONS_MIN_SCORE, minScore);
+					const passingScoreKeys = resultKeys
+						.filter(k => {
+							const result = remoteResult.scoredResults[k];
+							const resultExtId = (result.extensionPublisher + '.' + result.extensionName).toLowerCase();
+							return !installedExtensions.some(ext => ext.galleryIdentifier.id.toLowerCase() === resultExtId);
+						})
+						.filter(k => remoteResult.scoredResults[k].score >= newExtsMinScore);
+
+					const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
+						const remoteSetting = remoteResult.scoredResults[k];
+						const setting = remoteSettingToISetting(remoteSetting);
+						return <ISettingMatch>{
+							setting,
+							score: remoteSetting.score,
+							matches: [] // TODO
+						};
+					});
+
+					return <ISearchResult>{
+						filterMatches,
+						metadata: remoteResult
 					};
 				});
-
-				return <ISearchResult>{
-					filterMatches,
-					metadata: remoteResult
-				};
 			} else {
 				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
 				const filterMatches = preferencesModel.filterSettings(this.options.filter, group => null, settingMatcher);
@@ -240,7 +271,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				'api-key': this.options.endpoint.key
 			},
 			timeout: 5000
-		}).then(context => {
+		}, CancellationToken.None).then(context => {
 			if (context.res.statusCode >= 300) {
 				throw new Error(`${details} returned status code: ${context.res.statusCode}`);
 			}
@@ -391,6 +422,7 @@ function escapeSpecialChars(query: string): string {
 function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
 	return {
 		description: remoteSetting.description.split('\n'),
+		descriptionIsMarkdown: false,
 		descriptionRanges: null,
 		key: remoteSetting.key,
 		keyRange: null,
@@ -501,6 +533,16 @@ class SettingMatches {
 	}
 
 	private toKeyRange(setting: ISetting, match: IMatch): IRange {
+		if (!setting.keyRange) {
+			// No source range? Return fake range, don't care
+			return {
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 0,
+			};
+		}
+
 		return {
 			startLineNumber: setting.keyRange.startLineNumber,
 			startColumn: setting.keyRange.startColumn + match.start,
@@ -510,6 +552,16 @@ class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		if (!setting.keyRange) {
+			// No source range? Return fake range, don't care
+			return {
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 0,
+			};
+		}
+
 		return {
 			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
 			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
@@ -519,6 +571,16 @@ class SettingMatches {
 	}
 
 	private toValueRange(setting: ISetting, match: IMatch): IRange {
+		if (!setting.keyRange) {
+			// No source range? Return fake range, don't care
+			return {
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 0,
+			};
+		}
+
 		return {
 			startLineNumber: setting.valueRange.startLineNumber,
 			startColumn: setting.valueRange.startColumn + match.start + 1,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Paths from 'path';
 import * as resources from 'vs/base/common/resources';
@@ -159,7 +159,7 @@ interface IconThemeDocument extends IconsAssociation {
 }
 
 function _loadIconThemeDocument(fileService: IFileService, location: URI): TPromise<IconThemeDocument> {
-	return fileService.resolveContent(location).then((content) => {
+	return fileService.resolveContent(location, { encoding: 'utf8' }).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);
 		if (errors.length > 0 || !contentValue) {

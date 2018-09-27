@@ -124,6 +124,11 @@ export interface IContentWidgetPosition {
 	 */
 	position: IPosition;
 	/**
+	 * Optionally, a range can be provided to further
+	 * define the position of the content widget.
+	 */
+	range?: IRange;
+	/**
 	 * Placement preference for position, in order of preference.
 	 */
 	preference: ContentWidgetPositionPreference[];
@@ -396,6 +401,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
+	/**
+	 * An event emitted after composition has started.
+	 */
+	onCompositionStart(listener: () => void): IDisposable;
+	/**
+	 * An event emitted after composition has ended.
+	 */
+	onCompositionEnd(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when editing failed because the editor is read-only.
 	 * @event

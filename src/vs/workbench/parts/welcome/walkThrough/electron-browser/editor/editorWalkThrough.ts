@@ -9,7 +9,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';

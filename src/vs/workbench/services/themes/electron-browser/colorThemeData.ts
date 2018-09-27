@@ -19,7 +19,7 @@ import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorCustomizations } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
@@ -189,9 +189,12 @@ export class ColorThemeData implements IColorTheme {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
+	get baseTheme(): string {
+		return this.id.split(' ')[0];
+	}
+
 	get type(): ThemeType {
-		let baseTheme = this.id.split(' ')[0];
-		switch (baseTheme) {
+		switch (this.baseTheme) {
 			case VS_LIGHT_THEME: return 'light';
 			case VS_HC_THEME: return 'hc';
 			default: return 'dark';
@@ -272,7 +275,7 @@ function toCSSSelector(str: string) {
 
 function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
 	if (Paths.extname(themeLocation.path) === '.json') {
-		return fileService.resolveContent(themeLocation).then(content => {
+		return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.value.toString(), errors);
 			if (errors.length > 0) {
@@ -290,7 +293,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 				let colors = contentValue.colors;
 				if (colors) {
 					if (typeof colors !== 'object') {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themeLocation)));
+						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themeLocation.toString())));
 					}
 					// new JSON color themes format
 					for (let colorId in colors) {
@@ -308,7 +311,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 					} else if (typeof tokenColors === 'string') {
 						return _loadSyntaxTokens(fileService, resources.joinPath(resources.dirname(themeLocation), tokenColors), resultRules, {});
 					} else {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation)));
+						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
 					}
 				}
 				return null;
@@ -325,7 +328,7 @@ function getPListParser() {
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
-	return fileService.resolveContent(themeLocation).then(content => {
+	return fileService.resolveContent(themeLocation, { encoding: 'utf8' }).then(content => {
 		return getPListParser().then(parser => {
 			try {
 				let contentValue = parser.parse(content.value.toString());
@@ -340,7 +343,7 @@ function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, result
 			}
 		});
 	}, error => {
-		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation, error.message)));
+		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation.toString(), error.message)));
 	});
 }
 

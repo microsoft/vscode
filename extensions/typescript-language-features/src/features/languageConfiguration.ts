@@ -9,14 +9,12 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
-import { disposeAll } from '../utils/dispose';
+import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 
 const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 	indentationRules: {
-		// ^(.*\*/)?\s*\}.*$
-		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
-		// ^.*\{[^}"']*$
+		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]].*$/,
 		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 	},
 	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
@@ -33,6 +31,7 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 		}, {
 			// e.g.  * ...|
 			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
+			oneLineAboveText: /^(\s*(\/\*\*|\*)).*/,
 			action: { indentAction: vscode.IndentAction.None, appendText: '* ' }
 		}, {
 			// e.g.  */|
@@ -64,10 +63,10 @@ const jsxTagsLanguageConfiguration: vscode.LanguageConfiguration = {
 	],
 };
 
-export class LanguageConfigurationManager {
-	private readonly _registrations: vscode.Disposable[] = [];
+export class LanguageConfigurationManager extends Disposable {
 
 	constructor() {
+		super();
 		const standardLanguages = [
 			languageModeIds.javascript,
 			languageModeIds.javascriptreact,
@@ -82,10 +81,6 @@ export class LanguageConfigurationManager {
 	}
 
 	private registerConfiguration(language: string, config: vscode.LanguageConfiguration) {
-		this._registrations.push(vscode.languages.setLanguageConfiguration(language, config));
-	}
-
-	dispose() {
-		disposeAll(this._registrations);
+		this._register(vscode.languages.setLanguageConfiguration(language, config));
 	}
 }

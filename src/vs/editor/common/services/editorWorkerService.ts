@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChange, ILineChange } from 'vs/editor/common/editorCommon';
@@ -24,6 +24,9 @@ export interface IEditorWorkerService {
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<IChange[]>;
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[]): TPromise<TextEdit[]>;
+
+	canComputeWordRanges(resource: URI): boolean;
+	computeWordRanges(resource: URI, range: IRange): TPromise<{ [word: string]: IRange[] }>;
 
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<IInplaceReplaceSupportResult>;

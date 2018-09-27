@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';

@@ -29,9 +29,9 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground, editorWidgetBorder, editorFindMatchBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, editorWidgetResizeBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder, errorForeground, editorWidgetBorder, editorFindMatchBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, editorWidgetResizeBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
-
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IFindController {
 	replace(): void;
@@ -106,6 +106,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
+	private _ignoreChangeEvent: boolean;
 
 	private _findFocusTracker: dom.IFocusTracker;
 	private _findInputFocused: IContextKey<boolean>;
@@ -137,8 +138,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
+		this._ignoreChangeEvent = false;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._register(toDisposable(() => this._updateHistoryDelayer.cancel()));
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._buildDomNode();
 		this._updateButtons();
@@ -155,7 +158,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (e.layoutInfo) {
 				this._tryUpdateWidgetWidth();
 			}
+
+			if (e.accessibilitySupport) {
+				this.updateAccessibilitySupport();
+			}
 		}));
+		this.updateAccessibilitySupport();
 		this._register(this._codeEditor.onDidChangeCursorSelection(() => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
@@ -248,7 +256,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		if (e.searchString) {
-			this._findInput.setValue(this._state.searchString);
+			try {
+				this._ignoreChangeEvent = true;
+				this._findInput.setValue(this._state.searchString);
+			} finally {
+				this._ignoreChangeEvent = false;
+			}
 			this._updateButtons();
 		}
 		if (e.replaceString) {
@@ -404,6 +417,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				dom.addClass(this._domNode, 'visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
 			}, 0);
+
+			// validate query again as it's being dismissed when we hide the find widget.
+			setTimeout(() => {
+				this._findInput.validate();
+			}, 200);
+
 			this._codeEditor.layoutOverlayWidget(this);
 
 			let adjustEditorScrollTop = true;
@@ -441,6 +460,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 			dom.removeClass(this._domNode, 'visible');
 			this._domNode.setAttribute('aria-hidden', 'true');
+			this._findInput.clearMessage();
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
@@ -512,10 +532,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			inputForeground: theme.getColor(inputForeground),
 			inputBorder: theme.getColor(inputBorder),
 			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
 			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
 			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
 			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
 		};
 		this._findInput.style(inputStyles);
@@ -591,7 +614,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (this._toggleSelectionFind.checked) {
 			let selection = this._codeEditor.getSelection();
 			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+				selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
 			}
 			let currentMatch = this._state.currentMatch;
 			if (selection.startLineNumber !== selection.endLineNumber) {
@@ -613,13 +636,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
 		if (e.equals(KeyCode.Enter)) {
-			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(null, onUnexpectedError);
 			e.preventDefault();
 			return;
 		}
 
 		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
-			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(null, onUnexpectedError);
 			e.preventDefault();
 			return;
 		}
@@ -720,12 +743,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return { content: e.message };
 				}
 			}
-		}, this._contextKeyService));
+		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this._register(this._findInput.inputBox.onDidChange(() => {
+			if (this._ignoreChangeEvent) {
+				return;
+			}
 			this._state.change({ searchString: this._findInput.getValue() }, true);
 		}));
 		this._register(this._findInput.onDidOptionChange(() => {
@@ -756,7 +782,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			className: 'previous',
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(null, onUnexpectedError);
 			}
 		}));
 
@@ -765,7 +791,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			className: 'next',
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(null, onUnexpectedError);
 			}
 		}));
 
@@ -784,7 +810,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				if (this._toggleSelectionFind.checked) {
 					let selection = this._codeEditor.getSelection();
 					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-						selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+						selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
 					}
 					if (!selection.isEmpty()) {
 						this._state.change({ searchScope: selection }, true);
@@ -832,8 +858,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			history: []
 		}, this._contextKeyService));
 
+
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
-		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
+		this._register(this._replaceInputBox.onDidChange((e) => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
 		}));
 
@@ -935,6 +962,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._replaceInputBox.width = inputBoxWidth;
 			}
 		}));
+	}
+
+	private updateAccessibilitySupport(): void {
+		const value = this._codeEditor.getConfiguration().accessibilitySupport;
+		this._findInput.setFocusInputOnOptionClick(value !== platform.AccessibilitySupport.Enabled);
 	}
 }
 
@@ -1142,4 +1174,8 @@ registerThemingParticipant((theme, collector) => {
 		}
 	}
 
+	const inputActiveBorder = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveBorder) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-checkbox .checkbox:checked + .label { border: 1px solid ${inputActiveBorder.toString()}; }`);
+	}
 });

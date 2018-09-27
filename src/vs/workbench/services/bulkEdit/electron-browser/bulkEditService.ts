@@ -6,9 +6,8 @@
 
 
 import { mergeSort } from 'vs/base/common/arrays';
-import { getPathLabel } from 'vs/base/common/labels';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -19,14 +18,14 @@ import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextE
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class Recording {
 
@@ -47,11 +46,14 @@ abstract class Recording {
 	abstract hasChanged(resource: URI): boolean;
 }
 
+type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
+
 class ModelEditTask implements IDisposable {
 
 	private readonly _model: ITextModel;
 
 	protected _edits: IIdentifiedSingleEditOperation[];
+	private _expectedModelVersionId: number | undefined;
 	protected _newEol: EndOfLineSequence;
 
 	constructor(private readonly _modelReference: IReference<ITextEditorModel>) {
@@ -64,6 +66,7 @@ class ModelEditTask implements IDisposable {
 	}
 
 	addEdit(resourceEdit: ResourceTextEdit): void {
+		this._expectedModelVersionId = resourceEdit.modelVersionId;
 		for (const edit of resourceEdit.edits) {
 			if (typeof edit.eol === 'number') {
 				// honor eol-change
@@ -80,6 +83,13 @@ class ModelEditTask implements IDisposable {
 				this._edits.push(EditOperation.replaceMove(range, edit.text));
 			}
 		}
+	}
+
+	validate(): ValidationResult {
+		if (typeof this._expectedModelVersionId === 'undefined' || this._model.getVersionId() === this._expectedModelVersionId) {
+			return { canApply: true };
+		}
+		return { canApply: false, reason: this._model.uri };
 	}
 
 	apply(): void {
@@ -191,6 +201,16 @@ class BulkEditModel implements IDisposable {
 		return this;
 	}
 
+	validate(): ValidationResult {
+		for (const task of this._tasks) {
+			const result = task.validate();
+			if (!result.canApply) {
+				return result;
+			}
+		}
+		return { canApply: true };
+	}
+
 	apply(): void {
 		for (const task of this._tasks) {
 			task.apply();
@@ -214,8 +234,8 @@ export class BulkEdit {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@ILabelService private readonly _uriLabelServie: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -298,7 +318,7 @@ export class BulkEdit {
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
 				if (!options.ignoreIfNotExists || await this._fileService.existsFile(edit.oldUri)) {
-					await this._textFileService.delete(edit.oldUri, { useTrash: true, recursive: options.recursive });
+					await this._textFileService.delete(edit.oldUri, { useTrash: this._configurationService.getValue<boolean>('files.enableTrash'), recursive: options.recursive });
 				}
 
 			} else if (edit.newUri && !edit.oldUri) {
@@ -321,13 +341,18 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => getPathLabel(edit.resource, this._environmentService, this._contextService));
+			.map(edit => this._uriLabelServie.getUriLabel(edit.resource, { relative: true }));
 
 		recording.stop();
 
 		if (conflicts.length > 0) {
 			model.dispose();
 			throw new Error(localize('conflict', "These files have changed in the meantime: {0}", conflicts.join(', ')));
+		}
+
+		const validationResult = model.validate();
+		if (validationResult.canApply === false) {
+			throw new Error(`${validationResult.reason.toString()} has changed in the meantime`);
 		}
 
 		await model.apply();
@@ -346,8 +371,8 @@ export class BulkEditService implements IBulkEditService {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 
 	}
@@ -378,7 +403,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._labelService, this._configurationService);
 		bulkEdit.add(edits);
 
 		return TPromise.wrap(bulkEdit.perform().then(() => {

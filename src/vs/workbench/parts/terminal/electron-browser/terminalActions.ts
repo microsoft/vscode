@@ -16,17 +16,20 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickOpenService, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/parts/terminal/common/terminalCommands';
+import { Command } from 'vs/editor/browser/editorExtensions';
+import { timeout } from 'vs/base/common/async';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -101,7 +104,7 @@ export class QuickKillTerminalAction extends Action {
 		if (instance) {
 			instance.dispose();
 		}
-		return TPromise.timeout(50).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
+		return TPromise.wrap(timeout(50)).then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 	}
 }
 
@@ -227,6 +230,19 @@ export class MoveToLineEndTerminalAction extends BaseSendTextTerminalAction {
 	}
 }
 
+export class SendSequenceTerminalCommand extends Command {
+	public static readonly ID = TERMINAL_COMMAND_ID.SEND_SEQUENCE;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const terminalInstance = accessor.get(ITerminalService).getActiveInstance();
+		if (!terminalInstance) {
+			return;
+		}
+		terminalInstance.sendText(args.text, false);
+	}
+}
+
 export class CreateNewTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
@@ -258,7 +274,7 @@ export class CreateNewTerminalAction extends Action {
 			// single root
 			instancePromise = TPromise.as(this.terminalService.createTerminal(undefined, true));
 		} else {
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 			};
 			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
@@ -327,7 +343,7 @@ export class SplitTerminalAction extends Action {
 		let pathPromise: TPromise<any> = TPromise.as({});
 		if (folders.length > 1) {
 			// Only choose a path when there's more than 1 folder
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 			};
 			pathPromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]).then(workspace => {
@@ -638,8 +654,11 @@ export class RunActiveFileInTerminalAction extends Action {
 			this.notificationService.warn(nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 			return TPromise.as(void 0);
 		}
-		instance.sendText(uri.fsPath, true);
-		return this.terminalService.showPanel();
+
+		return instance.preparePathForTerminalAsync(uri.fsPath).then(path => {
+			instance.sendText(path, true);
+			return this.terminalService.showPanel();
+		});
 	}
 }
 
@@ -1010,7 +1029,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 	public run(): TPromise<any> {
 		super.run(this.terminal)
 			// This timeout is needed to make sure the previous quickOpen has time to close before we show the next one
-			.then(() => TPromise.timeout(50))
+			.then(() => timeout(50))
 			.then(result => this.quickOpenService.show(TERMINAL_PICKER_PREFIX, null));
 		return TPromise.as(null);
 	}
@@ -1138,6 +1157,110 @@ export class SelectToNextLineAction extends Action {
 			instance.commandTracker.selectToNextLine();
 			instance.focus();
 		}
+		return TPromise.as(void 0);
+	}
+}
+
+
+export class ToggleEscapeSequenceLoggingAction extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_ESCAPE_SEQUENCE_LOGGING;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.toggleEscapeSequenceLogging();
+		}
+		return TPromise.as(void 0);
+	}
+}
+
+abstract class ToggleFindOptionCommand extends Action {
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	protected abstract runInner(state: FindReplaceState): void;
+
+	public run(): TPromise<any> {
+		const state = this.terminalService.getFindState();
+		this.runInner(state);
+		return TPromise.as(void 0);
+	}
+}
+
+export class ToggleRegexCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ isRegex: !state.isRegex }, false);
+	}
+}
+
+export class ToggleWholeWordCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ wholeWord: !state.wholeWord }, false);
+	}
+}
+
+export class ToggleCaseSensitiveCommand extends ToggleFindOptionCommand {
+	public static readonly ID = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive");
+
+	protected runInner(state: FindReplaceState): void {
+		state.change({ matchCase: !state.matchCase }, false);
+	}
+}
+
+export class FindNext extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_NEXT;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findNext', "Find next");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.terminalService.findNext();
+		return TPromise.as(void 0);
+	}
+}
+
+export class FindPrevious extends Action {
+	public static readonly ID = TERMINAL_COMMAND_ID.FIND_PREVIOUS;
+	public static readonly ID_TERMINAL_FOCUS = TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS;
+	public static readonly LABEL = nls.localize('workbench.action.terminal.findPrevious', "Find previous");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.terminalService.findPrevious();
 		return TPromise.as(void 0);
 	}
 }

@@ -10,7 +10,7 @@ import * as sinon from 'sinon';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -124,11 +124,11 @@ suite('WorkspaceContextService - Folder', () => {
 	});
 
 	test('isCurrentWorkspace() => true', () => {
-		assert.ok(workspaceContextService.isCurrentWorkspace(workspaceResource));
+		assert.ok(workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource)));
 	});
 
 	test('isCurrentWorkspace() => false', () => {
-		assert.ok(!workspaceContextService.isCurrentWorkspace(workspaceResource + 'abc'));
+		assert.ok(!workspaceContextService.isCurrentWorkspace(URI.file(workspaceResource + 'abc')));
 	});
 });
 
@@ -247,7 +247,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
 		return testObject.addFolders(addedFolders)
 			.then(() => {
-				assert.ok(target.calledOnce);
+				assert.equal(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
 				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
 				assert.deepEqual(actual.removed, []);

@@ -33,7 +33,7 @@ interface LinkFormatInfo {
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null, null);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -62,7 +62,9 @@ suite('Workbench - TerminalLinkHandler', () => {
 					'c:/a/long/path',
 					'c:\\a\\long\\path',
 					'c:\\mixed/slash\\path',
-					'a/relative/path'
+					'a/relative/path',
+					'plain/path',
+					'plain\\path'
 				];
 
 				const supportedLinkFormats: LinkFormatInfo[] = [
@@ -103,7 +105,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('Linux', () => {
-			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null, null);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -167,7 +169,8 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 	suite('preprocessPath', () => {
 		test('Windows', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null, null);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
+			linkHandler.initialCwd = 'C:\\base';
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
@@ -178,9 +181,23 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 			stub.restore();
 		});
+		test('Windows - spaces', () => {
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null, null);
+			linkHandler.initialCwd = 'C:\\base dir';
+
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
+				return arg1 + '\\' + arg2;
+			});
+			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base dir\\./src/file1');
+			assert.equal(linkHandler.preprocessPath('src\\file2'), 'C:\\base dir\\src\\file2');
+			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file3'), 'C:\\absolute\\path\\file3');
+
+			stub.restore();
+		});
 
 		test('Linux', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null, null);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
+			linkHandler.initialCwd = '/base';
 
 			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '/' + arg2;
@@ -193,7 +210,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		});
 
 		test('No Workspace', () => {
-			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null, null);
+			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null, null);
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);

@@ -6,7 +6,7 @@
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -23,8 +23,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isEqual } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -66,14 +66,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride {
 		const resource = editor.getResource();
 		if (
-			!resource || resource.scheme !== 'file' ||									// require a file path opening
-			!endsWith(resource.fsPath, 'settings.json') ||								// file must end in settings.json
+			!resource ||
+			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json
 			!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)	// user has not disabled default settings editor
 		) {
 			return void 0;
 		}
 
-		// If the file resource was already opened before in the group, do not prevent
+		// If the resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
 		if (group.isOpened(editor)) {
@@ -81,16 +81,16 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (isEqual(resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
-			return { override: this.preferencesService.openGlobalSettings(options, group) };
+		if (isEqual(resource, URI.file(this.environmentService.appSettingsPath), !isLinux)) {
+			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
 		}
 
 		// Single Folder Workspace Settings File
 		const state = this.workspaceService.getWorkbenchState();
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
-			if (resource.fsPath === folders[0].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-				return { override: this.preferencesService.openWorkspaceSettings(options, group) };
+			if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
+				return { override: this.preferencesService.openWorkspaceSettings(true, options, group) };
 			}
 		}
 
@@ -98,8 +98,8 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		else if (state === WorkbenchState.WORKSPACE) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
-				if (resource.fsPath === folders[i].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-					return { override: this.preferencesService.openFolderSettings(folders[i].uri, options, group) };
+				if (isEqual(resource, folders[i].toResource(FOLDER_SETTINGS_PATH))) {
+					return { override: this.preferencesService.openFolderSettings(folders[i].uri, true, options, group) };
 				}
 			}
 		}

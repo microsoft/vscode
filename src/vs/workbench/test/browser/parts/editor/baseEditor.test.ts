@@ -17,7 +17,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { workbenchInstantiationService, TestEditorGroup, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -250,10 +250,10 @@ suite('Workbench base editor', () => {
 		assert.ok(!memento.loadState(testGroup4, URI.file('/E')));
 		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 
-		memento.clearState(URI.file('/C'));
+		memento.clearState(URI.file('/C'), testGroup4);
 		memento.clearState(URI.file('/E'));
 
-		assert.ok(!memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
 		assert.ok(!memento.loadState(testGroup0, URI.file('/E')));
 	});

@@ -69,7 +69,7 @@ suite('KeybindingsEditing', () => {
 
 			instantiationService = new TestInstantiationService();
 
-			instantiationService.stub(IEnvironmentService, { appKeybindingsPath: keybindingsFile });
+			instantiationService.stub(IEnvironmentService, <IEnvironmentService>{ appKeybindingsPath: keybindingsFile, appSettingsPath: path.join(testDir, 'settings.json') });
 			instantiationService.stub(IConfigurationService, ConfigurationService);
 			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
@@ -86,7 +86,7 @@ suite('KeybindingsEditing', () => {
 			instantiationService.stub(ILogService, new TestLogService());
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 			instantiationService.stub(IFileService, new FileService(
-				new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))),
+				new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))),
 				TestEnvironmentService,
 				new TestTextResourceConfigurationService(),
 				new TestConfigurationService(),

@@ -46,6 +46,7 @@ export class FindInput extends Widget {
 	private placeholder: string;
 	private validation: IInputValidator;
 	private label: string;
+	private fixFocusOnOptionClickEnabled = true;
 
 	private inputActiveOptionBorder: Color;
 	private inputBackground: Color;
@@ -54,10 +55,13 @@ export class FindInput extends Widget {
 
 	private inputValidationInfoBorder: Color;
 	private inputValidationInfoBackground: Color;
+	private inputValidationInfoForeground: Color;
 	private inputValidationWarningBorder: Color;
 	private inputValidationWarningBackground: Color;
+	private inputValidationWarningForeground: Color;
 	private inputValidationErrorBorder: Color;
 	private inputValidationErrorBackground: Color;
+	private inputValidationErrorForeground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -86,7 +90,7 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, private readonly _showOptionButtons: boolean, options?: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
 		this.width = options.width || 100;
@@ -101,10 +105,13 @@ export class FindInput extends Widget {
 
 		this.inputValidationInfoBorder = options.inputValidationInfoBorder;
 		this.inputValidationInfoBackground = options.inputValidationInfoBackground;
+		this.inputValidationInfoForeground = options.inputValidationInfoForeground;
 		this.inputValidationWarningBorder = options.inputValidationWarningBorder;
 		this.inputValidationWarningBackground = options.inputValidationWarningBackground;
+		this.inputValidationWarningForeground = options.inputValidationWarningForeground;
 		this.inputValidationErrorBorder = options.inputValidationErrorBorder;
 		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
+		this.inputValidationErrorForeground = options.inputValidationErrorForeground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -138,6 +145,10 @@ export class FindInput extends Widget {
 		this.regex.disable();
 		this.wholeWords.disable();
 		this.caseSensitive.disable();
+	}
+
+	public setFocusInputOnOptionClick(value: boolean): void {
+		this.fixFocusOnOptionClickEnabled = value;
 	}
 
 	public setEnabled(enabled: boolean): void {
@@ -178,10 +189,13 @@ export class FindInput extends Widget {
 		this.inputBorder = styles.inputBorder;
 
 		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoForeground = styles.inputValidationInfoForeground;
 		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
 		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningForeground = styles.inputValidationWarningForeground;
 		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
 		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorForeground = styles.inputValidationErrorForeground;
 		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
 
 		this.applyStyles();
@@ -201,10 +215,13 @@ export class FindInput extends Widget {
 				inputForeground: this.inputForeground,
 				inputBorder: this.inputBorder,
 				inputValidationInfoBackground: this.inputValidationInfoBackground,
+				inputValidationInfoForeground: this.inputValidationInfoForeground,
 				inputValidationInfoBorder: this.inputValidationInfoBorder,
 				inputValidationWarningBackground: this.inputValidationWarningBackground,
+				inputValidationWarningForeground: this.inputValidationWarningForeground,
 				inputValidationWarningBorder: this.inputValidationWarningBorder,
 				inputValidationErrorBackground: this.inputValidationErrorBackground,
+				inputValidationErrorForeground: this.inputValidationErrorForeground,
 				inputValidationErrorBorder: this.inputValidationErrorBorder
 			};
 			this.inputBox.style(inputBoxStyles);
@@ -282,10 +299,13 @@ export class FindInput extends Widget {
 			inputForeground: this.inputForeground,
 			inputBorder: this.inputBorder,
 			inputValidationInfoBackground: this.inputValidationInfoBackground,
+			inputValidationInfoForeground: this.inputValidationInfoForeground,
 			inputValidationInfoBorder: this.inputValidationInfoBorder,
 			inputValidationWarningBackground: this.inputValidationWarningBackground,
+			inputValidationWarningForeground: this.inputValidationWarningForeground,
 			inputValidationWarningBorder: this.inputValidationWarningBorder,
 			inputValidationErrorBackground: this.inputValidationErrorBackground,
+			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
 			history
 		}));
@@ -297,7 +317,7 @@ export class FindInput extends Widget {
 		}));
 		this._register(this.regex.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard) {
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
 			this.setInputWidth();
@@ -314,7 +334,7 @@ export class FindInput extends Widget {
 		}));
 		this._register(this.wholeWords.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard) {
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
 			this.setInputWidth();
@@ -328,7 +348,7 @@ export class FindInput extends Widget {
 		}));
 		this._register(this.caseSensitive.onChange(viaKeyboard => {
 			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard) {
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
 				this.inputBox.focus();
 			}
 			this.setInputWidth();
@@ -370,6 +390,7 @@ export class FindInput extends Widget {
 
 		let controls = document.createElement('div');
 		controls.className = 'controls';
+		controls.style.display = this._showOptionButtons ? 'block' : 'none';
 		controls.appendChild(this.caseSensitive.domNode);
 		controls.appendChild(this.wholeWords.domNode);
 		controls.appendChild(this.regex.domNode);

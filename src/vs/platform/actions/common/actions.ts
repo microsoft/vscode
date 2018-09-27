@@ -13,7 +13,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;
@@ -93,9 +93,10 @@ export class MenuId {
 	static readonly MenubarAppearanceMenu = new MenuId();
 	static readonly MenubarLayoutMenu = new MenuId();
 	static readonly MenubarGoMenu = new MenuId();
+	static readonly MenubarSwitchEditorMenu = new MenuId();
+	static readonly MenubarSwitchGroupMenu = new MenuId();
 	static readonly MenubarDebugMenu = new MenuId();
-	static readonly MenubarTasksMenu = new MenuId();
-	static readonly MenubarWindowMenu = new MenuId();
+	static readonly MenubarNewBreakpointMenu = new MenuId();
 	static readonly MenubarPreferencesMenu = new MenuId();
 	static readonly MenubarHelpMenu = new MenuId();
 	static readonly MenubarTerminalMenu = new MenuId();
@@ -125,8 +126,13 @@ export interface IMenuService {
 export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): boolean;
 	getCommand(id: string): ICommandAction;
+	getCommands(): ICommandsMap;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): (IMenuItem | ISubmenuItem)[];
+}
+
+export interface ICommandsMap {
+	[id: string]: ICommandAction;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -143,6 +149,14 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	getCommand(id: string): ICommandAction {
 		return this._commands[id];
+	}
+
+	getCommands(): ICommandsMap {
+		const result: ICommandsMap = Object.create(null);
+		for (const key in this._commands) {
+			result[key] = this.getCommand(key);
+		}
+		return result;
 	}
 
 	appendMenuItem({ id }: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {

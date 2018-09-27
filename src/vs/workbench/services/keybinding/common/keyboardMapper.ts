@@ -7,7 +7,7 @@
 
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;

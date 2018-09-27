@@ -16,9 +16,10 @@ import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as encoding from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
-import { IProgress } from 'vs/platform/search/common/search';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IProgress, ITextSearchPreviewOptions, ITextSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
 import { rgPath } from 'vscode-ripgrep';
-import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, LineMatch, ISerializedSearchSuccess } from './search';
+import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, ISerializedSearchSuccess } from './search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -50,7 +51,9 @@ export class RipgrepEngine {
 			done(null, {
 				type: 'success',
 				limitHit: false,
-				stats: null
+				stats: <ITextSearchStats>{
+					type: 'searchProcess'
+				}
 			});
 			return;
 		}
@@ -61,22 +64,21 @@ export class RipgrepEngine {
 		}
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
-		process.nextTick(() => { // Allow caller to register progress callback
-			const escapedArgs = rgArgs.args
-				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-				.join(' ');
+		const escapedArgs = rgArgs.args
+			.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+			.join(' ');
 
-			let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
-			if (rgArgs.siblingClauses) {
-				rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
-			}
+		let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
+		if (rgArgs.siblingClauses) {
+			rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
+		}
 
-			onMessage({ message: rgCmd });
-		});
+		onMessage({ message: rgCmd });
+
 		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles, this.config.previewOptions);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, glob.hasSiblingPromiseFn(() => getSiblings(match.path))))
@@ -97,7 +99,9 @@ export class RipgrepEngine {
 			done(null, {
 				type: 'success',
 				limitHit: true,
-				stats: null
+				stats: {
+					type: 'searchProcess'
+				}
 			});
 		});
 
@@ -149,10 +153,15 @@ export class RipgrepEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0].trim();
+	const lines = msg.trim().split('\n');
+	const firstLine = lines[0].trim();
 
 	if (strings.startsWith(firstLine, 'Error parsing regex')) {
 		return firstLine;
+	}
+
+	if (strings.startsWith(firstLine, 'regex parse error')) {
+		return strings.uppercaseFirstLetter(lines[lines.length - 1].trim());
 	}
 
 	if (strings.startsWith(firstLine, 'error parsing glob') ||
@@ -189,7 +198,7 @@ export class RipgrepParser extends EventEmitter {
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string, extraFiles?: string[]) {
+	constructor(private maxResults: number, private rootFolder: string, extraFiles?: string[], private previewOptions?: ITextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
 
@@ -267,7 +276,6 @@ export class RipgrepParser extends EventEmitter {
 			text = strings.stripUTF8BOM(text);
 		}
 
-		const lineMatch = new LineMatch(text, lineNum);
 		if (!this.fileMatch) {
 			// When searching a single file and no folderQueries, rg does not print the file line, so create it here
 			const singleFile = this.extraSearchFiles[0];
@@ -278,8 +286,6 @@ export class RipgrepParser extends EventEmitter {
 			this.fileMatch = this.getFileMatch(singleFile);
 		}
 
-		this.fileMatch.addMatch(lineMatch);
-
 		let lastMatchEndPos = 0;
 		let matchTextStartPos = -1;
 
@@ -288,6 +294,7 @@ export class RipgrepParser extends EventEmitter {
 		let textRealIdx = 0;
 		let hitLimit = false;
 
+		const matchRanges: IRange[] = [];
 		const realTextParts: string[] = [];
 
 		for (let i = 0; i < text.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
@@ -303,7 +310,7 @@ export class RipgrepParser extends EventEmitter {
 				const chunk = text.slice(matchTextStartPos, i);
 				realTextParts.push(chunk);
 				if (!hitLimit) {
-					lineMatch.addMatch(matchTextStartRealIdx, textRealIdx - matchTextStartRealIdx);
+					matchRanges.push(new Range(lineNum, matchTextStartRealIdx, lineNum, textRealIdx));
 				}
 
 				matchTextStartPos = -1;
@@ -328,7 +335,9 @@ export class RipgrepParser extends EventEmitter {
 
 		// Replace preview with version without color codes
 		const preview = realTextParts.join('');
-		lineMatch.preview = preview;
+		matchRanges
+			.map(r => new TextSearchResult(preview, r, this.previewOptions))
+			.forEach(m => this.fileMatch.addMatch(m));
 
 		if (hitLimit) {
 			this.cancel();
@@ -502,6 +511,7 @@ function getRgArgs(config: IRawSearch) {
 	}
 
 	args.push('--no-config');
+	args.push('--no-ignore-global');
 
 	// Folder to search
 	args.push('--');

@@ -26,19 +26,12 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		let items: Proto.OccurrencesResponseItem[] | undefined;
-		try {
-			const response = await this.client.execute('occurrences', args, token);
-			items = response.body;
-		} catch {
-			// noop
-		}
-
-		if (!items) {
+		const response = await this.client.execute('occurrences', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return [];
 		}
 
-		return items
+		return response.body
 			.filter(x => !x.isInString)
 			.map(documentHighlightFromOccurance);
 	}

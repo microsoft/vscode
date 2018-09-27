@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -119,6 +119,7 @@ export class RichEditSupport {
 			onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
 			autoClosingPairs: (prev ? current.autoClosingPairs || prev.autoClosingPairs : current.autoClosingPairs),
 			surroundingPairs: (prev ? current.surroundingPairs || prev.surroundingPairs : current.surroundingPairs),
+			autoCloseBefore: (prev ? current.autoCloseBefore || prev.autoCloseBefore : current.autoCloseBefore),
 			folding: (prev ? current.folding || prev.folding : current.folding),
 			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
 		};
@@ -189,14 +190,12 @@ export class LanguageConfigurationRegistryImpl {
 		let current = new RichEditSupport(languageIdentifier, previous, configuration);
 		this._entries[languageIdentifier.id] = current;
 		this._onDidChange.fire({ languageIdentifier });
-		return {
-			dispose: () => {
-				if (this._entries[languageIdentifier.id] === current) {
-					this._entries[languageIdentifier.id] = previous;
-					this._onDidChange.fire({ languageIdentifier });
-				}
+		return toDisposable(() => {
+			if (this._entries[languageIdentifier.id] === current) {
+				this._entries[languageIdentifier.id] = previous;
+				this._onDidChange.fire({ languageIdentifier });
 			}
-		};
+		});
 	}
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport {
@@ -269,6 +268,14 @@ export class LanguageConfigurationRegistryImpl {
 			return [];
 		}
 		return characterPairSupport.getAutoClosingPairs();
+	}
+
+	public getAutoCloseBeforeSet(languageId: LanguageId): string {
+		let characterPairSupport = this._getCharacterPairSupport(languageId);
+		if (!characterPairSupport) {
+			return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
+		}
+		return characterPairSupport.getAutoCloseBeforeSet();
 	}
 
 	public getSurroundingPairs(languageId: LanguageId): IAutoClosingPair[] {

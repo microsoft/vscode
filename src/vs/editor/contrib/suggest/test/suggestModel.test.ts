@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,7 +15,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ISuggestResult, ISuggestSupport, LanguageIdentifier, MetadataConsts, SuggestRegistry, SuggestTriggerKind, TokenizationRegistry } from 'vs/editor/common/modes';
+import { IState, ISuggestResult, ISuggestSupport, LanguageIdentifier, MetadataConsts, SuggestRegistry, SuggestTriggerKind, TokenizationRegistry, SuggestionKind } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -28,6 +28,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+
+export interface Ctor<T> {
+	new(): T;
+}
+
+export function mock<T>(): Ctor<T> {
+	return function () { } as any;
+}
+
 
 function createMockEditor(model: TextModel): TestCodeEditor {
 	let editor = createTestCodeEditor({
@@ -147,7 +157,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				incomplete: false,
 				suggestions: [{
 					label: doc.getWordUntilPosition(pos).word,
-					type: 'property',
+					kind: SuggestionKind.Property,
 					insertText: 'foofoo'
 				}]
 			};
@@ -167,7 +177,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
-			const oracle = new SuggestModel(editor);
+			const oracle = new SuggestModel(editor, new class extends mock<IEditorWorkerService>() {
+				computeWordRanges() {
+					return Promise.resolve({});
+				}
+
+			});
 			disposables.push(oracle, editor);
 
 			try {
@@ -290,7 +305,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'My Table',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'My Table'
 					}]
 				};
@@ -339,7 +354,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'foo.bar',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'foo.bar',
 						overwriteBefore: pos.column - 1
 					}]
@@ -354,7 +369,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'boom',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'boom',
 						overwriteBefore: doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : pos.column - 1
 					}]
@@ -448,7 +463,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'foo',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'foo',
 						overwriteBefore: pos.column - 1
 					}]
@@ -485,7 +500,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'foo;',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'foo',
 						overwriteBefore: pos.column - 1
 					}]
@@ -532,7 +547,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					suggestions: [
 						{
 							label: 'foo.bar',
-							type: 'property',
+							kind: SuggestionKind.Property,
 							insertText: 'foo.bar',
 							overwriteBefore: pos.column - 1
 						}
@@ -561,12 +576,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'abc',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'abc',
 						overwriteBefore: pos.column - 1
 					}, {
 						label: 'äbc',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'äbc',
 						overwriteBefore: pos.column - 1
 					}]
@@ -633,7 +648,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'bar',
-						type: 'property',
+						kind: SuggestionKind.Property,
 						insertText: 'bar',
 						overwriteBefore: 2,
 						additionalTextEdits: [{
@@ -650,7 +665,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
 				_onDidSelectItem(item: ISelectedSuggestion) {
-					super._onDidSelectItem(item);
+					super._onDidSelectItem(item, false, true);
 				}
 			}
 			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
@@ -705,7 +720,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: true,
-					suggestions: [{ type: 'folder', label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
+					suggestions: [{ kind: SuggestionKind.Folder, label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
 					dispose() { disposeA += 1; }
 				};
 			}
@@ -714,7 +729,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: false,
-					suggestions: [{ type: 'folder', label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
+					suggestions: [{ kind: SuggestionKind.Folder, label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
 					dispose() { disposeB += 1; }
 				};
 			},

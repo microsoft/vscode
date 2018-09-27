@@ -6,14 +6,12 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import * as os from 'os';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IQuickOpenService, IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
@@ -29,6 +27,7 @@ import { ipcRenderer as ipc } from 'electron';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
 	private _configHelper: TerminalConfigHelper;
@@ -47,7 +46,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService
@@ -56,7 +55,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
-
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
 			// if the request to open files is coming in from the integrated terminal (identified though
 			// the termProgram variable) and we are instructed to wait for editors close, wait for the
@@ -128,6 +126,22 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 	}
 
+	public findNext(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(false);
+		}
+	}
+
+	public findPrevious(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(true);
+		}
+	}
+
 	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
 		// Only suggest on Windows since $SHELL works great for macOS/Linux
 		if (!platform.isWindows) {
@@ -184,10 +198,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public selectDefaultWindowsShell(): TPromise<string> {
 		return this._detectWindowsShells().then(shells => {
-			const options: IPickOptions = {
+			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 			};
-			return this._quickOpenService.pick(shells, options).then(value => {
+			return this._quickInputService.pick(shells, options).then(value => {
 				if (!value) {
 					return null;
 				}
@@ -197,7 +211,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	private _detectWindowsShells(): TPromise<IPickOpenEntry[]> {
+	private _detectWindowsShells(): TPromise<IQuickPickItem[]> {
 		// Determine the correct System32 path. We want to point to Sysnative
 		// when the 32-bit version of VS Code is running on a 64-bit machine.
 		// The reason for this is because PowerShell's important PSReadline
@@ -205,14 +219,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
 		let useWSLexe = false;
 
-		if (osVersion && osVersion.length === 4) {
-			const buildNumber = parseInt(osVersion[3]);
-			if (buildNumber >= 16299) {
-				useWSLexe = true;
-			}
+		if (TerminalInstance.getWindowsBuildNumber() >= 16299) {
+			useWSLexe = true;
 		}
 
 		const expectedLocations = {
@@ -231,7 +241,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
 		return TPromise.join(promises).then(results => {
 			return results.filter(result => !!result).map(result => {
-				return <IPickOpenEntry>{
+				return <IQuickPickItem>{
 					label: result[0],
 					description: result[1]
 				};
@@ -269,6 +279,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message,
 			type: 'warning',
 		}).then(res => !res.confirmed);
+	}
+
+	protected _showNotEnoughSpaceToast(): void {
+		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

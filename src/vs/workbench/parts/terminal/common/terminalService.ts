@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-
-const TERMINAL_STATE_STORAGE_KEY = 'terminal.state';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
@@ -24,6 +22,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _terminalContainer: HTMLElement;
 	protected _terminalTabs: ITerminalTab[];
 	protected abstract _terminalInstances: ITerminalInstance[];
+	private _findState: FindReplaceState;
 
 	private _activeTabIndex: number;
 
@@ -45,8 +44,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	protected readonly _onInstancesChanged: Emitter<void> = new Emitter<void>();
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
-	protected readonly _onInstanceTitleChanged: Emitter<string> = new Emitter<string>();
-	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
+	protected readonly _onInstanceTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
 	protected readonly _onActiveInstanceChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
@@ -63,14 +62,12 @@ export abstract class TerminalService implements ITerminalService {
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
-
+		this._findState = new FindReplaceState();
 		lifecycleService.onWillShutdown(event => event.veto(this._onWillShutdown()));
 		lifecycleService.onShutdown(() => this._onShutdown());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		this.onTabDisposed(tab => this._removeTab(tab));
-
-		lifecycleService.when(LifecyclePhase.Restoring).then(() => this._restoreTabs());
 
 		this._handleContextKeys();
 	}
@@ -86,6 +83,7 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
+	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
@@ -93,29 +91,6 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
-
-	private _restoreTabs(): void {
-		if (!this.configHelper.config.experimentalRestore) {
-			return;
-		}
-
-		const tabConfigsJson = this._storageService.get(TERMINAL_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (!tabConfigsJson) {
-			return;
-		}
-
-		const tabConfigs = <{ instances: IShellLaunchConfig[] }[]>JSON.parse(tabConfigsJson);
-		if (!Array.isArray(tabConfigs)) {
-			return;
-		}
-
-		tabConfigs.forEach(tabConfig => {
-			const instance = this.createTerminal(tabConfig.instances[0]);
-			for (let i = 1; i < tabConfig.instances.length; i++) {
-				this.splitInstance(instance, tabConfig.instances[i]);
-			}
-		});
-	}
 
 	private _onWillShutdown(): boolean | TPromise<boolean> {
 		if (this.terminalInstances.length === 0) {
@@ -139,22 +114,16 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	private _onShutdown(): void {
-		// Store terminal tab layout
-		if (this.configHelper.config.experimentalRestore) {
-			const configs = this.terminalTabs.map(tab => {
-				return {
-					instances: tab.terminalInstances.map(instance => instance.shellLaunchConfig)
-				};
-			});
-			this._storageService.store(TERMINAL_STATE_STORAGE_KEY, JSON.stringify(configs), StorageScope.WORKSPACE);
-		}
-
 		// Dispose of all instances
-		this.terminalInstances.forEach(instance => instance.dispose());
+		this.terminalInstances.forEach(instance => instance.dispose(true));
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+	}
+
+	public getFindState(): FindReplaceState {
+		return this._findState;
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
@@ -295,10 +264,14 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		this._initInstanceListeners(instance);
-		this._onInstancesChanged.fire();
+		if (instance) {
+			this._initInstanceListeners(instance);
+			this._onInstancesChanged.fire();
 
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		} else {
+			this._showNotEnoughSpaceToast();
+		}
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
@@ -330,11 +303,14 @@ export abstract class TerminalService implements ITerminalService {
 						setTimeout(() => {
 							const instance = this.getActiveInstance();
 							if (instance) {
-								instance.focus(true);
+								instance.focusWhenReady(true).then(() => complete(void 0));
+							} else {
+								complete(void 0);
 							}
 						}, 0);
+					} else {
+						complete(void 0);
 					}
-					complete(void 0);
 				});
 			} else {
 				if (focus) {
@@ -343,11 +319,14 @@ export abstract class TerminalService implements ITerminalService {
 					setTimeout(() => {
 						const instance = this.getActiveInstance();
 						if (instance) {
-							instance.focus(true);
+							instance.focusWhenReady(true).then(() => complete(void 0));
+						} else {
+							complete(void 0);
 						}
 					}, 0);
+				} else {
+					complete(void 0);
 				}
-				complete(void 0);
 			}
 			return undefined;
 		});
@@ -356,12 +335,15 @@ export abstract class TerminalService implements ITerminalService {
 	public hidePanel(): void {
 		const panel = this._panelService.getActivePanel();
 		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
-			this._partService.setPanelHidden(true).done(undefined, errors.onUnexpectedError);
+			this._partService.setPanelHidden(true);
 		}
 	}
 
 	public abstract focusFindWidget(): TPromise<void>;
 	public abstract hideFindWidget(): void;
+
+	public abstract findNext(): void;
+	public abstract findPrevious(): void;
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;

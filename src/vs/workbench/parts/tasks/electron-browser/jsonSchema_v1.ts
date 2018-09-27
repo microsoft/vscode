@@ -23,6 +23,7 @@ const schema: IJSONSchema = {
 						version: {
 							type: 'string',
 							enum: ['0.1.0'],
+							deprecationMessage: nls.localize('JsonSchema.version.deprecated', 'Task version 0.1.0 is deprecated. Please use 2.0.0'),
 							description: nls.localize('JsonSchema.version', 'The config\'s version number')
 						},
 						_runner: {

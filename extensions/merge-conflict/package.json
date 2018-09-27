@@ -79,7 +79,7 @@
       {
         "category": "%command.category%",
         "title": "%command.compare%",
-        "original":"Compare Current Conflict",
+        "original": "Compare Current Conflict",
         "command": "merge-conflict.compare"
       }
     ],
@@ -100,7 +100,7 @@
     }
   },
   "dependencies": {
-    "vscode-nls": "^3.2.4"
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "8.0.33"

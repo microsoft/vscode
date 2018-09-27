@@ -10,7 +10,7 @@ import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findI
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IContextScopedWidget, getContextScopedWidget, createWidgetScopedContextKeyService, bindContextScopedWidget } from 'vs/platform/widget/common/contextScopedWidget';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
@@ -43,9 +43,9 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 export class ContextScopedFindInput extends FindInput {
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IFindInputOptions,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService, showFindOptions: boolean = false
 	) {
-		super(container, contextViewProvider, options);
+		super(container, contextViewProvider, showFindOptions, options);
 		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
 	}
 
@@ -53,7 +53,7 @@ export class ContextScopedFindInput extends FindInput {
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'history.showPrevious',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(new ContextKeyDefinedExpr(HistoryNavigationWidgetContext), new ContextKeyEqualsExpr(HistoryNavigationEnablementContext, true)),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
@@ -65,7 +65,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'history.showNext',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: new ContextKeyAndExpr([new ContextKeyDefinedExpr(HistoryNavigationWidgetContext), new ContextKeyEqualsExpr(HistoryNavigationEnablementContext, true)]),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],

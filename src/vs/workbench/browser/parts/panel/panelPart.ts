@@ -7,7 +7,6 @@ import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -24,8 +23,8 @@ import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, Toggl
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
+import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
@@ -95,12 +94,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			hidePart: () => this.partService.setPanelHidden(true),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: {
-				backgroundColor: PANEL_BACKGROUND,
-				badgeBackground,
-				badgeForeground,
-				dragAndDropBackground: PANEL_DRAG_AND_DROP_BACKGROUND
-			}
+			colors: theme => ({
+				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
+			})
 		}));
 
 		for (const panel of this.getPanels()) {
@@ -151,12 +154,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = $(this.getContainer());
-		container.style('background-color', this.getColor(PANEL_BACKGROUND));
-		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
+		const container = this.getContainer();
+		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND);
+		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 
-		const title = $(this.getTitleArea());
-		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
+		const title = this.getTitleArea();
+		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
 	}
 
 	openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -282,7 +285,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private removeComposite(compositeId: string): void {
-		this.compositeBar.removeComposite(compositeId);
+		this.compositeBar.hideComposite(compositeId);
 		const compositeActions = this.compositeActions[compositeId];
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
@@ -321,20 +324,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
-				color: ${titleActive};
-				border-bottom-color: ${titleActiveBorder};
-			}
-		`);
-	}
-
-	// Title Inactive
-	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	if (titleInactive) {
-		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-				color: ${titleInactive};
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+				color: ${titleActive} !important;
+				border-bottom-color: ${titleActiveBorder} !important;
 			}
 		`);
 	}
@@ -344,7 +336,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (focusBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive};
+				color: ${titleActive} !important;
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
 			}

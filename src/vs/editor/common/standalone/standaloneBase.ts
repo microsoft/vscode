@@ -12,18 +12,12 @@ import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Token } from 'vs/editor/common/core/token';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 // --------------------------------------------
 // This is repeated here so it can be exported
 // because TS inlines const enums
 // --------------------------------------------
-export enum Severity {
-	Ignore = 0,
-	Info = 1,
-	Warning = 2,
-	Error = 3,
-}
 
 export enum MarkerTag {
 	Unnecessary = 1,
@@ -248,7 +242,6 @@ export function createMonacoBaseAPI(): typeof monaco {
 		Range: Range,
 		Selection: Selection,
 		SelectionDirection: SelectionDirection,
-		Severity: Severity,
 		MarkerSeverity: MarkerSeverity,
 		MarkerTag: MarkerTag,
 		Promise: TPromise,

@@ -13,7 +13,7 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import { FileOperation, FileOperationEvent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
@@ -24,6 +24,7 @@ import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/work
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IEncodingOverride } from 'vs/workbench/services/files/electron-browser/encoding';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 suite('FileService', () => {
 	let service: FileService;
@@ -33,10 +34,10 @@ suite('FileService', () => {
 	setup(function () {
 		const id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
-		const sourceDir = require.toUrl('./fixtures/service');
+		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(sourceDir, testDir).then(() => {
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, toWorkspaceFolders([{ path: testDir }]))), TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true });
 		});
 	});
 
@@ -837,7 +838,7 @@ suite('FileService', () => {
 		// setup
 		const _id = uuid.generateUuid();
 		const _testDir = path.join(parentDir, _id);
-		const _sourceDir = require.toUrl('./fixtures/service');
+		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			const encodingOverride: IEncodingOverride[] = [];
@@ -852,7 +853,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -882,7 +883,7 @@ suite('FileService', () => {
 		// setup
 		const _id = uuid.generateUuid();
 		const _testDir = path.join(parentDir, _id);
-		const _sourceDir = require.toUrl('./fixtures/service');
+		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
 
 		return pfs.copy(_sourceDir, _testDir).then(() => {
 			const encodingOverride: IEncodingOverride[] = [];
@@ -897,7 +898,7 @@ suite('FileService', () => {
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
 			const _service = new FileService(
-				new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+				new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 				TestEnvironmentService,
 				textResourceConfigurationService,
 				configurationService,
@@ -927,11 +928,11 @@ suite('FileService', () => {
 		// setup
 		const _id = uuid.generateUuid();
 		const _testDir = path.join(parentDir, _id);
-		const _sourceDir = require.toUrl('./fixtures/service');
+		const _sourceDir = getPathFromAmdModule(require, './fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
 		const _service = new FileService(
-			new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))),
+			new TestContextService(new Workspace(_testDir, toWorkspaceFolders([{ path: _testDir }]))),
 			TestEnvironmentService,
 			new TestTextResourceConfigurationService(),
 			new TestConfigurationService(),

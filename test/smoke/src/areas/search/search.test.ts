@@ -10,8 +10,8 @@ export function setup() {
 	describe('Search', () => {
 		after(function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout .', { cwd: app.workspacePath });
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
+			cp.execSync('git checkout .', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePathOrFolder });
 		});
 
 		it('searches for body & checks for correct result number', async function () {

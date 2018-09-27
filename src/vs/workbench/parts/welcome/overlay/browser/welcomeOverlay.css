@@ -97,6 +97,12 @@
 	left: 45px;
 }
 
+.monaco-workbench > .welcomeOverlay > .key.terminal {
+	position: absolute;
+	bottom: 25px;
+	left: 50%;
+}
+
 .monaco-workbench > .welcomeOverlay > .key.notifications {
 	position: absolute;
 	bottom: 25px;

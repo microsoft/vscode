@@ -45,14 +45,14 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	private onError(err: string): void {
-		this.logService.error('UpdateService error: ', err);
-		this.setState(State.Idle(UpdateType.Archive));
+		this.logService.error('UpdateService error:', err);
+		this.setState(State.Idle(UpdateType.Archive, err));
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		const url = createUpdateURL('darwin', quality);
 		try {
-			electron.autoUpdater.setFeedURL(url);
+			electron.autoUpdater.setFeedURL({ url });
 		} catch (e) {
 			// application is very likely not signed
 			this.logService.error('Failed to set update feed URL', e);

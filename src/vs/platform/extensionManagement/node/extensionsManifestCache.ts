@@ -37,6 +37,6 @@ export class ExtensionsManifestCache extends Disposable {
 	}
 
 	invalidate(): void {
-		pfs.del(this.extensionsManifestCache).done(() => { }, () => { });
+		pfs.del(this.extensionsManifestCache).then(() => { }, () => { });
 	}
 }

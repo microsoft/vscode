@@ -714,6 +714,30 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	}
 }
 
+export class CloseEditorInAllGroupsAction extends Action {
+
+	static readonly ID = 'workbench.action.closeEditorInAllGroups';
+	static readonly LABEL = nls.localize('closeEditorInAllGroups', "Close Editor in All Groups");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorService private editorService: IEditorService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		const activeEditor = this.editorService.activeEditor;
+		if (activeEditor) {
+			return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
+		}
+
+		return TPromise.as(null);
+	}
+}
+
 export class BaseMoveGroupAction extends Action {
 
 	constructor(
@@ -1104,6 +1128,22 @@ export class NavigateBackwardsAction extends Action {
 	}
 }
 
+export class NavigateToLastEditLocationAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastEditLocation';
+	static readonly LABEL = nls.localize('navigateToLastEditLocation', "Go to Last Edit Location");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		this.historyService.openLastEditLocation();
+
+		return TPromise.as(null);
+	}
+}
+
 export class NavigateLastAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateLast';
@@ -1148,13 +1188,19 @@ export class ClearRecentFilesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService
+		@IWindowsService private windowsService: IWindowsService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<any> {
+
+		// Clear global recently opened
 		this.windowsService.clearRecentlyOpened();
+
+		// Clear workspace specific recently opened
+		this.historyService.clearRecentlyOpened();
 
 		return TPromise.as(false);
 	}

@@ -3,9 +3,9 @@
 		"c": "// from https://msdn.microsoft.com/en-us/library/dd233160.aspx",
 		"t": "source.fsharp comment.line.double-slash.fsharp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,16 +14,16 @@
 		"c": "// The declaration creates a constructor that takes two values, name and age.",
 		"t": "source.fsharp comment.line.double-slash.fsharp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "type",
-		"t": "source.fsharp record.fsharp keyword.other.fsharp",
+		"t": "source.fsharp record.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -56,13 +56,13 @@
 	},
 	{
 		"c": "(",
-		"t": "source.fsharp record.fsharp",
+		"t": "source.fsharp record.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.fsharp record.fsharp keyword.other.fsharp",
+		"t": "source.fsharp record.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -99,18 +99,18 @@
 		}
 	},
 	{
-		"c": ", ",
-		"t": "source.fsharp record.fsharp",
+		"c": ",",
+		"t": "source.fsharp record.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
-		"c": "age",
+		"c": " age",
 		"t": "source.fsharp record.fsharp variable.parameter.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.fsharp record.fsharp keyword.other.fsharp",
+		"t": "source.fsharp record.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -143,7 +143,18 @@
 		}
 	},
 	{
-		"c": ") ",
+		"c": ")",
+		"t": "source.fsharp record.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.fsharp record.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -155,7 +166,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp record.fsharp keyword.other.fsharp",
+		"t": "source.fsharp record.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -177,7 +188,7 @@
 	},
 	{
 		"c": "let mutable",
-		"t": "source.fsharp binding.fsharp keyword.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -199,7 +210,7 @@
 	},
 	{
 		"c": "internalAge",
-		"t": "source.fsharp binding.fsharp variable.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -221,7 +232,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.other.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -254,7 +265,7 @@
 	},
 	{
 		"c": "new",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -264,7 +275,18 @@
 		}
 	},
 	{
-		"c": "(name",
+		"c": "(",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "name",
 		"t": "source.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -276,7 +298,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -286,7 +308,29 @@
 		}
 	},
 	{
-		"c": "string) ",
+		"c": "string",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -298,7 +342,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -308,7 +352,51 @@
 		}
 	},
 	{
-		"c": " Person(name, ",
+		"c": " Person",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "name",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -331,13 +419,13 @@
 	},
 	{
 		"c": ")",
-		"t": "source.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
@@ -353,7 +441,7 @@
 	},
 	{
 		"c": "member",
-		"t": "source.fsharp binding.fsharp keyword.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -375,7 +463,7 @@
 	},
 	{
 		"c": "this.Name",
-		"t": "source.fsharp binding.fsharp variable.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -397,7 +485,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.other.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -432,9 +520,9 @@
 		"c": "// A read/write property.",
 		"t": "source.fsharp comment.line.double-slash.fsharp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -452,7 +540,7 @@
 	},
 	{
 		"c": "member",
-		"t": "source.fsharp binding.fsharp keyword.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -474,7 +562,7 @@
 	},
 	{
 		"c": "this.Age",
-		"t": "source.fsharp binding.fsharp variable.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -485,7 +573,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "source.fsharp",
+		"t": "source.fsharp binding.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -496,7 +584,7 @@
 	},
 	{
 		"c": "with",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -540,7 +628,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -573,7 +661,7 @@
 	},
 	{
 		"c": "and",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -583,7 +671,51 @@
 		}
 	},
 	{
-		"c": " set(value) ",
+		"c": " set",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "value",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -595,7 +727,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -617,7 +749,7 @@
 	},
 	{
 		"c": "<-",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -650,7 +782,7 @@
 	},
 	{
 		"c": "member",
-		"t": "source.fsharp binding.fsharp keyword.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -672,7 +804,7 @@
 	},
 	{
 		"c": "this.HasABirthday",
-		"t": "source.fsharp binding.fsharp variable.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -683,13 +815,13 @@
 	},
 	{
 		"c": " ",
-		"t": "source.fsharp binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.parameter.fsharp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -716,7 +848,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.other.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -738,7 +870,7 @@
 	},
 	{
 		"c": "<-",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -760,7 +892,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -804,7 +936,7 @@
 	},
 	{
 		"c": "member",
-		"t": "source.fsharp binding.fsharp keyword.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -826,7 +958,7 @@
 	},
 	{
 		"c": "this.IsOfAge",
-		"t": "source.fsharp binding.fsharp variable.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -836,18 +968,7 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "source.fsharp binding.fsharp",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "targetAge",
+		"c": " targetAge",
 		"t": "source.fsharp binding.fsharp variable.parameter.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
@@ -870,7 +991,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.other.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -892,7 +1013,7 @@
 	},
 	{
 		"c": ">=",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -925,7 +1046,7 @@
 	},
 	{
 		"c": "override",
-		"t": "source.fsharp binding.fsharp keyword.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -947,7 +1068,7 @@
 	},
 	{
 		"c": "this.ToString",
-		"t": "source.fsharp binding.fsharp variable.other.binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.fsharp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -958,13 +1079,13 @@
 	},
 	{
 		"c": " ",
-		"t": "source.fsharp binding.fsharp",
+		"t": "source.fsharp binding.fsharp variable.parameter.fsharp",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -991,7 +1112,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.fsharp binding.fsharp keyword.other.fsharp",
+		"t": "source.fsharp binding.fsharp keyword.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1057,7 +1178,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1079,7 +1200,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1145,7 +1266,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1211,7 +1332,7 @@
 	},
 	{
 		"c": "+",
-		"t": "source.fsharp keyword.other.fsharp",
+		"t": "source.fsharp keyword.symbol.fsharp",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -1221,7 +1342,51 @@
 		}
 	},
 	{
-		"c": " (string)internalAge",
+		"c": " ",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "string",
+		"t": "source.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.fsharp keyword.symbol.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "internalAge",
 		"t": "source.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

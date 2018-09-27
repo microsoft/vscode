@@ -33,7 +33,7 @@ import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/st
 import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
-	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService
+	StandaloneTelemetryService, SimpleWorkspaceContextService, SimpleDialogService, SimpleBulkEditService, SimpleUriLabelService
 } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -44,6 +44,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -121,6 +123,8 @@ export module StaticServices {
 
 	export const contextService = define(IWorkspaceContextService, () => new SimpleWorkspaceContextService());
 
+	export const labelService = define(ILabelService, () => new SimpleUriLabelService());
+
 	export const telemetryService = define(ITelemetryService, () => new StandaloneTelemetryService());
 
 	export const dialogService = define(IDialogService, () => new SimpleDialogService());
@@ -162,6 +166,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const configurationService = this.get(IConfigurationService);
 		const notificationService = this.get(INotificationService);
 		const telemetryService = this.get(ITelemetryService);
+		const themeService = this.get(IThemeService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T = null;
@@ -181,11 +186,11 @@ export class DynamicStandaloneServices extends Disposable {
 
 		let commandService = ensure(ICommandService, () => new StandaloneCommandService(this._instantiationService));
 
-		ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
+		let keybindingService = ensure(IKeybindingService, () => this._register(new StandaloneKeybindingService(contextKeyService, commandService, telemetryService, notificationService, domElement)));
 
 		let contextViewService = ensure(IContextViewService, () => this._register(new ContextViewService(domElement, telemetryService, new NullLogService())));
 
-		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService)));
+		ensure(IContextMenuService, () => this._register(new ContextMenuService(domElement, telemetryService, notificationService, contextViewService, keybindingService, themeService)));
 
 		ensure(IMenuService, () => new SimpleMenuService(commandService));
 

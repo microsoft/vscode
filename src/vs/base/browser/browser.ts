@@ -35,7 +35,6 @@ class WindowManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
-
 	// --- Zoom Factor
 	private _zoomFactor: number = 0;
 
@@ -45,7 +44,6 @@ class WindowManager {
 	public setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
 	}
-
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
@@ -92,8 +90,6 @@ class WindowManager {
 	public getAccessibilitySupport(): Platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
-
-
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
@@ -129,9 +125,7 @@ export function setFullscreen(fullscreen: boolean): void {
 export function isFullscreen(): boolean {
 	return WindowManager.INSTANCE.isFullscreen();
 }
-export function onDidChangeFullscreen(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
-}
+export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
 export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
 	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
@@ -173,3 +167,41 @@ export function hasClipboardSupport() {
 
 	return true;
 }
+
+//#region -- run on idle tricks ------------
+
+export interface IdleDeadline {
+	readonly didTimeout: boolean;
+	timeRemaining(): DOMHighResTimeStamp;
+}
+/**
+ * Execute the callback the next time the browser is idle
+ */
+export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+
+declare module self {
+	export function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+	export function cancelIdleCallback(handle: number): void;
+}
+(function () {
+	if (typeof self === 'undefined' || !self.requestIdleCallback || !self.cancelIdleCallback) {
+		let warned = false;
+		runWhenIdle = (runner, timeout?) => {
+			if (!warned) {
+				console.warn('requestIdleCallback not available. using fallback');
+				warned = true;
+			}
+			let handle = setTimeout(() => runner({ didTimeout: true, timeRemaining() { return Number.MAX_VALUE; } }), timeout);
+			return { dispose() { clearTimeout(handle); } };
+		};
+	} else {
+		runWhenIdle = (runner, timeout?) => {
+			let handle = self.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			return { dispose() { self.cancelIdleCallback(handle); } };
+		};
+	}
+})();
+
+
+
+//#endregion

@@ -11,6 +11,7 @@ import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitv
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
 const SPLIT_PANE_MIN_SIZE = 120;
+const TERMINAL_MIN_USEFUL_SIZE = 250;
 
 class SplitPaneContainer {
 	private _height: number;
@@ -361,6 +362,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		configHelper: ITerminalConfigHelper,
 		shellLaunchConfig: IShellLaunchConfig
 	): ITerminalInstance {
+		const newTerminalSize = ((this._panelPosition === Position.BOTTOM ? this._container.clientWidth : this._container.clientHeight) / (this._terminalInstances.length + 1));
+		if (newTerminalSize < TERMINAL_MIN_USEFUL_SIZE) {
+			return undefined;
+		}
 		const instance = this._terminalService.createInstance(
 			terminalFocusContextKey,
 			configHelper,

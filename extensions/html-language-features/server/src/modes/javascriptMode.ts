@@ -5,19 +5,25 @@
 'use strict';
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation, Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString, DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions } from 'vscode-languageserver-types';
+import {
+	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
+	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
+	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind
+} from 'vscode-languageserver-types';
 import { LanguageMode, Settings, Workspace } from './languageModes';
 import { getWordAtText, startsWith, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
 
 import * as ts from 'typescript';
 import { join } from 'path';
-import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 const FILE_NAME = 'vscode://javascript/1';  // the same 'file' is used for all contents
-const JQUERY_D_TS = join(__dirname, '../../lib/jquery.d.ts');
-
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+
+let jquery_d_ts = join(__dirname, '../lib/jquery.d.ts'); // when packaged
+if (!ts.sys.fileExists(jquery_d_ts)) {
+	jquery_d_ts = join(__dirname, '../../lib/jquery.d.ts'); // from source
+}
 
 export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
 	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('javascript'));
@@ -33,7 +39,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	}
 	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
-		getScriptFileNames: () => [FILE_NAME, JQUERY_D_TS],
+		getScriptFileNames: () => [FILE_NAME, jquery_d_ts],
 		getScriptKind: () => ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
 			if (fileName === FILE_NAME) {
@@ -277,17 +283,15 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return [];
 		},
-		getFoldingRanges(document: TextDocument, range: Range): FoldingRange[] {
+		getFoldingRanges(document: TextDocument): FoldingRange[] {
 			updateCurrentTextDocument(document);
 			let spans = jsLanguageService.getOutliningSpans(FILE_NAME);
-			let rangeStartLine = range.start.line;
-			let rangeEndLine = range.end.line;
 			let ranges: FoldingRange[] = [];
 			for (let span of spans) {
 				let curr = convertRange(currentTextDocument, span.textSpan);
 				let startLine = curr.start.line;
 				let endLine = curr.end.line;
-				if (startLine < endLine && startLine >= rangeStartLine && endLine < rangeEndLine) {
+				if (startLine < endLine) {
 					let foldingRange: FoldingRange = { startLine, endLine };
 					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
 					if (match) {

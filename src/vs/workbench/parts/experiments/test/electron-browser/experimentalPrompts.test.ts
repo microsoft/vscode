@@ -42,7 +42,7 @@ suite('Experimental Prompts', () => {
 				commands: [
 					{
 						text: 'Yes',
-						dontShowAgain: true
+						externalLink: 'https://code.visualstudio.com'
 					},
 					{
 						text: 'No'
@@ -88,7 +88,7 @@ suite('Experimental Prompts', () => {
 	});
 
 
-	test('Show experimental prompt if experiment should be run. Choosing an option should mark experiment as complete', () => {
+	test('Show experimental prompt if experiment should be run. Choosing option with link should mark experiment as complete', () => {
 
 		storageData = {
 			enabled: true,
@@ -100,6 +100,54 @@ suite('Experimental Prompts', () => {
 				assert.equal(b, promptText);
 				assert.equal(c.length, 2);
 				c[0].run();
+			}
+		});
+
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
+		onExperimentEnabledEvent.fire(experiment);
+
+		return TPromise.as(null).then(result => {
+			assert.equal(storageData['state'], ExperimentState.Complete);
+		});
+
+	});
+
+	test('Show experimental prompt if experiment should be run. Choosing negative option should mark experiment as complete', () => {
+
+		storageData = {
+			enabled: true,
+			state: ExperimentState.Run
+		};
+
+		instantiationService.stub(INotificationService, {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+				assert.equal(b, promptText);
+				assert.equal(c.length, 2);
+				c[1].run();
+			}
+		});
+
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
+		onExperimentEnabledEvent.fire(experiment);
+
+		return TPromise.as(null).then(result => {
+			assert.equal(storageData['state'], ExperimentState.Complete);
+		});
+
+	});
+
+	test('Show experimental prompt if experiment should be run. Cancelling should mark experiment as complete', () => {
+
+		storageData = {
+			enabled: true,
+			state: ExperimentState.Run
+		};
+
+		instantiationService.stub(INotificationService, {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+				assert.equal(b, promptText);
+				assert.equal(c.length, 2);
+				d();
 			}
 		});
 

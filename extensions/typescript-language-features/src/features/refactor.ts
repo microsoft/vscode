@@ -12,6 +12,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import TelemetryReporter from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { nulToken } from '../utils/cancellation';
 
 
 class ApplyRefactoringCommand implements Command {
@@ -47,18 +48,17 @@ class ApplyRefactoringCommand implements Command {
 			refactor,
 			action
 		};
-		const response = await this.client.execute('getEditsForRefactor', args);
-		const body = response && response.body;
-		if (!body || !body.edits.length) {
+		const response = await this.client.execute('getEditsForRefactor', args, nulToken);
+		if (response.type !== 'response' || !response.body || !response.body.edits.length) {
 			return false;
 		}
 
-		const workspaceEdit = await this.toWorkspaceEdit(body);
+		const workspaceEdit = await this.toWorkspaceEdit(response.body);
 		if (!(await vscode.workspace.applyEdit(workspaceEdit))) {
 			return false;
 		}
 
-		const renameLocation = body.renameLocation;
+		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
 			await vscode.commands.executeCommand('editor.action.rename', [
 				document.uri,
@@ -137,21 +137,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
+		await this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
-		let refactorings: Proto.ApplicableRefactorInfo[];
-		try {
-			const response = await this.client.execute('getApplicableRefactors', args, token);
-			if (!response.body) {
-				return undefined;
-			}
-			refactorings = response.body;
-		} catch {
+		const response = await this.client.execute('getApplicableRefactors', args, token);
+		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
-		return this.convertApplicableRefactors(refactorings, document, file, rangeOrSelection);
+		return this.convertApplicableRefactors(response.body, document, file, rangeOrSelection);
 	}
 
 	private convertApplicableRefactors(
@@ -200,7 +194,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return false;
 		}
 
-		return rangeOrSelection instanceof vscode.Selection;
+		return rangeOrSelection instanceof vscode.Selection && !rangeOrSelection.isEmpty;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {

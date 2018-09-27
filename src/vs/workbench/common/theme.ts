@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, listActiveSelectionForeground, listActiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -117,6 +117,12 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 
 // < --- Editors --- >
 
+export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
+
 registerColor('editorGroup.background', {
 	dark: null,
 	light: null,
@@ -161,7 +167,7 @@ export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
 	dark: Color.fromHex('#53595D').transparent(0.5),
-	light: Color.fromHex('#3399FF').transparent(0.18),
+	light: Color.fromHex('#2677CB').transparent(0.18),
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
@@ -188,7 +194,7 @@ export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeFor
 }, nls.localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiveForeground', {
-	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.5),
+	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.6),
 	light: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.75),
 	hc: Color.white
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
@@ -201,7 +207,7 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 
 export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', {
 	dark: Color.white.transparent(0.12),
-	light: Color.fromHex('#3399FF').transparent(0.18),
+	light: Color.fromHex('#2677CB').transparent(0.18),
 	hc: Color.white.transparent(0.12)
 }, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
@@ -282,14 +288,19 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 	dark: Color.white,
 	light: Color.white,
 	hc: Color.white
-}, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, nls.localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
+	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
+	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.6),
+	hc: Color.white
+}, nls.localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 	dark: null,
 	light: null,
 	hc: contrastBorder
 }, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
-
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
@@ -354,6 +365,11 @@ export const SIDE_BAR_SECTION_HEADER_FOREGROUND = registerColor('sideBarSectionH
 	hc: SIDE_BAR_FOREGROUND
 }, nls.localize('sideBarSectionHeaderForeground', "Side bar section header foreground color. The side bar is the container for views like explorer and search."));
 
+export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeader.border', {
+	dark: contrastBorder,
+	light: contrastBorder,
+	hc: contrastBorder
+}, nls.localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search."));
 
 
 // < --- Title Bar --- >
@@ -407,36 +423,6 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 	light: null,
 	hc: activeContrastBorder
 }, nls.localize('menubarSelectionBorder', "Border color of the selected menu item in the menubar."));
-
-export const MENU_FOREGROUND = registerColor('menu.foreground', {
-	dark: SIDE_BAR_FOREGROUND,
-	light: SIDE_BAR_FOREGROUND,
-	hc: SIDE_BAR_FOREGROUND
-}, nls.localize('menuForeground', "Foreground color of menu items."));
-
-export const MENU_BACKGROUND = registerColor('menu.background', {
-	dark: SIDE_BAR_BACKGROUND,
-	light: SIDE_BAR_BACKGROUND,
-	hc: SIDE_BAR_BACKGROUND
-}, nls.localize('menuBackground', "Background color of menu items."));
-
-export const MENU_SELECTION_FOREGROUND = registerColor('menu.selectionForeground', {
-	dark: listActiveSelectionForeground,
-	light: listActiveSelectionForeground,
-	hc: listActiveSelectionForeground
-}, nls.localize('menuSelectionForeground', "Foreground color of the selected menu item in menus."));
-
-export const MENU_SELECTION_BACKGROUND = registerColor('menu.selectionBackground', {
-	dark: listActiveSelectionBackground,
-	light: listActiveSelectionBackground,
-	hc: listActiveSelectionBackground
-}, nls.localize('menuSelectionBackground', "Background color of the selected menu item in menus."));
-
-export const MENU_SELECTION_BORDER = registerColor('menu.selectionBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('menuSelectionBorder', "Border color of the selected menu item in menus."));
 
 // < --- Notifications --- >
 

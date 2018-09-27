@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -84,7 +84,7 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
 	 * The initial model associated with this code editor.
 	 */
-	model?: ITextModel;
+	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
@@ -272,11 +272,9 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 
 		// Store it under the original id, such that trigger with the original id will work
 		this._actions[id] = internalAction;
-		toDispose.push({
-			dispose: () => {
-				delete this._actions[id];
-			}
-		});
+		toDispose.push(toDisposable(() => {
+			delete this._actions[id];
+		}));
 
 		return combinedDisposable(toDispose);
 	}

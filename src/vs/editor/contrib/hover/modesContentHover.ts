@@ -301,7 +301,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 		// update column from which to show
 		let renderColumn = Number.MAX_VALUE;
-		let highlightRange = messages[0].range;
+		let highlightRange = Range.lift(messages[0].range);
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
 
@@ -361,11 +361,11 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 						}
 
-						editorModel.pushEditOperations([], textEdits, () => []);
+						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {
 							textEdits = [...model.presentation.additionalTextEdits];
-							editorModel.pushEditOperations([], textEdits, () => []);
+							this._editor.executeEdits('colorpicker', textEdits);
 							this.hide();
 						}
 						this._editor.pushUndoStop();
@@ -392,7 +392,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
 
 					this._colorPicker = widget;
-					this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+					this.showAt(range.getStartPosition(), range, this._shouldFocus);
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
@@ -404,7 +404,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		// show
 
 		if (!containColorPicker && !isEmptyHoverContent) {
-			this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+			this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			this.updateContents(fragment);
 		}
 

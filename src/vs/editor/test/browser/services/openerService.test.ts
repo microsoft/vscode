@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
@@ -22,7 +22,7 @@ suite('OpenerService', function () {
 		onWillExecuteCommand = () => ({ dispose: () => { } });
 		executeCommand(id: string, ...args: any[]): TPromise<any> {
 			lastCommand = { id, args };
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 	};
 

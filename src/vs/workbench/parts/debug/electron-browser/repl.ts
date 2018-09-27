@@ -5,12 +5,12 @@
 
 import 'vs/css!vs/workbench/parts/debug/browser/media/repl';
 import * as nls from 'vs/nls';
-import uri from 'vs/base/common/uri';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { URI as uri } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { isMacintosh } from 'vs/base/common/platform';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -29,7 +29,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -46,6 +45,9 @@ import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL } from 'vs/
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
 
 const $ = dom.$;
 
@@ -171,23 +173,30 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
+		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
 		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
 				this.historyNavigationEnablement.set(false);
-				const word = this.replInput.getModel().getWordAtPosition(position);
-				const overwriteBefore = word ? word.word.length : 0;
-				const text = this.replInput.getModel().getLineContent(position.lineNumber);
-				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-				const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+
 				const focusedSession = this.debugService.getViewModel().focusedSession;
-				const completions = focusedSession ? focusedSession.completions(frameId, text, position, overwriteBefore) : TPromise.as([]);
-				return wireCancellationToken(token, completions.then(suggestions => ({
-					suggestions
-				})));
+				if (focusedSession && focusedSession.capabilities.supportsCompletionsRequest) {
+
+					const word = this.replInput.getModel().getWordAtPosition(position);
+					const overwriteBefore = word ? word.word.length : 0;
+					const text = this.replInput.getModel().getLineContent(position.lineNumber);
+					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+					const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+
+					return focusedSession.completions(frameId, text, position, overwriteBefore).then(suggestions => {
+						return { suggestions };
+					}, err => {
+						return { suggestions: [] };
+					});
+				}
+				return TPromise.as({ suggestions: [] });
 			}
 		});
 
@@ -210,6 +219,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		const historyInput = previous ? this.history.previous() : this.history.next();
 		if (historyInput) {
 			this.replInput.setValue(historyInput);
+			aria.status(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 			this.historyNavigationEnablement.set(true);
@@ -313,7 +323,8 @@ class AcceptReplInputAction extends EditorAction {
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyCode.Enter
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}

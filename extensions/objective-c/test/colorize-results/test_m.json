@@ -3,9 +3,9 @@
 		"c": "//",
 		"t": "source.objc comment.line.double-slash.cpp punctuation.definition.comment.cpp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -14,9 +14,9 @@
 		"c": "//",
 		"t": "source.objc comment.line.double-slash.cpp punctuation.definition.comment.cpp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -25,9 +25,9 @@
 		"c": "  Copyright (c) Microsoft Corporation. All rights reserved.",
 		"t": "source.objc comment.line.double-slash.cpp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -36,9 +36,9 @@
 		"c": "//",
 		"t": "source.objc comment.line.double-slash.cpp punctuation.definition.comment.cpp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -179,9 +179,9 @@
 		"c": "/*",
 		"t": "source.objc comment.block.c punctuation.definition.comment.begin.c",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -190,9 +190,9 @@
 		"c": "\tMulti",
 		"t": "source.objc comment.block.c",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -201,9 +201,9 @@
 		"c": "\tLine",
 		"t": "source.objc comment.block.c",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -212,9 +212,9 @@
 		"c": "\tComments",
 		"t": "source.objc comment.block.c",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -223,9 +223,9 @@
 		"c": "*/",
 		"t": "source.objc comment.block.c punctuation.definition.comment.end.c",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2225,9 +2225,9 @@
 		"c": "//",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c comment.line.double-slash.cpp punctuation.definition.comment.cpp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2236,9 +2236,9 @@
 		"c": " add a tap gesture recognizer",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c comment.line.double-slash.cpp",
 		"r": {
-			"dark_plus": "comment: #608B4E",
+			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
+			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668"
 		}
@@ -2368,11 +2368,11 @@
 		"c": "(",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.selector.objc punctuation.definition.storage.type.objc",
 		"r": {
-			"dark_plus": "meta.selector: #D7BA7D",
-			"light_plus": "meta.selector: #800000",
-			"dark_vs": "meta.selector: #D7BA7D",
-			"light_vs": "meta.selector: #800000",
-			"hc_black": "meta.selector: #D7BA7D"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2381,8 +2381,8 @@
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
-			"dark_vs": "meta.selector: #D7BA7D",
-			"light_vs": "meta.selector: #800000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA"
 		}
 	},
@@ -2390,11 +2390,11 @@
 		"c": ")",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.c meta.selector.objc punctuation.definition.storage.type.objc",
 		"r": {
-			"dark_plus": "meta.selector: #D7BA7D",
-			"light_plus": "meta.selector: #800000",
-			"dark_vs": "meta.selector: #D7BA7D",
-			"light_vs": "meta.selector: #800000",
-			"hc_black": "meta.selector: #D7BA7D"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
