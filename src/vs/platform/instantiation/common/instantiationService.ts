@@ -6,40 +6,29 @@
 
 import { illegalState } from 'vs/base/common/errors';
 import { create } from 'vs/base/common/types';
-import * as assert from 'vs/base/common/assert';
 import { Graph } from 'vs/base/common/graph';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
-
 export class InstantiationService implements IInstantiationService {
 
 	_serviceBrand: any;
 
-	private _services: ServiceCollection;
-	private _strict: boolean;
+	private readonly _services: ServiceCollection;
+	private readonly _strict: boolean;
+	private readonly _parent: InstantiationService;
 
-	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
+	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: InstantiationService) {
 		this._services = services;
 		this._strict = strict;
+		this._parent = parent;
 
 		this._services.set(IInstantiationService, this);
 	}
 
 	createChild(services: ServiceCollection): IInstantiationService {
-		this._services.forEach((id, thing) => {
-			if (services.has(id)) {
-				return;
-			}
-			// If we copy descriptors we might end up with
-			// multiple instances of the same service
-			if (thing instanceof SyncDescriptor) {
-				thing = this._createAndCacheServiceInstance(id, thing);
-			}
-			services.set(id, thing);
-		});
-		return new InstantiationService(services, this._strict);
+		return new InstantiationService(services, this._strict, this);
 	}
 
 	invokeFunction<R>(signature: (accessor: ServicesAccessor, ...more: any[]) => R, ...args: any[]): R {
@@ -120,8 +109,27 @@ export class InstantiationService implements IInstantiationService {
 		return <T>create.apply(null, argArray);
 	}
 
+	private _setServiceInstance<T>(id: ServiceIdentifier<T>, instance: T): void {
+		if (this._services.get(id) instanceof SyncDescriptor) {
+			this._services.set(id, instance);
+		} else if (this._parent) {
+			this._parent._setServiceInstance(id, instance);
+		} else {
+			throw new Error('illegalState - setting UNKNOWN service instance');
+		}
+	}
+
+	private _getServiceInstanceOrDescriptor<T>(id: ServiceIdentifier<T>): T | SyncDescriptor<T> {
+		let instanceOrDesc = this._services.get(id);
+		if (!instanceOrDesc && this._parent) {
+			return this._parent._getServiceInstanceOrDescriptor(id);
+		} else {
+			return instanceOrDesc;
+		}
+	}
+
 	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>): T {
-		let thing = this._services.get(id);
+		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
 			return this._createAndCacheServiceInstance(id, thing);
 		} else {
@@ -130,7 +138,6 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>): T {
-		assert.ok(this._services.get(id) instanceof SyncDescriptor);
 
 		const graph = new Graph<{ id: ServiceIdentifier<any>, desc: SyncDescriptor<any> }>(data => data.id.toString());
 
@@ -152,11 +159,11 @@ export class InstantiationService implements IInstantiationService {
 				throwCycleError();
 			}
 
-			// check all dependencies for existence and if the need to be created first
+			// check all dependencies for existence and if they need to be created first
 			let dependencies = _util.getServiceDependencies(item.desc.ctor);
 			for (let dependency of dependencies) {
 
-				let instanceOrDesc = this._services.get(dependency.id);
+				let instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
 				if (!instanceOrDesc && !dependency.optional) {
 					console.warn(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`);
 				}
@@ -184,11 +191,11 @@ export class InstantiationService implements IInstantiationService {
 			for (let root of roots) {
 				// create instance and overwrite the service collections
 				const instance = this._createInstance(root.data.desc, []);
-				this._services.set(root.data.id, instance);
+				this._setServiceInstance(root.data.id, instance);
 				graph.removeNode(root.data);
 			}
 		}
 
-		return <T>this._services.get(id);
+		return <T>this._getServiceInstanceOrDescriptor(id);
 	}
 }
