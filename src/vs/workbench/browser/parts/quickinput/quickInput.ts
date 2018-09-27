@@ -302,6 +302,8 @@ class QuickInput implements IQuickInput {
 
 class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
+	private static INPUT_BOX_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
+
 	private _value = '';
 	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
@@ -622,6 +624,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.setComboboxAccessibility(true);
+		this.ui.inputBox.setAttribute('aria-label', QuickPick.INPUT_BOX_ARIA_LABEL);
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, visibleCount: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, visibleCount: true, list: true });
 	}
 }
@@ -1225,6 +1228,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.matchOnDetail = false;
 		this.ui.ignoreFocusOut = false;
 		this.setComboboxAccessibility(false);
+		this.ui.inputBox.removeAttribute('aria-label');
 
 		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
 		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
