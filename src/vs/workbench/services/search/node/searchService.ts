@@ -129,7 +129,14 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const providerPromise = TPromise.join(providerActivations)
 			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
-			.then(() => this.searchWithProviders(query, onProviderProgress, token))
+			.then(() => {
+				// Cancel faster if search was canceled while waiting for extensions
+				if (token && token.isCancellationRequested) {
+					return TPromise.wrapError(canceled());
+				}
+
+				return this.searchWithProviders(query, onProviderProgress, token);
+			})
 			.then(completes => {
 				completes = completes.filter(c => !!c);
 				if (!completes.length) {
@@ -150,7 +157,7 @@ export class SearchService extends Disposable implements ISearchService {
 				return TPromise.wrapError(errs[0]);
 			});
 
-		return providerPromise.then(value => {
+		const searchP = providerPromise.then(value => {
 			const values = [value];
 
 			const result: ISearchComplete = {
@@ -179,6 +186,15 @@ export class SearchService extends Disposable implements ISearchService {
 			return result;
 		});
 
+		return new TPromise((resolve, reject) => {
+			if (token) {
+				token.onCancellationRequested(() => {
+					reject(canceled());
+				});
+			}
+
+			searchP.then(resolve, reject);
+		});
 	}
 
 	private getSchemesInQuery(query: ISearchQuery): Set<string> {
