@@ -562,6 +562,11 @@
             "always",
             "never"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
+          ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
