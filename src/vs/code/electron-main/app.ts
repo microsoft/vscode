@@ -381,7 +381,7 @@ export class CodeApplication {
 
 						recordingStopped = true; // only once
 
-						contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace`), path => {
+						contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`), path => {
 							if (!timeout) {
 								this.windowsMainService.showMessageBox({
 									type: 'info',
