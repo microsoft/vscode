@@ -153,6 +153,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 
 		// ARIA label
 		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
+			.map(s => s && parseOcticons(s).text)
 			.filter(s => !!s)
 			.join(', '));
 
