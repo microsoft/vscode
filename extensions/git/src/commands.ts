@@ -1948,10 +1948,6 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {
-				if (err.message === 'Cancelled') {
-					return;
-				}
-
 				const options: MessageOptions = {
 					modal: true
 				};
