@@ -56,7 +56,7 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
-	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 5000;
+	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
 	private _isTerminating: boolean = false;
 	private _workspace: IWorkspaceData;
