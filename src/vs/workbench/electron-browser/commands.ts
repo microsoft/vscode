@@ -5,6 +5,8 @@
 
 'use strict';
 
+import { tmpdir } from 'os';
+import { posix } from 'path';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -21,6 +23,7 @@ import { InEditorZenModeContext, NoEditorsVisibleContext, SingleEditorGroupsCont
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { IDownloadService } from 'vs/platform/download/common/download';
+import { generateUuid } from 'vs/base/common/uuid';
 
 // --- List Commands
 
@@ -557,8 +560,9 @@ export function registerCommands(): void {
 		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);
 	});
 
-	CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI, to: string) {
+	CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
 		const downloadService = accessor.get(IDownloadService);
+		const to = posix.join(tmpdir(), generateUuid());
 
 		return downloadService.download(resource, to);
 	});
