@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Graph } from 'vs/base/common/graph';
+import { Graph } from 'vs/platform/instantiation/common/graph';
 
 suite('Graph', () => {
 	var graph: Graph<string>;

@@ -6,7 +6,7 @@
 
 import { illegalState } from 'vs/base/common/errors';
 import { create } from 'vs/base/common/types';
-import { Graph } from 'vs/base/common/graph';
+import { Graph } from 'vs/platform/instantiation/common/graph';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
