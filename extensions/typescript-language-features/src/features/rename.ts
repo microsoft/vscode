@@ -5,10 +5,15 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
+import { nulToken } from '../utils/cancellation';
 import * as typeConverters from '../utils/typeConverters';
+
+
+const localize = nls.loadMessageBundle();
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
 	public constructor(
@@ -59,7 +64,12 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 		if (this.client.apiVersion.gte(API.v310)) {
 			if (renameInfo.fileToRename) {
-				return this.renameFile(renameInfo.fileToRename, newName);
+				const edits = await this.renameFile(renameInfo.fileToRename, newName);
+				if (edits) {
+					return edits;
+				} else {
+					return Promise.reject<vscode.WorkspaceEdit>(localize('fileRenameFail', "An error occurred while renaming file"));
+				}
 			}
 		}
 		return this.updateLocs(response.body.locs, newName);
@@ -100,12 +110,10 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		return edit;
 	}
 
-	private renameFile(
+	private async renameFile(
 		fileToRename: string,
 		newName: string,
-	): vscode.WorkspaceEdit {
-		const edit = new vscode.WorkspaceEdit();
-
+	): Promise<vscode.WorkspaceEdit | undefined> {
 		// Make sure we preserve file exension if none provided
 		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
@@ -113,9 +121,20 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 		const dirname = path.dirname(fileToRename);
 		const newFilePath = path.join(dirname, newName);
-		edit.renameFile(vscode.Uri.file(fileToRename), vscode.Uri.file(newFilePath));
 
-		return edit;
+		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
+			file: fileToRename,
+			oldFilePath: fileToRename,
+			newFilePath: newFilePath,
+		};
+		const response = await this.client.execute('getEditsForFileRename', args, nulToken);
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
+		}
+
+		const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		edits.renameFile(vscode.Uri.file(fileToRename), vscode.Uri.file(newFilePath));
+		return edits;
 	}
 }
 
