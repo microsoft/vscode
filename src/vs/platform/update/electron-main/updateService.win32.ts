@@ -182,7 +182,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(getUpdateType()));
+				this.setState(State.Idle(getUpdateType(), err.message || err));
 			});
 	}
 

@@ -24,7 +24,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -179,7 +179,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
@@ -277,7 +276,9 @@ export class UpdateContribution implements IGlobalActivity {
 	private onUpdateStateChange(state: UpdateState): void {
 		switch (state.type) {
 			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
+				if (state.error) {
+					this.onError(state.error);
+				} else if (this.state.type === StateType.CheckingForUpdates && this.state.context && this.state.context.windowId === this.windowService.getCurrentWindowId()) {
 					this.onUpdateNotAvailable();
 				}
 				break;
@@ -316,6 +317,16 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 
 		this.state = state;
+	}
+
+	private onError(error: string): void {
+		error = error.replace(/See (.*) for more information/, 'See [this link]($1) for more information');
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message: error,
+			source: nls.localize('update service', "Update Service"),
+		});
 	}
 
 	private onUpdateNotAvailable(): void {

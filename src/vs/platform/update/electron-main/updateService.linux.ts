@@ -70,7 +70,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 					}
 					*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
-				this.setState(State.Idle(UpdateType.Archive));
+				this.setState(State.Idle(UpdateType.Archive, err.message || err));
 			});
 	}
 
