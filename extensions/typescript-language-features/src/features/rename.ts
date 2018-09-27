@@ -37,7 +37,13 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		if (this.client.apiVersion.gte(API.v310)) {
 			const triggerSpan = renameInfo.triggerSpan;
 			if (triggerSpan) {
-				return typeConverters.Range.fromTextSpan(triggerSpan);
+				const range = typeConverters.Range.fromTextSpan(triggerSpan);
+				// Until https://github.com/Microsoft/vscode/issues/58907 is fixed, the returned range must include the
+				// rename trigger position.
+				if (!range.contains(position)) {
+					return Promise.reject<vscode.Range>(localize('cannotRename', "You cannot rename this element"));
+				}
+				return range;
 			}
 		}
 
