@@ -125,7 +125,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const providerActivations: TPromise<any>[] = [TPromise.wrap(null)];
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
-		// providerActivations.push(this.extensionService.activateByEvent('*'));
+		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
 		const providerPromise = TPromise.join(providerActivations)
 			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
