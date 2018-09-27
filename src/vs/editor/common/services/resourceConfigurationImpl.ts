@@ -43,6 +43,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		if (model) {
 			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column)).language : model.getLanguageIdentifier().language;
 		}
-		return this.modeService.getModeIdByFilenameOrFirstLine(basename(resource.path));
+		return this.modeService.getModeIdByFilenameOrFirstLine(resource.path);
+
 	}
 }
