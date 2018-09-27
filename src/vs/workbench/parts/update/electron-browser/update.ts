@@ -271,8 +271,6 @@ export class UpdateContribution implements IGlobalActivity {
 			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
 			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
 		}
-
-		this.onError('The application is on a read-only volume. Please move the application and try again. If you\'re on macOS Sierra or later, you\'ll need to move the application out of the Downloads directory. See https://github.com/Squirrel/Squirrel.Mac/issues/182 for more information.');
 	}
 
 	private onUpdateStateChange(state: UpdateState): void {
