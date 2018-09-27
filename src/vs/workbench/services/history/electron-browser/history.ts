@@ -809,7 +809,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}).filter(input => !!input);
 	}
 
-	getLastActiveWorkspaceRoot(schemeFilter: string): URI {
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
