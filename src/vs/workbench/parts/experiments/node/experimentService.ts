@@ -399,10 +399,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 						filePathCheck = match(experiment.condition.fileEdits.filePathPattern, event.resource.fsPath);
 					}
 					if (Array.isArray(experiment.condition.fileEdits.workspaceIncludes) && experiment.condition.fileEdits.workspaceIncludes.length) {
-						workspaceCheck = experiment.condition.fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
+						workspaceCheck = !!WorkspaceStats.TAGS && experiment.condition.fileEdits.workspaceIncludes.some(x => !!WorkspaceStats.TAGS[x]);
 					}
 					if (workspaceCheck && Array.isArray(experiment.condition.fileEdits.workspaceExcludes) && experiment.condition.fileEdits.workspaceExcludes.length) {
-						workspaceCheck = !experiment.condition.fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
+						workspaceCheck = !!WorkspaceStats.TAGS && !experiment.condition.fileEdits.workspaceExcludes.some(x => !!WorkspaceStats.TAGS[x]);
 					}
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;

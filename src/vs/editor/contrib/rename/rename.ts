@@ -140,7 +140,7 @@ class RenameController implements IEditorContribution {
 		try {
 			loc = await skeleton.resolveRenameLocation(token);
 		} catch (e) {
-			MessageController.get(this.editor).showMessage(e, position);
+			MessageController.get(this.editor).showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
 			return undefined;
 		}
 

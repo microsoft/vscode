@@ -378,9 +378,13 @@ export class SettingsRenderer implements ITreeRenderer {
 	) {
 		this.descriptionMeasureContainer = $('.setting-item-description');
 		DOM.append(_measureParent,
-			$('.setting-measure-container.monaco-tree-row', undefined,
-				$('.setting-item', undefined,
-					this.descriptionMeasureContainer)));
+			$('.setting-measure-container.monaco-tree.settings-editor-tree', undefined,
+				$('.monaco-scrollable-element', undefined,
+					$('.monaco-tree-wrapper', undefined,
+						$('.monaco-tree-rows', undefined,
+							$('.monaco-tree-row', undefined,
+								$('.setting-item', undefined,
+									this.descriptionMeasureContainer)))))));
 
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {

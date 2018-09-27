@@ -881,6 +881,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.filterContainer = dom.append(headerContainer, $('.quick-input-filter'));
 
 		const inputBox = this._register(new QuickInputBox(this.filterContainer));
+		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
 
 		this.visibleCountContainer = dom.append(this.filterContainer, $('.quick-input-visible-count'));
 		this.visibleCountContainer.setAttribute('aria-live', 'polite');
@@ -900,7 +901,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			this.onDidAcceptEmitter.fire();
 		}));
 
-		const message = dom.append(container, $('.quick-input-message'));
+		const message = dom.append(container, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container);
 		dom.addClass(progressBar.getContainer(), 'quick-input-progress');

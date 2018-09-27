@@ -126,12 +126,6 @@
 	margin-left: 0px;
 }
 
-.settings-editor.no-toc-search > .settings-body > .settings-tree-container .setting-measure-container,
-.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
-	width: calc(100% - 33px);
-	margin-left: 0px;
-}
-
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	max-width: 1000px;
 	margin: auto;
@@ -147,13 +141,6 @@
 	/* 3 margin + 20 padding + 2 border */
 	width: calc(100% - 25px);
 	margin-left: 25px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/* 208 margin + 20 padding + 2 border */
-	margin-left: 230px;
-	width: calc(100% - 230px);
-	border: 1px solid transparent;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row > .content::before {
@@ -405,9 +392,13 @@
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	position: absolute;
 	visibility: hidden;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-measure-container .monaco-tree-row {
+	padding-left: 20px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container .setting-item-description.measure-bool-description {

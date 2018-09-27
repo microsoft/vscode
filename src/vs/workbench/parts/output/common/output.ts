@@ -117,9 +117,14 @@ export interface IOutputChannel {
 	append(output: string): void;
 
 	/**
+	 * Update the channel.
+	 */
+	update(): void;
+
+	/**
 	 * Clears all received output for this channel.
 	 */
-	clear(): void;
+	clear(till?: number): void;
 
 	/**
 	 * Disposes the output channel.

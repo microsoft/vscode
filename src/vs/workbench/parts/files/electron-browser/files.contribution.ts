@@ -63,7 +63,8 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
-				normalizeDriveLetter: platform.isWindows
+				normalizeDriveLetter: platform.isWindows,
+				authorityPrefix: nativeSep + nativeSep
 			},
 			workspace: {
 				suffix: ''

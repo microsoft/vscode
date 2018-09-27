@@ -291,23 +291,24 @@ export class ExtensionLinter {
 	}
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
+		const hasScheme = /^\w[\w\d+.-]*:/.test(src);
 		const uri = parseUri(src, info.repository ? info.repository.toString() : document.uri.toString());
 		if (!uri) {
 			return;
 		}
 		const scheme = uri.scheme.toLowerCase();
 
-		if (scheme !== 'https' && scheme !== 'data') {
+		if (hasScheme && scheme !== 'https' && scheme !== 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, httpsRequired, DiagnosticSeverity.Warning));
 		}
 
-		if (scheme === 'data') {
+		if (hasScheme && scheme === 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!info.hasHttpsRepository) {
+		if (!hasScheme && !info.hasHttpsRepository) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			let message = (() => {
 				switch (context) {

@@ -17,7 +17,7 @@ const fallback = {
 };
 
 export function tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport = fallback): string {
-	return _tokenizeToString(text, tokenizationSupport);
+	return _tokenizeToString(text, tokenizationSupport || fallback);
 }
 
 export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number): string {

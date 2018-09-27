@@ -241,7 +241,7 @@ interface CompletionConfiguration {
 }
 
 namespace CompletionConfiguration {
-	export const useCodeSnippetsOnMethodSuggest = 'suggest.insertParametersForFunctionCalls';
+	export const useCodeSnippetsOnMethodSuggest = 'suggest.completeFunctionCalls';
 	export const useCodeSnippetsOnMethodSuggest_deprecated = 'useCodeSnippetsOnMethodSuggest';
 	export const nameSuggestions = 'suggest.names';
 	export const nameSuggestions_deprecated = 'nameSuggestions';

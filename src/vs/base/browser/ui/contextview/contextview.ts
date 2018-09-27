@@ -8,6 +8,7 @@
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
 import { IDisposable, dispose, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Range } from 'vs/base/common/range';
 
 export interface IAnchor {
 	x: number;
@@ -234,16 +235,22 @@ export class ContextView extends Disposable {
 			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
 		}
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) - containerPosition.top;
-		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor) - containerPosition.left;
+		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor);
+
+		// if view intersects vertically with anchor, shift it horizontally
+		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
+			horizontalAnchor.size = around.width;
+		}
+
+		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
 
 		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
 		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 
-		this.view.style.top = `${top}px`;
-		this.view.style.left = `${left}px`;
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		this.view.style.top = `${top - containerPosition.top}px`;
+		this.view.style.left = `${left - containerPosition.left}px`;
 		this.view.style.width = 'initial';
 	}
 
