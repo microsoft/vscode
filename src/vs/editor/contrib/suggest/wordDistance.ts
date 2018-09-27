@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { find, build, Block } from 'vs/editor/contrib/smartSelect/tokenTree';
+import * as tokenTree from 'vs/editor/contrib/smartSelect/tokenTree';
 import { ISuggestion, SuggestionKind } from 'vs/editor/common/modes';
 
 
@@ -34,14 +34,14 @@ export abstract class WordDistance {
 		}
 
 		// use token tree ranges
-		let node = find(build(model), position);
+		let node = tokenTree.find(tokenTree.build(model), position);
 		let ranges: Range[] = [];
-		let stop = false;
-		while (node && !stop) {
-			if (node instanceof Block || !node.parent) {
-				// assign block score
+		while (node) {
+			if (!node.range.isEmpty()) {
 				ranges.push(node.range);
-				stop = node.end.lineNumber - node.start.lineNumber >= 100;
+			}
+			if (node.end.lineNumber - node.start.lineNumber >= 100) {
+				break;
 			}
 			node = node.parent;
 		}
