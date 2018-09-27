@@ -157,6 +157,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			if (href) {
 				options.actionHandler.callback(href, event);
 			}
+			event.preventDefault();
 		}));
 	}
 
