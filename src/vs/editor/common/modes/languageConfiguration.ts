@@ -278,9 +278,9 @@ export class StandardAutoClosingPairConditional {
 			*/
 		} else if (Array.isArray(source.onlyIn)) {
 			/**
-		* Use a string variable (_onlyInOptions) to keep track of which scopes
-		* have (already) been listed. The 'other' option is not considered.
-		*/
+			* Use a string variable (_onlyInOptions) to keep track of which scopes
+			* have (already) been listed. The 'other' option is not considered.
+			*/
 			this._onlyInFlag = 1;
 			this._onlyInOptions = '';
 
@@ -351,10 +351,17 @@ export class StandardAutoClosingPairConditional {
 		}
 	}
 
+<<<<<<< HEAD
 	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither).
 	//*** If there's both a notIn array and onlyIn array set, the onlyIn array will be skipped (needs to be one or the other)
 	//*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return false
 	//***  (i.e. don't autoclose)
+=======
+	//*** Set a variable to determine if we have a notIn array or an onlyIn array (or neither). 
+	//*** If there's both a notIn array and onlyIn array set, the onlyIn array will be skipped (needs to be one or the other)
+	//*** If the onlyIn array var is set, check if the StandardTokenType of isOK is "other". If so, return false
+	//*** (i.e. don't autoclose)
+>>>>>>> 2b99273f3c7271b59b6db10104becf2e0ade8748
 	public isOK(standardToken: StandardTokenType): boolean {
 		if (this._onlyInFlag && (standardToken === StandardTokenType.Other)) {
 			return false;
