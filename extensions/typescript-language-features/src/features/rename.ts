@@ -9,7 +9,6 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
-import { nulToken } from '../utils/cancellation';
 import * as typeConverters from '../utils/typeConverters';
 
 
@@ -64,7 +63,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 		if (this.client.apiVersion.gte(API.v310)) {
 			if (renameInfo.fileToRename) {
-				const edits = await this.renameFile(renameInfo.fileToRename, newName);
+				const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
 				if (edits) {
 					return edits;
 				} else {
@@ -113,6 +112,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 	private async renameFile(
 		fileToRename: string,
 		newName: string,
+		token: vscode.CancellationToken,
 	): Promise<vscode.WorkspaceEdit | undefined> {
 		// Make sure we preserve file exension if none provided
 		if (!path.extname(newName)) {
@@ -127,7 +127,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			oldFilePath: fileToRename,
 			newFilePath: newFilePath,
 		};
-		const response = await this.client.execute('getEditsForFileRename', args, nulToken);
+		const response = await this.client.execute('getEditsForFileRename', args, token);
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
