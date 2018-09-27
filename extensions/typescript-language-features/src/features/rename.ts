@@ -5,14 +5,10 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
-
-const localize = nls.loadMessageBundle();
-
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
 	public constructor(
@@ -32,10 +28,6 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		const renameInfo = response.body.info;
 		if (!renameInfo.canRename) {
 			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
-		}
-
-		if (renameInfo.fileToRename && this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320)) {
-			return Promise.reject<vscode.Range>(localize('fileToRename.notSupported', "Renaming paths is not supported in this version of TypeScript"));
 		}
 
 		if (this.client.apiVersion.gte(API.v310)) {
@@ -64,14 +56,13 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
 		}
 
-		const edit = new vscode.WorkspaceEdit();
+
 		if (this.client.apiVersion.gte(API.v310)) {
 			if (renameInfo.fileToRename) {
-				this.renameFile(edit, renameInfo.fileToRename, newName);
+				return this.renameFile(renameInfo.fileToRename, newName);
 			}
 		}
-		this.updateLocs(edit, response.body.locs, newName);
-		return edit;
+		return this.updateLocs(response.body.locs, newName);
 	}
 
 	public async execRename(
@@ -94,10 +85,10 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 	}
 
 	private updateLocs(
-		edit: vscode.WorkspaceEdit,
 		locations: ReadonlyArray<Proto.SpanGroup>,
 		newName: string
 	) {
+		const edit = new vscode.WorkspaceEdit();
 		for (const spanGroup of locations) {
 			const resource = this.client.toResource(spanGroup.file);
 			if (resource) {
@@ -110,10 +101,11 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 	}
 
 	private renameFile(
-		edit: vscode.WorkspaceEdit,
 		fileToRename: string,
 		newName: string,
 	): vscode.WorkspaceEdit {
+		const edit = new vscode.WorkspaceEdit();
+
 		// Make sure we preserve file exension if none provided
 		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
