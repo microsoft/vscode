@@ -21,8 +21,8 @@ export abstract class AbstractExtHostOutputChannel extends Disposable implements
 	private _disposed: boolean;
 	private _offset: number;
 
-	protected _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
-	get onDidAppend(): Event<void> { return this._onDidAppend.event; }
+	protected readonly _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidAppend: Event<void> = this._onDidAppend.event;
 
 	constructor(name: string, log: boolean, file: URI, proxy: MainThreadOutputServiceShape) {
 		super();
