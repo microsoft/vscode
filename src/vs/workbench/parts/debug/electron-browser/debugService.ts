@@ -424,7 +424,7 @@ export class DebugService implements IDebugService {
 					this.focusStackFrame(undefined, undefined, session);
 				}
 			});
-		}, err => {
+		}).then(undefined, err => {
 			session.shutdown();
 			return TPromise.wrapError(err);
 		});
