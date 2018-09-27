@@ -11,7 +11,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { basename } from 'vs/base/common/paths';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
