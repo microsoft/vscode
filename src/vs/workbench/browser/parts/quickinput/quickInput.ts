@@ -777,6 +777,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private contexts: { [id: string]: IContextKey<boolean>; } = Object.create(null);
 	private onDidAcceptEmitter = this._register(new Emitter<void>());
 	private onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
+	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
 
 	private controller: QuickInput;
 
@@ -795,6 +796,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 		this._register(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
 		this._register(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
+		this.registerKeyModsListeners();
 	}
 
 	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
@@ -842,6 +844,34 @@ export class QuickInputService extends Component implements IQuickInputService {
 				this.contexts[key].reset();
 			}
 		}
+	}
+
+	private registerKeyModsListeners() {
+		const workbench = this.partService.getWorkbenchElement();
+		this._register(dom.addDisposableListener(workbench, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			switch (event.keyCode) {
+				case KeyCode.Ctrl:
+				case KeyCode.Meta:
+					this.keyMods.ctrlCmd = true;
+					break;
+				case KeyCode.Alt:
+					this.keyMods.alt = true;
+					break;
+			}
+		}));
+		this._register(dom.addDisposableListener(workbench, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			switch (event.keyCode) {
+				case KeyCode.Ctrl:
+				case KeyCode.Meta:
+					this.keyMods.ctrlCmd = false;
+					break;
+				case KeyCode.Alt:
+					this.keyMods.alt = false;
+					break;
+			}
+		}));
 	}
 
 	private create() {
@@ -973,30 +1003,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 			}
 		}));
-		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Ctrl:
-				case KeyCode.Meta:
-					this.ui.keyMods.ctrlCmd = true;
-					break;
-				case KeyCode.Alt:
-					this.ui.keyMods.alt = true;
-					break;
-			}
-		}));
-		this._register(dom.addDisposableListener(container, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			switch (event.keyCode) {
-				case KeyCode.Ctrl:
-				case KeyCode.Meta:
-					this.ui.keyMods.ctrlCmd = false;
-					break;
-				case KeyCode.Alt:
-					this.ui.keyMods.alt = false;
-					break;
-			}
-		}));
 
 		this._register(this.quickOpenService.onShow(() => this.hide(true)));
 
@@ -1015,7 +1021,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			onDidAccept: this.onDidAcceptEmitter.event,
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
-			keyMods: { ctrlCmd: false, alt: false },
+			keyMods: this.keyMods,
 			isScreenReaderOptimized: () => this.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
@@ -1218,8 +1224,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.matchOnDescription = false;
 		this.ui.list.matchOnDetail = false;
 		this.ui.ignoreFocusOut = false;
-		this.ui.keyMods.ctrlCmd = false;
-		this.ui.keyMods.alt = false;
 		this.setComboboxAccessibility(false);
 
 		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
