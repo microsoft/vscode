@@ -1347,9 +1347,10 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout', { repository: true })
-	async checkout(repository: Repository, treeish: string): Promise<void> {
+	async checkout(repository: Repository, treeish: string): Promise<boolean> {
 		if (typeof treeish === 'string') {
-			return await repository.checkout(treeish);
+			await repository.checkout(treeish);
+			return true;
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -1373,12 +1374,12 @@ export class CommandCenter {
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
-			return;
+			return false;
 		}
 
 		await choice.run(repository);
+		return true;
 	}
-
 
 	@command('git.branch', { repository: true })
 	async branch(repository: Repository): Promise<void> {
