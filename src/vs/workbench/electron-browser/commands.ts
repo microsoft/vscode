@@ -564,6 +564,6 @@ export function registerCommands(): void {
 		const downloadService = accessor.get(IDownloadService);
 		const location = posix.join(tmpdir(), generateUuid());
 
-		return downloadService.download(resource, location).then(() => location);
+		return downloadService.download(resource, location).then(() => URI.file(location));
 	});
 }
