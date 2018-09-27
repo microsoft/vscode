@@ -31,7 +31,7 @@ export class InstantiationService implements IInstantiationService {
 		return new InstantiationService(services, this._strict, this);
 	}
 
-	invokeFunction<R>(signature: (accessor: ServicesAccessor, ...more: any[]) => R, ...args: any[]): R {
+	invokeFunction<R, TS extends any[]=[]>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
 		let accessor: ServicesAccessor;
 		try {
 			accessor = {
@@ -43,7 +43,7 @@ export class InstantiationService implements IInstantiationService {
 					return result;
 				}
 			};
-			return signature.apply(undefined, [accessor].concat(args));
+			return fn.apply(undefined, [accessor].concat(args));
 		} finally {
 			accessor.get = function () {
 				throw illegalState('service accessor is only valid during the invocation of its target method');
