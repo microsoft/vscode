@@ -271,6 +271,8 @@ export class UpdateContribution implements IGlobalActivity {
 			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
 			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
 		}
+
+		this.onError('The application is on a read-only volume. Please move the application and try again. If you\'re on macOS Sierra or later, you\'ll need to move the application out of the Downloads directory. See https://github.com/Squirrel/Squirrel.Mac/issues/182 for more information.');
 	}
 
 	private onUpdateStateChange(state: UpdateState): void {
@@ -320,7 +322,7 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private onError(error: string): void {
-		error = error.replace(/See (.*) for more information/, 'See [this link]($1) for more information');
+		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'See [this link](https://github.com/Microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
 
 		this.notificationService.notify({
 			severity: Severity.Error,
