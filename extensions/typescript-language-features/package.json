@@ -404,7 +404,7 @@
             "build",
             "watch"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.tsc.autoDetect.on%",
             "%typescript.tsc.autoDetect.off%",
             "%typescript.tsc.autoDetect.build%",
@@ -530,7 +530,7 @@
             "relative",
             "non-relative"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifier.auto%",
             "%typescript.preferences.importModuleSpecifier.relative%",
             "%typescript.preferences.importModuleSpecifier.nonRelative%"
@@ -546,7 +546,7 @@
             "always",
             "never"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.updateImportsOnFileMove.enabled.prompt%",
             "%typescript.updateImportsOnFileMove.enabled.always%",
             "%typescript.updateImportsOnFileMove.enabled.never%"
