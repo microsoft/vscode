@@ -350,7 +350,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(path);
+			configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}
