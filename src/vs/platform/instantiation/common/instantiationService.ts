@@ -11,6 +11,9 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
+// TRACING
+const _enableTracing = false;
+
 export class InstantiationService implements IInstantiationService {
 
 	_serviceBrand: any;
@@ -196,8 +199,6 @@ export class InstantiationService implements IInstantiationService {
 
 //#region -- tracing ---
 
-const _enableTracing = false;
-
 const enum TraceType {
 	Creation, Invocation, Branch
 }
@@ -245,7 +246,7 @@ class Trace {
 			for (const [id, first, child] of trace._dep) {
 				if (first) {
 					causedCreation = true;
-					res.push(`${prefix}creates -> ${id}`);
+					res.push(`${prefix}CREATES -> ${id}`);
 					let nested = printChild(n + 1, child);
 					if (nested) {
 						res.push(nested);
@@ -260,10 +261,10 @@ class Trace {
 		let lines = [
 			`${this.type === TraceType.Creation ? 'CREATE' : 'CALL'} ${this.name}`,
 			`${printChild(1, this)}`,
-			`DONE. Took ${dur.toFixed(2)}ms, total ${Trace._totals.toFixed(2)}ms`
+			`DONE, took ${dur.toFixed(2)}ms (grand total ${Trace._totals.toFixed(2)}ms)`
 		];
 
-		if (dur > 3 || causedCreation) {
+		if (dur > 2 || causedCreation) {
 			console.log(lines.join('\n'));
 		}
 	}
