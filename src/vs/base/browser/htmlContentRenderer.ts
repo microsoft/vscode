@@ -106,6 +106,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			!href
 			|| href.match(/^data:|javascript:/i)
 			|| (href.match(/^command:/i) && !markdown.isTrusted)
+			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
 		) {
 			// drop the link
 			return text;
@@ -156,6 +157,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			if (href) {
 				options.actionHandler.callback(href, event);
 			}
+			event.preventDefault();
 		}));
 	}
 

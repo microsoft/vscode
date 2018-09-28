@@ -72,7 +72,7 @@ export interface IHistoryService {
 	 *
 	 * @param schemeFilter filter to restrict roots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(schemeFilter: string): URI;
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI;
 
 	/**
 	 * Looking at the editor history, returns the resource of the last file that was opened.

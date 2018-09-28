@@ -64,8 +64,8 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string {
-		const modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
+	public getModeIdByFilenameOrFirstLine(filepath: string, firstLine?: string): string {
+		const modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filepath, firstLine);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -142,9 +142,9 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?: string): TPromise<IMode> {
+	public getOrCreateModeByFilenameOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode> {
 		return this._onReady().then(() => {
-			const modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
+			const modeId = this.getModeIdByFilenameOrFirstLine(filepath, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
 		});

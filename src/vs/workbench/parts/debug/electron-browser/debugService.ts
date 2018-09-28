@@ -424,7 +424,7 @@ export class DebugService implements IDebugService {
 					this.focusStackFrame(undefined, undefined, session);
 				}
 			});
-		}, err => {
+		}).then(undefined, err => {
 			session.shutdown();
 			return TPromise.wrapError(err);
 		});
@@ -583,8 +583,10 @@ export class DebugService implements IDebugService {
 								session.setConfiguration({ resolved, unresolved });
 								session.configuration.__restart = restartData;
 
-								this.launchOrAttachToSession(session, shouldFocus)
-									.then(() => c(null), err => e(err));
+								this.launchOrAttachToSession(session, shouldFocus).then(() => {
+									this._onDidNewSession.fire(session);
+									c(null);
+								}, err => e(err));
 							});
 						}, 300);
 					});

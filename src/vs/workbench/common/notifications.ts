@@ -553,7 +553,9 @@ export class ChoiceAction extends Action {
 	private _onDidRun = new Emitter<void>();
 	get onDidRun(): Event<void> { return this._onDidRun.event; }
 
-	constructor(id: string, private choice: IPromptChoice) {
+	private _keepOpen: boolean;
+
+	constructor(id: string, choice: IPromptChoice) {
 		super(id, choice.label, null, true, () => {
 
 			// Pass to runner
@@ -564,16 +566,16 @@ export class ChoiceAction extends Action {
 
 			return TPromise.as(void 0);
 		});
+
+		this._keepOpen = choice.keepOpen;
 	}
 
 	get keepOpen(): boolean {
-		return this.choice.keepOpen;
+		return this._keepOpen;
 	}
 
 	dispose(): void {
 		super.dispose();
-
-		this.choice = null;
 
 		this._onDidRun.dispose();
 	}

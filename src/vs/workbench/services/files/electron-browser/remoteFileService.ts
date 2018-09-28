@@ -374,7 +374,6 @@ export class RemoteFileService extends FileService {
 
 				const decodeStreamOpts: IDecodeStreamOptions = {
 					guessEncoding: options.autoGuessEncoding,
-					guessableEncodings: options.guessableEncodings,
 					overwriteEncoding: detected => {
 						return this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false });
 					}
