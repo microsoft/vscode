@@ -360,7 +360,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			tags['workspace.sln'] = WorkspaceStats.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
-			tags['workspace.npm.cordova'] = nameSet.has('package.json') && nameSet.has('node_modules') && nameSet.has('cordova');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
 			tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
@@ -383,7 +382,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 
 			if (tags['workspace.config.xml'] &&
 				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
-				if (platforms && plugins && www && tags['workspace.npm.cordova']) {
+				if (platforms && plugins && www) {
 					tags['workspace.cordova.high'] = true;
 				} else {
 					tags['workspace.cordova.low'] = true;
