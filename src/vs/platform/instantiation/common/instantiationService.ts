@@ -11,6 +11,67 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
+
+class Trace {
+
+	static _enabled = false;
+
+	static None = new class extends Trace {
+		constructor() { super(null); }
+		stop() { }
+		dep() { return this; }
+	};
+
+	static start(thing: any): Trace {
+		return Trace._enabled ? new Trace(thing) : Trace.None;
+	}
+
+	static totals: number = 0;
+
+	private readonly _start: number = performance.now();
+	private readonly _dep: [ServiceIdentifier<any>, boolean, Trace?][] = [];
+
+	private constructor(readonly thing: any) { }
+
+	dep(id: ServiceIdentifier<any>, first: boolean): Trace {
+		let child = new Trace(id);
+		this._dep.push([id, first, child]);
+		return child;
+	}
+
+	stop() {
+		let dur = performance.now() - this._start;
+		let msg = `${this.thing.name}`;
+		let firstOnce = false;
+
+		function firstOnly(n: number, trace: Trace) {
+			let res: string[] = [];
+			for (const [id, first, child] of trace._dep) {
+				if (first) {
+					res.push(`${n}+,${id} (${firstOnly(n + 1, child)})`);
+				}
+			}
+			return res.join(', ');
+		}
+
+		for (const [id, first, child] of this._dep) {
+			if (first) {
+				firstOnce = true;
+				msg += `\n\tcreates -> ${id}`;
+				msg += ` (${firstOnly(1, child)})`;
+			} else {
+				msg += `\n\tuses -> ${id}`;
+			}
+		}
+		msg += `\nDone, took ${dur}ms (total ${Trace.totals}ms)`;
+		if (dur > 2 || firstOnce) {
+			console.log(msg);
+		}
+
+		Trace.totals += dur;
+	}
+}
+
 export class InstantiationService implements IInstantiationService {
 
 	_serviceBrand: any;
@@ -36,7 +97,7 @@ export class InstantiationService implements IInstantiationService {
 		try {
 			accessor = {
 				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
-					const result = this._getOrCreateServiceInstance(id);
+					const result = this._getOrCreateServiceInstance(id, Trace.None);
 					if (!result && isOptional !== optional) {
 						throw new Error(`[invokeFunction] unknown service '${id}'`);
 					}
@@ -61,11 +122,13 @@ export class InstantiationService implements IInstantiationService {
 
 	private _createInstance<T>(ctor: any, args: any[] = []): T {
 
+		let _trace = Trace.start(ctor);
+
 		// arguments defined by service decorators
 		let serviceDependencies = _util.getServiceDependencies(ctor).sort((a, b) => a.index - b.index);
 		let serviceArgs: any[] = [];
 		for (const dependency of serviceDependencies) {
-			let service = this._getOrCreateServiceInstance(dependency.id);
+			let service = this._getOrCreateServiceInstance(dependency.id, _trace);
 			if (!service && this._strict && !dependency.optional) {
 				throw new Error(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`);
 			}
@@ -94,6 +157,8 @@ export class InstantiationService implements IInstantiationService {
 		// 	}
 		// }
 
+		_trace.stop();
+
 		// now create the instance
 		return <T>create.apply(null, [ctor].concat(args, serviceArgs));
 	}
@@ -117,18 +182,19 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>): T {
+	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
-			return this._createAndCacheServiceInstance(id, thing);
+			return this._createAndCacheServiceInstance(id, thing, _trace.dep(id, true));
 		} else {
+			_trace.dep(id, false);
 			return thing;
 		}
 	}
 
-	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>): T {
-
-		const graph = new Graph<{ id: ServiceIdentifier<any>, desc: SyncDescriptor<any> }>(data => data.id.toString());
+	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
+		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace };
+		const graph = new Graph<Triple>(data => data.id.toString());
 
 		function throwCycleError() {
 			const err = new Error('[createInstance] cyclic dependency between services');
@@ -137,7 +203,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 
 		let count = 0;
-		const stack = [{ id, desc }];
+		const stack = [{ id, desc, _trace }];
 		while (stack.length) {
 			const item = stack.pop();
 			graph.lookupOrInsertNode(item);
@@ -158,9 +224,12 @@ export class InstantiationService implements IInstantiationService {
 				}
 
 				if (instanceOrDesc instanceof SyncDescriptor) {
-					const d = { id: dependency.id, desc: instanceOrDesc };
+					const d = { id: dependency.id, desc: instanceOrDesc, _trace: item._trace.dep(dependency.id, true) };
 					graph.insertEdge(item, d);
 					stack.push(d);
+
+				} else {
+					item._trace.dep(dependency.id, false);
 				}
 			}
 		}
