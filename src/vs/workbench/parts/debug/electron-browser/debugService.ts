@@ -257,6 +257,7 @@ export class DebugService implements IDebugService {
 
 	/**
 	 * main entry point
+	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
 	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): TPromise<boolean> {
 
@@ -266,6 +267,7 @@ export class DebugService implements IDebugService {
 			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
 				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 
+					// If it is the very first start debugging we need to clear the repl and our sessions map
 					if (this.model.getSessions().length === 0) {
 						this.removeReplExpressions();
 						this.allSessions.clear();
@@ -292,6 +294,7 @@ export class DebugService implements IDebugService {
 					}
 
 					if (compound) {
+						// we are starting a compound debug, first do some error checking and than start each configuration in the compound
 						if (!compound.configurations) {
 							return TPromise.wrapError(new Error(nls.localize({ key: 'compoundMustHaveConfigurations', comment: ['compound indicates a "compounds" configuration item', '"configurations" is an attribute and should not be localized'] },
 								"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
@@ -323,8 +326,9 @@ export class DebugService implements IDebugService {
 									return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
 								}
 							}
+
 							return this.createSession(launchForName, launchForName.getConfiguration(name), unresolvedConfig, noDebug);
-						})).then(values => values.every(success => !!success));
+						})).then(values => values.every(success => !!success)); // Compound launch is a success only if each configuration launched successfully
 					}
 
 					if (configOrName && !config) {
@@ -336,6 +340,7 @@ export class DebugService implements IDebugService {
 					return this.createSession(launch, config, unresolvedConfig, noDebug);
 				})
 			))).then(success => {
+				// make sure to get out of initializing state, and propagate the result
 				this.endInitializingState();
 				return success;
 			}, err => {
@@ -344,6 +349,9 @@ export class DebugService implements IDebugService {
 			});
 	}
 
+	/**
+	 * gets the debugger for the type, resolves configurations by providers, substitutes variables and runs prelaunch tasks
+	 */
 	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): TPromise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
@@ -414,20 +422,9 @@ export class DebugService implements IDebugService {
 		);
 	}
 
-	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
-		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
-		return session.initialize(dbgr).then(() => {
-			return session.launchOrAttach(session.configuration).then(() => {
-				if (focus) {
-					this.focusStackFrame(undefined, undefined, session);
-				}
-			});
-		}).then(undefined, err => {
-			session.shutdown();
-			return TPromise.wrapError(err);
-		});
-	}
-
+	/**
+	 * instantiates the new session, initializes the session, registers session listeners and reports telemetry
+	 */
 	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
@@ -483,6 +480,20 @@ export class DebugService implements IDebugService {
 			const errorMessage = error instanceof Error ? error.message : error;
 			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
 			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []).then(() => false);
+		});
+	}
+
+	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
+		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
+		return session.initialize(dbgr).then(() => {
+			return session.launchOrAttach(session.configuration).then(() => {
+				if (focus) {
+					this.focusStackFrame(undefined, undefined, session);
+				}
+			});
+		}).then(undefined, err => {
+			session.shutdown();
+			return TPromise.wrapError(err);
 		});
 	}
 
