@@ -32,6 +32,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { URI } from 'vs/base/common/uri';
+
+const CODE_WORKSPACE_REGEX = /\.code-workspace$/;
 
 /**
  * An implementation of editor for file system resources.
@@ -41,6 +45,8 @@ export class TextFileEditor extends BaseTextEditor {
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	private restoreViewState: boolean;
+
+	private openWorkspaceWidget: FloatingClickWidget;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -163,6 +169,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 				// Readonly flag
 				textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
+
+				this.updateOpenWorkspaceWidgetVisibility(textFileModel.getResource());
 			}, error => {
 
 				// In case we tried to open a file inside the text editor and the response
@@ -218,6 +226,24 @@ export class TextFileEditor extends BaseTextEditor {
 				return TPromise.wrapError<void>(error);
 			});
 		});
+	}
+
+	// "Open Workspace" widget
+	private updateOpenWorkspaceWidgetVisibility(resource: URI): void {
+		const model = this.getControl().getModel();
+		if (this.openWorkspaceWidget) {
+			this.openWorkspaceWidget.dispose();
+		}
+		if (model && CODE_WORKSPACE_REGEX.test(resource.fsPath)) {
+			this.openWorkspaceWidget = this.instantiationService.createInstance(FloatingClickWidget, this.getControl(), nls.localize('openWorkspace', "Open Workspace..."), null);
+			this.openWorkspaceWidget.render();
+			this.toDispose.push(this.openWorkspaceWidget.onClick(() => this.openWorkspace(resource)));
+		}
+	}
+
+	private async openWorkspace(resource: URI) {
+		const activeWindowId = await this.windowsService.getActiveWindowId();
+		this.windowsService.openWindow(activeWindowId, [resource]);
 	}
 
 	private openAsBinary(input: FileEditorInput, options: EditorOptions): void {
