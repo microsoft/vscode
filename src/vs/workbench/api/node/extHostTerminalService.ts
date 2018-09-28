@@ -455,7 +455,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return this._getTerminalPromises[id];
 	}
 
-	private _delay(timeout: number, result: any) {
+	private _delay(timeout: number, result: any): Promise<void> {
 		return new Promise(c => {
 			setTimeout(c(result), timeout);
 		});
