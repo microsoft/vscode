@@ -88,8 +88,8 @@ export class TogglePanelPositionAction extends Action {
 	static readonly ID = 'workbench.action.togglePanelPosition';
 	static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
 
-	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move to Right");
-	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move to Bottom");
+	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move Panel to Right");
+	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move Panel to Bottom");
 
 	private toDispose: IDisposable[];
 
@@ -97,7 +97,6 @@ export class TogglePanelPositionAction extends Action {
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
 		this.toDispose = [];
@@ -185,4 +184,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
 	},
 	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: TogglePanelPositionAction.ID,
+		title: TogglePanelPositionAction.LABEL
+	},
+	order: 3
 });
