@@ -124,9 +124,9 @@ export class InstantiationService implements IInstantiationService {
 	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
-			return this._createAndCacheServiceInstance(id, thing, _trace.dep(id, true));
+			return this._createAndCacheServiceInstance(id, thing, _trace.branch(id, true));
 		} else {
-			_trace.dep(id, false);
+			_trace.branch(id, false);
 			return thing;
 		}
 	}
@@ -163,7 +163,7 @@ export class InstantiationService implements IInstantiationService {
 				}
 
 				if (instanceOrDesc instanceof SyncDescriptor) {
-					const d = { id: dependency.id, desc: instanceOrDesc, _trace: item._trace.dep(dependency.id, true) };
+					const d = { id: dependency.id, desc: instanceOrDesc, _trace: item._trace.branch(dependency.id, true) };
 					graph.insertEdge(item, d);
 					stack.push(d);
 				}
@@ -199,27 +199,26 @@ export class InstantiationService implements IInstantiationService {
 const _enableTracing = false;
 
 const enum TraceType {
-	Create, Call, Dependeny
+	Creation, Invocation, Branch
 }
 
 class Trace {
 
-	static totals: number = 0;
-
 	private static _None = new class extends Trace {
 		constructor() { super(-1, null); }
 		stop() { }
-		dep() { return this; }
+		branch() { return this; }
 	};
 
 	static traceInvocation(ctor: any): Trace {
-		return !_enableTracing ? Trace._None : new Trace(TraceType.Call, ctor.name || (ctor.toString() as string).substring(0, 42).replace(/\n/g, ''));
+		return !_enableTracing ? Trace._None : new Trace(TraceType.Invocation, ctor.name || (ctor.toString() as string).substring(0, 42).replace(/\n/g, ''));
 	}
 
 	static traceCreation(ctor: any): Trace {
-		return !_enableTracing ? Trace._None : new Trace(TraceType.Create, ctor.name);
+		return !_enableTracing ? Trace._None : new Trace(TraceType.Creation, ctor.name);
 	}
 
+	private static _totals: number = 0;
 	private readonly _start: number = performance.now();
 	private readonly _dep: [ServiceIdentifier<any>, boolean, Trace?][] = [];
 
@@ -228,15 +227,15 @@ class Trace {
 		readonly name: string
 	) { }
 
-	dep(id: ServiceIdentifier<any>, first: boolean): Trace {
-		let child = new Trace(TraceType.Dependeny, id.toString());
+	branch(id: ServiceIdentifier<any>, first: boolean): Trace {
+		let child = new Trace(TraceType.Branch, id.toString());
 		this._dep.push([id, first, child]);
 		return child;
 	}
 
 	stop() {
 		let dur = performance.now() - this._start;
-		Trace.totals += dur;
+		Trace._totals += dur;
 
 		let causedCreation = false;
 
@@ -259,9 +258,9 @@ class Trace {
 		}
 
 		let lines = [
-			`${this.type === TraceType.Create ? 'CREATE' : 'CALL'} ${this.name}`,
+			`${this.type === TraceType.Creation ? 'CREATE' : 'CALL'} ${this.name}`,
 			`${printChild(1, this)}`,
-			`DONE. Took ${dur.toFixed(2)}ms, total ${Trace.totals.toFixed(2)}ms`
+			`DONE. Took ${dur.toFixed(2)}ms, total ${Trace._totals.toFixed(2)}ms`
 		];
 
 		if (dur > 3 || causedCreation) {
@@ -269,3 +268,5 @@ class Trace {
 		}
 	}
 }
+
+//#endregion
