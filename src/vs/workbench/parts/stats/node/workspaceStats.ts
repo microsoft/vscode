@@ -56,6 +56,7 @@ const ModulesToLookFor = [
 	'react',
 	'react-native',
 	'@angular/core',
+	'@ionic',
 	'vue',
 	'tns-core-modules',
 	// Other interesting packages
@@ -274,6 +275,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.xamarin.ios" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.android.cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.ionic" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.nativeScript" : { "classification" : "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": "true" },
 			"workspace.py.requirements" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -468,6 +470,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							} else if ('tns-core-modules' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.nativescript'] = true;
+								}
+							} else if ('@ionic' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.ionic'] = true;
 								}
 							} else {
 								if (packageJsonContents['dependencies'][module]) {
