@@ -34,7 +34,7 @@ import { RemoveBreakpointAction } from 'vs/workbench/parts/debug/browser/debugAc
 import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, BreakpointWidgetContext } from 'vs/workbench/parts/debug/common/debug';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/electron-browser/breakpointWidget';
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
-import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
