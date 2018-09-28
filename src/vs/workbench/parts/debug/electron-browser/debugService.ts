@@ -258,8 +258,9 @@ export class DebugService implements IDebugService {
 	/**
 	 * main entry point
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfiguration?: IConfig, ): TPromise<void> {
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): TPromise<void> {
 
+		this.startInitializingState();
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() =>
 			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
@@ -322,98 +323,93 @@ export class DebugService implements IDebugService {
 									return TPromise.wrapError(new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name)));
 								}
 							}
-
-							return this.startDebugging(launchForName, name, noDebug, unresolvedConfiguration);
-						}));
+							return this.createSession(launchForName, launchForName.getConfiguration(name), unresolvedConfig, noDebug);
+						})).then(() => undefined);
 					}
+
 					if (configOrName && !config) {
 						const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", typeof configOrName === 'string' ? configOrName : JSON.stringify(configOrName)) :
 							nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
 						return TPromise.wrapError(new Error(message));
 					}
 
-					// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
-					// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
-					let type: string;
-					if (config) {
-						type = config.type;
-					} else {
-						// a no-folder workspace has no launch.config
-						config = <IConfig>{};
-					}
-					unresolvedConfiguration = unresolvedConfiguration || deepClone(config);
-
-					if (noDebug) {
-						config.noDebug = true;
-					}
-
-					return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
-						this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
-							// a falsy config indicates an aborted launch
-							if (config && config.type) {
-								return this.createSession(launch, config, unresolvedConfiguration);
-							}
-
-							if (launch && type && config === null) {	// show launch.json only for "config" being "null".
-								return launch.openConfigFile(false, true, type).then(() => undefined);
-							}
-
-							return undefined;
-						})
-					).then(() => undefined);
+					return this.createSession(launch, config, unresolvedConfig, noDebug);
 				})
-			)));
+			))).then(() => {
+				this.endInitializingState();
+			}, err => {
+				this.endInitializingState();
+				return TPromise.wrapError(err);
+			});
 	}
 
-	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig): TPromise<void> {
+	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): TPromise<void> {
+		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
+		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
+		let type: string;
+		if (config) {
+			type = config.type;
+		} else {
+			// a no-folder workspace has no launch.config
+			config = Object.create(null);
+		}
+		unresolvedConfig = unresolvedConfig || deepClone(config);
 
-		this.startInitializingState();
+		if (noDebug) {
+			config.noDebug = true;
+		}
 
-		return this.textFileService.saveAll().then(() =>
-			this.substituteVariables(launch, config).then(resolvedConfig => {
+		return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
+			this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
+				// a falsy config indicates an aborted launch
+				if (config && config.type) {
+					return this.substituteVariables(launch, config).then(resolvedConfig => {
 
-				if (!resolvedConfig) {
-					// User canceled resolving of interactive variables, silently return
-					return undefined;
+						if (!resolvedConfig) {
+							// User canceled resolving of interactive variables, silently return
+							return undefined;
+						}
+
+						if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
+							let message: string;
+							if (config.request !== 'attach' && config.request !== 'launch') {
+								message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
+									: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
+
+							} else {
+								message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
+									nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
+							}
+
+							return this.showError(message);
+						}
+
+						const workspace = launch ? launch.workspace : undefined;
+						return this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask).then(result => {
+							if (result === TaskRunResult.Success) {
+								return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
+							}
+							return undefined;
+						});
+					}, err => {
+						if (err && err.message) {
+							return this.showError(err.message);
+						}
+						if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+						}
+
+						return launch && launch.openConfigFile(false, true).then(editor => void 0);
+					});
 				}
 
-				if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
-					let message: string;
-					if (config.request !== 'attach' && config.request !== 'launch') {
-						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
-							: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
-
-					} else {
-						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :
-							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
-					}
-
-					return this.showError(message);
+				if (launch && type && config === null) {	// show launch.json only for "config" being "null".
+					return launch.openConfigFile(false, true, type).then(() => undefined);
 				}
 
-				const workspace = launch ? launch.workspace : undefined;
-				return this.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask).then(result => {
-					if (result === TaskRunResult.Success) {
-						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
-					}
-					return undefined;
-				});
-			}, err => {
-				if (err && err.message) {
-					return this.showError(err.message);
-				}
-				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
-				}
-
-				return launch && launch.openConfigFile(false, true).then(editor => void 0);
+				return undefined;
 			})
-		).then(() => {
-			this.endInitializingState();
-		}, err => {
-			this.endInitializingState();
-			return TPromise.wrapError(err);
-		});
+		).then(() => undefined);
 	}
 
 	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
