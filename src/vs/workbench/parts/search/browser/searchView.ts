@@ -126,7 +126,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -137,7 +137,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@ISearchHistoryService private searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private editorGroupsService: IEditorGroupsService
 	) {
-		super(VIEW_ID, partService, telemetryService, themeService);
+		super(VIEW_ID, configurationService, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);

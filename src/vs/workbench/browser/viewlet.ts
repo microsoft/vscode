@@ -19,10 +19,13 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
+import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/toggleSidebarPosition';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
 	constructor(id: string,
+		protected configurationService: IConfigurationService,
 		private partService: IPartService,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService
@@ -35,12 +38,14 @@ export abstract class Viewlet extends Composite implements IViewlet {
 	}
 
 	getContextMenuActions(): IAction[] {
-		return [<IAction>{
-			id: ToggleSidebarVisibilityAction.ID,
-			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
-			enabled: true,
-			run: () => this.partService.setSideBarHidden(true)
-		}];
+		const toggleSidebarPositionAction = new ToggleSidebarPositionAction(ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.getLabel(this.partService), this.partService, this.configurationService);
+		return [toggleSidebarPositionAction,
+			<IAction>{
+				id: ToggleSidebarVisibilityAction.ID,
+				label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+				enabled: true,
+				run: () => this.partService.setSideBarHidden(true)
+			}];
 	}
 }
 

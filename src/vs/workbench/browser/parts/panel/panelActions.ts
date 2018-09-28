@@ -88,7 +88,7 @@ export class TogglePanelPositionAction extends Action {
 	static readonly ID = 'workbench.action.togglePanelPosition';
 	static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
 
-	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move Panel to Right");
+	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move Panel Right");
 	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move Panel to Bottom");
 
 	private toDispose: IDisposable[];
