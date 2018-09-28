@@ -18,8 +18,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
-declare var Proxy: any; // TODO@TypeScript
-
 function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
 
 	if (!obj || depth > 200) {

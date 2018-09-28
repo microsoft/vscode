@@ -18,8 +18,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
 
-declare var Proxy: any; // TODO@TypeScript
-
 function lookUp(tree: any, key: string) {
 	if (key) {
 		const parts = key.split('.');
