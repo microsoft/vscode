@@ -54,6 +54,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -515,6 +516,10 @@ export class EditorStatus implements IStatusbarItem {
 					}
 				}]
 			);
+
+			once(this.screenReaderNotification.onDidClose)(() => {
+				this.screenReaderNotification = null;
+			});
 		}
 	}
 
@@ -690,7 +695,6 @@ export class EditorStatus implements IStatusbarItem {
 
 		if (screenReaderMode === false && this.screenReaderNotification) {
 			this.screenReaderNotification.close();
-			this.screenReaderNotification = null;
 		}
 
 		this.updateState({ screenReaderMode: screenReaderMode });
