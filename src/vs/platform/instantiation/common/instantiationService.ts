@@ -11,67 +11,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
-
-class Trace {
-
-	static _enabled = false;
-
-	static None = new class extends Trace {
-		constructor() { super(null); }
-		stop() { }
-		dep() { return this; }
-	};
-
-	static start(thing: any): Trace {
-		return Trace._enabled ? new Trace(thing) : Trace.None;
-	}
-
-	static totals: number = 0;
-
-	private readonly _start: number = performance.now();
-	private readonly _dep: [ServiceIdentifier<any>, boolean, Trace?][] = [];
-
-	private constructor(readonly thing: any) { }
-
-	dep(id: ServiceIdentifier<any>, first: boolean): Trace {
-		let child = new Trace(id);
-		this._dep.push([id, first, child]);
-		return child;
-	}
-
-	stop() {
-		let dur = performance.now() - this._start;
-		let msg = `${this.thing.name}`;
-		let firstOnce = false;
-
-		function firstOnly(n: number, trace: Trace) {
-			let res: string[] = [];
-			for (const [id, first, child] of trace._dep) {
-				if (first) {
-					res.push(`${n}+,${id} (${firstOnly(n + 1, child)})`);
-				}
-			}
-			return res.join(', ');
-		}
-
-		for (const [id, first, child] of this._dep) {
-			if (first) {
-				firstOnce = true;
-				msg += `\n\tcreates -> ${id}`;
-				msg += ` (${firstOnly(1, child)})`;
-			} else {
-				msg += `\n\tuses -> ${id}`;
-			}
-		}
-		msg += `\nDone, took ${dur}ms (total ${Trace.totals}ms)`;
-		if (dur > 2 || firstOnce) {
-			console.log(msg);
-		}
-
-		Trace.totals += dur;
-	}
-}
-
 export class InstantiationService implements IInstantiationService {
 
 	_serviceBrand: any;
@@ -93,11 +32,17 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	invokeFunction<R, TS extends any[]=[]>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R {
-		let accessor: ServicesAccessor;
+		let _trace = Trace.traceInvocation(fn);
+		let _done = false;
 		try {
-			accessor = {
+			let accessor = {
 				get: <T>(id: ServiceIdentifier<T>, isOptional?: typeof optional) => {
-					const result = this._getOrCreateServiceInstance(id, Trace.None);
+
+					if (_done) {
+						throw illegalState('service accessor is only valid during the invocation of its target method');
+					}
+
+					const result = this._getOrCreateServiceInstance(id, _trace);
 					if (!result && isOptional !== optional) {
 						throw new Error(`[invokeFunction] unknown service '${id}'`);
 					}
@@ -106,23 +51,26 @@ export class InstantiationService implements IInstantiationService {
 			};
 			return fn.apply(undefined, [accessor].concat(args));
 		} finally {
-			accessor.get = function () {
-				throw illegalState('service accessor is only valid during the invocation of its target method');
-			};
+			_done = true;
+			_trace.stop();
 		}
 	}
 
 	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
+		let _trace: Trace;
+		let result: any;
 		if (ctorOrDescriptor instanceof SyncDescriptor) {
-			return this._createInstance(ctorOrDescriptor.ctor, ctorOrDescriptor.staticArguments.concat(rest));
+			_trace = Trace.traceCreation(ctorOrDescriptor.ctor);
+			result = this._createInstance(ctorOrDescriptor.ctor, ctorOrDescriptor.staticArguments.concat(rest), _trace);
 		} else {
-			return this._createInstance(ctorOrDescriptor, rest);
+			_trace = Trace.traceCreation(ctorOrDescriptor);
+			result = this._createInstance(ctorOrDescriptor, rest, _trace);
 		}
+		_trace.stop();
+		return result;
 	}
 
-	private _createInstance<T>(ctor: any, args: any[] = []): T {
-
-		let _trace = Trace.start(ctor);
+	private _createInstance<T>(ctor: any, args: any[] = [], _trace: Trace): T {
 
 		// arguments defined by service decorators
 		let serviceDependencies = _util.getServiceDependencies(ctor).sort((a, b) => a.index - b.index);
@@ -149,15 +97,6 @@ export class InstantiationService implements IInstantiationService {
 				args = args.slice(0, firstServiceArgPos);
 			}
 		}
-
-		// // check for missing args
-		// for (let i = 0; i < serviceArgs.length; i++) {
-		// 	if (!serviceArgs[i]) {
-		// 		console.warn(`${ctor.name} MISSES service dependency ${serviceDependencies[i].id}`, new Error().stack);
-		// 	}
-		// }
-
-		_trace.stop();
 
 		// now create the instance
 		return <T>create.apply(null, [ctor].concat(args, serviceArgs));
@@ -227,9 +166,6 @@ export class InstantiationService implements IInstantiationService {
 					const d = { id: dependency.id, desc: instanceOrDesc, _trace: item._trace.dep(dependency.id, true) };
 					graph.insertEdge(item, d);
 					stack.push(d);
-
-				} else {
-					item._trace.dep(dependency.id, false);
 				}
 			}
 		}
@@ -246,14 +182,90 @@ export class InstantiationService implements IInstantiationService {
 				break;
 			}
 
-			for (let root of roots) {
+			for (let { data } of roots) {
 				// create instance and overwrite the service collections
-				const instance = this._createInstance(root.data.desc.ctor, root.data.desc.staticArguments);
-				this._setServiceInstance(root.data.id, instance);
-				graph.removeNode(root.data);
+				const instance = this._createInstance(data.desc.ctor, data.desc.staticArguments, data._trace);
+				this._setServiceInstance(data.id, instance);
+				graph.removeNode(data);
 			}
 		}
 
 		return <T>this._getServiceInstanceOrDescriptor(id);
+	}
+}
+
+//#region -- tracing ---
+
+const _enableTracing = false;
+
+const enum TraceType {
+	Create, Call, Dependeny
+}
+
+class Trace {
+
+	static totals: number = 0;
+
+	private static _None = new class extends Trace {
+		constructor() { super(-1, null); }
+		stop() { }
+		dep() { return this; }
+	};
+
+	static traceInvocation(ctor: any): Trace {
+		return !_enableTracing ? Trace._None : new Trace(TraceType.Call, ctor.name || (ctor.toString() as string).substring(0, 42).replace(/\n/g, ''));
+	}
+
+	static traceCreation(ctor: any): Trace {
+		return !_enableTracing ? Trace._None : new Trace(TraceType.Create, ctor.name);
+	}
+
+	private readonly _start: number = performance.now();
+	private readonly _dep: [ServiceIdentifier<any>, boolean, Trace?][] = [];
+
+	private constructor(
+		readonly type: TraceType,
+		readonly name: string
+	) { }
+
+	dep(id: ServiceIdentifier<any>, first: boolean): Trace {
+		let child = new Trace(TraceType.Dependeny, id.toString());
+		this._dep.push([id, first, child]);
+		return child;
+	}
+
+	stop() {
+		let dur = performance.now() - this._start;
+		Trace.totals += dur;
+
+		let causedCreation = false;
+
+		function printChild(n: number, trace: Trace) {
+			let res: string[] = [];
+			let prefix = new Array(n + 1).join('\t');
+			for (const [id, first, child] of trace._dep) {
+				if (first) {
+					causedCreation = true;
+					res.push(`${prefix}creates -> ${id}`);
+					let nested = printChild(n + 1, child);
+					if (nested) {
+						res.push(nested);
+					}
+				} else {
+					res.push(`${prefix}uses -> ${id}`);
+				}
+			}
+			return res.join('\n');
+		}
+
+		let lines = [
+			`${this.type === TraceType.Create ? 'CREATE' : 'CALL'} ${this.name}`,
+			`${printChild(1, this)}`,
+			`DONE. Took ${dur.toFixed(2)}ms, total ${Trace.totals.toFixed(2)}ms`
+		];
+
+		if (dur > 3 || causedCreation) {
+			console.log(lines.join('\n'));
+		}
 	}
 }
