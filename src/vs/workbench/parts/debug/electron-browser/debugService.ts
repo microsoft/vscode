@@ -258,7 +258,7 @@ export class DebugService implements IDebugService {
 	/**
 	 * main entry point
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): TPromise<void> {
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug = false, unresolvedConfig?: IConfig, ): TPromise<boolean> {
 
 		this.startInitializingState();
 		// make sure to save all files and that the configuration is up to date
@@ -300,7 +300,7 @@ export class DebugService implements IDebugService {
 						return TPromise.join(compound.configurations.map(configData => {
 							const name = typeof configData === 'string' ? configData : configData.name;
 							if (name === compound.name) {
-								return TPromise.as(null);
+								return TPromise.as(false);
 							}
 
 							let launchForName: ILaunch;
@@ -324,7 +324,7 @@ export class DebugService implements IDebugService {
 								}
 							}
 							return this.createSession(launchForName, launchForName.getConfiguration(name), unresolvedConfig, noDebug);
-						})).then(() => undefined);
+						})).then(values => values.every(success => !!success));
 					}
 
 					if (configOrName && !config) {
@@ -335,15 +335,16 @@ export class DebugService implements IDebugService {
 
 					return this.createSession(launch, config, unresolvedConfig, noDebug);
 				})
-			))).then(() => {
+			))).then(success => {
 				this.endInitializingState();
+				return success;
 			}, err => {
 				this.endInitializingState();
 				return TPromise.wrapError(err);
 			});
 	}
 
-	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): TPromise<void> {
+	private createSession(launch: ILaunch, config: IConfig, unresolvedConfig: IConfig, noDebug: boolean): TPromise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
 		let type: string;
@@ -367,7 +368,7 @@ export class DebugService implements IDebugService {
 
 						if (!resolvedConfig) {
 							// User canceled resolving of interactive variables, silently return
-							return undefined;
+							return false;
 						}
 
 						if (!this.configurationManager.getDebugger(resolvedConfig.type) || (config.request !== 'attach' && config.request !== 'launch')) {
@@ -381,7 +382,7 @@ export class DebugService implements IDebugService {
 									nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 							}
 
-							return this.showError(message);
+							return this.showError(message).then(() => false);
 						}
 
 						const workspace = launch ? launch.workspace : undefined;
@@ -389,27 +390,28 @@ export class DebugService implements IDebugService {
 							if (result === TaskRunResult.Success) {
 								return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig });
 							}
-							return undefined;
+							return false;
 						});
 					}, err => {
 						if (err && err.message) {
-							return this.showError(err.message);
+							return this.showError(err.message).then(() => false);
 						}
 						if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."));
+							return this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved on disk and that you have a debug extension installed for that file type."))
+								.then(() => false);
 						}
 
-						return launch && launch.openConfigFile(false, true).then(editor => void 0);
+						return launch && launch.openConfigFile(false, true).then(() => false);
 					});
 				}
 
 				if (launch && type && config === null) {	// show launch.json only for "config" being "null".
-					return launch.openConfigFile(false, true, type).then(() => undefined);
+					return launch.openConfigFile(false, true, type).then(() => false);
 				}
 
-				return undefined;
+				return false;
 			})
-		).then(() => undefined);
+		);
 	}
 
 	private launchOrAttachToSession(session: IDebugSession, focus = true): TPromise<void> {
@@ -426,7 +428,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<any> {
+	private doCreateSession(root: IWorkspaceFolder, configuration: { resolved: IConfig, unresolved: IConfig }): TPromise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, configuration, root, this.model);
 		this.allSessions.set(session.getId(), session);
@@ -461,7 +463,7 @@ export class DebugService implements IDebugService {
 			}
 
 			return this.telemetryDebugSessionStart(root, session.configuration.type);
-		}).then(() => session, (error: Error | string) => {
+		}).then(() => true, (error: Error | string) => {
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
@@ -480,7 +482,7 @@ export class DebugService implements IDebugService {
 
 			const errorMessage = error instanceof Error ? error.message : error;
 			this.telemetryDebugMisconfiguration(session.configuration ? session.configuration.type : undefined, errorMessage);
-			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			return this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []).then(() => false);
 		});
 	}
 
@@ -623,7 +625,7 @@ export class DebugService implements IDebugService {
 		return TPromise.as(config);
 	}
 
-	private showError(message: string, actions: IAction[] = []): TPromise<boolean> {
+	private showError(message: string, actions: IAction[] = []): TPromise<void> {
 		const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
 		actions.push(configureAction);
 		return this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length }).then(choice => {
@@ -631,7 +633,7 @@ export class DebugService implements IDebugService {
 				return actions[choice].run();
 			}
 
-			return TPromise.as(false);
+			return void 0;
 		});
 	}
 
