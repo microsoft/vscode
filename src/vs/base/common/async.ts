@@ -8,7 +8,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
@@ -692,3 +692,80 @@ export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
+
+
+//#region -- run on idle tricks ------------
+
+export interface IdleDeadline {
+	readonly didTimeout: boolean;
+	timeRemaining(): DOMHighResTimeStamp;
+}
+/**
+ * Execute the callback the next time the browser is idle
+ */
+export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function cancelIdleCallback(handle: number): void;
+
+(function () {
+	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
+		let dummyIdle: IdleDeadline = Object.freeze({
+			didTimeout: true,
+			timeRemaining() { return 15; }
+		});
+		runWhenIdle = (runner, timeout = 0) => {
+			let handle = setTimeout(() => runner(dummyIdle), timeout);
+			return { dispose() { clearTimeout(handle); handle = undefined; } };
+		};
+	} else {
+		runWhenIdle = (runner, timeout?) => {
+			let handle = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			return { dispose() { cancelIdleCallback(handle); handle = undefined; } };
+		};
+	}
+})();
+
+/**
+ * An implementation of the "idle-until-urgent"-strategy as introduced
+ * here: https://philipwalton.com/articles/idle-until-urgent/
+ */
+export class IdleValue<T> {
+
+	private readonly _executor: () => void;
+	private readonly _handle: IDisposable;
+
+	private _didRun: boolean;
+	private _value: T;
+	private _error: any;
+
+	constructor(executor: () => T) {
+		this._executor = () => {
+			try {
+				this._value = executor();
+			} catch (err) {
+				this._error = err;
+			} finally {
+				this._didRun = true;
+			}
+		};
+		this._handle = runWhenIdle(() => this._executor());
+	}
+
+	dispose(): void {
+		this._handle.dispose();
+	}
+
+	getValue(): T {
+		if (!this._didRun) {
+			this._handle.dispose();
+			this._executor();
+		}
+		if (this._error) {
+			throw this._error;
+		}
+		return this._value;
+	}
+}
+
+//#endregion

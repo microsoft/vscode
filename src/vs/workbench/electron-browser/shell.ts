@@ -100,6 +100,7 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/ex
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { runWhenIdle } from 'vs/base/common/async';
 
 /**
  * Services that we require for the Shell
@@ -207,7 +208,7 @@ export class WorkbenchShell extends Disposable {
 				this.logStartupTelemetry(startupInfos);
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = browser.runWhenIdle(() => {
+				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
 					eventuallPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
 				}, 5000);
