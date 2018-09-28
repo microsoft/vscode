@@ -390,6 +390,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					tags['workspace.cordova.low'] = true;
 				}
 			}
+			
+			if (tags['workspace.config.xml'] &&
+				!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
+			
+				if (nameSet.has('ionic.config.json')) {
+					tags['workspace.ionic'] = true;
+				}
+			}
 
 			if (mainActivity && properties && resources) {
 				tags['workspace.xamarin.android'] = true;
@@ -470,10 +478,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							} else if ('tns-core-modules' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.nativescript'] = true;
-								}
-							} else if ('@ionic' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.ionic'] = true;
 								}
 							} else {
 								if (packageJsonContents['dependencies'][module]) {
