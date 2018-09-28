@@ -220,7 +220,7 @@ class Trace {
 	}
 
 	private static _totals: number = 0;
-	private readonly _start: number = performance.now();
+	private readonly _start: number = Date.now();
 	private readonly _dep: [ServiceIdentifier<any>, boolean, Trace?][] = [];
 
 	private constructor(
@@ -235,7 +235,7 @@ class Trace {
 	}
 
 	stop() {
-		let dur = performance.now() - this._start;
+		let dur = Date.now() - this._start;
 		Trace._totals += dur;
 
 		let causedCreation = false;
