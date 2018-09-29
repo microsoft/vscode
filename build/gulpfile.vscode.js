@@ -514,7 +514,7 @@ gulp.task('upload-vscode-sourcemaps', ['vscode-darwin-min', 'minify-vscode'], ()
 	const extensionsOut = gulp.src('extensions/**/out/**/*.map', { base: '.' });
 	const extensionsDist = gulp.src('extensions/**/dist/**/*.map', { base: '.' });
 
-	return es.merge(vs, extensionsOut, extensionsDist)
+	const res = es.merge(vs, extensionsOut, extensionsDist)
 		.pipe(es.through(function (data) {
 			// debug
 			console.log('Uploading Sourcemap', data.relative);
@@ -526,6 +526,14 @@ gulp.task('upload-vscode-sourcemaps', ['vscode-darwin-min', 'minify-vscode'], ()
 			container: 'sourcemaps',
 			prefix: commit + '/'
 		}));
+	res.on('error', (err) => {
+		console.log('ERROR uploading sourcemaps');
+		console.error(err);
+	});
+	res.on('end', () => {
+		console.log('Completed uploading sourcemaps');
+	});
+	return res;
 });
 
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
