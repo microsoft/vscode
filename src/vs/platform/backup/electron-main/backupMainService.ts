@@ -9,7 +9,7 @@ import * as crypto from 'crypto';
 import * as platform from 'vs/base/common/platform';
 import * as extfs from 'vs/base/node/extfs';
 import * as arrays from 'vs/base/common/arrays';
-import { IBackupMainService, IBackupWorkspacesFormat } from 'vs/platform/backup/common/backup';
+import { IBackupMainService, IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
@@ -30,7 +30,7 @@ export class BackupMainService implements IBackupMainService {
 
 	protected rootWorkspaces: IWorkspaceIdentifier[];
 	protected folderWorkspaces: URI[];
-	protected emptyWorkspaces: string[];
+	protected emptyWorkspaces: IEmptyWindowBackupInfo[];
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -76,7 +76,7 @@ export class BackupMainService implements IBackupMainService {
 		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
 	}
 
-	public getEmptyWindowBackupPaths(): string[] {
+	public getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
 		return this.emptyWorkspaces.slice(0); // return a copy
 	}
 
@@ -136,21 +136,22 @@ export class BackupMainService implements IBackupMainService {
 		}
 	}
 
-	public registerEmptyWindowBackupSync(backupFolder?: string): string {
+	public registerEmptyWindowBackupSync(backupInfo: IEmptyWindowBackupInfo): string {
 
+		let backupFolder = backupInfo.backupFolder;
 		// Generate a new folder if this is a new empty workspace
 		if (!backupFolder) {
 			backupFolder = this.getRandomEmptyWindowId();
 		}
-		if (!this.emptyWorkspaces.some(w => isEqual(w, backupFolder, !platform.isLinux))) {
-			this.emptyWorkspaces.push(backupFolder);
+		if (!this.emptyWorkspaces.some(w => isEqual(w.backupFolder, backupFolder, !platform.isLinux))) {
+			this.emptyWorkspaces.push({ backupFolder });
 			this.saveSync();
 		}
 		return this.getBackupPath(backupFolder);
 	}
 
 	public unregisterEmptyWindowBackupSync(backupFolder: string): void {
-		let index = arrays.firstIndex(this.emptyWorkspaces, w => isEqual(w, backupFolder, !platform.isLinux));
+		let index = arrays.firstIndex(this.emptyWorkspaces, w => isEqual(w.backupFolder, backupFolder, !platform.isLinux));
 		if (index !== -1) {
 			this.emptyWorkspaces.splice(index, 1);
 			this.saveSync();
@@ -166,8 +167,15 @@ export class BackupMainService implements IBackupMainService {
 			backups = Object.create(null);
 		}
 
-		// read empty worrkspace backs first
-		this.emptyWorkspaces = this.validateEmptyWorkspaces(backups.emptyWorkspaces);
+		// read empty workspaces backups first
+		if (backups.emptyWorkspaceInfos) {
+			this.emptyWorkspaces = this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
+		} else if (Array.isArray(backups.emptyWorkspaces)) {
+			// read legacy entries
+			this.emptyWorkspaces = this.validateEmptyWorkspaces(backups.emptyWorkspaces.map(backupFolder => ({ backupFolder })));
+		} else {
+			this.emptyWorkspaces = [];
+		}
 
 		// read workspace backups
 		this.rootWorkspaces = this.validateWorkspaces(backups.rootWorkspaces);
@@ -272,16 +280,17 @@ export class BackupMainService implements IBackupMainService {
 
 		return result;
 	}
-	private validateEmptyWorkspaces(emptyWorkspaces: string[]): string[] {
+	private validateEmptyWorkspaces(emptyWorkspaces: IEmptyWindowBackupInfo[]): IEmptyWindowBackupInfo[] {
 		if (!Array.isArray(emptyWorkspaces)) {
 			return [];
 		}
 
-		const result: string[] = [];
+		const result: IEmptyWindowBackupInfo[] = [];
 		const seen: { [id: string]: boolean } = Object.create(null);
 
 		// Validate Empty Windows
-		for (let backupFolder of emptyWorkspaces) {
+		for (let backupInfo of emptyWorkspaces) {
+			const backupFolder = backupInfo.backupFolder;
 			if (typeof backupFolder !== 'string') {
 				return [];
 			}
@@ -291,7 +300,7 @@ export class BackupMainService implements IBackupMainService {
 
 				const backupPath = this.getBackupPath(backupFolder);
 				if (this.hasBackupsSync(backupPath)) {
-					result.push(backupFolder);
+					result.push(backupInfo);
 				} else {
 					this.deleteStaleBackup(backupPath);
 				}
@@ -315,7 +324,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// New empty window backup
 		let newBackupFolder = this.getRandomEmptyWindowId();
-		while (this.emptyWorkspaces.some(w => isEqual(w, newBackupFolder, platform.isLinux))) {
+		while (this.emptyWorkspaces.some(w => isEqual(w.backupFolder, newBackupFolder, platform.isLinux))) {
 			newBackupFolder = this.getRandomEmptyWindowId();
 		}
 
@@ -327,7 +336,7 @@ export class BackupMainService implements IBackupMainService {
 			this.logService.error(`Backup: Could not rename backup folder: ${ex.toString()}`);
 			return false;
 		}
-		this.emptyWorkspaces.push(newBackupFolder);
+		this.emptyWorkspaces.push({ backupFolder: newBackupFolder });
 
 		return true;
 	}
@@ -360,7 +369,8 @@ export class BackupMainService implements IBackupMainService {
 			const backups: IBackupWorkspacesFormat = {
 				rootWorkspaces: this.rootWorkspaces,
 				folderURIWorkspaces: this.folderWorkspaces.map(f => f.toString()),
-				emptyWorkspaces: this.emptyWorkspaces
+				emptyWorkspaceInfos: this.emptyWorkspaces,
+				emptyWorkspaces: this.emptyWorkspaces.map(info => info.backupFolder)
 			};
 			extfs.writeFileAndFlushSync(this.workspacesJsonPath, JSON.stringify(backups));
 		} catch (ex) {
