@@ -29,7 +29,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { getConfirmMessage, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getConfirmMessage, IDialogService, ISaveDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TextFileService extends AbstractTextFileService {
@@ -43,7 +43,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IWindowService private windowService: IWindowService,
+		@IWindowService windowService: IWindowService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
@@ -51,9 +51,10 @@ export class TextFileService extends AbstractTextFileService {
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDialogService private dialogService: IDialogService,
+		@IFileDialogService private fileDialogService: IFileDialogService,
 		@IEditorService private editorService: IEditorService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, environmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
 	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -104,16 +105,19 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	promptForPath(resource: URI, defaultPath: string): TPromise<string> {
+	promptForPath(resource: URI, defaultUri: URI): TPromise<URI> {
 
 		// Help user to find a name for the file by opening it first
 		return this.editorService.openEditor({ resource, options: { revealIfOpened: true, preserveFocus: true, } }).then(() => {
-			return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
+			return this.fileDialogService.showSaveDialog(this.getSaveDialogOptions(defaultUri));
 		});
 	}
 
-	private getSaveDialogOptions(defaultPath: string): Electron.SaveDialogOptions {
-		const options: Electron.SaveDialogOptions = { defaultPath };
+	private getSaveDialogOptions(defaultUri: URI): ISaveDialogOptions {
+		const options: ISaveDialogOptions = {
+			defaultUri,
+			title: nls.localize('saveAsTitle', "Save As")
+		};
 
 		// Filters are only enabled on Windows where they work properly
 		if (!isWindows) {
@@ -123,7 +127,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = defaultPath ? paths.extname(defaultPath) : void 0;
+		const ext: string = defaultUri ? paths.extname(defaultUri.path) : void 0;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

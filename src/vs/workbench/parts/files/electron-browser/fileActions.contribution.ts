@@ -25,7 +25,6 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { FileDialogContext } from 'vs/platform/workbench/common/contextkeys';
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
@@ -184,7 +183,7 @@ appendToCommandPalette(SAVE_FILES_COMMAND_ID, { value: nls.localize('saveFiles',
 appendToCommandPalette(REVERT_FILE_COMMAND_ID, { value: nls.localize('revert', "Revert File"), original: 'File: Revert File' }, category);
 appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, { value: nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), original: 'File: Compare Active File with Saved' }, category);
 appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'File: Reveal in Explorer' : isMacintosh ? 'File: Reveal in Finder' : 'File: Open Containing Folder' }, category);
-appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, { value: SAVE_FILE_AS_LABEL, original: 'File: Save As...' }, category, FileDialogContext.isEqualTo('local'));
+appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, { value: SAVE_FILE_AS_LABEL, original: 'File: Save As...' }, category);
 appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, { value: nls.localize('closeEditor', "Close Editor"), original: 'View: Close Editor' }, nls.localize('view', "View"));
 appendToCommandPalette(NEW_FILE_COMMAND_ID, { value: NEW_FILE_LABEL, original: 'File: New File' }, category);
 appendToCommandPalette(NEW_FOLDER_COMMAND_ID, { value: NEW_FOLDER_LABEL, original: 'File: New Folder' }, category);
@@ -450,7 +449,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: ADD_ROOT_FOLDER_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext, FileDialogContext.isEqualTo('local'))
+	when: ContextKeyExpr.and(ExplorerRootContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -541,8 +540,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As...")
 	},
-	order: 2,
-	when: FileDialogContext.isEqualTo('local')
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

@@ -10,6 +10,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { localize } from 'vs/nls';
+import { FileFilter } from 'vs/platform/windows/common/windows';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IConfirmation {
 	title?: string;
@@ -38,6 +40,74 @@ export interface IConfirmationResult {
 	 */
 	checkboxChecked?: boolean;
 }
+
+export interface IPickAndOpenOptions {
+	forceNewWindow?: boolean;
+	defaultUri?: URI;
+	telemetryExtraData?: ITelemetryData;
+}
+
+export interface ISaveDialogOptions {
+	/**
+	 * A human-readable string for the dialog title
+	 */
+	title?: string;
+
+	/**
+	 * The resource the dialog shows when opened.
+	 */
+	defaultUri?: URI;
+
+	/**
+	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+	 * like "TypeScript", and an array of extensions.
+	 */
+	filters?: FileFilter[];
+
+	/**
+	 * A human-readable string for the ok button
+	 */
+	buttonLabel?: string;
+}
+
+export interface IOpenDialogOptions {
+	/**
+	 * A human-readable string for the dialog title
+	 */
+	title?: string;
+
+	/**
+	 * The resource the dialog shows when opened.
+	 */
+	defaultUri?: URI;
+
+	/**
+	 * A human-readable string for the open button.
+	 */
+	openLabel?: string;
+
+	/**
+	 * Allow to select files, defaults to `true`.
+	 */
+	canSelectFiles?: boolean;
+
+	/**
+	 * Allow to select folders, defaults to `false`.
+	 */
+	canSelectFolders?: boolean;
+
+	/**
+	 * Allow to select many files or folders.
+	 */
+	canSelectMany?: boolean;
+
+	/**
+	 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+	 * like "TypeScript", and an array of extensions.
+	 */
+	filters?: FileFilter[];
+}
+
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
@@ -69,6 +139,66 @@ export interface IDialogService {
 	 * option then promise with index `0` is returned.
 	 */
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number>;
+}
+
+
+export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
+
+/**
+ * A service to bring up file dialogs.
+ */
+export interface IFileDialogService {
+
+	_serviceBrand: any;
+
+	/**
+	 * The default path for a new file based on previously used files.
+	 * @param schemeFilter The scheme of the file path.
+	 */
+	defaultFilePath(schemeFilter: string): URI;
+
+	/**
+	 * The default path for a new folder based on previously used folders.
+	 * @param schemeFilter The scheme of the folder path.
+	 */
+	defaultFolderPath(schemeFilter: string): URI;
+
+	/**
+	 * The default path for a new workspace based on previously used workspaces.
+	 * @param schemeFilter The scheme of the workspace path.
+	 */
+	defaultWorkspacePath(schemeFilter: string): URI;
+
+	/**
+	 * Shows a file-folder selection dialog and opens the selected entry.
+	 */
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+
+	/**
+	 * Shows a file selection dialog and opens the selected entry.
+	 */
+	pickFileAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+
+	/**
+	 * Shows a folder selection dialog and opens the selected entry.
+	 */
+	pickFolderAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+
+	/**
+	 * Shows a workspace selection dialog and opens the selected entry.
+	 */
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+
+	/**
+	 * Shows a save file dialog and returns the chosen file URI.
+	 */
+	showSaveDialog(options: ISaveDialogOptions): TPromise<URI>;
+
+	/**
+	 * Shows a open file dialog and returns the chosen file URI.
+	 */
+	showOpenDialog(options: IOpenDialogOptions): TPromise<URI[] | undefined>;
+
 }
 
 const MAX_CONFIRM_FILES = 10;

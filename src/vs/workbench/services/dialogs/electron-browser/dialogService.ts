@@ -10,10 +10,17 @@ import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import * as resources from 'vs/base/common/resources';
+import { isParent } from 'vs/platform/files/common/files';
 
 interface IMassagedMessageBoxOptions {
 
@@ -146,4 +153,147 @@ export class DialogService implements IDialogService {
 
 		return { options, buttonIndexMap };
 	}
+}
+
+export class FileDialogService implements IFileDialogService {
+
+	_serviceBrand: any;
+
+	constructor(
+		@IWindowService private windowService: IWindowService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) { }
+
+	public defaultFilePath(schemeFilter: string): URI {
+		let candidate: URI;
+
+		// Check for last active file first...
+		candidate = this.historyService.getLastActiveFile(schemeFilter);
+
+		// ...then for last active file root
+		if (!candidate) {
+			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		}
+
+		return candidate ? resources.dirname(candidate) : void 0;
+	}
+
+	public defaultFolderPath(schemeFilter: string): URI {
+		let candidate: URI;
+
+		// Check for last active file root first...
+		candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+
+		// ...then for last active file
+		if (!candidate) {
+			candidate = this.historyService.getLastActiveFile(schemeFilter);
+		}
+
+		return candidate ? resources.dirname(candidate) : void 0;
+	}
+
+	public defaultWorkspacePath(schemeFilter: string): URI {
+
+		// Check for current workspace config file first...
+		if (schemeFilter === Schemas.file && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(this.contextService.getWorkspace().configuration.fsPath, this.environmentService)) {
+			return resources.dirname(this.contextService.getWorkspace().configuration);
+		}
+
+		// ...then fallback to default folder path
+		return this.defaultFolderPath(schemeFilter);
+	}
+
+	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
+		return {
+			forceNewWindow: options.forceNewWindow,
+			telemetryExtraData: options.telemetryExtraData,
+			dialogOptions: {
+				defaultPath: options.defaultUri && options.defaultUri.fsPath
+			}
+		};
+	}
+
+	public pickFileFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		let defaultUri = options.defaultUri;
+		if (!defaultUri) {
+			options.defaultUri = this.defaultFilePath(Schemas.file);
+		}
+		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+
+	}
+
+	public pickFileAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		let defaultUri = options.defaultUri;
+		if (!defaultUri) {
+			options.defaultUri = this.defaultFilePath(Schemas.file);
+		}
+		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+	}
+
+	public pickFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		let defaultUri = options.defaultUri;
+		if (!defaultUri) {
+			options.defaultUri = this.defaultFolderPath(Schemas.file);
+		}
+		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+	}
+
+	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): TPromise<void> {
+		let defaultUri = options.defaultUri;
+		if (!defaultUri) {
+			options.defaultUri = this.defaultWorkspacePath(Schemas.file);
+		}
+		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+	}
+
+	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
+		return {
+			defaultPath: options.defaultUri && options.defaultUri.fsPath,
+			buttonLabel: options.buttonLabel,
+			filters: options.filters,
+			title: options.title
+		};
+	}
+
+	public showSaveDialog(options: ISaveDialogOptions): TPromise<URI> {
+		return this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options)).then(result => {
+			if (result) {
+				return URI.file(result);
+			}
+			return void 0;
+		});
+	}
+
+	public showOpenDialog(options: IOpenDialogOptions): TPromise<URI[] | undefined> {
+		const defaultUri = options.defaultUri;
+		const filters = [];
+		if (options.filters) {
+			for (let name in options.filters) {
+				filters.push({ name, extensions: options.filters[name] });
+			}
+		}
+		const properties = [];
+		if (options.canSelectFiles) {
+			properties.push('openFile');
+		}
+		if (options.canSelectFolders) {
+			properties.push('openDirectory');
+		}
+		if (options.canSelectMany) {
+			properties.push('multiSelections');
+		}
+		return this.windowService.showOpenDialog({
+			title: options.title,
+			defaultPath: defaultUri && defaultUri.fsPath,
+			buttonLabel: options.openLabel,
+			filters,
+			properties
+		}).then(result => result ? result.map(URI.file) : void 0);
+	}
+}
+
+function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
+	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
 }

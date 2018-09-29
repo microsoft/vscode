@@ -59,7 +59,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription } from '../services/extensions/common/extensions';
@@ -173,7 +173,7 @@ export class TestContextService implements IWorkspaceContextService {
 export class TestTextFileService extends TextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
-	private promptPath: string;
+	private promptPath: URI;
 	private confirmResult: ConfirmResult;
 	private resolveTextContentError: FileOperationError;
 
@@ -187,14 +187,15 @@ export class TestTextFileService extends TextFileService {
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService modelService: IModelService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, TestEnvironmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
-	public setPromptPath(path: string): void {
+	public setPromptPath(path: URI): void {
 		this.promptPath = path;
 	}
 
@@ -226,7 +227,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(resource: URI, defaultPath: string): TPromise<string> {
+	public promptForPath(resource: URI, defaultPath: URI): TPromise<URI> {
 		return TPromise.wrap(this.promptPath);
 	}
 
@@ -276,7 +277,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
-	instantiationService.stub(ILabelService, new LabelService(TestEnvironmentService, workspaceContextService));
+	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
@@ -389,6 +390,39 @@ export class TestDialogService implements IDialogService {
 
 	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
 		return TPromise.as(0);
+	}
+}
+
+export class TestFileDialogService implements IFileDialogService {
+
+	public _serviceBrand: any;
+
+	public defaultFilePath(schemeFilter: string): URI {
+		return void 0;
+	}
+	public defaultFolderPath(schemeFilter: string): URI {
+		return void 0;
+	}
+	public defaultWorkspacePath(schemeFilter: string): URI {
+		return void 0;
+	}
+	public pickFileFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public pickFileAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public pickFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public showSaveDialog(options: ISaveDialogOptions): TPromise<URI> {
+		return TPromise.as(void 0);
+	}
+	public showOpenDialog(options: IOpenDialogOptions): TPromise<URI[]> {
+		return TPromise.as(void 0);
 	}
 }
 
