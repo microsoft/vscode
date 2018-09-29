@@ -22,7 +22,6 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 		case PConst.Kind.variable: return vscode.SymbolKind.Variable;
 		case PConst.Kind.const: return vscode.SymbolKind.Variable;
 		case PConst.Kind.localVariable: return vscode.SymbolKind.Variable;
-		case PConst.Kind.variable: return vscode.SymbolKind.Variable;
 		case PConst.Kind.function: return vscode.SymbolKind.Function;
 		case PConst.Kind.localFunction: return vscode.SymbolKind.Function;
 	}
