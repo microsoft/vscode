@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, KnownRepository } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -559,9 +559,11 @@ export class Repository implements Disposable {
 	private isFreshRepository: boolean | undefined = undefined;
 	private disposables: Disposable[] = [];
 
+	private readonly knownRepositoriesLimit = 50;
+
 	constructor(
 		private readonly repository: BaseRepository,
-		globalState: Memento
+		private globalState: Memento
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(fsWatcher);
@@ -1299,6 +1301,8 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = index;
 		this.workingTreeGroup.resourceStates = workingTree;
 
+		this.updateKnownRepositories(remotes);
+
 		// set count badge
 		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
 		let count = merge.length + index.length + workingTree.length;
@@ -1320,6 +1324,35 @@ export class Repository implements Disposable {
 		}
 
 		this._onDidChangeStatus.fire();
+	}
+
+	private updateKnownRepositories(remotes: Remote[]) {
+		let knownRepositories = this.globalState.get<Array<KnownRepository>>('knownRepositories', []);
+
+		if (knownRepositories.length >= this.knownRepositoriesLimit) {
+			knownRepositories = knownRepositories
+				.sort((a, b) => a.lastUpdated - b.lastUpdated)
+				.slice(0, this.knownRepositoriesLimit);
+		}
+
+		const knownFetchUrls = knownRepositories.map(kr => kr.fetchUrl);
+
+		for (let remote of remotes) {
+			if (!remote.fetchUrl) {
+				continue;
+			}
+			if (knownFetchUrls.includes(remote.fetchUrl)) {
+				let matchingRepoIndex = knownRepositories.findIndex(knownRepository => knownRepository.fetchUrl === remote.fetchUrl!);
+				knownRepositories[matchingRepoIndex].lastUpdated = Date.now();
+				continue;
+			}
+			knownRepositories.push({
+				fetchUrl: remote.fetchUrl,
+				lastUpdated: Date.now(),
+				rootLocation: this.repository.root
+			});
+		}
+		this.globalState.update('knownRepositories', knownRepositories);
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {

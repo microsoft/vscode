@@ -14,7 +14,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { GitErrorCodes } from './api/git';
+import { GitErrorCodes, KnownRepository } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -336,6 +336,16 @@ export class Model {
 	getRepository(hint: any): Repository | undefined {
 		const liveRepository = this.getOpenRepository(hint);
 		return liveRepository && liveRepository.repository;
+	}
+
+	getRepositoryLocation(fetchUrl: string) {
+		const knownrepos = this.globalState.get<Array<KnownRepository>>('knownRepositories');
+		if (!knownrepos) { return false; }
+		const repoLocation = knownrepos.find(knownrepo => knownrepo.fetchUrl === fetchUrl);
+		if (repoLocation && fs.existsSync(repoLocation.rootLocation)) {
+			return repoLocation.rootLocation;
+		}
+		return false;
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;

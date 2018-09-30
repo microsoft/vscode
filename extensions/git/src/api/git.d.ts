@@ -79,6 +79,12 @@ export interface RepositoryUIState {
 	readonly onDidChange: Event<void>;
 }
 
+export interface KnownRepository {
+	fetchUrl: string;
+	rootLocation: string;
+	lastUpdated: number;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;

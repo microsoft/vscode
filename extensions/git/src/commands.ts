@@ -394,6 +394,22 @@ export class CommandCenter {
 		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
 		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
 
+		const existingRepoLocation = await this.model.getRepositoryLocation(url);
+
+		if (existingRepoLocation) {
+			const open = localize('openrepo', "Open Repository");
+
+			const result = await window.showInformationMessage(
+				localize('repoExists', "This repository already exists would you like to open it instead?"),
+				open,
+			);
+			if (result === open) {
+				const exisitingUri = Uri.file(existingRepoLocation);
+				commands.executeCommand('vscode.openFolder', exisitingUri);
+				return;
+			}
+		}
+
 		const uris = await window.showOpenDialog({
 			canSelectFiles: false,
 			canSelectFolders: true,
