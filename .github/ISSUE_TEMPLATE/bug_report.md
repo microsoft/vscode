@@ -8,11 +8,11 @@ about: Create a report to help us improve
 
 <!-- Use Help > Report Issue to prefill these. -->
 - VSCode Version:
-- OS Version:
+- OS Version:Mac
 
 Steps to Reproduce:
 
-1.
+1.THis all worked perfectly
 2.
 
 <!-- Launch with `code --disable-extensions` to check. -->
