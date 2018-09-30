@@ -26,9 +26,9 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IStyleOverrides, IThemable } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -246,6 +246,26 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		super.dispose();
 	}
 }
+
+// Override styles in selections.ts
+registerThemingParticipant((theme, collector) => {
+	let workbenchSelectionColor = theme.getColor(selectionBackground);
+	if (workbenchSelectionColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor}; }`);
+	}
+
+	// Override inactive selection bg
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	if (inputBackground) {
+		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor}; }`);
+	}
+
+	// Override selected fg
+	const inputForegroundColor = theme.getColor(inputForeground);
+	if (inputForegroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+	}
+});
 
 
 function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
