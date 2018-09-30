@@ -166,11 +166,12 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container:hover > .monaco-toolbar .toolbar-toggle-more,
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container > .monaco-toolbar .active .toolbar-toggle-more {
-	display: block;
+	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more {
-	display: none;
+	opacity: 0;
+	transition: opacity .3s;
 	width: 22px;
 	height: 22px;
 	background-position: center;
