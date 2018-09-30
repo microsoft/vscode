@@ -8,7 +8,12 @@ let err = false;
 const major = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
 
 if (major < 8) {
-	console.error('\033[1;31m*** Please use node>=8.\033[0;0m');
+	console.error('\033[1;31m*** Please use node >=8 and <9.\033[0;0m');
+	err = true;
+}
+
+if (major >= 9) {
+	console.error('\033[1;31m*** Please use node >=8 and <9.\033[0;0m');
 	err = true;
 }
 
