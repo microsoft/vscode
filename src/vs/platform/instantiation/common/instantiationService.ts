@@ -18,9 +18,9 @@ export class InstantiationService implements IInstantiationService {
 
 	_serviceBrand: any;
 
-	private readonly _services: ServiceCollection;
-	private readonly _strict: boolean;
-	private readonly _parent: InstantiationService;
+	protected readonly _services: ServiceCollection;
+	protected readonly _strict: boolean;
+	protected readonly _parent: InstantiationService;
 
 	constructor(services: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: InstantiationService) {
 		this._services = services;
