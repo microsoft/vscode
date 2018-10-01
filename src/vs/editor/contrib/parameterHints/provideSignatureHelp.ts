@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { first2 } from 'vs/base/common/async';
+import { first } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,7 +21,7 @@ export function provideSignatureHelp(model: ITextModel, position: Position, cont
 
 	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
 
-	return first2(supports.map(support => () => {
+	return first(supports.map(support => () => {
 		return Promise.resolve(support.provideSignatureHelp(model, position, token, context)).catch(onUnexpectedExternalError);
 	}));
 }

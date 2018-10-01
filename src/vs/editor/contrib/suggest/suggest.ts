@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { first2 } from 'vs/base/common/async';
+import { first } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
@@ -111,7 +111,7 @@ export function provideSuggestionItems(
 		}));
 	});
 
-	const result = first2(factory, () => {
+	const result = first(factory, () => {
 		// stop on result or cancellation
 		return hasResult || token.isCancellationRequested;
 	}).then(() => {
