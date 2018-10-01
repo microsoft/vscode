@@ -1010,7 +1010,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			return updateConfirmSettingsPromise.then(() => {
 				if (res.confirmed) {
 					const rootDropPromise = this.doHandleRootDrop(sources.filter(s => s.isRoot), target);
-					return TPromise.join(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
+					return Promise.all(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
 				}
 
 				return Promise.resolve(void 0);

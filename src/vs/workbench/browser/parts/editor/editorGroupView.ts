@@ -845,7 +845,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const startingIndex = this.getIndexOfEditor(editor) + 1;
 
 			// Open the other ones inactive
-			return TPromise.join(editors.map(({ editor, options }, index) => {
+			return Promise.all(editors.map(({ editor, options }, index) => {
 				const adjustedEditorOptions = options || new EditorOptions();
 				adjustedEditorOptions.inactive = true;
 				adjustedEditorOptions.pinned = true;

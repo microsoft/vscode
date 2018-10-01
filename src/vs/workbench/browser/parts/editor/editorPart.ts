@@ -812,7 +812,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Signal restored
-		always(TPromise.join(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
+		always(Promise.all(this.groups.map(group => group.whenRestored)), () => this.whenRestoredComplete(void 0));
 
 		// Update container
 		this.updateContainer();

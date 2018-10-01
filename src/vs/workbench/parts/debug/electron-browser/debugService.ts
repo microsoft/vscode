@@ -300,7 +300,7 @@ export class DebugService implements IDebugService {
 								"Compound must have \"configurations\" attribute set in order to start multiple configurations.")));
 						}
 
-						return TPromise.join(compound.configurations.map(configData => {
+						return Promise.all(compound.configurations.map(configData => {
 							const name = typeof configData === 'string' ? configData : configData.name;
 							if (name === compound.name) {
 								return Promise.resolve(false);
@@ -613,7 +613,7 @@ export class DebugService implements IDebugService {
 		}
 
 		const sessions = this.model.getSessions();
-		return TPromise.join(sessions.map(s => s.terminate()));
+		return Promise.all(sessions.map(s => s.terminate()));
 	}
 
 	private substituteVariables(launch: ILaunch | undefined, config: IConfig): TPromise<IConfig> {
@@ -950,7 +950,7 @@ export class DebugService implements IDebugService {
 
 		this.model.removeBreakpoints(toRemove);
 
-		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
+		return Promise.all(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}
 
 	setBreakpointsActivated(activated: boolean): TPromise<void> {
@@ -974,7 +974,7 @@ export class DebugService implements IDebugService {
 	}
 
 	sendAllBreakpoints(session?: IDebugSession): TPromise<any> {
-		return TPromise.join(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
+		return Promise.all(distinct(this.model.getBreakpoints(), bp => bp.uri.toString()).map(bp => this.sendBreakpoints(bp.uri, false, session)))
 			.then(() => this.sendFunctionBreakpoints(session))
 			// send exception breakpoints at the end since some debug adapters rely on the order
 			.then(() => this.sendExceptionBreakpoints(session));
@@ -1019,7 +1019,7 @@ export class DebugService implements IDebugService {
 		if (session) {
 			return send(session);
 		}
-		return TPromise.join(this.model.getSessions().map(s => send(s))).then(() => void 0);
+		return Promise.all(this.model.getSessions().map(s => send(s))).then(() => void 0);
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

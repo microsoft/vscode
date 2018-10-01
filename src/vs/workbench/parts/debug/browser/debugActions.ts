@@ -460,7 +460,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return TPromise.join([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
+		return Promise.all([this.debugService.removeBreakpoints(), this.debugService.removeFunctionBreakpoints()]);
 	}
 
 	protected isEnabled(state: State): boolean {

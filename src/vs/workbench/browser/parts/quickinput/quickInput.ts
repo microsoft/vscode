@@ -1112,7 +1112,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
 			input.busy = true;
-			TPromise.join([picks, options.activeItem])
+			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
 					activeItem = _activeItem;
 					input.busy = false;
