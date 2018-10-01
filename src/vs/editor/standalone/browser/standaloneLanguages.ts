@@ -16,7 +16,6 @@ import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/lang
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { toThenable } from 'vs/base/common/async';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -352,7 +351,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
 			let word = model.getWordAtPosition(position);
 
-			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
+			return Promise.resolve<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
 				if (!value) {
 					return undefined;
 				}
@@ -779,7 +778,7 @@ class SuggestAdapter {
 
 	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
 		const result = this._provider.provideCompletionItems(model, position, token, context);
-		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
+		return Promise.resolve<CompletionItem[] | CompletionList>(result).then(value => {
 			const result: modes.ISuggestResult = {
 				suggestions: []
 			};
@@ -830,7 +829,7 @@ class SuggestAdapter {
 			return TPromise.as(suggestion);
 		}
 
-		return toThenable(this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
+		return Promise.resolve(this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
 			let wordStartPos = position;
 			const word = model.getWordUntilPosition(position);
 			if (word) {

@@ -16,14 +16,6 @@ export function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
 }
 
-export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
-	if (isThenable(arg)) {
-		return arg;
-	} else {
-		return TPromise.as(arg);
-	}
-}
-
 export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
 }
