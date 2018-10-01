@@ -846,7 +846,11 @@ export class TreeView extends HeightMap {
 	}
 
 	public set viewHeight(height: number) {
-		this.scrollableElement.setScrollDimensions({ height });
+		let scrollHeight: number = height;
+		if (this.horizontalScrolling) {
+			scrollHeight -= 10;
+		}
+		this.scrollableElement.setScrollDimensions({ height: scrollHeight });
 	}
 
 	private set scrollHeight(scrollHeight: number) {
