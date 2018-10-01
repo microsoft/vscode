@@ -18,7 +18,6 @@ import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/br
 import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement;
@@ -86,7 +85,7 @@ export class NotificationsList extends Themable {
 		this._register((this.list.onContextMenu(e => {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as([copyAction]),
+				getActions: () => Promise.resolve([copyAction]),
 				getActionsContext: () => e.element,
 				actionRunner
 			});

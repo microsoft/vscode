@@ -230,7 +230,7 @@ export class PanelViewlet extends Viewlet {
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(this.getContextMenuActions())
+			getActions: () => Promise.resolve(this.getContextMenuActions())
 		});
 	}
 

@@ -225,7 +225,7 @@ export class ResourcesDropHandler {
 			}
 		}
 
-		return TPromise.as(false);
+		return Promise.resolve(false);
 	}
 
 	private handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): TPromise<boolean> {
@@ -237,7 +237,7 @@ export class ResourcesDropHandler {
 
 		// Return early if the resource is already dirty in target or opened already
 		if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpen({ resource: droppedDirtyEditor.resource })) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// Resolve the contents of the dropped dirty resource from source
@@ -293,7 +293,7 @@ export class ResourcesDropHandler {
 
 			// Open in separate windows if we drop workspaces or just one folder
 			if (workspaces.length > 0 || folders.length === 1) {
-				workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources));
+				workspacesToOpen = Promise.resolve([...workspaces, ...folders].map(resources => resources));
 			}
 
 			// Multiple folders: Create new workspace with folders and open

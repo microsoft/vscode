@@ -28,7 +28,7 @@ class ToggleZenMode extends Action {
 
 	run(): TPromise<any> {
 		this.partService.toggleZenMode();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

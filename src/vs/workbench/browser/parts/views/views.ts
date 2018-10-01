@@ -535,7 +535,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					});
 			}
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {

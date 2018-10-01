@@ -106,7 +106,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Fullfill promise with composite that is being opened
-			return TPromise.as(this.activeComposite);
+			return Promise.resolve(this.activeComposite);
 		}
 
 		// Open
@@ -124,7 +124,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		if (this.activeComposite) {
 			hidePromise = this.hideActiveComposite();
 		} else {
-			hidePromise = TPromise.as(null);
+			hidePromise = Promise.resolve(null);
 		}
 
 		return hidePromise.then(() => {
@@ -137,7 +137,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Check if another composite opened meanwhile and return in that case
 			if ((this.currentCompositeOpenToken !== currentCompositeOpenToken) || (this.activeComposite && this.activeComposite.getId() !== composite.getId())) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			// Check if composite already visible and just focus in that case
@@ -147,7 +147,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				}
 
 				// Fullfill promise with composite that is being opened
-				return TPromise.as(composite);
+				return Promise.resolve(composite);
 			}
 
 			// Show Composite and Focus
@@ -235,7 +235,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Composite already exists but is hidden
 		else {
-			createCompositePromise = TPromise.as(null);
+			createCompositePromise = Promise.resolve(null);
 		}
 
 		// Report progress for slow loading composites (but only if we did not create the composites before already)
@@ -375,7 +375,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected hideActiveComposite(): TPromise<Composite> {
 		if (!this.activeComposite) {
-			return TPromise.as(null); // Nothing to do
+			return Promise.resolve(null); // Nothing to do
 		}
 
 		const composite = this.activeComposite;

@@ -284,7 +284,7 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 			DOM.addDisposableListener(this.statusBarItem, DOM.EventType.CLICK, () => {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => container,
-					getActions: () => TPromise.as(this.zoomActions)
+					getActions: () => Promise.resolve(this.zoomActions)
 				});
 			});
 		}
@@ -567,7 +567,7 @@ class InlineImageView {
 
 	private static imageSrc(descriptor: IResourceDescriptor, fileService: IFileService): TPromise<string> {
 		if (descriptor.resource.scheme === Schemas.data) {
-			return TPromise.as(descriptor.resource.toString(true /* skip encoding */));
+			return Promise.resolve(descriptor.resource.toString(true /* skip encoding */));
 		}
 
 		return fileService.resolveContent(descriptor.resource, { encoding: 'base64' }).then(data => {

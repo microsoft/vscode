@@ -399,7 +399,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(this.getContextMenuActions())
+			getActions: () => Promise.resolve(this.getContextMenuActions())
 		});
 	}
 

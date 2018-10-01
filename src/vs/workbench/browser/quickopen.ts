@@ -45,7 +45,7 @@ export class QuickOpenHandler {
 	 * results in terms of performance when many items are shown.
 	 */
 	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	/**
@@ -331,6 +331,6 @@ export class QuickOpenAction extends Action {
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

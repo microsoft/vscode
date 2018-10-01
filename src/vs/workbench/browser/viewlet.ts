@@ -145,7 +145,7 @@ export class ShowViewletAction extends Action {
 		// Otherwise pass focus to editor group
 		this.editorGroupService.activeGroup.focus();
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	private otherViewletShowing(): boolean {
@@ -168,7 +168,7 @@ export class CollapseAction extends Action {
 	constructor(viewer: ITree, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, (context: any) => {
 			if (viewer.getHighlight()) {
-				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+				return Promise.resolve(null); // Global action disabled if user is in edit mode from another action
 			}
 
 			viewer.collapseAll();
@@ -177,7 +177,7 @@ export class CollapseAction extends Action {
 			viewer.domFocus();
 			viewer.focusFirst();
 
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		});
 	}
 }

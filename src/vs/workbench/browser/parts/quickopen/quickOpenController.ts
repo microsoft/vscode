@@ -506,7 +506,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
 				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel());
 
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			// Support extra class from handler
@@ -594,7 +594,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Otherwise load and create
-		return this.mapResolvedHandlersToPrefix[id] = TPromise.as(handler.instantiate(this.instantiationService));
+		return this.mapResolvedHandlersToPrefix[id] = Promise.resolve(handler.instantiate(this.instantiationService));
 	}
 
 	layout(dimension: Dimension): void {

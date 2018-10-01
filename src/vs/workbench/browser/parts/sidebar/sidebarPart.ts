@@ -105,7 +105,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 	openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
 		if (this.blockOpeningViewlet) {
-			return TPromise.as(null); // Workaround against a potential race condition
+			return Promise.resolve(null); // Workaround against a potential race condition
 		}
 
 		// First check if sidebar is hidden and show if so
@@ -150,7 +150,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
-					getActions: () => TPromise.as(contextMenuActions),
+					getActions: () => Promise.resolve(contextMenuActions),
 					getActionItem: action => this.actionItemProvider(action as Action),
 					actionRunner: activeViewlet.getActionRunner()
 				});
@@ -185,7 +185,7 @@ class FocusSideBarAction extends Action {
 		if (viewlet) {
 			viewlet.focus();
 		}
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 

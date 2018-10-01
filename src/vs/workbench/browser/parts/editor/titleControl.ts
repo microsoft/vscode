@@ -14,7 +14,6 @@ import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/titlecontrol';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -304,7 +303,7 @@ export abstract class TitleControl extends Themable {
 		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) } as IEditorCommandsContext),
 			getKeyBinding: (action) => this.getKeybinding(action),
 			onHide: () => {

@@ -343,7 +343,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 	run(event: any): TPromise<any> {
 		this.showMenu();
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -372,7 +372,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.element,
-			getActions: () => TPromise.as(this.actions),
+			getActions: () => Promise.resolve(this.actions),
 			onHide: () => dispose(this.actions)
 		});
 	}
@@ -597,7 +597,7 @@ export class CompositeActionItem extends ActivityActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActionsContext: () => this.activity.id,
-			getActions: () => TPromise.as(actions)
+			getActions: () => Promise.resolve(actions)
 		});
 	}
 
@@ -664,6 +664,6 @@ export class ToggleCompositePinnedAction extends Action {
 			this.compositeBar.pin(id);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }

@@ -79,7 +79,7 @@ class FocusPanelAction extends Action {
 		if (panel) {
 			panel.focus();
 		}
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -145,8 +145,8 @@ export class ToggleMaximizedPanelAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return (!this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : TPromise.as(null))
-			.then(() => this.partService.toggleMaximizedPanel());
+		const thenable: Thenable<void> = !this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : Promise.resolve(null);
+		return thenable.then(() => this.partService.toggleMaximizedPanel());
 	}
 
 	dispose(): void {

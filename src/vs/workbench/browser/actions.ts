@@ -106,7 +106,7 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return TPromise.as(prepareActions(actions));
+		return Promise.resolve(prepareActions(actions));
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -136,7 +136,7 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return TPromise.as(prepareActions(actions));
+		return Promise.resolve(prepareActions(actions));
 	}
 
 	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {

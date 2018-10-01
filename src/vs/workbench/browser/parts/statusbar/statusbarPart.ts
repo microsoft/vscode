@@ -288,7 +288,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => el,
 					getActionsContext: () => this.entry.extensionId,
-					getActions: () => TPromise.as([manageExtensionAction])
+					getActions: () => Promise.resolve([manageExtensionAction])
 				});
 			}));
 		}

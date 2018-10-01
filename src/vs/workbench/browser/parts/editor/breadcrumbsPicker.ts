@@ -228,7 +228,7 @@ export class FileDataSource implements IDataSource {
 
 	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
-			return TPromise.as(element.folders).then(folders => {
+			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
 					this._parents.set(element, child);
 				}
@@ -252,7 +252,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
-		return TPromise.as(this._parents.get(element));
+		return Promise.resolve(this._parents.get(element));
 	}
 }
 
