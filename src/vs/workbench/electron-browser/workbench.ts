@@ -332,7 +332,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IPartService, this);
 
 		// Clipboard
-		serviceCollection.set(IClipboardService, new ClipboardService());
+		serviceCollection.set(IClipboardService, new SyncDescriptor(ClipboardService));
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);
