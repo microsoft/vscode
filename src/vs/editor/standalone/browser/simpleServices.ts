@@ -562,17 +562,17 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): TPromise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
 		for (let edit of workspaceEdit.edits) {
 			if (!isResourceTextEdit(edit)) {
-				return TPromise.wrapError(new Error('bad edit - only text edits are supported'));
+				return Promise.reject(new Error('bad edit - only text edits are supported'));
 			}
 			let model = this._modelService.getModel(edit.resource);
 			if (!model) {
-				return TPromise.wrapError(new Error('bad edit - model not found'));
+				return Promise.reject(new Error('bad edit - model not found'));
 			}
 			let array = edits.get(model);
 			if (!array) {
@@ -589,7 +589,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 			totalEdits += edits.length;
 		});
 
-		return TPromise.as({
+		return Promise.resolve({
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});

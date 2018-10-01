@@ -6,7 +6,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from '../editorBrowser';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
@@ -25,6 +24,6 @@ export interface IBulkEditResult {
 export interface IBulkEditService {
 	_serviceBrand: any;
 
-	apply(edit: WorkspaceEdit, options: IBulkEditOptions): TPromise<IBulkEditResult>;
+	apply(edit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult>;
 }
 
