@@ -7,6 +7,11 @@ steps:
   inputs:
     versionSpec: "1.10.1"
 
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '2.x'
+    addToPath: true
+
 - powershell: |
     . build/tfs/win32/exec.ps1
     $ErrorActionPreference = "Stop"
