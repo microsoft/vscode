@@ -66,6 +66,12 @@ export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
 	hc: null
 }, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_DIRTY_BORDER_TOP = registerColor('tab.dirtyBorderTop', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabDirtyBorderTop', "Border on the top of dirty file tabs in editor area."));
+
 export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
 	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
 	light: transparent(TAB_ACTIVE_BORDER, 0.7),
