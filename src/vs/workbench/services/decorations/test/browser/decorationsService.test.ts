@@ -216,6 +216,7 @@ suite('DecorationsService', function () {
 
 	test('Decorations not bubbling... #48745', function () {
 
+		let resolve: Function;
 		let reg = service.registerDecorationsProvider({
 			label: 'Test',
 			onDidChange: Event.None,
@@ -223,10 +224,13 @@ suite('DecorationsService', function () {
 				if (uri.path.match(/hello$/)) {
 					return { tooltip: 'FOO', weight: 17, bubble: true };
 				} else {
-					throw new Error('unexpected uri');
+					return new Promise<IDecorationData>(_resolve => resolve = _resolve);
 				}
 			}
 		});
+		// TODO: TS 3.1 upgrade. Why do we need 'resolve' if it is never actually resolved?
+		// tslint:disable-next-line:no-unused-expression
+		resolve as any;
 
 		let data1 = service.getDecoration(URI.parse('a:b/'), true);
 		assert.ok(!data1);
