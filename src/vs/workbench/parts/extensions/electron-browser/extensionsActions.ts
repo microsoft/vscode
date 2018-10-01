@@ -1924,7 +1924,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	public run(): TPromise<any> {
 		const folderCount = this.contextService.getWorkspace().folders.length;
 		const pickFolderPromise = folderCount === 1 ? TPromise.as(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		return pickFolderPromise
+		return TPromise.wrap(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
 					return this.openExtensionsFile(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')));
@@ -1975,7 +1975,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 		const pickFolderPromise = folders.length === 1
 			? TPromise.as(folders[0])
 			: this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		return pickFolderPromise
+		return TPromise.wrap(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (!workspaceFolder) {
 					return TPromise.as(null);
