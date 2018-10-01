@@ -53,7 +53,7 @@ export interface IActionChangeEvent {
 export class Action implements IAction {
 
 	protected _onDidChange = new Emitter<IActionChangeEvent>();
-	get onDidChange(): Event<IActionChangeEvent> { return this._onDidChange.event; }
+	readonly onDidChange: Event<IActionChangeEvent> = this._onDidChange.event;
 
 	protected _id: string;
 	protected _label: string;
@@ -188,10 +188,10 @@ export interface IRunEvent {
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	get onDidBeforeRun(): Event<IRunEvent> { return this._onDidBeforeRun.event; }
+	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	get onDidRun(): Event<IRunEvent> { return this._onDidRun.event; }
+	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
 	run(action: IAction, context?: any): Thenable<any> {
 		if (!action.enabled) {
