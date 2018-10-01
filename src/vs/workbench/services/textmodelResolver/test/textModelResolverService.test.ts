@@ -72,16 +72,19 @@ suite('Workbench - TextModelResolverService', () => {
 		let resource = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		return input.resolve().then(model => {
+		return input.resolve().then(async model => {
 			assert.ok(model);
 			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()), 'Hello Test');
 
 			let disposed = false;
-			once(model.onDispose)(() => {
-				disposed = true;
+			let disposedPromise = new Promise(resolve => {
+				once(model.onDispose)(() => {
+					disposed = true;
+					resolve();
+				});
 			});
-
 			input.dispose();
+			await disposedPromise;
 			assert.equal(disposed, true);
 
 			dispose.dispose();
@@ -161,7 +164,10 @@ suite('Workbench - TextModelResolverService', () => {
 		modelRef1.dispose();
 		assert(!textModel.isDisposed(), 'the text model should still not be disposed');
 
+		let p1 = new Promise(resolve => textModel.onWillDispose(resolve));
 		modelRef2.dispose();
+
+		await p1;
 		assert(textModel.isDisposed(), 'the text model should finally be disposed');
 
 		disposable.dispose();

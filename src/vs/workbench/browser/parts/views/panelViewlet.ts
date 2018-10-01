@@ -199,12 +199,13 @@ export class PanelViewlet extends Viewlet {
 	constructor(
 		id: string,
 		private options: IViewsViewletOptions,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IPartService partService: IPartService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(id, partService, telemetryService, themeService);
+		super(id, configurationService, partService, telemetryService, themeService);
 	}
 
 	create(parent: HTMLElement): TPromise<void> {

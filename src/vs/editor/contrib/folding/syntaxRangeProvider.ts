@@ -7,7 +7,6 @@
 
 import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { toThenable } from 'vs/base/common/async';
 import { ITextModel } from 'vs/editor/common/model';
 import { RangeProvider } from './folding';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -50,7 +49,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Thenable<IFoldingRangeData[] | null> {
 	let rangeData: IFoldingRangeData[] = null;
 	let promises = providers.map((provider, i) => {
-		return toThenable(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
+		return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
 			if (cancellationToken.isCancellationRequested) {
 				return;
 			}
