@@ -11,7 +11,6 @@ import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -164,33 +163,33 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$trySetSelections(id: string, selections: ISelection[]): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Thenable<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Thenable<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return undefined;
@@ -198,17 +197,17 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Thenable<boolean> {
@@ -218,9 +217,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
@@ -239,7 +238,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {
-			return TPromise.wrapError<ILineChange[]>(new Error('No such TextEditor'));
+			return Promise.reject(new Error('No such TextEditor'));
 		}
 
 		const codeEditor = editor.getCodeEditor();
@@ -248,16 +247,16 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
 
 		if (diffEditor) {
-			return TPromise.as(diffEditor.getLineChanges());
+			return Promise.resolve(diffEditor.getLineChanges());
 		}
 
 		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
 
 		if (dirtyDiffContribution) {
-			return TPromise.as((dirtyDiffContribution as any).getChanges());
+			return Promise.resolve((dirtyDiffContribution as any).getChanges());
 		}
 
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 }
 
@@ -277,7 +276,7 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 
 	if (resource && resource.scheme === 'command') {
 		// do not allow to execute commands from here
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	// finally, delegate to opener service

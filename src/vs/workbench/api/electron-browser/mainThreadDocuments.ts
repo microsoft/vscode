@@ -9,7 +9,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -176,10 +175,10 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	$tryOpenDocument(_uri: UriComponents): Thenable<any> {
 		const uri = URI.revive(_uri);
 		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
-			return TPromise.wrapError(new Error(`Invalid uri. Scheme and authority or path must be set.`));
+			return Promise.reject(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}
 
-		let promise: TPromise<boolean>;
+		let promise: Thenable<boolean>;
 		switch (uri.scheme) {
 			case Schemas.untitled:
 				promise = this._handleUnititledScheme(uri);
@@ -192,14 +191,14 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 		return promise.then(success => {
 			if (!success) {
-				return TPromise.wrapError(new Error('cannot open ' + uri.toString()));
+				return Promise.reject(new Error('cannot open ' + uri.toString()));
 			} else if (!this._modelIsSynced[uri.toString()]) {
-				return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
+				return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
 			} else {
 				return undefined;
 			}
 		}, err => {
-			return TPromise.wrapError(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
+			return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
 		});
 	}
 
@@ -207,7 +206,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.content : void 0);
 	}
 
-	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
+	private _handleAsResourceInput(uri: URI): Thenable<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
 			this._modelReferenceCollection.add(ref);
 			const result = !!ref.object;
@@ -215,17 +214,17 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		});
 	}
 
-	private _handleUnititledScheme(uri: URI): TPromise<boolean> {
+	private _handleUnititledScheme(uri: URI): Thenable<boolean> {
 		let asFileUri = uri.with({ scheme: Schemas.file });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
-			return TPromise.wrapError<boolean>(new Error('file already exists on disk'));
+			return Promise.reject(new Error('file already exists on disk'));
 		}, err => {
 			return this._doCreateUntitled(uri).then(resource => !!resource);
 		});
 	}
 
-	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
+	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): Thenable<URI> {
 		return this._untitledEditorService.loadOrCreate({
 			resource,
 			modeId,
