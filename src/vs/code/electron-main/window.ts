@@ -27,7 +27,7 @@ import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import * as perf from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { getBackgroundColor } from 'vs/code/electron-main/theme';
+import { getBackgroundColor, THEME_BG_STORAGE_KEY } from 'vs/code/electron-main/theme';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -113,7 +113,7 @@ export class CodeWindow implements ICodeWindow {
 
 	private setTransparentInfo(options: Electron.BrowserWindowConstructorOptions): void {
 		options.backgroundColor = '#00000000';
-		this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
+		this.stateService.setItem(THEME_BG_STORAGE_KEY, 'transparent');
 	}
 
 	private createBrowserWindow(config: IWindowCreationOptions): void {
@@ -123,11 +123,6 @@ export class CodeWindow implements ICodeWindow {
 
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
-
-		let backgroundColor = this.getBackgroundColor();
-		if (isMacintosh && backgroundColor.toUpperCase() === CodeWindow.DEFAULT_BG_DARK) {
-			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
-		}
 
 		const options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,

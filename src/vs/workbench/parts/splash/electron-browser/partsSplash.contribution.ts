@@ -71,7 +71,7 @@ class PartsSplash {
 			this.lastBackground = colorInfo.editorBackground;
 
 			// the color needs to be in hex
-			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getTheme());
+			const backgroundColor = this._themeService.getTheme().getColor(editorBackground) || this._themeService.getTheme().getColor(themes.WORKBENCH_BACKGROUND);
 			this.broadcastService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) }) });
 		}
 	}
