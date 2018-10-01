@@ -349,6 +349,7 @@ suite('workspace-namespace', () => {
 				if (uri.authority === 'foo') {
 					return '1';
 				}
+				return undefined;
 			}
 		});
 		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
@@ -356,6 +357,7 @@ suite('workspace-namespace', () => {
 				if (uri.authority === 'bar') {
 					return '2';
 				}
+				return undefined;
 			}
 		});
 
