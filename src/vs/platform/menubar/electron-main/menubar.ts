@@ -23,12 +23,16 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IStateService } from 'vs/platform/state/common/state';
 
 const telemetryFrom = 'menu';
 
 export class Menubar {
 
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
+	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubar';
+	private static readonly lastKnownAdditionalKeybindings = 'lastKnownAdditionalKeybindings';
+
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
 	private closedLastWindow: boolean;
@@ -47,11 +51,14 @@ export class Menubar {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IHistoryMainService private historyMainService: IHistoryMainService,
-		@ILabelService private labelService: ILabelService
+		@ILabelService private labelService: ILabelService,
+		@IStateService private stateService: IStateService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
-		this.keybindings = Object.create(null);
+		this.menubarMenus = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey) || Object.create(null);
+
+		this.keybindings = this.stateService.getItem<IMenubarData>(Menubar.lastKnownAdditionalKeybindings) || Object.create(null);
 
 		this.closedLastWindow = false;
 
@@ -105,6 +112,10 @@ export class Menubar {
 				this.keybindings[keybinding.id] = keybinding;
 			});
 		}
+
+		// Save off new menu and keybindings
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, this.menubarMenus);
+		this.stateService.setItem(Menubar.lastKnownAdditionalKeybindings, this.keybindings);
 
 		this.scheduleUpdateMenu();
 	}
