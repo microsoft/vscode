@@ -69,6 +69,7 @@ app.once('ready', function () {
 	}
 });
 
+// Initialize nlsConfig
 function onReady() {
 	perf.mark('main:appReady');
 
