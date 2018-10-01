@@ -147,7 +147,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		}
 
 		// Check if object has named variables, fetch them independent from indexed variables #9670
-		return (!!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : TPromise.as([])).then(childrenArray => {
+		const childrenThenable: Thenable<Variable[]> = !!this.namedVariables ? this.fetchVariables(undefined, undefined, 'named') : Promise.resolve([]);
+		return childrenThenable.then(childrenArray => {
 			// Use a dynamic chunk size based on the number of elements #9774
 			let chunkSize = ExpressionContainer.BASE_CHUNK_SIZE;
 			while (this.indexedVariables > chunkSize * ExpressionContainer.BASE_CHUNK_SIZE) {

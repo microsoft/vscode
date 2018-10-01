@@ -190,14 +190,14 @@ class LinuxTerminalService extends TerminalLauncher {
 	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): TPromise<void> {
 
 		const terminalConfig = configuration.external;
-		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
+		const execThenable: Thenable<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
 		return new TPromise<void>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
-			execPromise.then(exec => {
+			execThenable.then(exec => {
 				if (exec.indexOf('gnome-terminal') >= 0) {
 					termArgs.push('-x');
 				} else {

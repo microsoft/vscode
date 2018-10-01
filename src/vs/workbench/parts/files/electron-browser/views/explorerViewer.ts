@@ -79,12 +79,12 @@ export class FileDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem[]> {
 		if (stat instanceof Model) {
-			return TPromise.as(stat.roots);
+			return Promise.resolve(stat.roots);
 		}
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
-			return TPromise.as(stat.getChildrenArray());
+			return Promise.resolve(stat.getChildrenArray());
 		}
 
 		// Resolve children and add to fileStat for future lookup
@@ -124,23 +124,23 @@ export class FileDataSource implements IDataSource {
 
 	public getParent(tree: ITree, stat: ExplorerItem | Model): TPromise<ExplorerItem> {
 		if (!stat) {
-			return TPromise.as(null); // can be null if nothing selected in the tree
+			return Promise.resolve(null); // can be null if nothing selected in the tree
 		}
 
 		// Return if root reached
 		if (tree.getInput() === stat) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Return if parent already resolved
 		if (stat instanceof ExplorerItem && stat.parent) {
-			return TPromise.as(stat.parent);
+			return Promise.resolve(stat.parent);
 		}
 
 		// We never actually resolve the parent from the disk for performance reasons. It wouldnt make
 		// any sense to resolve parent by parent with requests to walk up the chain. Instead, the explorer
 		// makes sure to properly resolve a deep path to a specific file and merges the result with the model.
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -544,7 +544,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			getActions: () => {
 				const actions: IAction[] = [];
 				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
-				return TPromise.as(actions);
+				return Promise.resolve(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
@@ -996,13 +996,13 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 		} else {
-			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
+			confirmPromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
 		}
 
 		return confirmPromise.then(res => {
 
 			// Check for confirmation checkbox
-			let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
+			let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
 			if (res.confirmed && res.checkboxChecked === true) {
 				updateConfirmSettingsPromise = this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
 			}
@@ -1013,14 +1013,14 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 					return TPromise.join(sources.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(tree, source, target, isCopy)).concat(rootDropPromise)).then(() => void 0);
 				}
 
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			});
 		});
 	}
 
 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem | Model): TPromise<void> {
 		if (roots.length === 0) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const folders = this.contextService.getWorkspace().folders;
@@ -1052,7 +1052,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
 		if (!(target instanceof ExplorerItem)) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		return tree.expand(target).then(() => {

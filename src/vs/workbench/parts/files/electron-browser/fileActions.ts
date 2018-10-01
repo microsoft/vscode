@@ -49,6 +49,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 
 export interface IEditableData {
 	action: IAction;
@@ -251,7 +252,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 		// Return early if name is invalid or didn't change
 		if (name === existingName || this.validateFileName(this.element.parent, name)) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// Call function and Emit Event through viewer
@@ -362,7 +363,7 @@ export class BaseNewAction extends BaseFileAction {
 		}
 		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
 			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
-			return TPromise.as(new Error('Parent folder is already in the process of creating a file'));
+			return Promise.resolve(new Error('Parent folder is already in the process of creating a file'));
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
@@ -572,7 +573,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 		const distinctElements = resources.distinctParents(this.elements, e => e.resource);
 
 		// Handle dirty
-		let confirmDirtyPromise: TPromise<boolean> = TPromise.as(true);
+		let confirmDirtyPromise: TPromise<boolean> = Promise.resolve(true);
 		const dirty = this.textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
 		if (dirty.length) {
 			let message: string;
@@ -613,7 +614,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Check if we need to ask for confirmation at all
 			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
-				confirmDeletePromise = TPromise.as({ confirmed: true } as IConfirmationResult);
+				confirmDeletePromise = Promise.resolve({ confirmed: true } as IConfirmationResult);
 			}
 
 			// Confirm for moving to trash
@@ -645,7 +646,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
-				let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
+				let updateConfirmSettingsPromise: TPromise<void> = Promise.resolve(void 0);
 				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
@@ -654,7 +655,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 					// Check for confirmation
 					if (!confirmation.confirmed) {
-						return TPromise.as(null);
+						return Promise.resolve(null);
 					}
 
 					// Call function
@@ -697,7 +698,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 								return this.run();
 							}
 
-							return TPromise.as(void 0);
+							return Promise.resolve(void 0);
 						});
 					});
 
@@ -783,7 +784,7 @@ export class AddFilesAction extends BaseFileAction {
 	}
 
 	public run(resourcesToAdd: URI[]): TPromise<any> {
-		const addPromise = TPromise.as(null).then(() => {
+		const addPromise = Promise.resolve(null).then(() => {
 			if (resourcesToAdd && resourcesToAdd.length > 0) {
 
 				// Find parent to add to
@@ -808,7 +809,7 @@ export class AddFilesAction extends BaseFileAction {
 						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
 					});
 
-					let overwritePromise: TPromise<IConfirmationResult> = TPromise.as({ confirmed: true });
+					let overwritePromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 					if (resourcesToAdd.some(resource => {
 						return targetNames.has(!resources.hasToIgnoreCase(resource) ? resources.basename(resource) : resources.basename(resource).toLowerCase());
 					})) {
@@ -903,7 +904,7 @@ class CopyFileAction extends BaseFileAction {
 
 		this.tree.domFocus();
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -1147,7 +1148,7 @@ export class GlobalCompareResourcesAction extends Action {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -1344,7 +1345,7 @@ export class ShowActiveFileInExplorer extends Action {
 			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -1422,7 +1423,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -1529,7 +1530,7 @@ export class CompareWithClipboardAction extends Action {
 			return always(this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }), cleanUp);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	public dispose(): void {
@@ -1549,7 +1550,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.getOrCreateMode('text/plain'), resource);
 
-		return TPromise.as(model);
+		return Promise.resolve(model);
 	}
 }
 
@@ -1576,7 +1577,7 @@ function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: ICons
 	const listService = accessor.get(IListService);
 	const viewletService = accessor.get(IViewletService);
 	const activeViewlet = viewletService.getActiveViewlet();
-	let explorerPromise = TPromise.as(activeViewlet);
+	let explorerPromise: Thenable<IViewlet> = Promise.resolve(activeViewlet);
 	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
 		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
 	}

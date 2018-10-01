@@ -49,6 +49,7 @@ import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSes
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
+import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -368,7 +369,8 @@ export class DebugService implements IDebugService {
 			config.noDebug = true;
 		}
 
-		return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>
+		const debuggerThenable: Thenable<Debugger> = type ? Promise.resolve(null) : this.configurationManager.guessDebugger();
+		return debuggerThenable.then(dbgr => type = dbgr && dbgr.type).then(() =>
 			this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 				// a falsy config indicates an aborted launch
 				if (config && config.type) {
@@ -550,10 +552,10 @@ export class DebugService implements IDebugService {
 		return this.textFileService.saveAll().then(() => {
 			// Do not run preLaunch and postDebug tasks for automatic restarts
 			const isAutoRestart = !!restartData;
-			const taskPromise = isAutoRestart ? TPromise.as(TaskRunResult.Success) :
+			const taskThenable: Thenable<TaskRunResult> = isAutoRestart ? Promise.resolve(TaskRunResult.Success) :
 				this.runTask(session.root, session.configuration.postDebugTask).then(() => this.runTaskAndCheckErrors(session.root, session.configuration.preLaunchTask));
 
-			return taskPromise.then(taskRunResult => {
+			return taskThenable.then(taskRunResult => {
 				if (taskRunResult !== TaskRunResult.Success) {
 					return;
 				}
@@ -588,7 +590,8 @@ export class DebugService implements IDebugService {
 								}
 							}
 
-							(needsToSubstitute ? this.substituteVariables(launch, unresolved) : TPromise.as(session.configuration)).then(resolved => {
+							const substitutionThenable: Thenable<IConfig> = needsToSubstitute ? this.substituteVariables(launch, unresolved) : Promise.resolve(session.configuration);
+							substitutionThenable.then(resolved => {
 								session.setConfiguration({ resolved, unresolved });
 								session.configuration.__restart = restartData;
 
