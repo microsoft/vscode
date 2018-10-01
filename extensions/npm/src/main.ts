@@ -13,9 +13,9 @@ import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHov
 import { runSelectedScript } from './commands';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	const taskProvider = registerTaskProvider(context);
+	registerTaskProvider(context);
 	const treeDataProvider = registerExplorer(context);
-	const hoverProvider = registerHoverProvider(context);
+	registerHoverProvider(context);
 
 	configureHttpRequest();
 	let d = vscode.workspace.onDidChangeConfiguration((e) => {
@@ -59,7 +59,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
 		context.subscriptions.push(workspaceWatcher);
 
-		let provider: vscode.TaskProvider = new NpmTaskProvider(context);
+		let provider: vscode.TaskProvider = new NpmTaskProvider();
 		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
 		context.subscriptions.push(disposable);
 		return disposable;
