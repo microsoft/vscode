@@ -581,8 +581,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.quickOpen.prefill': {
 			'type': 'boolean',
-			'description': nls.localize('workbench.quickOpen.prefill', "Controls whether to prefill the Quick Open with last input."),
-			'default': true
+			'description': nls.localize('workbench.quickOpen.prefill', "Controls whether to prefill Quick Open with the last input."),
+			'default': false
 		},
 		'workbench.settings.openDefaultSettings': {
 			'type': 'boolean',
