@@ -13,7 +13,7 @@ export class SettingsDocument {
 
 	constructor(private document: vscode.TextDocument) { }
 
-	public provideCompletionItems(position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[]> {
+	public provideCompletionItems(position: vscode.Position, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const location = getLocation(this.document.getText(), this.document.offsetAt(position));
 		const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 
@@ -40,7 +40,7 @@ export class SettingsDocument {
 		return this.provideLanguageOverridesCompletionItems(location, position);
 	}
 
-	private provideWindowTitleCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideWindowTitleCompletionItems(_location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
 		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "the file name (e.g. myFile.txt)")));
@@ -149,7 +149,7 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
 			const completionItems = [];
 			const configuration = vscode.workspace.getConfiguration();
