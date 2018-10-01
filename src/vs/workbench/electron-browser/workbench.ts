@@ -114,7 +114,6 @@ import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/workbench/services
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { LabelService, ILabelService } from 'vs/platform/label/common/label';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 
@@ -334,10 +333,6 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Clipboard
 		serviceCollection.set(IClipboardService, new ClipboardService());
-
-		// Uri Display
-		const labelService = new LabelService(this.environmentService, this.contextService);
-		serviceCollection.set(ILabelService, labelService);
 
 		// Status bar
 		this.statusbarPart = this.instantiationService.createInstance(StatusbarPart, Identifiers.STATUSBAR_PART);

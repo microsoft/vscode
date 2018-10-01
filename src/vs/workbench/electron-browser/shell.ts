@@ -98,7 +98,7 @@ import { MulitExtensionManagementService } from 'vs/platform/extensionManagement
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { runWhenIdle } from 'vs/base/common/async';
@@ -121,7 +121,6 @@ export interface ICoreServices {
 export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
-	private labelService: ILabelService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
@@ -325,7 +324,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
-		serviceCollection.set(ILabelService, this.labelService);
+		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
 
 		serviceCollection.set(IStorageService, this.storageService);
