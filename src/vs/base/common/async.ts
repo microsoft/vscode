@@ -53,9 +53,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 export function asThenable<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		let item = callback();
-		if (item instanceof TPromise) {
-			item.then(resolve, reject);
-		} else if (isThenable<T>(item)) {
+		if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
 			resolve(item);
