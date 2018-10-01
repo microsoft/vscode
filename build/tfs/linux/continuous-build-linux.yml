@@ -11,10 +11,10 @@ steps:
     service dbus start
 - task: NodeTool@0
   inputs:
-    versionSpec: "8.9.1"
+    versionSpec: "8.12.0"
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.9.4"
+    versionSpec: "1.10.1"
 - script: |
     yarn
   displayName: Install Dependencies
