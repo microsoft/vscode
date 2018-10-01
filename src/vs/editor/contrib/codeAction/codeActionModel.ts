@@ -7,7 +7,6 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/bas
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -112,7 +111,7 @@ export class CodeActionOracle {
 				position: undefined,
 				actions: undefined,
 			});
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		} else {
 			const model = this._editor.getModel();
 			const markerRange = this._getRangeOfMarker(selection);
@@ -120,7 +119,7 @@ export class CodeActionOracle {
 			const actions = createCancelablePromise(token => getCodeActions(model, selection, trigger, token));
 
 			if (this._progressService && trigger.type === 'manual') {
-				this._progressService.showWhile(TPromise.wrap(actions), 250);
+				this._progressService.showWhile(actions, 250);
 			}
 
 			this._signalChange({
@@ -204,6 +203,6 @@ export class CodeActionModel {
 		if (this._codeActionOracle) {
 			return this._codeActionOracle.trigger(trigger);
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 }

@@ -6,7 +6,6 @@
 
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 
@@ -25,7 +24,7 @@ export class ContextSubMenu extends SubmenuAction {
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): TPromise<(IAction | ContextSubMenu)[]>;
+	getActions(): Thenable<(IAction | ContextSubMenu)[]>;
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(event?: IContextMenuEvent): any;
 	getKeyBinding?(action: IAction): ResolvedKeybinding;
