@@ -207,7 +207,7 @@ export class RawDebugSession {
 		return this.debugAdapter.startSession().then(() => {
 			this.startTime = new Date().getTime();
 		}, err => {
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		});
 	}
 
@@ -248,14 +248,14 @@ export class RawDebugSession {
 			}
 			return this.disconnect(restart);
 		}
-		return TPromise.wrapError(new Error('terminated not supported'));
+		return Promise.reject(new Error('terminated not supported'));
 	}
 
 	public restart(): TPromise<DebugProtocol.RestartResponse> {
 		if (this.capabilities.supportsRestartRequest) {
 			return this.send('restart', null);
 		}
-		return TPromise.wrapError(new Error('restart not supported'));
+		return Promise.reject(new Error('restart not supported'));
 	}
 
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
@@ -297,14 +297,14 @@ export class RawDebugSession {
 		if (this.capabilities.supportsTerminateThreadsRequest) {
 			return this.send('terminateThreads', args);
 		}
-		return TPromise.wrapError(new Error('terminateThreads not supported'));
+		return Promise.reject(new Error('terminateThreads not supported'));
 	}
 
 	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
 		if (this.capabilities.supportsSetVariable) {
 			return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
 		}
-		return TPromise.wrapError(new Error('setVariable not supported'));
+		return Promise.reject(new Error('setVariable not supported'));
 	}
 
 	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
@@ -314,14 +314,14 @@ export class RawDebugSession {
 				return response;
 			});
 		}
-		return TPromise.wrapError(new Error('restartFrame not supported'));
+		return Promise.reject(new Error('restartFrame not supported'));
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
 		if (this.capabilities.supportsCompletionsRequest) {
 			return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 		}
-		return TPromise.wrapError(new Error('completions not supported'));
+		return Promise.reject(new Error('completions not supported'));
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
@@ -332,7 +332,7 @@ export class RawDebugSession {
 		if (this.capabilities.supportsFunctionBreakpoints) {
 			return this.send<DebugProtocol.SetFunctionBreakpointsResponse>('setFunctionBreakpoints', args);
 		}
-		return TPromise.wrapError(new Error('setFunctionBreakpoints not supported'));
+		return Promise.reject(new Error('setFunctionBreakpoints not supported'));
 	}
 
 	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
@@ -343,7 +343,7 @@ export class RawDebugSession {
 		if (this.capabilities.supportsConfigurationDoneRequest) {
 			return this.send('configurationDone', null);
 		}
-		return TPromise.wrapError(new Error('configurationDone not supported'));
+		return Promise.reject(new Error('configurationDone not supported'));
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
@@ -354,7 +354,7 @@ export class RawDebugSession {
 		if (this.capabilities.supportsExceptionInfoRequest) {
 			return this.send<DebugProtocol.ExceptionInfoResponse>('exceptionInfo', args);
 		}
-		return TPromise.wrapError(new Error('exceptionInfo not supported'));
+		return Promise.reject(new Error('exceptionInfo not supported'));
 	}
 
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
@@ -373,7 +373,7 @@ export class RawDebugSession {
 		if (this.capabilities.supportsLoadedSourcesRequest) {
 			return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
 		}
-		return TPromise.wrapError(new Error('loadedSources not supported'));
+		return Promise.reject(new Error('loadedSources not supported'));
 	}
 
 	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
@@ -393,7 +393,7 @@ export class RawDebugSession {
 				return response;
 			});
 		}
-		return TPromise.wrapError(new Error('stepBack not supported'));
+		return Promise.reject(new Error('stepBack not supported'));
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
@@ -405,7 +405,7 @@ export class RawDebugSession {
 				return response;
 			});
 		}
-		return TPromise.wrapError(new Error('reverseContinue not supported'));
+		return Promise.reject(new Error('reverseContinue not supported'));
 	}
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
@@ -516,7 +516,7 @@ export class RawDebugSession {
 					errorDispatch(response);
 				}
 			}, timeout);
-		}).then(response => response, err => TPromise.wrapError(this.handleErrorResponse(err)));
+		}).then(response => response, err => Promise.reject(this.handleErrorResponse(err)));
 	}
 
 	private handleErrorResponse(errorResponse: DebugProtocol.Response): Error {
