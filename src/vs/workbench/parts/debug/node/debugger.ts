@@ -41,7 +41,7 @@ export class Debugger implements IDebugger {
 
 	public createDebugAdapter(session: IDebugSession, root: IWorkspaceFolder, config: IConfig, outputService: IOutputService): TPromise<IDebugAdapter> {
 		if (this.inExtHost()) {
-			return TPromise.as(this.configurationManager.createDebugAdapter(session, root, config));
+			return Promise.resolve(this.configurationManager.createDebugAdapter(session, root, config));
 		} else {
 			return this.getAdapterDescriptor(session, root, config).then(adapterDescriptor => {
 				switch (adapterDescriptor.type) {
@@ -175,13 +175,13 @@ export class Debugger implements IDebugger {
 			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
 		}
 
-		return TPromise.as(content);
+		return Promise.resolve(content);
 	}
 
 	@memoize
 	public getCustomTelemetryService(): TPromise<TelemetryService> {
 		if (!this.debuggerContribution.aiKey) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		return this.telemetryService.getTelemetryInfo().then(info => {

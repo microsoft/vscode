@@ -428,7 +428,7 @@ export class RawDebugSession {
 			}
 			return this.stopAdapter(error);
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	private stopAdapter(error?: Error): TPromise<any> {
@@ -443,7 +443,7 @@ export class RawDebugSession {
 		} else {
 			this.fireAdapterExitEvent(error);
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	private fireAdapterExitEvent(error?: Error): void {
@@ -539,7 +539,7 @@ export class RawDebugSession {
 			return errors.create(userMessage, {
 				actions: [new Action('debug.moreInfo', label, null, true, () => {
 					window.open(error.url);
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				})]
 			});
 		}

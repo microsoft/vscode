@@ -175,7 +175,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			getActionsContext: () => element
 		});
 	}
@@ -563,7 +563,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 
 export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	const selection = breakpoint.endLineNumber ? {

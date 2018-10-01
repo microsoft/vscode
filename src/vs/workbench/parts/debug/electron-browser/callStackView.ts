@@ -186,7 +186,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private updateTreeSelection(): TPromise<void> {
 		if (!this.tree.getInput()) {
 			// Tree not initialized yet
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
@@ -204,7 +204,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		if (!thread) {
 			if (!session) {
 				this.tree.clearSelection();
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			updateSelection(session);
@@ -213,7 +213,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 
 		return this.tree.expandAll([thread.session, thread]).then(() => {
 			if (!stackFrame) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			updateSelection(stackFrame);
@@ -262,7 +262,7 @@ class CallStackActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -294,7 +294,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -321,16 +321,16 @@ class CallStackDataSource implements IDataSource {
 			return this.getThreadChildren(element);
 		}
 		if (element instanceof DebugModel) {
-			return TPromise.as(element.getSessions());
+			return Promise.resolve(element.getSessions());
 		}
 
 		const session = <IDebugSession>element;
-		return TPromise.as(session.getAllThreads());
+		return Promise.resolve(session.getAllThreads());
 	}
 
 	private getThreadChildren(thread: Thread): TPromise<any> {
 		let callStack: any[] = thread.getCallStack();
-		let callStackPromise: TPromise<any> = TPromise.as(null);
+		let callStackPromise: TPromise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {
 			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
@@ -354,7 +354,7 @@ class CallStackDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

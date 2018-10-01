@@ -167,7 +167,7 @@ class VariablesActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -184,7 +184,7 @@ class VariablesActionProvider implements IActionProvider {
 		actions.push(new Separator());
 		actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -210,7 +210,7 @@ export class VariablesDataSource implements IDataSource {
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof ViewModel) {
 			const focusedStackFrame = (<ViewModel>element).focusedStackFrame;
-			return focusedStackFrame ? focusedStackFrame.getScopes() : TPromise.as([]);
+			return focusedStackFrame ? focusedStackFrame.getScopes() : Promise.resolve([]);
 		}
 
 		let scope = <Scope>element;
@@ -218,7 +218,7 @@ export class VariablesDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

@@ -218,7 +218,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		if (!this.raw.readyForBreakpoints) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const source = this.getSourceForUri(modelUri);
@@ -269,7 +269,7 @@ export class DebugSession implements IDebugSession {
 					return undefined;
 				});
 			}
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
@@ -279,7 +279,7 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.readyForBreakpoints) {
 				return this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) });
 			}
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		return TPromise.wrapError(new Error('no debug adapter'));
 	}
@@ -326,7 +326,7 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			return this.raw.variables({ variablesReference, filter, start, count });
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	evaluate(expression: string, frameId: number, context?: string): TPromise<DebugProtocol.EvaluateResponse> {

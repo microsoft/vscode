@@ -93,7 +93,7 @@ export class RawObjectReplElement extends AbstractReplElement implements IExpres
 				.map(key => new RawObjectReplElement(key, this.valueObj[key]));
 		}
 
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 
 	public toString(): string {
@@ -139,7 +139,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	private doGetChildren(): TPromise<IExpression[]> {
 		if (!this.hasChildren) {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 
 		if (!this.getChildrenInChunks) {
@@ -232,7 +232,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.available = false;
 			this.reference = 0;
 
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this.session = session;
@@ -386,7 +386,7 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		return !this.source.available ? TPromise.as(null) :
+		return !this.source.available ? Promise.resolve(null) :
 			this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 	}
 }
@@ -432,7 +432,7 @@ export class Thread implements IThread {
 	 */
 	public fetchCallStack(levels = 20): TPromise<void> {
 		if (!this.stopped) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const start = this.callStack.length;
@@ -482,12 +482,12 @@ export class Thread implements IThread {
 			if (this.session.capabilities.supportsExceptionInfoRequest) {
 				return this.session.exceptionInfo(this.threadId);
 			}
-			return TPromise.as({
+			return Promise.resolve({
 				description: this.stoppedDetails.text,
 				breakMode: null
 			});
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public next(): TPromise<any> {

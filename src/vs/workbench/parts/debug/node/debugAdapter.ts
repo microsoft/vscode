@@ -295,7 +295,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 			this.socket.end();
 			this.socket = undefined;
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -407,7 +407,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		this.cancelPending();
 
 		if (!this.serverProcess) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// when killing a process in windows its child
@@ -425,7 +425,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			});
 		} else {
 			this.serverProcess.kill('SIGTERM');
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 	}
 

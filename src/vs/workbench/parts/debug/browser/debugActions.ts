@@ -104,7 +104,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	public run(event?: any): TPromise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
@@ -267,7 +267,7 @@ export class StepOverAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.next() : TPromise.as(null);
+		return thread ? thread.next() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -288,7 +288,7 @@ export class StepIntoAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepIn() : TPromise.as(null);
+		return thread ? thread.stepIn() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -309,7 +309,7 @@ export class StepOutAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepOut() : TPromise.as(null);
+		return thread ? thread.stepOut() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -369,7 +369,7 @@ export class ContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.continue() : TPromise.as(null);
+		return thread ? thread.continue() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -390,7 +390,7 @@ export class PauseAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.pause() : TPromise.as(null);
+		return thread ? thread.pause() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -411,7 +411,7 @@ export class TerminateThreadAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.terminate() : TPromise.as(null);
+		return thread ? thread.terminate() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -562,7 +562,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		this.debugService.addFunctionBreakpoint();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -584,7 +584,7 @@ export class SetValueAction extends AbstractDebugAction {
 			this.debugService.getViewModel().setSelectedExpression(this.variable);
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -605,7 +605,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		this.debugService.addWatchExpression();
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -623,7 +623,7 @@ export class EditWatchExpressionAction extends AbstractDebugAction {
 
 	public run(expression: Expression): TPromise<any> {
 		this.debugService.getViewModel().setSelectedExpression(expression);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -638,7 +638,7 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		this.debugService.addWatchExpression(this.variable.evaluateName);
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -656,7 +656,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 
 	public run(expression: Expression): TPromise<any> {
 		this.debugService.removeWatchExpressions(expression.getId());
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -671,7 +671,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		this.debugService.removeWatchExpressions();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -779,7 +779,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 			return stackFrame.openInEditor(this.editorService, true);
 		}
 
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -797,7 +797,7 @@ export class StepBackAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.stepBack() : TPromise.as(null);
+		return thread ? thread.stepBack() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -820,7 +820,7 @@ export class ReverseContinueAction extends AbstractDebugAction {
 			thread = this.debugService.getViewModel().focusedThread;
 		}
 
-		return thread ? thread.reverseContinue() : TPromise.as(null);
+		return thread ? thread.reverseContinue() : Promise.resolve(null);
 	}
 
 	protected isEnabled(state: State): boolean {

@@ -303,7 +303,7 @@ export class DebugService implements IDebugService {
 						return TPromise.join(compound.configurations.map(configData => {
 							const name = typeof configData === 'string' ? configData : configData.name;
 							if (name === compound.name) {
-								return TPromise.as(false);
+								return Promise.resolve(false);
 							}
 
 							let launchForName: ILaunch;
@@ -464,7 +464,7 @@ export class DebugService implements IDebugService {
 
 			if (errors.isPromiseCanceledError(error)) {
 				// don't show 'canceled' error messages to the user #7906
-				return TPromise.as(undefined);
+				return Promise.resolve(undefined);
 			}
 
 			// Show the repl if some error got logged there #5870
@@ -474,7 +474,7 @@ export class DebugService implements IDebugService {
 
 			if (session.configuration && session.configuration.request === 'attach' && session.configuration.__autoAttach) {
 				// ignore attach timeouts in auto attach mode
-				return TPromise.as(undefined);
+				return Promise.resolve(undefined);
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
@@ -633,7 +633,7 @@ export class DebugService implements IDebugService {
 				return undefined;	// bail out
 			});
 		}
-		return TPromise.as(config);
+		return Promise.resolve(config);
 	}
 
 	private showError(message: string, actions: IAction[] = []): TPromise<void> {
@@ -652,7 +652,7 @@ export class DebugService implements IDebugService {
 
 	private runTaskAndCheckErrors(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<TaskRunResult> {
 
-		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => TPromise.as(TaskRunResult.Success));
+		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => Promise.resolve(TaskRunResult.Success));
 		return this.runTask(root, taskId).then((taskSummary: ITaskSummary) => {
 			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
@@ -680,7 +680,7 @@ export class DebugService implements IDebugService {
 
 	private runTask(root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		if (!root) {
 			return TPromise.wrapError(new Error(nls.localize('invalidTaskReference', "Task '{0}' can not be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
@@ -699,7 +699,7 @@ export class DebugService implements IDebugService {
 			const promise = this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.filter(t => t._id === task._id).length) {
 					// task is already running - nothing to do.
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
@@ -735,13 +735,13 @@ export class DebugService implements IDebugService {
 	tryToAutoFocusStackFrame(thread: IThread): TPromise<any> {
 		const callStack = thread.getCallStack();
 		if (!callStack.length || (this.viewModel.focusedStackFrame && this.viewModel.focusedStackFrame.thread.getId() === thread.getId())) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		// focus first stack frame from top that has source location if no other stack frame is focused
 		const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, undefined);
 		if (!stackFrameToFocus) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this.focusStackFrame(stackFrameToFocus);
@@ -1000,7 +1000,7 @@ export class DebugService implements IDebugService {
 				if (data) {
 					this.model.setBreakpointSessionData(s.getId(), data);
 				}
-			}) : TPromise.as(undefined);
+			}) : Promise.resolve(undefined);
 		});
 	}
 
