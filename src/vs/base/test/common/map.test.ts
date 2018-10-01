@@ -228,7 +228,7 @@ suite('Map', () => {
 		});
 	});
 
-	test('PathIterator', function () {
+	test('PathIterator', () => {
 		const iter = new PathIterator();
 		iter.reset('file:///usr/bin/file.txt');
 

@@ -34,7 +34,7 @@ suite('Graph', () => {
 		assert.ok(graph.isEmpty());
 	});
 
-	test('root', function () {
+	test('root', () => {
 		graph.insertEdge('1', '2');
 		var roots = graph.roots();
 		assert.equal(roots.length, 1);

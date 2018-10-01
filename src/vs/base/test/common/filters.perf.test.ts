@@ -22,7 +22,7 @@ perfSuite('Performance - fuzzyMatch', function () {
 	console.log(`Matching ${data.length} items against ${patterns.length} patterns (${data.length * patterns.length} operations) `);
 
 	function perfTest(name: string, match: (pattern: string, word: string) => any) {
-		test(name, function () {
+		test(name, () => {
 
 			const t1 = Date.now();
 			let count = 0;

@@ -75,7 +75,7 @@ suite('CompletionModel', function () {
 	});
 
 
-	test('complete/incomplete', function () {
+	test('complete/incomplete', () => {
 
 		assert.equal(model.incomplete.size, 0);
 
@@ -89,7 +89,7 @@ suite('CompletionModel', function () {
 		assert.equal(incompleteModel.incomplete.size, 1);
 	});
 
-	test('replaceIncomplete', function () {
+	test('replaceIncomplete', () => {
 
 		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
 		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });

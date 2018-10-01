@@ -15,7 +15,7 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 
 suite('keybindingIO', () => {
 
-	test('serialize/deserialize', function () {
+	test('serialize/deserialize', () => {
 
 		function testOneSerialization(keybinding: number, expected: string, msg: string, OS: OperatingSystem): void {
 			let usLayoutResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS), OS);

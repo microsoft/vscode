@@ -812,7 +812,7 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
-	test('prepareSearchForScoring', function () {
+	test('prepareSearchForScoring', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').value, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').value, 'modelTester.ts');
 		assert.equal(scorer.prepareQuery('Model Tester.ts').lowercase, 'modeltester.ts');

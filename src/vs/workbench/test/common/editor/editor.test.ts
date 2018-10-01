@@ -55,7 +55,7 @@ suite('Workbench editor', () => {
 		accessor.untitledEditorService.dispose();
 	});
 
-	test('toResource', function () {
+	test('toResource', () => {
 		const service = accessor.untitledEditorService;
 
 		assert.ok(!toResource(null));

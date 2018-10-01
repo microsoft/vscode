@@ -53,7 +53,7 @@ suite('HighlightedLabel', () => {
 		assert.equal(label.element.innerHTML, '<span>foo</span><span class="highlight">bar</span><span>foo</span>');
 	});
 
-	test('escapeNewLines', function () {
+	test('escapeNewLines', () => {
 
 		let highlights = [{ start: 0, end: 5 }, { start: 7, end: 9 }, { start: 11, end: 12 }];// before,after,after
 		let escaped = HighlightedLabel.escapeNewLines('ACTION\r\n_TYPE2', highlights);

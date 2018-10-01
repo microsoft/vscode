@@ -20,7 +20,7 @@ suite('DataUriEditorInput', () => {
 		instantiationService = workbenchInstantiationService();
 	});
 
-	test('simple', function () {
+	test('simple', () => {
 		const resource = URI.parse('data:image/png;label:SomeLabel;description:SomeDescription;size:1024;base64,77+9UE5');
 		const input: DataUriEditorInput = instantiationService.createInstance(DataUriEditorInput, void 0, void 0, resource);
 

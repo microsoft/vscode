@@ -21,7 +21,7 @@ suite('LinkedList', function () {
 		assert.equal(elements.length, 0);
 	}
 
-	test('Push/Iter', function () {
+	test('Push/Iter', () => {
 		const list = new LinkedList<number>();
 		list.push(0);
 		list.push(1);
@@ -29,7 +29,7 @@ suite('LinkedList', function () {
 		assertElements(list, 0, 1, 2);
 	});
 
-	test('Push/Remove', function () {
+	test('Push/Remove', () => {
 		let list = new LinkedList<number>();
 		let disp = list.push(0);
 		list.push(1);
@@ -52,7 +52,7 @@ suite('LinkedList', function () {
 		assertElements(list, 0, 1);
 	});
 
-	test('Push/toArray', function () {
+	test('Push/toArray', () => {
 		let list = new LinkedList<string>();
 		list.push('foo');
 		list.push('bar');
@@ -70,7 +70,7 @@ suite('LinkedList', function () {
 		);
 	});
 
-	test('unshift/Iter', function () {
+	test('unshift/Iter', () => {
 		const list = new LinkedList<number>();
 		list.unshift(0);
 		list.unshift(1);
@@ -78,7 +78,7 @@ suite('LinkedList', function () {
 		assertElements(list, 2, 1, 0);
 	});
 
-	test('unshift/Remove', function () {
+	test('unshift/Remove', () => {
 		let list = new LinkedList<number>();
 		let disp = list.unshift(0);
 		list.unshift(1);
@@ -101,7 +101,7 @@ suite('LinkedList', function () {
 		assertElements(list, 1, 0);
 	});
 
-	test('unshift/toArray', function () {
+	test('unshift/toArray', () => {
 		let list = new LinkedList<string>();
 		list.unshift('foo');
 		list.unshift('bar');

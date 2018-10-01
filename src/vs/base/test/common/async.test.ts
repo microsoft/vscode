@@ -168,7 +168,7 @@ suite('Async', () => {
 		]);
 	});
 
-	test('Throttler', function () {
+	test('Throttler', () => {
 		let count = 0;
 		let factory = () => TPromise.wrap(async.timeout(0)).then(() => ++count);
 
@@ -207,7 +207,7 @@ suite('Async', () => {
 		return TPromise.join(promises);
 	});
 
-	test('Delayer', function () {
+	test('Delayer', () => {
 		let count = 0;
 		let factory = () => {
 			return TPromise.as(++count);
@@ -358,7 +358,7 @@ suite('Async', () => {
 		return p;
 	});
 
-	test('Sequence', function () {
+	test('Sequence', () => {
 		let factoryFactory = (n: number) => () => {
 			return TPromise.as(n);
 		};

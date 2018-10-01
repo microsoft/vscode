@@ -10,7 +10,7 @@ import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 
 suite('Workbench editor options', () => {
 
-	test('EditorOptions', function () {
+	test('EditorOptions', () => {
 		let options = new EditorOptions();
 
 		assert(!options.preserveFocus);
@@ -24,7 +24,7 @@ suite('Workbench editor options', () => {
 		options.forceReload = true;
 	});
 
-	test('TextEditorOptions', function () {
+	test('TextEditorOptions', () => {
 		let options = new TextEditorOptions();
 		let otherOptions = new TextEditorOptions();
 

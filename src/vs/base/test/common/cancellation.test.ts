@@ -9,7 +9,7 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 
 suite('CancellationToken', function () {
 
-	test('None', function () {
+	test('None', () => {
 		assert.equal(CancellationToken.None.isCancellationRequested, false);
 		assert.equal(typeof CancellationToken.None.onCancellationRequested, 'function');
 	});

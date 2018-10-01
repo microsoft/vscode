@@ -84,7 +84,7 @@ suite('Event', function () {
 		assert.equal(counter.count, 2);
 	});
 
-	test('onFirstAdd|onLastRemove', function () {
+	test('onFirstAdd|onLastRemove', () => {
 
 		let firstCount = 0;
 		let lastCount = 0;
@@ -109,7 +109,7 @@ suite('Event', function () {
 		assert.equal(lastCount, 1);
 	});
 
-	test('throwingListener', function () {
+	test('throwingListener', () => {
 		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => null);
 
@@ -750,7 +750,7 @@ suite('Event utils', () => {
 		});
 	});
 
-	test('latch', function () {
+	test('latch', () => {
 		const emitter = new Emitter<number>();
 		const event = latch(emitter.event);
 

@@ -25,7 +25,7 @@ suite('ExtHostDiagnostics', () => {
 		}
 	}
 
-	test('disposeCheck', function () {
+	test('disposeCheck', () => {
 
 		const collection = new DiagnosticCollection('test', 'test', 100, new DiagnosticsShape(), new Emitter());
 

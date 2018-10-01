@@ -118,7 +118,7 @@ suite('Workbench base editor', () => {
 		});
 	});
 
-	test('EditorDescriptor', function () {
+	test('EditorDescriptor', () => {
 		let d = new EditorDescriptor(MyEditor, 'id', 'name');
 		assert.strictEqual(d.getId(), 'id');
 		assert.strictEqual(d.getName(), 'name');
