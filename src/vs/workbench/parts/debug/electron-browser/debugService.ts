@@ -49,7 +49,6 @@ import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSes
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
-import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -369,8 +368,8 @@ export class DebugService implements IDebugService {
 			config.noDebug = true;
 		}
 
-		const debuggerThenable: Thenable<Debugger> = type ? Promise.resolve(null) : this.configurationManager.guessDebugger();
-		return debuggerThenable.then(dbgr => type = dbgr && dbgr.type).then(() =>
+		const debuggerThenable: Thenable<void> = type ? Promise.resolve(null) : this.configurationManager.guessDebugger().then(dbgr => { type = dbgr && dbgr.type; });
+		return debuggerThenable.then(() =>
 			this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config).then(config => {
 				// a falsy config indicates an aborted launch
 				if (config && config.type) {
