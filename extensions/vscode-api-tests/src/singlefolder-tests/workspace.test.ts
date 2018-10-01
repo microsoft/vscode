@@ -69,9 +69,9 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument, illegal path', () => {
-		return vscode.workspace.openTextDocument('funkydonky.txt').then(doc => {
+		return vscode.workspace.openTextDocument('funkydonky.txt').then(_doc => {
 			throw new Error('missing error');
-		}, err => {
+		}, _err => {
 			// good!
 		});
 	});
@@ -271,8 +271,8 @@ suite('workspace-namespace', () => {
 				return vscode.window.showTextDocument(doc).then((editor) => {
 					return editor.edit((builder) => {
 						builder.insert(new vscode.Position(0, 0), 'Hello World');
-					}).then(applied => {
-						return doc.save().then(saved => {
+					}).then(_applied => {
+						return doc.save().then(_saved => {
 							assert.ok(onDidOpenTextDocument);
 							assert.ok(onDidChangeTextDocument);
 							assert.ok(onDidSaveTextDocument);
@@ -336,7 +336,7 @@ suite('workspace-namespace', () => {
 		// missing scheme
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('notThere://foo/far/boo/bar')).then(() => {
 			assert.ok(false, 'expected failure');
-		}, err => {
+		}, _err => {
 			// expected
 		});
 	});
@@ -372,12 +372,12 @@ suite('workspace-namespace', () => {
 
 		// duplicate registration
 		let registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return '1';
 			}
 		});
 		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri): string {
+			provideTextDocumentContent(_uri): string {
 				throw new Error('fail');
 			}
 		});
@@ -392,13 +392,13 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, invalid text', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return <any>123;
 			}
 		});
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://auth/path')).then(() => {
 			assert.ok(false, 'expected failure');
-		}, err => {
+		}, _err => {
 			// expected
 			registration.dispose();
 		});
@@ -407,7 +407,7 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, show virtual document', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return 'I am virtual';
 			}
 		});
@@ -426,7 +426,7 @@ suite('workspace-namespace', () => {
 
 		let callCount = 0;
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				callCount += 1;
 				return 'I am virtual';
 			}
@@ -446,7 +446,7 @@ suite('workspace-namespace', () => {
 	test('registerTextDocumentContentProvider, empty doc', function () {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return '';
 			}
 		});
@@ -467,7 +467,7 @@ suite('workspace-namespace', () => {
 
 		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			onDidChange: emitter.event,
-			provideTextDocumentContent(uri) {
+			provideTextDocumentContent(_uri) {
 				return 'call' + (callCount++);
 			}
 		});
