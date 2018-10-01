@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
@@ -225,16 +224,16 @@ export interface ITerminalService {
 	setActiveTabToPrevious(): void;
 	setActiveTabByIndex(tabIndex: number): void;
 
-	showPanel(focus?: boolean): TPromise<void>;
+	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
-	focusFindWidget(): TPromise<void>;
+	focusFindWidget(): Promise<void>;
 	hideFindWidget(): void;
 	getFindState(): FindReplaceState;
 	findNext(): void;
 	findPrevious(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	selectDefaultWindowsShell(): TPromise<string>;
+	selectDefaultWindowsShell(): Promise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 
 	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
@@ -360,7 +359,7 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number>;
 
-	processReady: TPromise<void>;
+	processReady: Promise<void>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -589,7 +588,7 @@ export interface ITerminalCommandTracker {
 
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
-	readonly ptyProcessReady: TPromise<void>;
+	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number;
 	readonly initialCwd: string;
 

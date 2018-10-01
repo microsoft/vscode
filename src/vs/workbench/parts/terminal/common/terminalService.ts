@@ -9,7 +9,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, TERMINAL_PANEL_ID, ITerminalTab, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN } from 'vs/workbench/parts/terminal/common/terminal';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 
@@ -82,16 +81,16 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
+	protected abstract _showTerminalCloseConfirmation(): PromiseLike<boolean>;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	public abstract selectDefaultWindowsShell(): TPromise<string>;
+	public abstract selectDefaultWindowsShell(): Promise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	public abstract requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 
-	private _onWillShutdown(): boolean | TPromise<boolean> {
+	private _onWillShutdown(): boolean | PromiseLike<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
@@ -287,8 +286,8 @@ export abstract class TerminalService implements ITerminalService {
 		return null;
 	}
 
-	public showPanel(focus?: boolean): TPromise<void> {
-		return new TPromise<void>((complete) => {
+	public showPanel(focus?: boolean): Promise<void> {
+		return new Promise<void>((complete) => {
 			const panel = this._panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
@@ -334,7 +333,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 	}
 
-	public abstract focusFindWidget(): TPromise<void>;
+	public abstract focusFindWidget(): Promise<void>;
 	public abstract hideFindWidget(): void;
 
 	public abstract findNext(): void;
