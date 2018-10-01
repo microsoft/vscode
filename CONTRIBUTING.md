@@ -1,8 +1,8 @@
 # Contributing to VS Code
 
-Welcome, and thank you for your interest in contributing to VS Code!
+Welcome, and thank you for your interest in contributing to VS Code! Happy Hacktoberfest
 
-There are many ways that you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
+There are many ways that you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved and how to properly report any issues and pulls. 
 
 ## Asking Questions
 
@@ -100,4 +100,5 @@ please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-C
 # Thank You!
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
+Have a fantastic Hacktoberfest
 
