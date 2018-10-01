@@ -97,8 +97,8 @@ export class MockDebugService implements IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any> {
-		return TPromise.as(null);
+	public startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<boolean> {
+		return TPromise.as(true);
 	}
 
 	public restartSession(): TPromise<any> {
