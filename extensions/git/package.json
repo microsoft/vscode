@@ -266,6 +266,11 @@
         "category": "Git"
       },
       {
+        "command": "git.fetchPrune",
+        "title": "%command.fetchPrune%",
+        "category": "Git"
+      },
+      {
         "command": "git.fetchAll",
         "title": "%command.fetchAll%",
         "category": "Git"

@@ -1539,6 +1539,17 @@ export class CommandCenter {
 		await repository.fetchDefault();
 	}
 
+	@command('git.fetchPrune', { repository: true })
+	async fetchPrune(repository: Repository): Promise<void> {
+		if (repository.remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
+			return;
+		}
+
+		await repository.fetchPrune();
+	}
+
+
 	@command('git.fetchAll', { repository: true })
 	async fetchAll(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
