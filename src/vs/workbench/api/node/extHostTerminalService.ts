@@ -14,6 +14,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ILogService } from 'vs/platform/log/common/log';
 import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalProcess } from 'vs/workbench/parts/terminal/node/terminalProcess';
+import { timeout } from 'vs/base/common/async';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -455,13 +456,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		return this._getTerminalPromises[id];
 	}
 
-	private _delay(timeout: number, result: any): Promise<void> {
-		return new Promise(c => {
-			// TODO: TS 3.1 upgrade. Why are we passing void?
-			setTimeout((c as any)(result), timeout);
-		});
-	}
-
 	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
@@ -475,7 +469,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			} else {
 				// This should only be needed immediately after createTerminalRenderer is called as
 				// the ExtHostTerminal has not yet been iniitalized
-				this._delay(200, c(this._getTerminalByIdEventually(id, retries - 1)));
+				timeout(200).then(() => c(this._getTerminalByIdEventually(id, retries - 1)));
 			}
 		});
 	}
