@@ -47,7 +47,7 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const $ = DOM.$;
 
@@ -188,13 +188,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	public setEditorVisible(visible: boolean, group: IEditorGroup): void {
-		if (!visible) {
-			this.editorMemento.clearState(this.input, this.group);
-		}
-		super.setEditorVisible(visible, group);
-	}
-
 	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions, token: CancellationToken): Thenable<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
@@ -248,6 +241,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
+		this.editorMemento.clearState(this.input, this.group);
 		super.clearInput();
 	}
 
@@ -857,12 +851,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		resolvedSettingsRoot.children.push(resolveExtensionsSettings(dividedGroups.extension || []));
 
-		// Make sure that all extensions' settings are included in search results
-		const cachedState = this.editorMemento.loadState(this.group, this.input);
-		if (cachedState && cachedState.searchQuery) {
-			this.triggerSearch(cachedState.searchQuery);
-		}
-
 		if (this.searchResultModel) {
 			this.searchResultModel.updateChildren();
 		}
@@ -870,7 +858,13 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			return this.renderTree(undefined, forceRefresh);
+			// Make sure that all extensions' settings are included in search results
+			const cachedState = this.editorMemento.loadState(this.group, this.input);
+			if (cachedState && cachedState.searchQuery) {
+				this.triggerSearch(cachedState.searchQuery);
+			} else {
+				return this.renderTree(undefined, forceRefresh);
+			}
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
