@@ -391,12 +391,13 @@ CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, se
 		control.search('@source:default');
 	}
 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
 		title: nls.localize('showDefaultKeybindings', "Show Default Keybindings")
 	},
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR)
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: '1_keyboard_preferences_actions'
 });
 
 CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, serviceAccessor => {
@@ -405,12 +406,13 @@ CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, servi
 		control.search('@source:user');
 	}
 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
 		title: nls.localize('showUserKeybindings', "Show User Keybindings")
 	},
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR)
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: '1_keyboard_preferences_actions'
 });
 
 
