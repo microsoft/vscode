@@ -613,7 +613,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
+	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
 		throw new Error('Not implemented');
 	}
 }

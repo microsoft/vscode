@@ -15,7 +15,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
 	openedFolderUri?: URI;
-	openedFileUri?: URI;
+
 	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
 }
@@ -38,7 +38,6 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 			return windowOnFilePath;
 		}
 	}
-
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 

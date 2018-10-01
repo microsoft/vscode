@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.28.0",
+  "version": "1.29.0",
   "distro": "d880cac56e2f97abfbd0a6b8388caebfa96bb40c",
   "author": {
     "name": "Microsoft Corporation"
@@ -39,7 +39,7 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "1.0.0",
-    "node-pty": "0.7.7",
+    "node-pty": "0.7.8",
     "semver": "^5.5.0",
     "spdlog": "0.7.2",
     "sudo-prompt": "8.2.0",

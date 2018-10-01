@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions, INewWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -62,7 +62,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'setDocumentEdited', arg: [number, boolean]): Thenable<void>;
 	call(command: 'quit'): Thenable<void>;
 	call(command: 'openWindow', arg: [number, URI[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }]): Thenable<void>;
-	call(command: 'openNewWindow'): Thenable<void>;
+	call(command: 'openNewWindow', arg: INewWindowOptions): Thenable<void>;
 	call(command: 'showWindow', arg: number): Thenable<void>;
 	call(command: 'getWindows'): Thenable<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	call(command: 'getWindowCount'): Thenable<number>;
@@ -166,7 +166,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
 			case 'openWindow': return this.service.openWindow(arg[0], arg[1] ? (<URI[]>arg[1]).map(r => URI.revive(r)) : arg[1], arg[2]);
-			case 'openNewWindow': return this.service.openNewWindow();
+			case 'openNewWindow': return this.service.openNewWindow(arg);
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
 			case 'getWindowCount': return this.service.getWindowCount();
@@ -363,8 +363,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return TPromise.wrap(this.channel.call('openWindow', [windowId, paths, options]));
 	}
 
-	openNewWindow(): TPromise<void> {
-		return TPromise.wrap(this.channel.call('openNewWindow'));
+	openNewWindow(options?: INewWindowOptions): TPromise<void> {
+		return this.channel.call('openNewWindow', options);
 	}
 
 	showWindow(windowId: number): TPromise<void> {

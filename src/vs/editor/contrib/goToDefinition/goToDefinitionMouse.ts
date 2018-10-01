@@ -157,7 +157,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), previewValue)
+						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri.fsPath), previewValue)
 					);
 					ref.dispose();
 				});

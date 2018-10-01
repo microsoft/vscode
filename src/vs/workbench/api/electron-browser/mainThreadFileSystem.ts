@@ -40,8 +40,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.delete(handle);
 	}
 
-	$setUriFormatter(scheme: string, formatter: LabelRules): void {
-		this._labelService.registerFormatter(scheme, formatter);
+	$setUriFormatter(selector: string, formatter: LabelRules): void {
+		this._labelService.registerFormatter(selector, formatter);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {

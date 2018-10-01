@@ -44,7 +44,8 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
+// import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -100,6 +101,7 @@ import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/ex
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { runWhenIdle } from 'vs/base/common/async';
 
 /**
  * Services that we require for the Shell
@@ -207,7 +209,7 @@ export class WorkbenchShell extends Disposable {
 				this.logStartupTelemetry(startupInfos);
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = browser.runWhenIdle(() => {
+				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
 					eventuallPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
 				}, 5000);

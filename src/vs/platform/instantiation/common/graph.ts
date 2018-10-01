@@ -39,25 +39,6 @@ export class Graph<T> {
 		return ret;
 	}
 
-	traverse(start: T, inwards: boolean, callback: (data: T) => void): void {
-		const startNode = this.lookup(start);
-		if (!startNode) {
-			return;
-		}
-		this._traverse(startNode, inwards, Object.create(null), callback);
-	}
-
-	private _traverse(node: Node<T>, inwards: boolean, seen: { [key: string]: boolean }, callback: (data: T) => void): void {
-		const key = this._hashFn(node.data);
-		if (seen[key]) {
-			return;
-		}
-		seen[key] = true;
-		callback(node.data);
-		const nodes = inwards ? node.outgoing : node.incoming;
-		forEach(nodes, (entry) => this._traverse(entry.value, inwards, seen, callback));
-	}
-
 	insertEdge(from: T, to: T): void {
 		const fromNode = this.lookupOrInsertNode(from),
 			toNode = this.lookupOrInsertNode(to);
@@ -91,8 +72,11 @@ export class Graph<T> {
 		return this._nodes[this._hashFn(data)];
 	}
 
-	get length(): number {
-		return Object.keys(this._nodes).length;
+	isEmpty(): boolean {
+		for (const _key in this._nodes) {
+			return false;
+		}
+		return true;
 	}
 
 	toString(): string {

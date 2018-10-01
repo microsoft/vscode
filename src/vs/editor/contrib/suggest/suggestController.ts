@@ -273,7 +273,7 @@ export class SuggestController implements IEditorContribution {
 	private static _onDidSelectTelemetry(service: ITelemetryService, item: ISuggestion): void {
 		/* __GDPR__
 			"acceptSuggestion" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/

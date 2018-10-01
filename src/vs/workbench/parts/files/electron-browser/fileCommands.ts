@@ -95,6 +95,16 @@ function save(
 	editorGroupService: IEditorGroupsService
 ): TPromise<any> {
 
+	function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
+		if (!options) {
+			options = { force: true };
+		} else {
+			options.force = true;
+		}
+
+		return options;
+	}
+
 	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 
 		// Save As (or Save untitled with associated path)
@@ -130,6 +140,11 @@ function save(
 
 			// Otherwise, really "Save As..."
 			else {
+
+				// Force a change to the file to trigger external watchers if any
+				// fixes https://github.com/Microsoft/vscode/issues/59655
+				options = ensureForcedSave(options);
+
 				savePromise = textFileService.saveAs(resource, void 0, options);
 			}
 
@@ -163,11 +178,7 @@ function save(
 		}
 
 		// Just save (force a change to the file to trigger external watchers if any)
-		if (!options) {
-			options = { force: true };
-		} else {
-			options.force = true;
-		}
+		options = ensureForcedSave(options);
 
 		return textFileService.save(resource, options);
 	}

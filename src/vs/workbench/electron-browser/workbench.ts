@@ -93,7 +93,7 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import { URI } from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, FileDialogContext } from 'vs/platform/workbench/common/contextkeys';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext } from 'vs/platform/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -115,6 +115,8 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { LabelService, ILabelService } from 'vs/platform/label/common/label';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { FileDialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -415,6 +417,9 @@ export class Workbench extends Disposable implements IPartService {
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
+		// File Dialogs
+		serviceCollection.set(IFileDialogService, new SyncDescriptor(FileDialogService));
+
 		// Backup File Service
 		if (this.workbenchParams.configuration.backupPath) {
 			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
@@ -613,7 +618,6 @@ export class Workbench extends Disposable implements IPartService {
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
-		FileDialogContext.bindTo(this.contextKeyService);
 
 		const sidebarVisibleContextRaw = new RawContextKey<boolean>('sidebarVisible', false);
 		this.sideBarVisibleContext = sidebarVisibleContextRaw.bindTo(this.contextKeyService);

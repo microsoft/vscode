@@ -49,6 +49,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsPicker, ActiveEditorGroupPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/parts/editor/editorWidgets';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -212,6 +214,9 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
+
+// Register Editor Contributions
+registerEditorContribution(OpenWorkspaceButtonContribution);
 
 // Register Editor Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);

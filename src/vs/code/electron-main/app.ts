@@ -236,7 +236,7 @@ export class CodeApplication {
 		});
 
 		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
-			this.labelService.registerFormatter(data.scheme, data.formatter);
+			this.labelService.registerFormatter(data.selector, data.formatter);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: Event) => {

@@ -254,7 +254,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -273,7 +273,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');

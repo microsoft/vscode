@@ -124,7 +124,7 @@ export class CommentNode extends Disposable {
 		const container = dom.append(this._commentEditContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions());
 		const resource = URI.parse(`comment:commentinput-${this.comment.commentId}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
+		this._commentEditorModel = this.modelService.createModel('', this.modeService.getOrCreateModeByFilepathOrFirstLine(resource.path), resource, true);
 
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.comment.body.value);
