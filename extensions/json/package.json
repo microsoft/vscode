@@ -48,6 +48,16 @@
           ".jsonc"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "json5",
+        "aliases": [
+          "JSON5"
+        ],
+        "extensions": [
+          ".json5"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -60,6 +70,11 @@
         "language": "jsonc",
         "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
+      },
+      {
+        "language": "json5",
+        "scopeName": "source.json.5",
+        "path": "./syntaxes/JSON5.tmLanguage.json"
       }
     ],
     "jsonValidation": [
