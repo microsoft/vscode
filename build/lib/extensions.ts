@@ -174,6 +174,12 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
+function error(err: any): Stream {
+	const result = es.through();
+	setTimeout(() => result.emit('error', err));
+	return result;
+}
+
 const baseHeaders = {
 	'X-Market-Client-Id': 'VSCode Build',
 	'User-Agent': 'VSCode Build',
@@ -197,13 +203,6 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 	const packageJsonFilter = filter('package.json', { restore: true });
 
 	return remote('', options)
-		.on('error', function (err) {
-			console.log('Error downloading extension:', util.colors.yellow(extensionName + "@" + version));
-			console.error(err);
-		})
-		.on('end', function () {
-			console.log('Downloaded extension:', util.colors.yellow(extensionName + "@" + version));
-		})
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
 		.pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
