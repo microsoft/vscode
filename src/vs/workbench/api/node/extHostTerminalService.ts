@@ -457,7 +457,8 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	private _delay(timeout: number, result: any): Promise<void> {
 		return new Promise(c => {
-			setTimeout(c(result), timeout);
+			// TODO: TS 3.1 upgrade. Why are we passing void?
+			setTimeout((c as any)(result), timeout);
 		});
 	}
 

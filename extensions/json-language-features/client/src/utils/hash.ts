@@ -23,7 +23,8 @@ export function hash(obj: any, hashVal = 0): number {
 		case 'number':
 			return numberHash(obj, hashVal);
 		case 'undefined':
-			return numberHash(obj, 937);
+			// TODO: TS 3.1 upgrade. Why are we passing undefined here?
+			return numberHash(obj as any, 937);
 		default:
 			return numberHash(obj, 617);
 	}

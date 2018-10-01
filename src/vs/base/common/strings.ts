@@ -99,10 +99,9 @@ export function ltrim(haystack?: string, needle?: string): string {
 		return haystack;
 	}
 
-	let offset = 0,
-		idx = -1;
+	let offset = 0;
 
-	while ((idx = haystack.indexOf(needle, offset)) === offset) {
+	while (haystack.indexOf(needle, offset) === offset) {
 		offset = offset + needleLen;
 	}
 	return haystack.substring(offset);
