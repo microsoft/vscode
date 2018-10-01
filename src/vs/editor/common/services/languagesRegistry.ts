@@ -292,7 +292,7 @@ export class LanguagesRegistry {
 		return [];
 	}
 
-	public getModeIdsFromFilenameOrFirstLine(filepath: string, firstLine?: string): string[] {
+	public getModeIdsFromFilepathOrFirstLine(filepath: string, firstLine?: string): string[] {
 		if (!filepath && !firstLine) {
 			return [];
 		}

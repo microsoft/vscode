@@ -194,7 +194,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 				if (fileOnDiskModel) {
 					mode = this.modeService.getOrCreateMode(fileOnDiskModel.getModeId());
 				} else {
-					mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileOnDiskResource.fsPath);
+					mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(fileOnDiskResource.fsPath);
 				}
 
 				codeEditorModel = this.modelService.createModel(content.value, mode, resource);

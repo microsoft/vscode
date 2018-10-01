@@ -1,3 +1,10 @@
+resources:
+  containers:
+  - container: vscode-x64
+    image: joaomoreno/vscode-linux-build-agent:x64
+  - container: vscode-ia32
+    image: joaomoreno/vscode-linux-build-agent:ia32
+
 jobs:
 - job: Windows
   condition: eq(variables['VSCODE_BUILD_WIN32'], 'true')
@@ -19,17 +26,21 @@ jobs:
 
 - job: Linux
   condition: eq(variables['VSCODE_BUILD_LINUX'], 'true')
-  pool: linux-x64
+  pool:
+    vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: x64
+  container: vscode-x64
   steps:
   - template: linux/product-build-linux.yml
 
 - job: Linux32
   condition: eq(variables['VSCODE_BUILD_LINUX_32BIT'], 'true')
-  pool: linux-ia32
+  pool:
+    vmImage: 'Ubuntu-16.04'
   variables:
     VSCODE_ARCH: ia32
+  container: vscode-ia32
   steps:
   - template: linux/product-build-linux.yml
 

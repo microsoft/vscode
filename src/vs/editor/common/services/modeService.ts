@@ -37,7 +37,7 @@ export interface IModeService {
 	getMimeForMode(modeId: string): string;
 	getLanguageName(modeId: string): string;
 	getModeIdForLanguageName(alias: string): string;
-	getModeIdByFilenameOrFirstLine(filepath: string, firstLine?: string): string;
+	getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
 	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier;
 	getConfigurationFiles(modeId: string): URI[];
@@ -46,5 +46,5 @@ export interface IModeService {
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;
 	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode>;
 	getOrCreateModeByLanguageName(languageName: string): TPromise<IMode>;
-	getOrCreateModeByFilenameOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode>;
+	getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode>;
 }

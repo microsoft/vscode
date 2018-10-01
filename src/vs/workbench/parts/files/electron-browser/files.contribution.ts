@@ -35,7 +35,6 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
@@ -58,7 +57,7 @@ export class OpenExplorerViewletAction extends ShowViewletAction {
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormatter(Schemas.file, {
+		labelService.registerFormatter('file://', {
 			uri: {
 				label: '${authority}${path}',
 				separator: nativeSep,
