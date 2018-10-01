@@ -23,6 +23,8 @@ export class Promise<T = any> {
 	public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 	public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
 
+	public static any<T>(promises: (T | PromiseLike<T>)[]): Promise<{ key: string; value: Promise<T>; }>;
+
 	public static wrap<T>(value: T | PromiseLike<T>): Promise<T>;
 
 	public static wrapError<T = never>(error: Error): Promise<T>;

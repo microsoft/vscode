@@ -54,8 +54,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			canPickMany: options && options.canPickMany
 		}, token);
 
-		return Promise.race(<Thenable<false | Item[]>[]>[quickPickWidget.then(() => false), itemsPromise]).then(value => {
-			if (value === false) {
+		return TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
+			if (values.key === '0') {
 				return undefined;
 			}
 
