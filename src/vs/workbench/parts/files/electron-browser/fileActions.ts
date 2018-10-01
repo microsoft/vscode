@@ -21,7 +21,7 @@ import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputB
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat, AutoSaveConfiguration } from 'vs/platform/files/common/files';
 import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
@@ -171,17 +171,17 @@ class TriggerRenameFileAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError(new Error('No context provided to BaseEnableFileRenameAction.'));
+			return Promise.reject(new Error('No context provided to BaseEnableFileRenameAction.'));
 		}
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseEnableFileRenameAction.'));
+			return Promise.reject(new Error('Invalid viewlet state provided to BaseEnableFileRenameAction.'));
 		}
 
 		const stat = <ExplorerItem>context.stat;
 		if (!stat) {
-			return TPromise.wrapError(new Error('Invalid stat provided to BaseEnableFileRenameAction.'));
+			return Promise.reject(new Error('Invalid stat provided to BaseEnableFileRenameAction.'));
 		}
 
 		viewletState.setEditable(stat, {
@@ -238,12 +238,12 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError(new Error('No context provided to BaseRenameFileAction.'));
+			return Promise.reject(new Error('No context provided to BaseRenameFileAction.'));
 		}
 
 		let name = <string>context.value;
 		if (!name) {
-			return TPromise.wrapError(new Error('No new name provided to BaseRenameFileAction.'));
+			return Promise.reject(new Error('No new name provided to BaseRenameFileAction.'));
 		}
 
 		// Automatically trim whitespaces and trailing dots to produce nice file names
@@ -336,12 +336,12 @@ export class BaseNewAction extends BaseFileAction {
 
 	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return TPromise.wrapError(new Error('No context provided to BaseNewAction.'));
+			return Promise.reject(new Error('No context provided to BaseNewAction.'));
 		}
 
 		const viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseNewAction.'));
+			return Promise.reject(new Error('Invalid viewlet state provided to BaseNewAction.'));
 		}
 
 		let folder = this.presetFolder;
@@ -356,10 +356,10 @@ export class BaseNewAction extends BaseFileAction {
 		}
 
 		if (!folder) {
-			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
+			return Promise.reject(new Error('Invalid parent folder to create.'));
 		}
 		if (folder.isReadonly) {
-			return TPromise.wrapError(new Error('Parent folder is readonly.'));
+			return Promise.reject(new Error('Parent folder is readonly.'));
 		}
 		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
 			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
@@ -838,7 +838,7 @@ export class AddFilesAction extends BaseFileAction {
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 								// of the target file would replace the contents of the added file. since we already
 								// confirmed the overwrite before, this is OK.
-								let revertPromise = TPromise.wrap(null);
+								let revertPromise: Thenable<ITextFileOperationResult> = Promise.resolve(null);
 								if (this.textFileService.isDirty(targetFile)) {
 									revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 								}

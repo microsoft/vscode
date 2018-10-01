@@ -351,7 +351,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
 				if (!this.partService.isCreated()) {
-					return TPromise.wrap(null);
+					return Promise.resolve(null);
 				}
 
 				// Otherwise restore last used file: By lastActiveFileResource

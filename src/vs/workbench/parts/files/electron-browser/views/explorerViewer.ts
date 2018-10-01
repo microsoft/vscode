@@ -946,7 +946,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmedPromise: TPromise<IConfirmationResult> = TPromise.wrap({ confirmed: true });
+				let confirmedPromise: TPromise<IConfirmationResult> = Promise.resolve({ confirmed: true });
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 					confirmedPromise = this.dialogService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
