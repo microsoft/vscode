@@ -35,6 +35,7 @@ export interface IRawSearch {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	previewOptions?: ITextSearchPreviewOptions;
+	ignoreGlobal?: boolean;
 }
 
 export interface ITelemetryEvent {
