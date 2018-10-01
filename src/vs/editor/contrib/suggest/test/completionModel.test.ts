@@ -5,7 +5,6 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestionKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
@@ -36,7 +35,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 			}
 		};
 
-		resolve(): TPromise<void> {
+		resolve(): Promise<void> {
 			return null;
 		}
 	};

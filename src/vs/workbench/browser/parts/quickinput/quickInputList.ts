@@ -49,7 +49,6 @@ class ListElement implements IListElement {
 	saneLabel: string;
 	saneDescription?: string;
 	saneDetail?: string;
-	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
@@ -488,7 +487,7 @@ export class QuickInputList {
 				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
 				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
 
-				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;

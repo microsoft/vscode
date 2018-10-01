@@ -60,7 +60,7 @@ export class Debugger implements IDebugger {
 
 		// a "debugServer" attribute in the launch config takes precedence
 		if (typeof config.debugServer === 'number') {
-			return TPromise.wrap(<IDebugAdapterServer>{
+			return Promise.resolve(<IDebugAdapterServer>{
 				type: 'server',
 				port: config.debugServer
 			});

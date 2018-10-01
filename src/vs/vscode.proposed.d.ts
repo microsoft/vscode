@@ -1081,7 +1081,7 @@ declare module 'vscode' {
 		/**
 		 * Show this item always
 		 */
-		shouldAlwaysShow?: boolean;
+		alwaysShow?: boolean;
 	}
 	//#endregion
 }

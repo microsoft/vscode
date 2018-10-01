@@ -98,7 +98,7 @@ class CreateBranchItem implements QuickPickItem {
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
-	get shouldAlwaysShow(): boolean { return true; }
+	get alwaysShow(): boolean { return true; }
 
 	async run(repository: Repository): Promise<void> {
 		await this.cc.branch(repository);

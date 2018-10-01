@@ -169,7 +169,7 @@ export class DebugSession implements IDebugSession {
 				return void 0;
 			});
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	/**
@@ -186,7 +186,7 @@ export class DebugSession implements IDebugSession {
 				return void 0;
 			});
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	/**
@@ -198,7 +198,7 @@ export class DebugSession implements IDebugSession {
 				return void 0;
 			});
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	/**
@@ -208,13 +208,13 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			return this.raw.restart();
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): TPromise<ActualBreakpoints | undefined> {
 
 		if (!this.raw) {
-			return TPromise.wrapError(new Error('no debug adapter'));
+			return Promise.reject(new Error('no debug adapter'));
 		}
 
 		if (!this.raw.readyForBreakpoints) {
@@ -271,7 +271,7 @@ export class DebugSession implements IDebugSession {
 			}
 			return Promise.resolve(undefined);
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): TPromise<any> {
@@ -281,21 +281,21 @@ export class DebugSession implements IDebugSession {
 			}
 			return Promise.resolve(null);
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	customRequest(request: string, args: any): TPromise<DebugProtocol.Response> {
 		if (this.raw) {
 			return this.raw.custom(request, args);
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	stackTrace(threadId: number, startFrame: number, levels: number): TPromise<DebugProtocol.StackTraceResponse> {
 		if (this.raw) {
 			return this.raw.stackTrace({ threadId, startFrame, levels });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	exceptionInfo(threadId: number): TPromise<IExceptionInfo> {
@@ -312,14 +312,14 @@ export class DebugSession implements IDebugSession {
 				return null;
 			});
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	scopes(frameId: number): TPromise<DebugProtocol.ScopesResponse> {
 		if (this.raw) {
 			return this.raw.scopes({ frameId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	variables(variablesReference: number, filter: 'indexed' | 'named', start: number, count: number): TPromise<DebugProtocol.VariablesResponse | undefined> {
@@ -333,83 +333,83 @@ export class DebugSession implements IDebugSession {
 		if (this.raw) {
 			return this.raw.evaluate({ expression, frameId, context });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	restartFrame(frameId: number, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
 		if (this.raw) {
 			return this.raw.restartFrame({ frameId }, threadId);
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	next(threadId: number): TPromise<DebugProtocol.NextResponse> {
 		if (this.raw) {
 			return this.raw.next({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	stepIn(threadId: number): TPromise<DebugProtocol.StepInResponse> {
 		if (this.raw) {
 			return this.raw.stepIn({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	stepOut(threadId: number): TPromise<DebugProtocol.StepOutResponse> {
 		if (this.raw) {
 			return this.raw.stepOut({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	stepBack(threadId: number): TPromise<DebugProtocol.StepBackResponse> {
 		if (this.raw) {
 			return this.raw.stepBack({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	continue(threadId: number): TPromise<DebugProtocol.ContinueResponse> {
 		if (this.raw) {
 			return this.raw.continue({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	reverseContinue(threadId: number): TPromise<DebugProtocol.ReverseContinueResponse> {
 		if (this.raw) {
 			return this.raw.reverseContinue({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	pause(threadId: number): TPromise<DebugProtocol.PauseResponse> {
 		if (this.raw) {
 			return this.raw.pause({ threadId });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	terminateThreads(threadIds?: number[]): TPromise<DebugProtocol.TerminateThreadsResponse> {
 		if (this.raw) {
 			return this.raw.terminateThreads({ threadIds });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse> {
 		if (this.raw) {
 			return this.raw.setVariable({ variablesReference, name, value });
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	loadSource(resource: URI): TPromise<DebugProtocol.SourceResponse> {
 
 		if (!this.raw) {
-			return TPromise.wrapError(new Error('no debug adapter'));
+			return Promise.reject(new Error('no debug adapter'));
 		}
 
 		const source = this.getSourceForUri(resource);
@@ -442,7 +442,7 @@ export class DebugSession implements IDebugSession {
 				return [];
 			});
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
@@ -472,7 +472,7 @@ export class DebugSession implements IDebugSession {
 				return result;
 			});
 		}
-		return TPromise.wrapError(new Error('no debug adapter'));
+		return Promise.reject(new Error('no debug adapter'));
 	}
 
 	//---- threads

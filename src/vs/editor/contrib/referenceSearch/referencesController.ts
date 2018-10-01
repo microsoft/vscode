@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -27,7 +26,7 @@ export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSe
 
 export interface RequestOptions {
 	getMetaTitle(model: ReferencesModel): string;
-	onGoto?: (reference: Location) => TPromise<any>;
+	onGoto?: (reference: Location) => Thenable<any>;
 }
 
 export abstract class ReferencesController implements editorCommon.IEditorContribution {
@@ -194,7 +193,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._requestIdPool += 1; // Cancel pending requests
 	}
 
-	private _gotoReference(ref: Location): TPromise<any> {
+	private _gotoReference(ref: Location): Thenable<any> {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
