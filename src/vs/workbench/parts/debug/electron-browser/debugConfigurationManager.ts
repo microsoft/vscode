@@ -122,7 +122,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
 		return this.activateDebuggers('onDebugInitialConfigurations')
-			.then(() => Promise.all(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
+			.then(() => TPromise.join(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
 				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
 

@@ -214,7 +214,7 @@ export class ResourcesDropHandler {
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
 		if (resourcesWithBackups.length > 0) {
-			return Promise.all(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
+			return TPromise.join(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
 		}
 
 		// Check for workspace file being dropped if we are allowed to do so
@@ -263,7 +263,7 @@ export class ResourcesDropHandler {
 			folders: []
 		};
 
-		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
+		return TPromise.join(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
 			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {

@@ -402,7 +402,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	private doRefresh(elements: ITreeItem[]): TPromise<void> {
 		if (this.tree) {
-			return Promise.all(elements.map(e => this.tree.refresh(e))).then(() => null);
+			return TPromise.join(elements.map(e => this.tree.refresh(e))).then(() => null);
 		}
 		return Promise.resolve(null);
 	}

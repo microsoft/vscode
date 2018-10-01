@@ -202,7 +202,7 @@ export class DebugHoverWidget implements IContentWidget {
 	private findExpressionInStackFrame(namesToFind: string[]): TPromise<IExpression> {
 		return this.debugService.getViewModel().focusedStackFrame.getScopes()
 			.then(scopes => scopes.filter(s => !s.expensive))
-			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
+			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
 			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : null);

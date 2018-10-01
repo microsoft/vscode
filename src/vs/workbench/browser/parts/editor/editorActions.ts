@@ -664,7 +664,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 	}
 
 	protected doCloseAll(): TPromise<any> {
-		return Promise.all(this.groupsToClose.map(g => g.closeAllEditors()));
+		return TPromise.join(this.groupsToClose.map(g => g.closeAllEditors()));
 	}
 }
 
@@ -683,7 +683,7 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 	}
 
 	protected doCloseAll(): TPromise<any> {
-		return Promise.all(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
+		return TPromise.join(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
 			this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
 		});
 	}
@@ -704,7 +704,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 
 	run(context?: IEditorIdentifier): TPromise<any> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
+		return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
 			if (g.id === groupToSkip.id) {
 				return TPromise.as(null);
 			}
@@ -731,7 +731,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 	run(): TPromise<any> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor) {
-			return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
+			return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
 		}
 
 		return TPromise.as(null);

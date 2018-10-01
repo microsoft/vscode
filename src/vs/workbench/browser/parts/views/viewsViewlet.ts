@@ -193,7 +193,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible)
-			.then(() => Promise.all(this.panels.filter(view => view.isVisible() !== visible)
+			.then(() => TPromise.join(this.panels.filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
 	}

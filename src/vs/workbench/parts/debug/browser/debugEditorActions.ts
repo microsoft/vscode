@@ -42,7 +42,7 @@ class ToggleBreakpointAction extends EditorAction {
 		const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
 
 		if (bps.length) {
-			return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+			return TPromise.join(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 		}
 		if (debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
 			return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber }]);

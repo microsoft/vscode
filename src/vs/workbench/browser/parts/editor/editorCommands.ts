@@ -475,7 +475,7 @@ function registerCloseEditorCommands() {
 				contexts.push({ groupId: activeGroup.id }); // active group as fallback
 			}
 
-			return Promise.all(distinct(contexts.map(c => c.groupId)).map(groupId =>
+			return TPromise.join(distinct(contexts.map(c => c.groupId)).map(groupId =>
 				editorGroupService.getGroup(groupId).closeEditors({ savedOnly: true })
 			));
 		}
@@ -495,7 +495,7 @@ function registerCloseEditorCommands() {
 				distinctGroupIds.push(editorGroupService.activeGroup.id);
 			}
 
-			return Promise.all(distinctGroupIds.map(groupId =>
+			return TPromise.join(distinctGroupIds.map(groupId =>
 				editorGroupService.getGroup(groupId).closeAllEditors()
 			));
 		}
@@ -518,7 +518,7 @@ function registerCloseEditorCommands() {
 
 			const groupIds = distinct(contexts.map(context => context.groupId));
 
-			return Promise.all(groupIds.map(groupId => {
+			return TPromise.join(groupIds.map(groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				const editors = contexts
 					.filter(context => context.groupId === groupId)
@@ -567,7 +567,7 @@ function registerCloseEditorCommands() {
 
 			const groupIds = distinct(contexts.map(context => context.groupId));
 
-			return Promise.all(groupIds.map(groupId => {
+			return TPromise.join(groupIds.map(groupId => {
 				const group = editorGroupService.getGroup(groupId);
 				const editors = contexts
 					.filter(context => context.groupId === groupId)
