@@ -262,7 +262,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 	}
 
 	startSession(): TPromise<void> {
-		return new TPromise<void>((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			let connected = false;
 			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
 				this.connect(this.socket, this.socket);
@@ -312,7 +312,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 	startSession(): TPromise<void> {
 
-		return new TPromise<void>((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 
 			// verify executables
 			if (this.adapterExecutable.command) {
@@ -414,7 +414,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE
 		if (platform.isWindows) {
-			return new TPromise<void>((c, e) => {
+			return new Promise<void>((c, e) => {
 				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess.pid}`, function (err, stdout, stderr) {
 					if (err) {
 						return e(err);

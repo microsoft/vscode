@@ -574,7 +574,7 @@ export class DebugService implements IDebugService {
 				// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
 				return (isAutoRestart ? session.disconnect(true) : session.terminate(true)).then(() => {
 
-					return new TPromise<void>((c, e) => {
+					return new Promise<void>((c, e) => {
 						setTimeout(() => {
 							// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
 							let needsToSubstitute = false;
@@ -706,7 +706,7 @@ export class DebugService implements IDebugService {
 				}
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
-					return new TPromise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => {
+					return new Promise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => {
 						taskStarted = true;
 						c(null);
 					}));
@@ -715,7 +715,7 @@ export class DebugService implements IDebugService {
 				return taskPromise;
 			});
 
-			return new TPromise((c, e) => {
+			return new Promise((c, e) => {
 				promise.then(result => {
 					taskStarted = true;
 					c(result);

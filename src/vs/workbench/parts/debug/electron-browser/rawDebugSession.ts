@@ -507,8 +507,8 @@ export class RawDebugSession {
 		}
 	}
 
-	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): TPromise<R> {
-		return new TPromise<R>((completeDispatch, errorDispatch) => {
+	private send<R extends DebugProtocol.Response>(command: string, args: any, timeout?: number): Promise<R> {
+		return new Promise<R>((completeDispatch, errorDispatch) => {
 			this.debugAdapter.sendRequest(command, args, (response: R) => {
 				if (response.success) {
 					completeDispatch(response);
