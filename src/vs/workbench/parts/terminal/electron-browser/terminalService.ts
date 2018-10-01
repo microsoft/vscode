@@ -18,7 +18,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/node/terminal';
+import { getDefaultShell } from 'vs/workbench/parts/terminal/node/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -161,7 +161,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this._configHelper.config.shell.windows !== getTerminalDefaultShellWindows()) {
+		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
 			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
 			return;
 		}
