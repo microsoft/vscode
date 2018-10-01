@@ -222,7 +222,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
-		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
+		return this.modeService.getOrCreateModeByFilepathOrFirstLine(fileName).then(mode => {
 			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
 				let lines = content.split(/\r\n|\r|\n/);
 

@@ -494,7 +494,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	protected getOrCreateMode(modeService: IModeService, preferredModeIds: string, firstLineText?: string): TPromise<IMode> {
-		return modeService.getOrCreateModeByFilenameOrFirstLine(this.resource.fsPath, firstLineText);
+		return modeService.getOrCreateModeByFilepathOrFirstLine(this.resource.fsPath, firstLineText);
 	}
 
 	private onModelContentChanged(): void {
