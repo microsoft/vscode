@@ -3533,6 +3533,7 @@ growl@1.9.2:
 gulp-atom-electron@^1.18.0:
   version "1.18.0"
   resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.18.0.tgz#94c40768bfdaa08d66594918d1a7b01af591d2b7"
+  integrity sha512-Uo7zTgs1kRAbQl/Lu7ln/kVizUDmx03MDA2mLr1uf25pQAtUGCZPuMY+FpLURcy9FRPHOb4rTLlvbq579yvF6A==
   dependencies:
     event-stream "^3.1.7"
     github-releases "^0.4.1"
@@ -9226,10 +9227,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.8.0-beta4:
-  version "3.8.0-beta4"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta4.tgz#669b8aab0990f42c4aa368189baa6fdecb277488"
-  integrity sha512-C/7GKMgQmSlQc2t+4oLUGfByrS1Ab1n+VWPXZG7ZmwFZC4O5yikrm8+/cpBLC7uKWZpt96Vo632DdO2qOo49qQ==
+vscode-xterm@3.9.0-beta1:
+  version "3.9.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta1.tgz#dfe0ff41ee062a9fbcda9eb050dcd9e73fe34278"
+  integrity sha512-PMLI+4n6ysY2VB/6UF9j1OZ8RR4wATc+mdVFb1fEVWI4k6i6mdTNpMrd9U5cLJaswfr+hlql2PQL9EprhuKRNA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
