@@ -19,8 +19,12 @@ export class InstantiationService extends BaseInstantiationService {
 	private static _newIdleProxyService<T>(executor: () => T): T {
 		const idle = new IdleValue(executor);
 		return <T>new Proxy(Object.create(null), {
-			get(_target, prop) {
+			get(_target: T, prop: PropertyKey): any {
 				return idle.getValue()[prop];
+			},
+			set(_target: T, p: PropertyKey, value: any): boolean {
+				idle.getValue()[p] = value;
+				return true;
 			}
 		});
 	}
