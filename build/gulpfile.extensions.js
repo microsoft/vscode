@@ -37,8 +37,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const relativeDirname = path.dirname(tsconfigFile);
 
 	const tsconfig = require(absolutePath);
-	const tsOptions = _.assign({}, tsconfig.compilerOptions, tsconfig.extends ? require(path.join(extensionsPath, relativeDirname, tsconfig.extends)).compilerOptions : {});
-
+	const tsOptions = _.assign({}, tsconfig.extends ? require(path.join(extensionsPath, relativeDirname, tsconfig.extends)).compilerOptions : {}, tsconfig.compilerOptions);
 	tsOptions.verbose = false;
 	tsOptions.sourceMap = true;
 
