@@ -597,6 +597,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.RESOURCE
 		},
+		'search.useGlobalIgnoreFiles': {
+			type: 'boolean',
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files."),
+			default: false,
+		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
