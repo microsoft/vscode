@@ -386,10 +386,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 					options = Object.create(null);
 				}
 
-				options.force = true;
 				options.reason = SaveReason.EXPLICIT;
 
-				model.save(options).then(() => !model.isDirty());
+				return model.save(options).then(() => !model.isDirty());
 			}
 		}
 
