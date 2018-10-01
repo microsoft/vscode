@@ -121,6 +121,10 @@
 	box-sizing: border-box;
 }
 
+.settings-editor > .settings-body > .no-results a.prominent {
+	text-decoration: underline;
+}
+
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	margin-left: 0px;

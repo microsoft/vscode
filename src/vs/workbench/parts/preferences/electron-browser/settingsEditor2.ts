@@ -47,6 +47,7 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { Disposable } from 'vscode';
 
 const $ = DOM.$;
 
@@ -85,6 +86,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 	private noResultsMessage: HTMLElement;
+	private clearFilterLinkContainer: HTMLElement;
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
@@ -115,6 +117,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
+
+	private disposables: Disposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -313,6 +317,16 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue('');
 	}
 
+	clearSearchFilters(): void {
+		let query = this.searchWidget.getValue();
+
+		SettingsEditor2.SUGGESTIONS.forEach(suggestion => {
+			query = query.replace(suggestion, '');
+		});
+
+		this.searchWidget.setValue(query.trim());
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -445,7 +459,31 @@ export class SettingsEditor2 extends BaseEditor {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results'));
+
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+
+		this.clearFilterLinkContainer = $('span.clear-search-filters');
+
+		this.clearFilterLinkContainer.textContent = ' - ';
+		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
+		this.disposables.push(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchFilters();
+		}));
+
+		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
+
+		const clearSearchContainer = $('span.clear-search');
+		clearSearchContainer.textContent = ' - ';
+
+		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
+		this.disposables.push(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchResults();
+		}));
+
+		DOM.append(this.noResultsMessage, clearSearchContainer);
+
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
@@ -763,6 +801,11 @@ export class SettingsEditor2 extends BaseEditor {
 		this.telemetryService.publicLog('settingsEditor.settingModified2', data2);
 	}
 
+	dispose() {
+		this.disposables.forEach(disposable => disposable.dispose());
+		super.dispose();
+	}
+
 	private render(token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
@@ -967,6 +1010,11 @@ export class SettingsEditor2 extends BaseEditor {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters.add(tag));
+
+			// show or hide 'Clear Filters'-link
+			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters.size > 0
+				? 'initial'
+				: 'none';
 		}
 
 		if (query && query !== '@') {
