@@ -67,6 +67,7 @@
 	"config.autoRepositoryDetection.openEditors": "Scan for parent folders of open files.",
 	"config.autorefresh": "Whether auto refreshing is enabled.",
 	"config.autofetch": "Whether auto fetching is enabled.",
+	"config.autofetchPeriod": "Time period, in minutes, between each auto fetch run",
 	"config.confirmSync": "Confirm before synchronizing git repositories.",
 	"config.countBadge": "Controls the git badge counter.",
 	"config.countBadge.all": "Count all changes.",

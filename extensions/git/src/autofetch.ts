@@ -19,15 +19,18 @@ function isRemoteOperation(operation: Operation): boolean {
 
 export class AutoFetcher {
 
-	private static readonly Period = 3 * 60 * 1000 /* three minutes */;
 	private static DidInformUser = 'autofetch.didInformUser';
 
-	private _onDidChange = new EventEmitter<boolean>();
+	private _onDidChange = new EventEmitter<boolean | number>();
 	private onDidChange = this._onDidChange.event;
 
 	private _enabled: boolean = false;
 	get enabled(): boolean { return this._enabled; }
 	set enabled(enabled: boolean) { this._enabled = enabled; this._onDidChange.fire(enabled); }
+
+	private _timeout: number = workspace.getConfiguration('git').get<number>('autofetchPeriod', 3) * 60 * 1000;
+	private get timeout(): number { return this._timeout; }
+	private set timeout(minutes: number) { this._timeout = minutes * 60 * 1000; this._onDidChange.fire(minutes); }
 
 	private disposables: Disposable[] = [];
 
@@ -72,19 +75,19 @@ export class AutoFetcher {
 
 	private onConfiguration(): void {
 		const gitConfig = workspace.getConfiguration('git');
+		const minutes = gitConfig.get<number>('autofetchPeriod', 3);
+		const autofetch = gitConfig.get<boolean>('autofetch');
 
-		if (gitConfig.get<boolean>('autofetch') === false) {
-			this.disable();
-		} else {
-			this.enable();
+		if (this.timeout !== minutes) {
+			this.timeout = minutes;
+		}
+
+		if (this.enabled !== autofetch) {
+			autofetch ? this.enable() : this.disable();
 		}
 	}
 
 	enable(): void {
-		if (this.enabled) {
-			return;
-		}
-
 		this.enabled = true;
 		this.run();
 	}
@@ -113,9 +116,9 @@ export class AutoFetcher {
 				return;
 			}
 
-			const timeout = new Promise(c => setTimeout(c, AutoFetcher.Period));
-			const whenDisabled = eventToPromise(filterEvent(this.onDidChange, enabled => !enabled));
-			await Promise.race([timeout, whenDisabled]);
+			const timeout = new Promise(c => setTimeout(c, this.timeout));
+			const onChanged = eventToPromise(filterEvent(this.onDidChange, () => true));
+			await Promise.race([timeout, onChanged]);
 		}
 	}
 

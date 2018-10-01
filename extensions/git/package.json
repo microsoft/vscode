@@ -1000,6 +1000,12 @@
             "usesOnlineServices"
           ]
         },
+        "git.autofetchPeriod": {
+          "type": "number",
+          "scope":"resource",
+          "description": "%config.autofetchPeriod%",
+          "default": 3
+        },
         "git.branchValidationRegex": {
           "type": "string",
           "description": "%config.branchValidationRegex%",
