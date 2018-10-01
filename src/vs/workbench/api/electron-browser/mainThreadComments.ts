@@ -16,7 +16,7 @@ import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, Mai
 import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
@@ -77,6 +77,12 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				},
 				replyToCommentThread: async (uri, range, thread, text, token) => {
 					return this._proxy.$replyToCommentThread(handle, uri, range, thread, text);
+				},
+				editComment: async (uri, comment, text, token) => {
+					return this._proxy.$editComment(handle, uri, comment, text);
+				},
+				deleteComment: async (uri, comment, token) => {
+					return this._proxy.$deleteComment(handle, uri, comment);
 				}
 			}
 		);

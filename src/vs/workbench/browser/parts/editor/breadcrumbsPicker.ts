@@ -15,7 +15,7 @@ import * as glob from 'vs/base/common/glob';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/paths';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/breadcrumbscontrol';
@@ -38,6 +38,14 @@ export function createBreadcrumbsPicker(instantiationService: IInstantiationServ
 	return instantiationService.createInstance(ctor, parent);
 }
 
+interface ILayoutInfo {
+	maxHeight: number;
+	width: number;
+	arrowSize: number;
+	arrowOffset: number;
+	inputHeight: number;
+}
+
 export abstract class BreadcrumbsPicker {
 
 	protected readonly _disposables = new Array<IDisposable>();
@@ -46,6 +54,7 @@ export abstract class BreadcrumbsPicker {
 	protected readonly _treeContainer: HTMLDivElement;
 	protected readonly _tree: HighlightingWorkbenchTree;
 	protected readonly _focus: dom.IFocusTracker;
+	private _layoutInfo: ILayoutInfo;
 
 	private readonly _onDidPickElement = new Emitter<{ target: any, payload: any }>();
 	readonly onDidPickElement: Event<{ target: any, payload: any }> = this._onDidPickElement.event;
@@ -71,9 +80,7 @@ export abstract class BreadcrumbsPicker {
 		const color = theme.getColor(breadcrumbsPickerBackground);
 
 		this._arrow = document.createElement('div');
-		this._arrow.style.width = '0';
-		this._arrow.style.borderStyle = 'solid';
-		this._arrow.style.borderWidth = '8px';
+		this._arrow.className = 'arrow';
 		this._arrow.style.borderColor = `transparent transparent ${color.toString()}`;
 		this._domNode.appendChild(this._arrow);
 
@@ -110,6 +117,16 @@ export abstract class BreadcrumbsPicker {
 				this._onDidFocusElement.fire({ target, payload: e.payload });
 			}
 		}));
+		this._disposables.push(this._tree.onDidStartFiltering(() => {
+			this._layoutInfo.inputHeight = 36;
+			this._layout();
+		}));
+		this._disposables.push(this._tree.onDidExpandItem(() => {
+			this._layout();
+		}));
+		this._disposables.push(this._tree.onDidCollapseItem(() => {
+			this._layout();
+		}));
 
 		// tree icon theme specials
 		dom.addClass(this._treeContainer, 'file-icon-themable-tree');
@@ -131,12 +148,17 @@ export abstract class BreadcrumbsPicker {
 		this._focus.dispose();
 	}
 
-	setInput(input: any): void {
+	setInput(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): void {
 		let actualInput = this._getInput(input);
 		this._tree.setInput(actualInput).then(() => {
+
+			this._layoutInfo = { maxHeight, width, arrowSize, arrowOffset, inputHeight: 0 };
+			this._layout();
+
+			// use proper selection, reveal
 			let selection = this._getInitialSelection(this._tree, input);
 			if (selection) {
-				this._tree.reveal(selection, .5).then(() => {
+				return this._tree.reveal(selection, .5).then(() => {
 					this._tree.setSelection([selection], this._tree);
 					this._tree.setFocus(selection);
 					this._tree.domFocus();
@@ -145,27 +167,31 @@ export abstract class BreadcrumbsPicker {
 				this._tree.focusFirst();
 				this._tree.setSelection([this._tree.getFocus()], this._tree);
 				this._tree.domFocus();
+				return Promise.resolve(null);
 			}
 		}, onUnexpectedError);
 	}
 
-	layout(height: number, width: number, arrowSize: number, arrowOffset: number) {
+	private _layout(info: ILayoutInfo = this._layoutInfo): void {
 
-		let treeHeight = height - 2 * arrowSize;
-		let elementHeight = 22;
-		let elementCount = treeHeight / elementHeight;
-		if (elementCount % 2 !== 1) {
-			treeHeight = elementHeight * (elementCount + 1);
-		}
-		let totalHeight = treeHeight + 2 + arrowSize;
+		let count = 0;
+		let nav = this._tree.getNavigator(undefined, false);
+		while (nav.next() && count < 13) { count += 1; }
+
+		let headerHeight = 2 * info.arrowSize;
+		let treeHeight = Math.min(info.maxHeight - headerHeight, count * 22);
+		let totalHeight = treeHeight + headerHeight;
 
 		this._domNode.style.height = `${totalHeight}px`;
-		this._domNode.style.width = `${width}px`;
-		this._arrow.style.borderWidth = `${arrowSize}px`;
-		this._arrow.style.marginLeft = `${arrowOffset}px`;
+		this._domNode.style.width = `${info.width}px`;
+		this._arrow.style.top = `-${2 * info.arrowSize}px`;
+		this._arrow.style.borderWidth = `${info.arrowSize}px`;
+		this._arrow.style.marginLeft = `${info.arrowOffset}px`;
 		this._treeContainer.style.height = `${treeHeight}px`;
-		this._treeContainer.style.width = `${width}px`;
+		this._treeContainer.style.width = `${info.width}px`;
 		this._tree.layout();
+		this._layoutInfo = info;
+
 	}
 
 	protected abstract _getInput(input: BreadcrumbElement): any;
@@ -202,7 +228,7 @@ export class FileDataSource implements IDataSource {
 
 	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
-			return TPromise.as(element.folders).then(folders => {
+			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
 					this._parents.set(element, child);
 				}
@@ -226,7 +252,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
-		return TPromise.as(this._parents.get(element));
+		return Promise.resolve(this._parents.get(element));
 	}
 }
 

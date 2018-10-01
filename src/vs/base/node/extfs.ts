@@ -16,6 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 const loop = flow.loop;
 
@@ -94,7 +95,7 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 			});
 		};
 
-		mkdirp(target, stat.mode & 511).done(proceed, proceed);
+		mkdirp(target, stat.mode & 511).then(proceed, proceed);
 	});
 }
 
@@ -640,7 +641,7 @@ function normalizePath(path: string): string {
 	return strings.rtrim(paths.normalize(path), paths.sep);
 }
 
-export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): fs.FSWatcher {
+export function watch(path: string, onChange: (type: string, path?: string) => void, onError: (error: string) => void): IDisposable {
 	try {
 		const watcher = fs.watch(path);
 
@@ -660,7 +661,10 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 
 		watcher.on('error', (code: number, signal: string) => onError(`Failed to watch ${path} for changes (${code}, ${signal})`));
 
-		return watcher;
+		return toDisposable(() => {
+			watcher.removeAllListeners();
+			watcher.close();
+		});
 	} catch (error) {
 		fs.exists(path, exists => {
 			if (exists) {
@@ -669,5 +673,41 @@ export function watch(path: string, onChange: (type: string, path?: string) => v
 		});
 	}
 
-	return void 0;
+	return Disposable.None;
+}
+
+export function sanitizeFilePath(candidate: string, cwd: string): string {
+
+	// Special case: allow to open a drive letter without trailing backslash
+	if (platform.isWindows && strings.endsWith(candidate, ':')) {
+		candidate += paths.sep;
+	}
+
+	// Ensure absolute
+	if (!paths.isAbsolute(candidate)) {
+		candidate = paths.join(cwd, candidate);
+	}
+
+	// Ensure normalized
+	candidate = paths.normalize(candidate);
+
+	// Ensure no trailing slash/backslash
+	if (platform.isWindows) {
+		candidate = strings.rtrim(candidate, paths.sep);
+
+		// Special case: allow to open drive root ('C:\')
+		if (strings.endsWith(candidate, ':')) {
+			candidate += paths.sep;
+		}
+
+	} else {
+		candidate = strings.rtrim(candidate, paths.sep);
+
+		// Special case: allow to open root ('/')
+		if (!candidate) {
+			candidate = paths.sep;
+		}
+	}
+
+	return candidate;
 }

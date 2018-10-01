@@ -7,7 +7,7 @@
 
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import * as encoding from 'vs/base/node/encoding';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { IResolveContentOptions, isParent, IResourceEncodings } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { join, extname } from 'path';

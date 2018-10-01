@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import * as os from 'os';
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
@@ -183,7 +183,11 @@ export class CodeWindow implements ICodeWindow {
 				options.vibrancy = windowConfig.vibrancy;
 			}
 		} else {
-			useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom'; // Must be specified on Windows/Linux
+			if (isLinux) {
+				useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom';
+			} else {
+				useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on Windows
+			}
 		}
 
 		if (useNativeTabs) {
@@ -363,7 +367,7 @@ export class CodeWindow implements ICodeWindow {
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
-			this.marketplaceHeadersPromise.done(headers => {
+			this.marketplaceHeadersPromise.then(headers => {
 				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 			});
 		});
@@ -663,7 +667,7 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
-		return `${require.toUrl('vs/workbench/electron-browser/bootstrap/index.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
 	serializeWindowState(): IWindowState {
@@ -675,16 +679,24 @@ export class CodeWindow implements ICodeWindow {
 		if (this._win.isFullScreen()) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
-			return {
+			const defaultState = defaultWindowState();
+
+			const res = {
 				mode: WindowMode.Fullscreen,
 				display: display ? display.id : void 0,
 
-				// still carry over window dimensions from previous sessions!
-				width: this.windowState.width,
-				height: this.windowState.height,
-				x: this.windowState.x,
-				y: this.windowState.y
+				// Still carry over window dimensions from previous sessions
+				// if we can compute it in fullscreen state.
+				// does not seem possible in all cases on Linux for example
+				// (https://github.com/Microsoft/vscode/issues/58218) so we
+				// fallback to the defaults in that case.
+				width: this.windowState.width || defaultState.width,
+				height: this.windowState.height || defaultState.height,
+				x: this.windowState.x || 0,
+				y: this.windowState.y || 0
 			};
+
+			return res;
 		}
 
 		const state: IWindowState = Object.create(null);
@@ -917,7 +929,11 @@ export class CodeWindow implements ICodeWindow {
 					break;
 				case 'Maximize':
 				default:
-					this.win.maximize();
+					if (this.win.isMaximized()) {
+						this.win.unmaximize();
+					} else {
+						this.win.maximize();
+					}
 			}
 		}
 

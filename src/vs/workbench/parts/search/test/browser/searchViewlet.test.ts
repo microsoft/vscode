@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { Match, FileMatch, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { SearchDataSource, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
@@ -53,8 +53,8 @@ suite('Search - Viewlet', () => {
 		let lineMatch = fileMatch.matches()[0];
 
 		assert.equal(ds.getId(null, result), 'root');
-		assert.equal(ds.getId(null, fileMatch), 'file:///c%3A/foo');
-		assert.equal(ds.getId(null, lineMatch), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assert.equal(ds.getId(null, fileMatch), 'file:///c:/foo');
+		assert.equal(ds.getId(null, lineMatch), 'file:///c:/foo>[2,1 -> 2,2]b');
 
 		assert(!ds.hasChildren(null, 'foo'));
 		assert(ds.hasChildren(null, result));

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -112,7 +111,7 @@ export class ExtHostApiCommands {
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
-			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
+			returns: 'A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.'
 		});
 		this._register('vscode.executeCompletionItemProvider', this._executeCompletionItemProvider, {
 			description: 'Execute completion item provider.',
@@ -350,7 +349,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
+				return Promise.reject(new Error(value.rejectReason));
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		});
@@ -420,16 +419,27 @@ export class ExtHostApiCommands {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
-			let result: vscode.SymbolInformation[] = [];
-			for (const symbol of value) {
-				result.push(new types.SymbolInformation(
-					symbol.name,
-					typeConverters.SymbolKind.to(symbol.kind),
-					symbol.containerName,
-					new types.Location(resource, typeConverters.Range.to(symbol.range))
-				));
+			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
+				static to(symbol: modes.DocumentSymbol): MergedInfo {
+					let res = new MergedInfo(
+						symbol.name,
+						typeConverters.SymbolKind.to(symbol.kind),
+						symbol.containerName,
+						new types.Location(resource, typeConverters.Range.to(symbol.range))
+					);
+					res.detail = symbol.detail;
+					res.range = res.location.range;
+					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
+					res.children = symbol.children && symbol.children.map(MergedInfo.to);
+					return res;
+				}
+
+				detail: string;
+				range: vscode.Range;
+				selectionRange: vscode.Range;
+				children: vscode.DocumentSymbol[];
 			}
-			return result;
+			return value.map(MergedInfo.to);
 		});
 	}
 

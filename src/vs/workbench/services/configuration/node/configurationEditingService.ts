@@ -7,7 +7,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
 import * as strings from 'vs/base/common/strings';
@@ -32,7 +32,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-export enum ConfigurationEditingErrorCode {
+export const enum ConfigurationEditingErrorCode {
 
 	/**
 	 * Error when trying to write a configuration key that is not registered.

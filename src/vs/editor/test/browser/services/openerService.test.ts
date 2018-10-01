@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
@@ -20,9 +19,9 @@ suite('OpenerService', function () {
 	const commandService = new class implements ICommandService {
 		_serviceBrand: any;
 		onWillExecuteCommand = () => ({ dispose: () => { } });
-		executeCommand(id: string, ...args: any[]): TPromise<any> {
+		executeCommand(id: string, ...args: any[]): Promise<any> {
 			lastCommand = { id, args };
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 	};
 

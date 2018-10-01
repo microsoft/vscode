@@ -43,9 +43,8 @@ import { LocalizationsChannel } from 'vs/platform/localizations/node/localizatio
 import { DialogChannelClient } from 'vs/platform/dialogs/node/dialogIpc';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DownloadService } from 'vs/platform/download/node/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { DownloadServiceChannelClient } from 'vs/platform/download/node/downloadIpc';
-import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -80,6 +79,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 	const windowsChannel = server.getChannel('windows', { routeCall: mainRoute, routeEvent: mainRoute });
 	const windowsService = new WindowsChannelClient(windowsChannel);
@@ -91,9 +91,6 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const dialogChannel = server.getChannel('dialog', { routeCall: route, routeEvent: route });
 	services.set(IDialogService, new DialogChannelClient(dialogChannel));
 
-	const downloadChannel = server.getChannel('download', { routeCall: route, routeEvent: route });
-	services.set(IDownloadService, new DownloadServiceChannelClient(downloadChannel, DefaultURITransformer));
-
 	const instantiationService = new InstantiationService(services);
 
 	instantiationService.invokeFunction(accessor => {
@@ -101,6 +98,8 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 		const environmentService = accessor.get(IEnvironmentService);
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 		const telemetryLogService = new FollowerLogService(logLevelClient, createSpdLogService('telemetry', initData.logLevel, environmentService.logsPath));
+		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
+		telemetryLogService.info('===========================================================');
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
 		if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
@@ -145,11 +144,11 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	});
 }
 
-function setupIPC(hook: string): TPromise<Server> {
-	function setup(retry: boolean): TPromise<Server> {
+function setupIPC(hook: string): Thenable<Server> {
+	function setup(retry: boolean): Thenable<Server> {
 		return serve(hook).then(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
-				return TPromise.wrapError(err);
+				return Promise.reject(err);
 			}
 
 			// should retry, not windows and eaddrinuse
@@ -158,7 +157,7 @@ function setupIPC(hook: string): TPromise<Server> {
 				client => {
 					// we could connect to a running instance. this is not good, abort
 					client.dispose();
-					return TPromise.wrapError(new Error('There is an instance already running.'));
+					return Promise.reject(new Error('There is an instance already running.'));
 				},
 				err => {
 					// it happens on Linux and OS X that the pipe is left behind
@@ -167,7 +166,7 @@ function setupIPC(hook: string): TPromise<Server> {
 					try {
 						fs.unlinkSync(hook);
 					} catch (e) {
-						return TPromise.wrapError(new Error('Error deleting the shared ipc hook.'));
+						return Promise.reject(new Error('Error deleting the shared ipc hook.'));
 					}
 
 					return setup(false);

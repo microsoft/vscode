@@ -11,12 +11,26 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
+let _throwOnMissingSchema: boolean = true;
+
+/**
+ * @internal
+ */
+export function setUriThrowOnMissingScheme(value: boolean): boolean {
+	const old = _throwOnMissingSchema;
+	_throwOnMissingSchema = value;
+	return old;
+}
+
 function _validateUri(ret: URI): void {
 
 	// scheme, must be set
 	if (!ret.scheme) {
-		// throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
-		console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		if (_throwOnMissingSchema) {
+			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		} else {
+			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		}
 	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
@@ -355,8 +369,6 @@ export class URI implements UriComponents {
 	}
 }
 
-export default URI;
-
 export interface UriComponents {
 	scheme: string;
 	authority: string;
@@ -453,11 +465,11 @@ const encodeTable: { [ch: number]: string } = {
 	[CharCode.Space]: '%20',
 };
 
-function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
+function encodeURIComponentFast(uriComponent: string, allowSlash: boolean, firstPos: number = 0): string {
 	let res: string = undefined;
 	let nativeEncodePos = -1;
 
-	for (let pos = 0; pos < uriComponent.length; pos++) {
+	for (let pos = firstPos; pos < uriComponent.length; pos++) {
 		let code = uriComponent.charCodeAt(pos);
 
 		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
@@ -607,19 +619,31 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (path) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
+		let encodeOffset = 0;
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			let code = path.charCodeAt(1);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
+				encodeOffset = 3;
+			} else if (code >= CharCode.a && code <= CharCode.z) {
+				encodeOffset = 3;
 			}
+
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
 			let code = path.charCodeAt(0);
 			if (code >= CharCode.A && code <= CharCode.Z) {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
+				encodeOffset = 2;
+			} else if (code >= CharCode.a && code <= CharCode.z) {
+				encodeOffset = 2;
 			}
 		}
+		if (scheme !== 'file' || path.length > encodeOffset && path.charCodeAt(encodeOffset) !== CharCode.Slash) {
+			encodeOffset = 0;
+		}
+
 		// encode the rest of the path
-		res += encoder(path, true);
+		res += encoder(path, true, encodeOffset);
 	}
 	if (query) {
 		res += '?';

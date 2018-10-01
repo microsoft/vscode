@@ -73,10 +73,10 @@ function createReporter() {
             return es.through(null, function () {
                 onEnd();
                 if (emitError && errors.length > 0) {
-                    errors.__logged__ = true;
                     if (!errors.__logged__) {
                         log();
                     }
+                    errors.__logged__ = true;
                     var err = new Error("Found " + errors.length + " errors");
                     err.__reporter__ = true;
                     this.emit('error', err);

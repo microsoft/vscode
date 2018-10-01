@@ -5,10 +5,21 @@
 
 let err = false;
 
-const major = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
+const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
 
-if (major < 8) {
-	console.error('\033[1;31m*** Please use node>=8.\033[0;0m');
+if (majorNodeVersion < 8 || majorNodeVersion >= 9) {
+	console.error('\033[1;31m*** Please use node >=8 and <9.\033[0;0m');
+	err = true;
+}
+
+const cp = require('child_process');
+const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
+const parsedYarnVersion = /^(\d+)\.(\d+)\./.exec(yarnVersion);
+const majorYarnVersion = parseInt(parsedYarnVersion[1]);
+const minorYarnVersion = parseInt(parsedYarnVersion[2]);
+
+if (majorYarnVersion < 1 || minorYarnVersion < 10) {
+	console.error('\033[1;31m*** Please use yarn >=1.10.1.\033[0;0m');
 	err = true;
 }
 

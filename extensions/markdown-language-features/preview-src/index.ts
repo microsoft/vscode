@@ -27,6 +27,10 @@ const messaging = createPosterForVsCode(vscode);
 window.cspAlerter.setPoster(messaging);
 window.styleLoadingMonitor.setPoster(messaging);
 
+window.onload = () => {
+	updateImageSizes();
+};
+
 onceDocumentLoaded(() => {
 	if (settings.scrollPreviewWithEditor) {
 		setTimeout(() => {
@@ -53,8 +57,32 @@ const onUpdateView = (() => {
 	};
 })();
 
+let updateImageSizes = throttle(() => {
+	const imageInfo: { id: string, height: number, width: number }[] = [];
+	let images = document.getElementsByTagName('img');
+	if (images) {
+		let i;
+		for (i = 0; i < images.length; i++) {
+			const img = images[i];
+
+			if (img.classList.contains('loading')) {
+				img.classList.remove('loading');
+			}
+
+			imageInfo.push({
+				id: img.id,
+				height: img.height,
+				width: img.width
+			});
+		}
+
+		messaging.postMessage('cacheImageSizes', imageInfo);
+	}
+}, 50);
+
 window.addEventListener('resize', () => {
 	scrollDisabled = true;
+	updateImageSizes();
 }, true);
 
 window.addEventListener('message', event => {
@@ -105,7 +133,7 @@ document.addEventListener('click', event => {
 			}
 			if (node.href.startsWith('file://') || node.href.startsWith('vscode-resource:')) {
 				const [path, fragment] = node.href.replace(/^(file:\/\/|vscode-resource:)/i, '').split('#');
-				messaging.postCommand('_markdown.openDocumentLink', [{ path, fragment }]);
+				messaging.postMessage('clickLink', { path, fragment });
 				event.preventDefault();
 				event.stopPropagation();
 				break;

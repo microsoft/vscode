@@ -25,6 +25,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import * as async from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -53,41 +54,49 @@ const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 const decoration = {
 	meta: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	metaActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	alt: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	altCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	metaCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
 	metaCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
@@ -325,7 +334,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		const { link } = occurrence;
 
-		link.resolve().then(uri => {
+		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
 			return this.openerService.open(uri, { openToSide });
 
@@ -338,7 +347,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			} else {
 				onUnexpectedError(err);
 			}
-		}).done(null, onUnexpectedError);
+		});
 	}
 
 	public getLinkOccurrence(position: Position): LinkOccurrence {

@@ -23,7 +23,7 @@ import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -397,9 +397,13 @@ export class TextMateService implements ITextMateService {
 	}
 
 	private registerDefinition(modeId: string): void {
-		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService));
-		}, onUnexpectedError);
+		const promise = this._createGrammar(modeId).then((r) => {
+			return new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService);
+		}, e => {
+			onUnexpectedError(e);
+			return null;
+		});
+		TokenizationRegistry.registerPromise(modeId, promise);
 	}
 }
 

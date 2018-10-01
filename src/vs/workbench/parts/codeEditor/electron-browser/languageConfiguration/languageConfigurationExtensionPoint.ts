@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 
 interface IRegExp {
@@ -94,7 +94,7 @@ export class LanguageConfigurationFileHandler {
 			const errors: ParseError[] = [];
 			const configuration = <ILanguageConfiguration>parse(contents.value.toString(), errors);
 			if (errors.length) {
-				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation, errors.join('\n')));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFileLocation.toString(), errors.join('\n')));
 			}
 			this._handleConfig(languageIdentifier, configuration);
 		}, (err) => {

@@ -21,7 +21,7 @@ export interface ITranslation {
 	path: string;
 }
 
-export enum LanguageType {
+export const enum LanguageType {
 	Core = 1,
 	Contributed
 }

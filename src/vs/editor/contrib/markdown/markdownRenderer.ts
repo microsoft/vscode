@@ -10,13 +10,14 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown, RenderOptions } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { TokenizationRegistry } from 'vs/editor/common/modes';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	element: HTMLElement;
@@ -45,7 +46,11 @@ export class MarkdownRenderer {
 					: this._editor.getModel().getLanguageIdentifier().language;
 
 				return this._modeService.getOrCreateMode(modeId).then(_ => {
-					return tokenizeToString(value, modeId);
+					const promise = TokenizationRegistry.getPromise(modeId);
+					if (promise) {
+						return promise.then(support => tokenizeToString(value, support));
+					}
+					return tokenizeToString(value, null);
 				}).then(code => {
 					return `<span style="font-family: ${this._editor.getConfiguration().fontInfo.fontFamily}">${code}</span>`;
 				});
@@ -53,7 +58,15 @@ export class MarkdownRenderer {
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
 			actionHandler: {
 				callback: (content) => {
-					this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					let uri: URI;
+					try {
+						uri = URI.parse(content);
+					} catch (err) {
+						// ignore
+					}
+					if (uri) {
+						this._openerService.open(uri).catch(onUnexpectedError);
+					}
 				},
 				disposeables
 			}

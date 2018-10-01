@@ -37,6 +37,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -107,7 +108,11 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			ctor: OpenEditorsView,
 			order: 0,
 			when: OpenEditorsVisibleCondition,
-			canToggleVisibility: true
+			canToggleVisibility: true,
+			focusCommand: {
+				id: 'workbench.files.action.focusOpenEditorsView',
+				keybindings: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }
+			}
 		};
 	}
 
@@ -158,14 +163,14 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		@IStorageService protected storageService: IStorageService,
 		@IEditorService private editorService: IEditorService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.viewletState = new FileViewletState();
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);

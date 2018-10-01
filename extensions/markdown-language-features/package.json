@@ -252,6 +252,20 @@
 					"description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
 					"scope": "resource"
 				},
+				"markdown.preview.openMarkdownLinks": {
+					"type": "string",
+					"default": "inPreview",
+					"description": "%configuration.markdown.preview.openMarkdownLinks.description%",
+					"scope": "resource",
+					"enum": [
+						"inPreview",
+						"inEditor"
+					],
+					"enumDescriptions": [
+						"%configuration.markdown.preview.openMarkdownLinks.inPreview%",
+						"%configuration.markdown.preview.openMarkdownLinks.inEditor%"
+					]
+				},
 				"markdown.trace": {
 					"type": "string",
 					"enum": [
@@ -295,8 +309,8 @@
 		"highlight.js": "9.12.0",
 		"markdown-it": "^8.4.1",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "0.0.18",
-		"vscode-nls": "^3.2.4"
+		"vscode-extension-telemetry": "0.0.22",
+		"vscode-nls": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/highlight.js": "9.1.10",

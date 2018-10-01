@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
@@ -59,7 +59,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IExtensionService, ProfileSession, IExtensionsStatus, ExtensionPointContribution, IExtensionDescription } from '../services/extensions/common/extensions';
@@ -76,6 +76,11 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension } from 'vs/base/browser/dom';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ILabelService, LabelService } from 'vs/platform/label/common/label';
+import { timeout } from 'vs/base/common/async';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -168,7 +173,7 @@ export class TestContextService implements IWorkspaceContextService {
 export class TestTextFileService extends TextFileService {
 	public cleanupBackupsBeforeShutdownCalled: boolean;
 
-	private promptPath: string;
+	private promptPath: URI;
 	private confirmResult: ConfirmResult;
 	private resolveTextContentError: FileOperationError;
 
@@ -182,14 +187,15 @@ export class TestTextFileService extends TextFileService {
 		@INotificationService notificationService: INotificationService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@IWindowsService windowsService: IWindowsService,
+		@IWindowService windowService: IWindowService,
 		@IHistoryService historyService: IHistoryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService modelService: IModelService
 	) {
-		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, TestEnvironmentService, backupFileService, windowsService, historyService, contextKeyService, modelService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, notificationService, TestEnvironmentService, backupFileService, windowsService, windowService, historyService, contextKeyService, modelService);
 	}
 
-	public setPromptPath(path: string): void {
+	public setPromptPath(path: URI): void {
 		this.promptPath = path;
 	}
 
@@ -221,7 +227,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath: string): TPromise<string> {
+	public promptForPath(resource: URI, defaultPath: URI): TPromise<URI> {
 		return TPromise.wrap(this.promptPath);
 	}
 
@@ -271,10 +277,11 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IHashService, new TestHashService());
 	instantiationService.stub(ILogService, new TestLogService());
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
-	instantiationService.stub(ILabelService, new LabelService(TestEnvironmentService, workspaceContextService));
+	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
 	const editorService = new TestEditorService();
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
+	instantiationService.stub(IViewletService, new TestViewletService());
 
 	return instantiationService;
 }
@@ -309,6 +316,7 @@ export class TestExtensionService implements IExtensionService {
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> { return TPromise.as(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	canProfileExtensionHost(): boolean { return false; }
+	getInspectPort(): number { return 0; }
 	startExtensionHostProfile(): TPromise<ProfileSession> { return TPromise.as(Object.create(null)); }
 	restartExtensionHost(): void { }
 	startExtensionHost(): void { }
@@ -353,16 +361,22 @@ export class TestHistoryService implements IHistoryService {
 	public clear(): void {
 	}
 
+	public clearRecentlyOpened(): void {
+	}
+
 	public getHistory(): (IEditorInput | IResourceInput)[] {
 		return [];
 	}
 
-	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter: string): URI {
 		return this.root;
 	}
 
-	public getLastActiveFile(): URI {
+	public getLastActiveFile(schemeFilter: string): URI {
 		return void 0;
+	}
+
+	public openLastEditLocation(): void {
 	}
 }
 
@@ -376,6 +390,39 @@ export class TestDialogService implements IDialogService {
 
 	public show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number> {
 		return TPromise.as(0);
+	}
+}
+
+export class TestFileDialogService implements IFileDialogService {
+
+	public _serviceBrand: any;
+
+	public defaultFilePath(schemeFilter: string): URI {
+		return void 0;
+	}
+	public defaultFolderPath(schemeFilter: string): URI {
+		return void 0;
+	}
+	public defaultWorkspacePath(schemeFilter: string): URI {
+		return void 0;
+	}
+	public pickFileFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public pickFileAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public pickFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+		return TPromise.as(0);
+	}
+	public showSaveDialog(options: ISaveDialogOptions): TPromise<URI> {
+		return TPromise.as(void 0);
+	}
+	public showOpenDialog(options: IOpenDialogOptions): TPromise<URI[]> {
+		return TPromise.as(void 0);
 	}
 }
 
@@ -469,7 +516,7 @@ export class TestPartService implements IPartService {
 
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
-	public getWorkbenchElementId(): string { return ''; }
+	public getWorkbenchElement(): HTMLElement { return void 0; }
 
 	public toggleZenMode(): void { }
 
@@ -720,6 +767,10 @@ export class TestEditorService implements EditorServiceImpl {
 		return false;
 	}
 
+	getOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput): IEditorInput {
+		return void 0;
+	}
+
 	replaceEditors(editors: any, group: any) {
 		return TPromise.as(void 0);
 	}
@@ -824,16 +875,14 @@ export class TestFileService implements IFileService {
 	}
 
 	updateContent(resource: URI, value: string | ITextSnapshot, options?: IUpdateContentOptions): TPromise<IFileStat> {
-		return TPromise.timeout(1).then(() => {
-			return {
-				resource,
-				etag: 'index.txt',
-				encoding: 'utf8',
-				mtime: Date.now(),
-				isDirectory: false,
-				name: paths.basename(resource.fsPath)
-			};
-		});
+		return TPromise.wrap(timeout(0).then(() => ({
+			resource,
+			etag: 'index.txt',
+			encoding: 'utf8',
+			mtime: Date.now(),
+			isDirectory: false,
+			name: paths.basename(resource.fsPath)
+		})));
 	}
 
 	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
@@ -948,6 +997,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	onCodeEditorRemove: Event<ICodeEditor> = Event.None;
 	onDiffEditorAdd: Event<IDiffEditor> = Event.None;
 	onDiffEditorRemove: Event<IDiffEditor> = Event.None;
+	onDidChangeTransientModelProperty: Event<ITextModel> = Event.None;
 
 	addCodeEditor(editor: ICodeEditor): void { }
 	removeCodeEditor(editor: ICodeEditor): void { }
@@ -1374,6 +1424,33 @@ export class TestHashService implements IHashService {
 	createSHA1(content: string): string {
 		return content;
 	}
+}
+
+export class TestViewletService implements IViewletService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	readonly onDidViewletRegister: Event<ViewletDescriptor> = new Emitter<ViewletDescriptor>().event;
+	onDidViewletOpen: Event<IViewlet> = new Emitter<IViewlet>().event;
+	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
+	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }> = new Emitter<{ id: string, enabled: boolean }>().event;
+
+	openViewlet(id: string, focus?: boolean): TPromise<IViewlet> { return null; }
+
+	getActiveViewlet(): IViewlet { return null; }
+
+	getDefaultViewletId(): string { return null; }
+
+	getViewlet(id: string): ViewletDescriptor { return null; }
+
+	getAllViewlets(): ViewletDescriptor[] { return null; }
+
+	getViewlets(): ViewletDescriptor[] { return null; }
+
+	setViewletEnablement(id: string, enabled: boolean): void { }
+
+	getProgressIndicator(id: string): IProgressService { return null; }
+
 }
 
 export function getRandomTestPath(tmpdir: string, ...segments: string[]): string {

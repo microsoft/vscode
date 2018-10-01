@@ -6,7 +6,7 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -24,12 +24,14 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape } from '../node/extHost.protocol';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { TextSearchComplete } from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	private readonly _toDispose: IDisposable[] = [];
-	private readonly _activeSearches: { [id: number]: TPromise<any> } = Object.create(null);
+	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 
 	constructor(
@@ -51,9 +53,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	dispose(): void {
 		dispose(this._toDispose);
 
-		for (let requestId in this._activeSearches) {
-			const search = this._activeSearches[requestId];
-			search.cancel();
+		for (let requestId in this._activeCancelTokens) {
+			const tokenSource = this._activeCancelTokens[requestId];
+			tokenSource.cancel();
 		}
 	}
 
@@ -112,15 +114,16 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startFileSearch(includePattern: string, includeFolder: string, excludePatternOrDisregardExcludes: string | false, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startFileSearch(includePattern: string, _includeFolder: UriComponents, excludePatternOrDisregardExcludes: string | false, maxResults: number, token: CancellationToken): Thenable<URI[]> {
+		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
 
 		let folderQueries: IFolderQuery[];
-		if (typeof includeFolder === 'string') {
-			folderQueries = [{ folder: URI.file(includeFolder) }]; // if base provided, only search in that folder
+		if (includeFolder) {
+			folderQueries = [{ folder: includeFolder }]; // if base provided, only search in that folder
 		} else {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
 		}
@@ -157,7 +160,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 		this._searchService.extendQuery(query);
 
-		const search = this._searchService.search(query).then(result => {
+		return this._searchService.search(query, token).then(result => {
 			return result.results.map(m => m.resource);
 		}, err => {
 			if (!isPromiseCanceledError(err)) {
@@ -165,15 +168,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 			return undefined;
 		});
-
-		this._activeSearches[requestId] = search;
-		const onDone = () => delete this._activeSearches[requestId];
-		search.then(onDone, onDone);
-
-		return search;
 	}
 
-	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number): TPromise<void> {
+	$startTextSearch(pattern: IPatternInfo, options: IQueryOptions, requestId: number, token: CancellationToken): Thenable<TextSearchComplete> {
 		const workspace = this._contextService.getWorkspace();
 		const folders = workspace.folders.map(folder => folder.uri);
 
@@ -186,13 +183,11 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			}
 		};
 
-		const search = this._searchService.search(query, onProgress).then(
-			() => {
-				delete this._activeSearches[requestId];
-				return null;
+		const search = this._searchService.search(query, token, onProgress).then(
+			result => {
+				return { limitHit: result.limitHit };
 			},
 			err => {
-				delete this._activeSearches[requestId];
 				if (!isPromiseCanceledError(err)) {
 					return TPromise.wrapError(err);
 				}
@@ -200,40 +195,28 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 				return undefined;
 			});
 
-		this._activeSearches[requestId] = search;
-
 		return search;
 	}
 
-	$checkExists(query: ISearchQuery, requestId: number): TPromise<boolean> {
-		query.exists = true;
-		const search = this._searchService.search(query).then(
+	$checkExists(includes: string[], token: CancellationToken): Thenable<boolean> {
+		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+		const folders = this._contextService.getWorkspace().folders.map(folder => folder.uri);
+		const query = queryBuilder.file(folders, {
+			includePattern: includes.join(', '),
+			exists: true
+		});
+
+		return this._searchService.search(query, token).then(
 			result => {
-				delete this._activeSearches[requestId];
 				return result.limitHit;
 			},
 			err => {
-				delete this._activeSearches[requestId];
 				if (!isPromiseCanceledError(err)) {
 					return TPromise.wrapError(err);
 				}
 
 				return undefined;
 			});
-
-		this._activeSearches[requestId] = search;
-
-		return search;
-	}
-
-	$cancelSearch(requestId: number): Thenable<boolean> {
-		const search = this._activeSearches[requestId];
-		if (search) {
-			delete this._activeSearches[requestId];
-			search.cancel();
-			return TPromise.as(true);
-		}
-		return undefined;
 	}
 
 	// --- save & edit resources ---

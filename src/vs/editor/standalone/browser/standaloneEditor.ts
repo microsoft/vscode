@@ -11,7 +11,7 @@ import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandal
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -157,7 +157,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilepathOrFirstLine(path, firstLine), uri);
 	}
 	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
 }

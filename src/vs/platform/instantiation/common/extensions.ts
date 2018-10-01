@@ -7,7 +7,6 @@
 import { SyncDescriptor } from './descriptors';
 import { ServiceIdentifier, IConstructorSignature0 } from './instantiation';
 
-export const Services = 'di.services';
 
 export interface IServiceContribution<T> {
 	id: ServiceIdentifier<T>;

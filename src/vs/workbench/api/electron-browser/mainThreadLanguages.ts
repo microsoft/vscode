@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MainThreadLanguagesShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
@@ -14,34 +13,30 @@ import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostC
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {
 
-	private _modeService: IModeService;
-	private _modelService: IModelService;
-
 	constructor(
-		extHostContext: IExtHostContext,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService
+		_extHostContext: IExtHostContext,
+		@IModeService private readonly _modeService: IModeService,
+		@IModelService private readonly _modelService: IModelService
 	) {
-		this._modeService = modeService;
-		this._modelService = modelService;
 	}
 
-	public dispose(): void {
+	dispose(): void {
+		// nothing
 	}
 
-	$getLanguages(): TPromise<string[]> {
-		return TPromise.as(this._modeService.getRegisteredModes());
+	$getLanguages(): Thenable<string[]> {
+		return Promise.resolve(this._modeService.getRegisteredModes());
 	}
 
-	$changeLanguage(resource: UriComponents, languageId: string): TPromise<void> {
+	$changeLanguage(resource: UriComponents, languageId: string): Thenable<void> {
 		const uri = URI.revive(resource);
 		let model = this._modelService.getModel(uri);
 		if (!model) {
-			return TPromise.wrapError(new Error('Invalid uri'));
+			return Promise.reject(new Error('Invalid uri'));
 		}
 		return this._modeService.getOrCreateMode(languageId).then(mode => {
 			if (mode.getId() !== languageId) {
-				return TPromise.wrapError<void>(new Error(`Unknown language id: ${languageId}`));
+				return Promise.reject(new Error(`Unknown language id: ${languageId}`));
 			}
 			this._modelService.setMode(model, mode);
 			return undefined;

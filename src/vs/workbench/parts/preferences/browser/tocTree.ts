@@ -12,13 +12,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsAccessibilityProvider, SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
-import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
 
@@ -27,8 +26,11 @@ export class TOCTreeModel {
 	private _currentSearchModel: SearchResultModel;
 	private _settingsTreeRoot: SettingsTreeGroupElement;
 
-	constructor(private viewState: ISettingsEditorViewState) {
+	constructor(private _viewState: ISettingsEditorViewState) {
+	}
 
+	public get settingsTreeRoot(): SettingsTreeGroupElement {
+		return this._settingsTreeRoot;
 	}
 
 	public set settingsTreeRoot(value: SettingsTreeGroupElement) {
@@ -46,7 +48,9 @@ export class TOCTreeModel {
 	}
 
 	public update(): void {
-		this.updateGroupCount(this._settingsTreeRoot);
+		if (this._settingsTreeRoot) {
+			this.updateGroupCount(this._settingsTreeRoot);
+		}
 	}
 
 	private updateGroupCount(group: SettingsTreeGroupElement): void {
@@ -56,37 +60,35 @@ export class TOCTreeModel {
 			}
 		});
 
-		if (this._currentSearchModel) {
-			const childCount = group.children
-				.filter(child => child instanceof SettingsTreeGroupElement)
-				.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
+		const childCount = group.children
+			.filter(child => child instanceof SettingsTreeGroupElement)
+			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count, 0);
 
-			group.count = childCount + this.getSearchResultChildrenCount(group);
-		} else {
-			group.count = undefined;
-		}
+		group.count = childCount + this.getGroupCount(group);
 	}
 
-	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
-		return this._currentSearchModel.root.children.filter(child => {
-			return child instanceof SettingsTreeSettingElement && this.groupContainsSetting(group, child.setting);
-		}).length;
-	}
-
-	private groupContainsSetting(group: SettingsTreeGroupElement, setting: ISetting): boolean {
-		return group.children.some(child => {
-			if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key && child.matchesAllTags(this.viewState.tagFilters);
-			} else {
+	private getGroupCount(group: SettingsTreeGroupElement): number {
+		return group.children.filter(child => {
+			if (!(child instanceof SettingsTreeSettingElement)) {
 				return false;
 			}
-		});
+
+			if (this._currentSearchModel && !this._currentSearchModel.root.containsSetting(child.setting.key)) {
+				return false;
+			}
+
+			// Check everything that the SettingsFilter checks except whether it's filtered by a category
+			return child.matchesScope(this._viewState.settingsTarget) && child.matchesAllTags(this._viewState.tagFilters);
+		}).length;
 	}
 }
 
 export type TOCTreeElement = SettingsTreeGroupElement | TOCTreeModel;
 
 export class TOCDataSource implements IDataSource {
+	constructor(private _treeFilter: SettingsTreeFilter) {
+	}
+
 	getId(tree: ITree, element: SettingsTreeGroupElement): string {
 		return element.id;
 	}
@@ -97,8 +99,8 @@ export class TOCDataSource implements IDataSource {
 		}
 
 		if (element instanceof SettingsTreeGroupElement) {
-			// Should have child which won't be filtered out (undefined or >0 count)
-			return element.children && element.children.some(child => child instanceof SettingsTreeGroupElement && child.count !== 0);
+			// Should have child which won't be filtered out
+			return element.children && element.children.some(child => child instanceof SettingsTreeGroupElement && this._treeFilter.isVisible(tree, child));
 		}
 
 		return false;
@@ -172,11 +174,12 @@ export class TOCTree extends WorkbenchTree {
 	) {
 		const treeClass = 'settings-toc-tree';
 
+		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const fullConfiguration = <ITreeConfiguration>{
 			controller: instantiationService.createInstance(WorkbenchTreeController, {}),
-			filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
+			filter,
 			styler: new DefaultTreestyler(DOM.createStyleSheet(container), treeClass),
-			dataSource: instantiationService.createInstance(TOCDataSource),
+			dataSource: instantiationService.createInstance(TOCDataSource, filter),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 
 			...configuration
@@ -196,13 +199,6 @@ export class TOCTree extends WorkbenchTree {
 			themeService,
 			instantiationService,
 			configurationService);
-
-		this.disposables.push(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(focusBorder);
-			if (activeBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-tree:focus .monaco-tree-row.focused { outline-color: ${activeBorderColor}; }`);
-			}
-		}));
 
 		this.getHTMLElement().classList.add(treeClass);
 

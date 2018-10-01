@@ -31,7 +31,7 @@ export class TextSearchWorkerProvider implements ITextSearchWorkerProvider {
 
 	private createWorker(): void {
 		let client = new Client(
-			getPathFromAmdModule(require, 'bootstrap'),
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
 				serverName: 'Search Worker ' + this.workers.length,
 				args: ['--type=searchWorker'],

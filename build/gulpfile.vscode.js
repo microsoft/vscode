@@ -55,14 +55,15 @@ const vscodeResources = [
 	'out-build/cli.js',
 	'out-build/driver.js',
 	'out-build/bootstrap.js',
+	'out-build/bootstrap-fork.js',
 	'out-build/bootstrap-amd.js',
+	'out-build/bootstrap-window.js',
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/electron-browser/bootstrap/**',
 	'out-build/vs/workbench/parts/debug/**/*.json',
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
 	'out-build/vs/workbench/parts/webview/electron-browser/webview-pre.js',
@@ -71,6 +72,7 @@ const vscodeResources = [
 	'out-build/vs/workbench/parts/welcome/walkThrough/**/*.md',
 	'out-build/vs/workbench/services/files/**/*.exe',
 	'out-build/vs/workbench/services/files/**/*.md',
+	'out-build/vs/code/electron-browser/workbench/**',
 	'out-build/vs/code/electron-browser/sharedProcess/sharedProcess.js',
 	'out-build/vs/code/electron-browser/issue/issueReporter.js',
 	'out-build/vs/code/electron-browser/processExplorer/processExplorer.js',
@@ -97,7 +99,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 
 
 gulp.task('optimize-index-js', ['optimize-vscode'], () => {
-	const fullpath = path.join(process.cwd(), 'out-vscode/vs/workbench/electron-browser/bootstrap/index.js');
+	const fullpath = path.join(process.cwd(), 'out-vscode/vs/code/electron-browser/workbench/workbench.js');
 	const contents = fs.readFileSync(fullpath).toString();
 	const newContents = contents.replace('[/*BUILD->INSERT_NODE_MODULES*/]', JSON.stringify(nodeModules));
 	fs.writeFileSync(fullpath, newContents);
@@ -112,6 +114,16 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], commo
 // @ts-ignore JSON checking: darwinCredits is optional
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
+function darwinBundleDocumentType(extensions, icon) {
+	return {
+		name: product.nameLong + ' document',
+		role: 'Editor',
+		ostypes: ["TEXT", "utxt", "TUTX", "****"],
+		extensions: extensions,
+		iconFile: icon
+	};
+}
+
 const config = {
 	version: getElectronVersion(),
 	productAppName: product.nameLong,
@@ -122,13 +134,36 @@ const config = {
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
 	darwinHelpBookFolder: 'VS Code HelpBook',
 	darwinHelpBookName: 'VS Code HelpBook',
-	darwinBundleDocumentTypes: [{
-		name: product.nameLong + ' document',
-		role: 'Editor',
-		ostypes: ["TEXT", "utxt", "TUTX", "****"],
-		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "pug", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
-		iconFile: 'resources/darwin/code_file.icns'
-	}],
+	darwinBundleDocumentTypes: [
+		darwinBundleDocumentType(["bat", "cmd"], 'resources/darwin/bat.icns'),
+		darwinBundleDocumentType(["bowerrc"], 'resources/darwin/bower.icns'),
+		darwinBundleDocumentType(["c", "h"], 'resources/darwin/c.icns'),
+		darwinBundleDocumentType(["config", "editorconfig", "gitattributes", "gitconfig", "gitignore", "ini"], 'resources/darwin/config.icns'),
+		darwinBundleDocumentType(["cc", "cpp", "cxx", "hh", "hpp", "hxx"], 'resources/darwin/cpp.icns'),
+		darwinBundleDocumentType(["cs", "csx"], 'resources/darwin/csharp.icns'),
+		darwinBundleDocumentType(["css"], 'resources/darwin/css.icns'),
+		darwinBundleDocumentType(["go"], 'resources/darwin/go.icns'),
+		darwinBundleDocumentType(["asp", "aspx", "cshtml", "htm", "html", "jshtm", "jsp", "phtml", "shtml"], 'resources/darwin/html.icns'),
+		darwinBundleDocumentType(["jade"], 'resources/darwin/jade.icns'),
+		darwinBundleDocumentType(["jav", "java"], 'resources/darwin/java.icns'),
+		darwinBundleDocumentType(["js", "jscsrc", "jshintrc", "mjs"], 'resources/darwin/javascript.icns'),
+		darwinBundleDocumentType(["json"], 'resources/darwin/json.icns'),
+		darwinBundleDocumentType(["less"], 'resources/darwin/less.icns'),
+		darwinBundleDocumentType(["markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn"], 'resources/darwin/markdown.icns'),
+		darwinBundleDocumentType(["php"], 'resources/darwin/php.icns'),
+		darwinBundleDocumentType(["ps1", "psd1", "psm1"], 'resources/darwin/powershell.icns'),
+		darwinBundleDocumentType(["py"], 'resources/darwin/python.icns'),
+		darwinBundleDocumentType(["gemspec", "rb"], 'resources/darwin/ruby.icns'),
+		darwinBundleDocumentType(["scss"], 'resources/darwin/scss.icns'),
+		darwinBundleDocumentType(["bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "profile", "rhistory", "rprofile", "sh", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"], 'resources/darwin/shell.icns'),
+		darwinBundleDocumentType(["sql"], 'resources/darwin/sql.icns'),
+		darwinBundleDocumentType(["ts"], 'resources/darwin/typescript.icns'),
+		darwinBundleDocumentType(["tsx", "jsx"], 'resources/darwin/react.icns'),
+		darwinBundleDocumentType(["vue"], 'resources/darwin/vue.icns'),
+		darwinBundleDocumentType(["ascx", "csproj", "dtd", "wxi", "wxl", "wxs", "xml", "xaml"], 'resources/darwin/xml.icns'),
+		darwinBundleDocumentType(["eyaml", "eyml", "yaml", "yml"], 'resources/darwin/yaml.icns'),
+		darwinBundleDocumentType(["clj", "cljs", "cljx", "clojure", "code-workspace", "coffee", "ctp", "dockerfile", "dot", "edn", "fs", "fsi", "fsscript", "fsx", "handlebars", "hbs", "lua", "m", "makefile", "ml", "mli", "pl", "pl6", "pm", "pm6", "pod", "pp", "properties", "psgi", "pug", "r", "rs", "rt", "svg", "svgz", "t", "txt", "vb", "xcodeproj", "xcworkspace"], 'resources/darwin/default.icns')
+	],
 	darwinBundleURLTypes: [{
 		role: 'Viewer',
 		name: product.nameLong,
@@ -164,6 +199,8 @@ gulp.task('clean-electron', util.rimraf('.build/electron'));
 gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
+gulp.task('electron-arm', ['clean-electron'], getElectron('arm'));
+gulp.task('electron-arm64', ['clean-electron'], getElectron('arm64'));
 
 
 /**
@@ -212,8 +249,8 @@ function packageTask(platform, arch, opts) {
 		const checksums = computeChecksums(out, [
 			'vs/workbench/workbench.main.js',
 			'vs/workbench/workbench.main.css',
-			'vs/workbench/electron-browser/bootstrap/index.html',
-			'vs/workbench/electron-browser/bootstrap/index.js'
+			'vs/code/electron-browser/workbench/workbench.html',
+			'vs/code/electron-browser/workbench/workbench.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
@@ -236,8 +273,15 @@ function packageTask(platform, arch, opts) {
 		}
 
 		const name = product.nameShort;
+		const packageJsonUpdates = { name, version };
+
+		// for linux url handling
+		if (platform === 'linux') {
+			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+		}
+
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json({ name, version }));
+			.pipe(json(packageJsonUpdates));
 
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums };
@@ -292,7 +336,37 @@ function packageTask(platform, arch, opts) {
 		);
 
 		if (platform === 'win32') {
-			all = es.merge(all, gulp.src(['resources/win32/code_file.ico', 'resources/win32/code_70x70.png', 'resources/win32/code_150x150.png'], { base: '.' }));
+			all = es.merge(all, gulp.src([
+				'resources/win32/bower.ico',
+				'resources/win32/c.ico',
+				'resources/win32/config.ico',
+				'resources/win32/cpp.ico',
+				'resources/win32/csharp.ico',
+				'resources/win32/css.ico',
+				'resources/win32/default.ico',
+				'resources/win32/go.ico',
+				'resources/win32/html.ico',
+				'resources/win32/jade.ico',
+				'resources/win32/java.ico',
+				'resources/win32/javascript.ico',
+				'resources/win32/json.ico',
+				'resources/win32/less.ico',
+				'resources/win32/markdown.ico',
+				'resources/win32/php.ico',
+				'resources/win32/powershell.ico',
+				'resources/win32/python.ico',
+				'resources/win32/react.ico',
+				'resources/win32/ruby.ico',
+				'resources/win32/sass.ico',
+				'resources/win32/shell.ico',
+				'resources/win32/sql.ico',
+				'resources/win32/typescript.ico',
+				'resources/win32/vue.ico',
+				'resources/win32/xml.ico',
+				'resources/win32/yaml.ico',
+				'resources/win32/code_70x70.png',
+				'resources/win32/code_150x150.png'
+			], { base: '.' }));
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
 		} else if (platform === 'darwin') {
@@ -327,6 +401,15 @@ function packageTask(platform, arch, opts) {
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
+		// submit all stats that have been collected
+		// during the build phase
+		if (opts.stats) {
+			result.on('end', () => {
+				const { submitAllStats } = require('./lib/stats');
+				submitAllStats(product, commit).then(() => console.log('Submitted bundle stats!'));
+			});
+		}
+
 		return result.pipe(vfs.dest(destination));
 	};
 }
@@ -339,20 +422,23 @@ gulp.task('clean-vscode-darwin', util.rimraf(path.join(buildRoot, 'VSCode-darwin
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(buildRoot, 'VSCode-linux-ia32')));
 gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(buildRoot, 'VSCode-linux-x64')));
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(buildRoot, 'VSCode-linux-arm')));
+gulp.task('clean-vscode-linux-arm64', util.rimraf(path.join(buildRoot, 'VSCode-linux-arm64')));
 
 gulp.task('vscode-win32-ia32', ['optimize-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32'));
 gulp.task('vscode-win32-x64', ['optimize-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64'));
-gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
+gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { stats: true }));
 gulp.task('vscode-linux-ia32', ['optimize-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32'));
 gulp.task('vscode-linux-x64', ['optimize-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64'));
 gulp.task('vscode-linux-arm', ['optimize-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm'));
+gulp.task('vscode-linux-arm64', ['optimize-vscode', 'clean-vscode-linux-arm64'], packageTask('linux', 'arm64'));
 
 gulp.task('vscode-win32-ia32-min', ['minify-vscode', 'clean-vscode-win32-ia32'], packageTask('win32', 'ia32', { minified: true }));
 gulp.task('vscode-win32-x64-min', ['minify-vscode', 'clean-vscode-win32-x64'], packageTask('win32', 'x64', { minified: true }));
-gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true }));
+gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], packageTask('darwin', null, { minified: true, stats: true }));
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
+gulp.task('vscode-linux-arm64-min', ['minify-vscode', 'clean-vscode-linux-arm64'], packageTask('linux', 'arm64', { minified: true }));
 
 // Transifex Localizations
 

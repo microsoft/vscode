@@ -9,8 +9,6 @@ import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
 import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -30,7 +28,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
@@ -38,10 +36,17 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electron-browser/runtimeExtensionsInput';
+import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { randomPort } from 'vs/base/node/ports';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
+export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
+export const CONTEXT_EXTENSION_HOST_PROFILE_RECORDED = new RawContextKey<boolean>('extensionHostProfileRecorded', false);
 
-export const enum ProfileSessionState {
+export enum ProfileSessionState {
 	None = 0,
 	Starting = 1,
 	Running = 2,
@@ -87,7 +92,7 @@ interface IRuntimeExtension {
 
 export class RuntimeExtensionsEditor extends BaseEditor {
 
-	static readonly ID: string = 'workbench.editor.runtimeExtensions';
+	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension>;
 	private _profileInfo: IExtensionHostProfile;
@@ -95,10 +100,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _elements: IRuntimeExtension[];
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
+	private _profileSessionState: IContextKey<string>;
+	private _extensionsHostRecoded: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -112,13 +120,22 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this._profileInfo = this._extensionHostProfileService.lastProfile;
+			this._extensionsHostRecoded.set(!!this._profileInfo);
 			this._updateExtensions();
 		}));
+		this._extensionHostProfileService.onDidChangeState(() => {
+			const state = this._extensionHostProfileService.state;
+
+			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
+		});
 
 		this._elements = null;
 
 		this._extensionsDescriptions = [];
 		this._updateExtensions();
+
+		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
+		this._extensionsHostRecoded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
@@ -318,6 +335,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							]
 						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
+				} else if (/^workspaceContainsTimeout:/.test(activationTimes.activationEvent)) {
+					const glob = activationTimes.activationEvent.substr('workspaceContainsTimeout:'.length);
+					title = nls.localize({
+						key: 'workspaceContainsTimeout',
+						comment: [
+							'{0} will be a glob pattern'
+						]
+					}, "Activated because searching for {0} took too long", glob);
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
@@ -391,25 +416,19 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
 				actions.push(new Separator());
 			}
-			actions.push(this.extensionHostProfileAction, this.saveExtensionHostProfileAction);
+			const state = this._extensionHostProfileService.state;
+			if (state === ProfileSessionState.Running) {
+				actions.push(this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL));
+			} else {
+				actions.push(this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL));
+			}
+			actions.push(this.saveExtensionHostProfileAction);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => TPromise.as(actions)
 			});
 		});
-	}
-
-	public getActions(): IAction[] {
-		return [
-			this.saveExtensionHostProfileAction,
-			this.extensionHostProfileAction
-		];
-	}
-
-	@memoize
-	private get extensionHostProfileAction(): IAction {
-		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.ID, ExtensionHostProfileAction.LABEL_START);
 	}
 
 	@memoize
@@ -419,45 +438,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public layout(dimension: Dimension): void {
 		this._list.layout(dimension.height);
-	}
-}
-
-export class RuntimeExtensionsInput extends EditorInput {
-
-	static readonly ID = 'workbench.runtimeExtensions.input';
-
-	constructor() {
-		super();
-	}
-
-	getTypeId(): string {
-		return RuntimeExtensionsInput.ID;
-	}
-
-	getName(): string {
-		return nls.localize('extensionsInputName', "Running Extensions");
-	}
-
-	matches(other: any): boolean {
-		if (!(other instanceof RuntimeExtensionsInput)) {
-			return false;
-		}
-		return true;
-	}
-
-	resolve(): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	supportsSplitEditor(): boolean {
-		return false;
-	}
-
-	getResource(): URI {
-		return URI.from({
-			scheme: 'runtime-extensions',
-			path: 'default'
-		});
 	}
 }
 
@@ -516,48 +496,80 @@ class ReportExtensionIssueAction extends Action {
 	}
 }
 
-class ExtensionHostProfileAction extends Action {
-	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
-	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
-	static LABEL_STOP = nls.localize('extensionHostProfileStop', "Stop Extension Host Profile");
-	static STOP_CSS_CLASS = 'extension-host-profile-stop';
-	static START_CSS_CLASS = 'extension-host-profile-start';
+export class DebugExtensionHostAction extends Action {
+	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
+	static LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
+	static CSS_CLASS = 'debug-extension-host';
 
 	constructor(
-		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IDebugService private readonly _debugService: IDebugService,
+		@IWindowsService private readonly _windowsService: IWindowsService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
-		super(id, label, ExtensionHostProfileAction.START_CSS_CLASS);
-
-		this._extensionHostProfileService.onDidChangeState(() => this._update());
-	}
-
-	private _update(): void {
-		const state = this._extensionHostProfileService.state;
-
-		if (state === ProfileSessionState.Running) {
-			this.class = ExtensionHostProfileAction.STOP_CSS_CLASS;
-			this.label = ExtensionHostProfileAction.LABEL_STOP;
-		} else {
-			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
-			this.label = ExtensionHostProfileAction.LABEL_START;
-		}
+		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
 
 	run(): TPromise<any> {
-		const state = this._extensionHostProfileService.state;
 
-		if (state === ProfileSessionState.Running) {
-			this._extensionHostProfileService.stopProfiling();
-		} else if (state === ProfileSessionState.None) {
-			this._extensionHostProfileService.startProfiling();
+		const inspectPort = this._extensionService.getInspectPort();
+		if (!inspectPort) {
+			return this._dialogService.confirm({
+				type: 'info',
+				message: nls.localize('restart1', "Profile Extensions"),
+				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
+				primaryButton: nls.localize('restart3', "Restart"),
+				secondaryButton: nls.localize('cancel', "Cancel")
+			}).then(res => {
+				if (res.confirmed) {
+					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				}
+			});
 		}
 
+		return this._debugService.startDebugging(null, {
+			type: 'node',
+			request: 'attach',
+			port: inspectPort
+		});
+	}
+}
+
+export class StartExtensionHostProfileAction extends Action {
+	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
+	static LABEL = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
+
+	constructor(
+		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		this._extensionHostProfileService.startProfiling();
 		return TPromise.as(null);
 	}
 }
 
-class SaveExtensionHostProfileAction extends Action {
+export class StopExtensionHostProfileAction extends Action {
+	static readonly ID = 'workbench.extensions.action.stopExtensionHostProfile';
+	static LABEL = nls.localize('stopExtensionHostProfileStart', "Stop Extension Host Profile");
+
+	constructor(
+		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		this._extensionHostProfileService.stopProfiling();
+		return TPromise.as(null);
+	}
+}
+
+export class SaveExtensionHostProfileAction extends Action {
 
 	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
 	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
@@ -568,8 +580,7 @@ class SaveExtensionHostProfileAction extends Action {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
-		super(id, label, 'save-extension-host-profile', false);
-		this.enabled = (this._extensionHostProfileService.lastProfile !== null);
+		super(id, label, undefined, false);
 		this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this.enabled = (this._extensionHostProfileService.lastProfile !== null);
 		});

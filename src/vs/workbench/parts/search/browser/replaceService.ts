@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -125,7 +125,9 @@ export class ReplaceService implements IReplaceService {
 			}
 		}).then(editor => {
 			const disposable = fileMatch.onDispose(() => {
-				editor.input.dispose();
+				if (editor && editor.input) {
+					editor.input.dispose();
+				}
 				disposable.dispose();
 			});
 			this.updateReplacePreview(fileMatch).then(() => {

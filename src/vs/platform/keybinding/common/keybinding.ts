@@ -18,7 +18,7 @@ export interface IUserFriendlyKeybinding {
 	when?: string;
 }
 
-export enum KeybindingSource {
+export const enum KeybindingSource {
 	Default = 1,
 	User
 }

@@ -49,8 +49,11 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 		_: vscode.FoldingContext,
 		_token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[]> {
-		const [regions, sections] = await Promise.all([this.getRegions(document), this.getHeaderFoldingRanges(document)]);
-		return [...regions, ...sections].slice(0, rangeLimit);
+		const foldables = await Promise.all([
+			this.getRegions(document),
+			this.getHeaderFoldingRanges(document),
+			this.getBlockFoldingRanges(document)]);
+		return [].concat.apply([], foldables).slice(0, rangeLimit);
 	}
 
 	private async getHeaderFoldingRanges(document: vscode.TextDocument) {
@@ -62,6 +65,34 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 				endLine = endLine - 1;
 			}
 			return new vscode.FoldingRange(entry.line, endLine);
+		});
+	}
+
+	private async getBlockFoldingRanges(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
+
+		const isFoldableToken = (token: Token) => {
+			switch (token.type) {
+				case 'fence':
+				case 'list_item_open':
+					return token.map[1] > token.map[0];
+
+				case 'html_block':
+					return token.map[1] > token.map[0] + 1;
+
+				default:
+					return false;
+			}
+		};
+
+		const tokens = await this.engine.parse(document.uri, document.getText());
+		const multiLineListItems = tokens.filter(isFoldableToken);
+		return multiLineListItems.map(listItem => {
+			const start = listItem.map[0];
+			let end = listItem.map[1] - 1;
+			if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
+				end = end - 1;
+			}
+			return new vscode.FoldingRange(start, end);
 		});
 	}
 }

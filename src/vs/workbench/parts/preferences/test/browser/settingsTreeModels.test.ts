@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
+import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
@@ -102,6 +102,79 @@ suite('SettingsTree', () => {
 			{
 				category: 'Something Else',
 				label: 'Etc'
+			});
+	});
+
+	test('parseQuery', () => {
+		function testParseQuery(input: string, expected: IParsedQuery) {
+			assert.deepEqual(
+				parseQuery(input),
+				expected,
+				input
+			);
+		}
+
+		testParseQuery(
+			'',
+			<IParsedQuery>{
+				tags: [],
+				query: ''
+			});
+
+		testParseQuery(
+			'@modified',
+			<IParsedQuery>{
+				tags: ['modified'],
+				query: ''
+			});
+
+		testParseQuery(
+			'@tag:foo',
+			<IParsedQuery>{
+				tags: ['foo'],
+				query: ''
+			});
+
+		testParseQuery(
+			'@modified foo',
+			<IParsedQuery>{
+				tags: ['modified'],
+				query: 'foo'
+			});
+
+		testParseQuery(
+			'@tag:foo @modified',
+			<IParsedQuery>{
+				tags: ['foo', 'modified'],
+				query: ''
+			});
+
+		testParseQuery(
+			'@tag:foo @modified my query',
+			<IParsedQuery>{
+				tags: ['foo', 'modified'],
+				query: 'my query'
+			});
+
+		testParseQuery(
+			'test @modified query',
+			<IParsedQuery>{
+				tags: ['modified'],
+				query: 'test  query'
+			});
+
+		testParseQuery(
+			'test @modified',
+			<IParsedQuery>{
+				tags: ['modified'],
+				query: 'test'
+			});
+
+		testParseQuery(
+			'query has @ for some reason',
+			<IParsedQuery>{
+				tags: [],
+				query: 'query has @ for some reason'
 			});
 	});
 });

@@ -124,7 +124,7 @@ export function normalizePath(resource: URI): URI {
  * Returns the fsPath of an URI where the drive letter is not normalized.
  * See #56403.
  */
-function fsPath(uri: URI): string {
+export function fsPath(uri: URI): string {
 	let value: string;
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
@@ -186,4 +186,3 @@ export function isMalformedFileUri(candidate: URI): URI | undefined {
 	}
 	return void 0;
 }
-

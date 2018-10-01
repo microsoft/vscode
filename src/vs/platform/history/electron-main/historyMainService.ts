@@ -19,7 +19,7 @@ import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { getComparisonKey, isEqual as areResourcesEqual, dirname } from 'vs/base/common/resources';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 
@@ -60,6 +60,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 	private registerListeners(): void {
 		this.workspacesMainService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+		this.labelService.onDidRegisterFormatter(() => this._onRecentlyOpenedChange.fire());
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
@@ -119,7 +120,7 @@ export class HistoryMainService implements IHistoryMainService {
 		const mru = this.getRecentlyOpened();
 		let update = false;
 
-		pathsToRemove.forEach((pathToRemove => {
+		pathsToRemove.forEach(pathToRemove => {
 
 			// Remove workspace
 			let index = arrays.firstIndex(mru.workspaces, workspace => {
@@ -131,7 +132,7 @@ export class HistoryMainService implements IHistoryMainService {
 				}
 				if (typeof pathToRemove === 'string') {
 					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						return workspace.scheme === Schemas.file && areResourcesEqual(URI.file(pathToRemove), workspace);
+						return workspace.scheme === Schemas.file && isEqual(pathToRemove, workspace.fsPath, !isLinux /* ignorecase */);
 					}
 					if (isWorkspaceIdentifier(workspace)) {
 						return isEqual(pathToRemove, workspace.configPath, !isLinux /* ignorecase */);
@@ -145,15 +146,20 @@ export class HistoryMainService implements IHistoryMainService {
 			}
 
 			// Remove file
-			const pathToRemoveURI = pathToRemove instanceof URI ? pathToRemove : typeof pathToRemove === 'string' ? URI.file(pathToRemove) : null;
-			if (pathToRemoveURI) {
-				index = arrays.firstIndex(mru.files, file => areResourcesEqual(file, pathToRemoveURI));
-			}
+			index = arrays.firstIndex(mru.files, file => {
+				if (pathToRemove instanceof URI) {
+					return areResourcesEqual(file, pathToRemove);
+				} else if (typeof pathToRemove === 'string') {
+					return isEqual(file.fsPath, pathToRemove, !isLinux /* ignorecase */);
+				}
+				return false;
+			});
+
 			if (index >= 0) {
 				mru.files.splice(index, 1);
 				update = true;
 			}
-		}));
+		});
 
 		if (update) {
 			this.saveRecentlyOpened(mru);

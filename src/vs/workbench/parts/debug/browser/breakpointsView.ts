@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, EDITOR_CONTRIBUTION_ID, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugEditorContribution } from 'vs/workbench/parts/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
@@ -106,15 +105,15 @@ export class BreakpointsView extends ViewletPanel {
 
 			if (isMiddleClick) {
 				if (element instanceof Breakpoint) {
-					this.debugService.removeBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+					this.debugService.removeBreakpoints(element.getId());
 				} else if (element instanceof FunctionBreakpoint) {
-					this.debugService.removeFunctionBreakpoints(element.getId()).done(undefined, onUnexpectedError);
+					this.debugService.removeFunctionBreakpoints(element.getId());
 				}
 				return;
 			}
 
 			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService).done(undefined, onUnexpectedError);
+				openBreakpointSource(element, openToSide, isSingleClick, this.debugService, this.editorService);
 			}
 			if (isDoubleClick && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
@@ -176,7 +175,7 @@ export class BreakpointsView extends ViewletPanel {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			getActionsContext: () => element
 		});
 	}
@@ -286,6 +285,8 @@ interface IBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
 
 interface IInputTemplateData {
 	inputBox: InputBox;
+	checkbox: HTMLInputElement;
+	icon: HTMLElement;
 	breakpoint: IFunctionBreakpoint;
 	reactedOnEvent: boolean;
 	toDispose: IDisposable[];
@@ -338,7 +339,7 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), true);
+		data.filePath.textContent = this.labelService.getUriLabel(resources.dirname(breakpoint.uri), { relative: true });
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, breakpoint);
@@ -452,7 +453,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disalbed', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (session && !session.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
@@ -485,7 +486,14 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 
 	renderTemplate(container: HTMLElement): IInputTemplateData {
 		const template: IInputTemplateData = Object.create(null);
-		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
+
+		const breakpoint = dom.append(container, $('.breakpoint'));
+		template.icon = $('.icon');
+		template.checkbox = createCheckbox();
+
+		dom.append(breakpoint, template.icon);
+		dom.append(breakpoint, template.checkbox);
+		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
 			placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
 			ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
@@ -498,9 +506,9 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 				template.reactedOnEvent = true;
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
 				if (inputBox.value && (renamed || template.breakpoint.name)) {
-					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
+					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name);
 				} else {
-					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId());
 				}
 			}
 		};
@@ -528,12 +536,20 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		return template;
 	}
 
-	renderElement(functionBreakpoint: IFunctionBreakpoint, index: number, data: IInputTemplateData): void {
+	renderElement(functionBreakpoint: FunctionBreakpoint, index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
 		data.reactedOnEvent = false;
+		const { className, message } = getBreakpointMessageAndClassName(this.debugService, functionBreakpoint);
+
+		data.icon.className = className + ' icon';
+		data.icon.title = message ? message : '';
+		data.checkbox.checked = functionBreakpoint.enabled;
+		data.checkbox.disabled = true;
 		data.inputBox.value = functionBreakpoint.name || '';
-		data.inputBox.focus();
-		data.inputBox.select();
+		setTimeout(() => {
+			data.inputBox.focus();
+			data.inputBox.select();
+		}, 0);
 	}
 
 	disposeElement(): void {
@@ -547,7 +563,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 
 export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	const selection = breakpoint.endLineNumber ? {

@@ -6,11 +6,10 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -219,7 +218,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		// Hide notification
 		notification.dispose();
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -265,7 +264,7 @@ class ResolveSaveConflictAction extends Action {
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -283,10 +282,10 @@ class SaveElevatedAction extends Action {
 			this.model.save({
 				writeElevated: true,
 				overwriteReadonly: this.triedToMakeWriteable
-			}).done(null, errors.onUnexpectedError);
+			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -300,10 +299,10 @@ class OverwriteReadonlyAction extends Action {
 
 	run(): TPromise<any> {
 		if (!this.model.isDisposed()) {
-			this.model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
+			this.model.save({ overwriteReadonly: true });
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 

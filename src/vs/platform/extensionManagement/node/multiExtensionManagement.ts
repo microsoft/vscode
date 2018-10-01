@@ -12,7 +12,7 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
 import { isWorkspaceExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -20,6 +20,7 @@ import { Action } from 'vs/base/common/actions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class MulitExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -99,7 +100,7 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		if (this.otherServers.length === 0) {
 			return this.localServer.extensionManagementService.installFromGallery(gallery);
 		}
-		return this.extensionGalleryService.getManifest(gallery)
+		return this.extensionGalleryService.getManifest(gallery, CancellationToken.None)
 			.then(manifest => {
 				const servers = isWorkspaceExtension(manifest, this.configurationService) ? this.servers : [this.localServer];
 				return TPromise.join(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))

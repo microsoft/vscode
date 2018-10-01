@@ -7,12 +7,11 @@
 import * as path from 'path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 import * as glob from 'vs/base/common/glob';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extfs from 'vs/base/node/extfs';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchCompleteStats, ISearchQuery, ITextSearchResult } from 'vs/platform/search/common/search';
@@ -78,49 +77,28 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
+	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const provider = this._fileSearchProvider.get(handle);
 		const query = reviveQuery(rawQuery);
 		if (provider) {
-			let cancelSource = new CancellationTokenSource();
-			return new TPromise((c, e) => {
-				this._fileSearchManager.fileSearch(query, provider, batch => {
-					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}, cancelSource.token).then(c, err => {
-					if (!isPromiseCanceledError(err)) {
-						e(err);
-					}
-				});
-			}, () => {
-				// TODO IPC promise cancellation #53526
-				cancelSource.cancel();
-				cancelSource.dispose();
-			});
+			return this._fileSearchManager.fileSearch(query, provider, batch => {
+				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+			}, token);
 		} else {
 			const indexProvider = this._fileIndexProvider.get(handle);
-			if (indexProvider) {
-				return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
-					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}).then(null, err => {
-					if (!isPromiseCanceledError(err)) {
-						throw err;
-					}
-
-					return null;
-				});
-			} else {
-				throw new Error('something went wrong');
-			}
+			return this._fileIndexSearchManager.fileSearch(query, indexProvider, batch => {
+				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
+			}, token);
 		}
 	}
 
-	$clearCache(cacheKey: string): TPromise<void> {
+	$clearCache(cacheKey: string): Thenable<void> {
 		// Actually called once per provider.
 		// Only relevant to file index search.
 		return this._fileIndexSearchManager.clearCache(cacheKey);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery, token: CancellationToken): Thenable<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
@@ -128,7 +106,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 		const query = reviveQuery(rawQuery);
 		const engine = new TextSearchEngine(pattern, query, provider, this._extfs);
-		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress));
+		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 }
 
@@ -300,36 +278,32 @@ class BatchedCollector<T> {
 
 class TextSearchEngine {
 
-	private activeCancellationTokens = new Set<CancellationTokenSource>();
 	private collector: TextSearchResultsCollector;
 
 	private isLimitHit: boolean;
 	private resultCount = 0;
-	private isCanceled: boolean;
 
 	constructor(private pattern: IPatternInfo, private config: ISearchQuery, private provider: vscode.TextSearchProvider, private _extfs: typeof extfs) {
 	}
 
-	public cancel(): void {
-		this.isCanceled = true;
-		this.activeCancellationTokens.forEach(t => t.cancel());
-		this.activeCancellationTokens = new Set();
-	}
-
-	public search(onProgress: (matches: IFileMatch[]) => void): TPromise<ISearchCompleteStats> {
+	public search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): TPromise<ISearchCompleteStats> {
 		const folderQueries = this.config.folderQueries;
+		const tokenSource = new CancellationTokenSource();
+		token.onCancellationRequested(() => tokenSource.cancel());
 
 		return new TPromise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
+			let isCanceled = false;
 			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
-				if (this.isCanceled) {
+				if (isCanceled) {
 					return;
 				}
 
 				if (this.resultCount >= this.config.maxResults) {
 					this.isLimitHit = true;
-					this.cancel();
+					isCanceled = true;
+					tokenSource.cancel();
 				}
 
 				if (!this.isLimitHit) {
@@ -340,16 +314,20 @@ class TextSearchEngine {
 
 			// For each root folder
 			TPromise.join(folderQueries.map((fq, i) => {
-				return this.searchInFolder(fq, r => onResult(r, i));
-			})).then(() => {
+				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
+			})).then(results => {
+				tokenSource.dispose();
 				this.collector.flush();
+
+				const someFolderHitLImit = results.some(result => result && result.limitHit);
 				resolve({
-					limitHit: this.isLimitHit,
+					limitHit: this.isLimitHit || someFolderHitLImit,
 					stats: {
 						type: 'textSearchProvider'
 					}
 				});
 			}, (errs: Error[]) => {
+				tokenSource.dispose();
 				const errMsg = errs
 					.map(err => toErrorMessage(err))
 					.filter(msg => !!msg)[0];
@@ -359,49 +337,33 @@ class TextSearchEngine {
 		});
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void): TPromise<void> {
-		let cancellation = new CancellationTokenSource();
-		return new TPromise((resolve, reject) => {
+	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: vscode.TextSearchResult) => void, token: CancellationToken): TPromise<vscode.TextSearchComplete> {
+		const queryTester = new QueryGlobTester(this.config, folderQuery);
+		const testingPs = [];
+		const progress = {
+			report: (result: vscode.TextSearchResult) => {
+				const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
+					return this.readdir(path.dirname(result.uri.fsPath));
+				});
 
-			const queryTester = new QueryGlobTester(this.config, folderQuery);
-			const testingPs = [];
-			const progress = {
-				report: (result: vscode.TextSearchResult) => {
-					const hasSibling = folderQuery.folder.scheme === 'file' && glob.hasSiblingPromiseFn(() => {
-						return this.readdir(path.dirname(result.uri.fsPath));
-					});
+				const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
+				testingPs.push(
+					queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
+						.then(included => {
+							if (included) {
+								onResult(result);
+							}
+						}));
+			}
+		};
 
-					const relativePath = path.relative(folderQuery.folder.fsPath, result.uri.fsPath);
-					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
-							.then(included => {
-								if (included) {
-									onResult(result);
-								}
-							}));
-				}
-			};
-
-			const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-			new TPromise(resolve => process.nextTick(resolve))
-				.then(() => {
-					this.activeCancellationTokens.add(cancellation);
-					return this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, cancellation.token);
-				})
-				.then(() => {
-					this.activeCancellationTokens.delete(cancellation);
-					return TPromise.join(testingPs);
-				})
-				.then(
-					() => {
-						cancellation.dispose();
-						resolve(null);
-					},
-					err => {
-						cancellation.dispose();
-						reject(err);
-					});
-		});
+		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
+		return new TPromise(resolve => process.nextTick(resolve))
+			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, token))
+			.then(result => {
+				return TPromise.join(testingPs)
+					.then(() => result);
+			});
 	}
 
 	private readdir(dirname: string): TPromise<string[]> {

@@ -60,7 +60,7 @@ export class BaseQuickOpenNavigateAction extends Action {
 		this.quickOpenService.navigate(this.next, quickNavigate);
 		this.quickInputService.navigate(this.next, quickNavigate);
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 

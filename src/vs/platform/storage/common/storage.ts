@@ -54,7 +54,7 @@ export interface IStorageService {
 	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
 }
 
-export enum StorageScope {
+export const enum StorageScope {
 
 	/**
 	 * The stored data will be scoped to all workspaces of this domain.

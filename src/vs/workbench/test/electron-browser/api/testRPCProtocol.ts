@@ -23,8 +23,6 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	};
 }
 
-declare var Proxy: any; // TODO@TypeScript
-
 export class TestRPCProtocol implements IExtHostContext {
 
 	private _callCountValue: number = 0;
@@ -70,10 +68,10 @@ export class TestRPCProtocol implements IExtHostContext {
 	}
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id);
+		if (!this._proxies[identifier.sid]) {
+			this._proxies[identifier.sid] = this._createProxy(identifier.sid);
 		}
-		return this._proxies[identifier.id];
+		return this._proxies[identifier.sid];
 	}
 
 	private _createProxy<T>(proxyId: string): T {
@@ -91,7 +89,7 @@ export class TestRPCProtocol implements IExtHostContext {
 	}
 
 	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		this._locals[identifier.id] = value;
+		this._locals[identifier.sid] = value;
 		return value;
 	}
 

@@ -6,12 +6,12 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { OS } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asText } from 'vs/base/node/request';
-import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
+import { TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -25,8 +25,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 function renderBody(
 	body: string,
@@ -135,7 +136,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingIO.readKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
 
 				if (!keybinding) {
 					return unassigned;
@@ -156,7 +157,7 @@ export class ReleaseNotesManager {
 		};
 
 		if (!this._releaseNotesCache[version]) {
-			this._releaseNotesCache[version] = this._requestService.request({ url })
+			this._releaseNotesCache[version] = this._requestService.request({ url }, CancellationToken.None)
 				.then(asText)
 				.then(text => {
 					if (!/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
@@ -191,21 +192,18 @@ export class ReleaseNotesManager {
 	}
 
 	private async getRenderer(text: string) {
-		const result: TPromise<IMode>[] = [];
+		let result: TPromise<ITokenizationSupport>[] = [];
 		const renderer = new marked.Renderer();
 		renderer.code = (code, lang) => {
 			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			result.push(this._modeService.getOrCreateMode(modeId));
+			result.push(this._modeService.getOrCreateMode(modeId).then(_ => TokenizationRegistry.getPromise(modeId)));
 			return '';
 		};
 
 		marked(text, { renderer });
 		await TPromise.join(result);
 
-		renderer.code = (code, lang) => {
-			const modeId = this._modeService.getModeIdForLanguageName(lang);
-			return `<code>${tokenizeToString(code, modeId)}</code>`;
-		};
+		renderer.code = (code, lang) => `<code>${tokenizeToString(code, TokenizationRegistry.get(lang))}</code>`;
 		return renderer;
 	}
 }

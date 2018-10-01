@@ -18,8 +18,8 @@ import * as arrays from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as extfs from 'vs/base/node/extfs';
-import { nfcall, ThrottledDelayer, toWinJsPromise } from 'vs/base/common/async';
-import uri from 'vs/base/common/uri';
+import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
+import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -529,10 +529,9 @@ export class FileService extends Disposable implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							const autoGuessEncoding = (options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding');
 							TPromise.as(encoding.detectEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
-								autoGuessEncoding
+								(options && options.autoGuessEncoding) || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding')
 							)).then(detected => {
 
 								if (options && options.acceptTextOnly && detected.seemsBinary) {
@@ -679,7 +678,7 @@ export class FileService extends Disposable implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return toWinJsPromise(import('sudo-prompt')).then(sudoPrompt => {
+				return TPromise.wrap(import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = {
 							name: this.environmentService.appNameLong.replace('-', ''),
@@ -1003,7 +1002,7 @@ export class FileService extends Disposable implements IFileService {
 		const fsPath = resource.fsPath;
 		const fsName = paths.basename(resource.fsPath);
 
-		const watcher = extfs.watch(fsPath, (eventType: string, filename: string) => {
+		const watcherDisposable = extfs.watch(fsPath, (eventType: string, filename: string) => {
 			const renamedOrDeleted = ((filename && filename !== fsName) || eventType === 'rename');
 
 			// The file was either deleted or renamed. Many tools apply changes to files in an
@@ -1017,12 +1016,12 @@ export class FileService extends Disposable implements IFileService {
 			if (renamedOrDeleted) {
 
 				// Very important to dispose the watcher which now points to a stale inode
-				watcher.close();
+				watcherDisposable.dispose();
 				this.activeFileChangesWatchers.delete(resource);
 
 				// Wait a bit and try to install watcher again, assuming that the file was renamed quickly ("Atomic Save")
 				setTimeout(() => {
-					this.existsFile(resource).done(exists => {
+					this.existsFile(resource).then(exists => {
 
 						// File still exists, so reapply the watcher
 						if (exists) {
@@ -1048,12 +1047,10 @@ export class FileService extends Disposable implements IFileService {
 		}, (error: string) => this.handleError(error));
 
 		// Remember in map
-		if (watcher) {
-			this.activeFileChangesWatchers.set(resource, {
-				count: 1,
-				unwatch: () => watcher.close()
-			});
-		}
+		this.activeFileChangesWatchers.set(resource, {
+			count: 1,
+			unwatch: () => watcherDisposable.dispose()
+		});
 	}
 
 	private onRawFileChange(event: IRawFileChange): void {
@@ -1062,7 +1059,7 @@ export class FileService extends Disposable implements IFileService {
 		this.undeliveredRawFileChangesEvents.push(event);
 
 		if (this.environmentService.verbose) {
-			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', event.path);
+			console.log('%c[File Watcher (node.js)]%c', 'color: blue', 'color: black', `${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 		}
 
 		// handle emit through delayer to accommodate for bulk changes
@@ -1076,7 +1073,7 @@ export class FileService extends Disposable implements IFileService {
 			// Logging
 			if (this.environmentService.verbose) {
 				normalizedEvents.forEach(r => {
-					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]', r.path);
+					console.log('%c[File Watcher (node.js)]%c >> normalized', 'color: blue', 'color: black', `${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 				});
 			}
 

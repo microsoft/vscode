@@ -5,31 +5,15 @@
 
 'use strict';
 
-import * as errors from 'vs/base/common/errors';
-import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
+import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
-}
-
-export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
-	if (isThenable(arg)) {
-		return arg;
-	} else {
-		return TPromise.as(arg);
-	}
-}
-
-export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
-	if (arg instanceof TPromise) {
-		return arg;
-	}
-
-	return new TPromise((resolve, reject) => arg.then(resolve, reject));
 }
 
 export interface CancelablePromise<T> extends Promise<T> {
@@ -66,76 +50,15 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	};
 }
 
-export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
-	let source = new CancellationTokenSource();
-	return new TPromise<T>((resolve, reject) => {
-		let item = callback(source.token);
-		if (item instanceof TPromise) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
-		} else if (isThenable<T>(item)) {
-			item.then(result => {
-				source.dispose();
-				resolve(result);
-			}, err => {
-				source.dispose();
-				reject(err);
-			});
+export function asThenable<T>(callback: () => T | Thenable<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		let item = callback();
+		if (isThenable<T>(item)) {
+			item.then(resolve, reject);
 		} else {
-			source.dispose();
 			resolve(item);
 		}
-	}, () => {
-		source.cancel();
 	});
-}
-
-/**
- * Hook a cancellation token to a WinJS Promise
- */
-export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
-	const subscription = token.onCancellationRequested(() => promise.cancel());
-	if (resolveAsUndefinedWhenCancelled) {
-		promise = promise.then<T>(undefined, err => {
-			if (!errors.isPromiseCanceledError(err)) {
-				return TPromise.wrapError(err);
-			}
-			return undefined;
-		});
-	}
-	return always(promise, () => subscription.dispose());
-}
-
-export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, bucket?: IDisposable[]): { promise: Thenable<T> } & IDisposable {
-	let dispose: () => void;
-	let promise = new TPromise((resolve, reject) => {
-		dispose = function () {
-			resolve(cancelValue);
-			if (isWinJSPromise(input)) {
-				input.cancel();
-			}
-		};
-		input.then(resolve, err => {
-			if (errors.isPromiseCanceledError(err)) {
-				resolve(cancelValue);
-			} else {
-				reject(err);
-			}
-		});
-	});
-	let res = {
-		promise,
-		dispose
-	};
-	if (Array.isArray(bucket)) {
-		bucket.push(res);
-	}
-	return res;
 }
 
 export interface ITask<T> {
@@ -195,31 +118,25 @@ export class Throttler {
 				};
 
 				this.queuedPromise = new TPromise(c => {
-					this.activePromise.then(onComplete, onComplete).done(c);
-				}, () => {
-					this.activePromise.cancel();
+					this.activePromise.then(onComplete, onComplete).then(c);
 				});
 			}
 
 			return new TPromise((c, e) => {
 				this.queuedPromise.then(c, e);
-			}, () => {
-				// no-op
 			});
 		}
 
 		this.activePromise = promiseFactory();
 
 		return new TPromise((c, e) => {
-			this.activePromise.done((result: any) => {
+			this.activePromise.then((result: any) => {
 				this.activePromise = null;
 				c(result);
 			}, (err: any) => {
 				this.activePromise = null;
 				e(err);
 			});
-		}, () => {
-			this.activePromise.cancel();
 		});
 	}
 }
@@ -261,13 +178,14 @@ export class Delayer<T> {
 
 	private timeout: number;
 	private completionPromise: TPromise;
-	private onSuccess: ValueCallback;
+	private doResolve: ValueCallback;
+	private doReject: (err: any) => void;
 	private task: ITask<T | TPromise<T>>;
 
 	constructor(public defaultDelay: number) {
 		this.timeout = null;
 		this.completionPromise = null;
-		this.onSuccess = null;
+		this.doResolve = null;
 		this.task = null;
 	}
 
@@ -276,13 +194,12 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new TPromise((c) => {
-				this.onSuccess = c;
-			}, () => {
-				// no-op
+			this.completionPromise = new TPromise((c, e) => {
+				this.doResolve = c;
+				this.doReject = e;
 			}).then(() => {
 				this.completionPromise = null;
-				this.onSuccess = null;
+				this.doResolve = null;
 				const task = this.task;
 				this.task = null;
 
@@ -292,7 +209,7 @@ export class Delayer<T> {
 
 		this.timeout = setTimeout(() => {
 			this.timeout = null;
-			this.onSuccess(null);
+			this.doResolve(null);
 		}, delay);
 
 		return this.completionPromise;
@@ -306,7 +223,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (this.completionPromise) {
-			this.completionPromise.cancel();
+			this.doReject(errors.canceled());
 			this.completionPromise = null;
 		}
 	}
@@ -354,8 +271,6 @@ export class Barrier {
 		this._isOpen = false;
 		this._promise = new TPromise<boolean>((c, e) => {
 			this._completePromise = c;
-		}, () => {
-			console.warn('You should really not try to cancel this ready promise!');
 		});
 	}
 
@@ -373,47 +288,23 @@ export class Barrier {
 	}
 }
 
-export class ShallowCancelThenPromise<T> extends TPromise<T> {
-
-	constructor(outer: TPromise<T>) {
-
-		let completeCallback: ValueCallback,
-			errorCallback: ErrorCallback;
-
-		super((c, e) => {
-			completeCallback = c;
-			errorCallback = e;
-		}, () => {
-			// cancel this promise but not the
-			// outer promise
-			errorCallback(errors.canceled());
-		});
-
-		outer.then(completeCallback, errorCallback);
-	}
-}
-
 /**
  * Replacement for `WinJS.TPromise.timeout`.
  */
-export function timeout(n: number): CancelablePromise<void> {
-	return createCancelablePromise(token => {
-		return new Promise((resolve, reject) => {
-			const handle = setTimeout(resolve, n);
-			token.onCancellationRequested(_ => {
-				clearTimeout(handle);
-				reject(errors.canceled());
-			});
+export function timeout(millis: number): CancelablePromise<void>;
+export function timeout(millis: number, token: CancellationToken): Thenable<void>;
+export function timeout(millis: number, token?: CancellationToken): CancelablePromise<void> | Thenable<void> {
+	if (!token) {
+		return createCancelablePromise(token => timeout(millis, token));
+	}
+
+	return new Promise((resolve, reject) => {
+		const handle = setTimeout(resolve, millis);
+		token.onCancellationRequested(() => {
+			clearTimeout(handle);
+			reject(errors.canceled());
 		});
 	});
-}
-
-/**
- *
- * @returns `true` if candidate is a `WinJS.Promise`
- */
-export function isWinJSPromise(candidate: any): candidate is TPromise {
-	return isThenable(candidate) && typeof (<TPromise>candidate).done === 'function';
 }
 
 /**
@@ -421,37 +312,18 @@ export function isWinJSPromise(candidate: any): candidate is TPromise {
  * the provided promise the provided function will always be called. This
  * method is comparable to a try-finally code block.
  * @param promise a promise
- * @param f a function that will be call in the success and error case.
+ * @param callback a function that will be call in the success and error case.
  */
-export function always<T>(thenable: TPromise<T>, f: Function): TPromise<T>;
-export function always<T>(promise: Thenable<T>, f: Function): Thenable<T>;
-export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: Function): TPromise<T> | Thenable<T> {
-	if (isWinJSPromise(winjsPromiseOrThenable)) {
-		return new TPromise<T>((c, e) => {
-			winjsPromiseOrThenable.done((result) => {
-				try {
-					f(result);
-				} catch (e1) {
-					errors.onUnexpectedError(e1);
-				}
-				c(result);
-			}, (err) => {
-				try {
-					f(err);
-				} catch (e1) {
-					errors.onUnexpectedError(e1);
-				}
-				e(err);
-			});
-		}, () => {
-			winjsPromiseOrThenable.cancel();
-		});
-
-	} else {
-		// simple
-		winjsPromiseOrThenable.then(_ => f(), _ => f());
-		return winjsPromiseOrThenable;
+export function always<T>(promise: Thenable<T>, callback: () => void): Promise<T> {
+	function safeCallback() {
+		try {
+			callback();
+		} catch (err) {
+			errors.onUnexpectedError(err);
+		}
 	}
+	promise.then(_ => safeCallback(), _ => safeCallback());
+	return Promise.resolve(promise);
 }
 
 /**
@@ -459,7 +331,7 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: 
  * promise will complete to an array of results from each promise.
  */
 
-export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[]> {
+export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): Promise<T[]> {
 	const results: T[] = [];
 	let index = 0;
 	const len = promiseFactories.length;
@@ -478,49 +350,27 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[
 			return n.then(thenHandler);
 		}
 
-		return TPromise.as(results);
+		return Promise.resolve(results);
 	}
 
-	return TPromise.as(null).then(thenHandler);
+	return Promise.resolve(null).then(thenHandler);
 }
 
-export function first2<T>(promiseFactories: ITask<Promise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): Promise<T> {
-
+export function first<T>(promiseFactories: ITask<Thenable<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): Promise<T> {
 	let index = 0;
 	const len = promiseFactories.length;
 
-	const loop = () => {
+	const loop: () => Promise<T> = () => {
 		if (index >= len) {
 			return Promise.resolve(defaultValue);
 		}
+
 		const factory = promiseFactories[index++];
-		const promise = factory();
+		const promise = Promise.resolve(factory());
+
 		return promise.then(result => {
 			if (shouldStop(result)) {
 				return Promise.resolve(result);
-			}
-			return loop();
-		});
-	};
-
-	return loop();
-}
-
-export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): TPromise<T> {
-	let index = 0;
-	const len = promiseFactories.length;
-
-	const loop: () => TPromise<T> = () => {
-		if (index >= len) {
-			return TPromise.as(defaultValue);
-		}
-
-		const factory = promiseFactories[index++];
-		const promise = factory();
-
-		return promise.then(result => {
-			if (shouldStop(result)) {
-				return TPromise.as(result);
 			}
 
 			return loop();
@@ -576,8 +426,8 @@ export class Limiter<T> {
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
-			promise.done(iLimitedTask.c, iLimitedTask.e);
-			promise.done(() => this.consumed(), () => this.consumed());
+			promise.then(iLimitedTask.c, iLimitedTask.e);
+			promise.then(() => this.consumed(), () => this.consumed());
 		}
 	}
 
@@ -633,17 +483,18 @@ export class ResourceQueue {
 	}
 }
 
-export function setDisposableTimeout(handler: Function, timeout: number, ...args: any[]): IDisposable {
-	const handle = setTimeout(handler, timeout, ...args);
-	return { dispose() { clearTimeout(handle); } };
-}
-
 export class TimeoutTimer extends Disposable {
 	private _token: number;
 
-	constructor() {
+	constructor();
+	constructor(runner: () => void, timeout: number);
+	constructor(runner?: () => void, timeout?: number) {
 		super();
 		this._token = -1;
+
+		if (typeof runner === 'function' && typeof timeout === 'number') {
+			this.setIfNotSet(runner, timeout);
+		}
 	}
 
 	dispose(): void {
@@ -799,11 +650,88 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): TPromise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
+
+
+//#region -- run on idle tricks ------------
+
+export interface IdleDeadline {
+	readonly didTimeout: boolean;
+	timeRemaining(): DOMHighResTimeStamp;
+}
+/**
+ * Execute the callback the next time the browser is idle
+ */
+export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function cancelIdleCallback(handle: number): void;
+
+(function () {
+	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
+		let dummyIdle: IdleDeadline = Object.freeze({
+			didTimeout: true,
+			timeRemaining() { return 15; }
+		});
+		runWhenIdle = (runner, timeout = 0) => {
+			let handle = setTimeout(() => runner(dummyIdle), timeout);
+			return { dispose() { clearTimeout(handle); handle = undefined; } };
+		};
+	} else {
+		runWhenIdle = (runner, timeout?) => {
+			let handle = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			return { dispose() { cancelIdleCallback(handle); handle = undefined; } };
+		};
+	}
+})();
+
+/**
+ * An implementation of the "idle-until-urgent"-strategy as introduced
+ * here: https://philipwalton.com/articles/idle-until-urgent/
+ */
+export class IdleValue<T> {
+
+	private readonly _executor: () => void;
+	private readonly _handle: IDisposable;
+
+	private _didRun: boolean;
+	private _value: T;
+	private _error: any;
+
+	constructor(executor: () => T) {
+		this._executor = () => {
+			try {
+				this._value = executor();
+			} catch (err) {
+				this._error = err;
+			} finally {
+				this._didRun = true;
+			}
+		};
+		this._handle = runWhenIdle(() => this._executor());
+	}
+
+	dispose(): void {
+		this._handle.dispose();
+	}
+
+	getValue(): T {
+		if (!this._didRun) {
+			this._handle.dispose();
+			this._executor();
+		}
+		if (this._error) {
+			throw this._error;
+		}
+		return this._value;
+	}
+}
+
+//#endregion

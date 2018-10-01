@@ -5,7 +5,7 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -45,7 +45,7 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
-import { ILabelService, LabelRules } from 'vs/platform/label/common/label';
+import { ILabelService, LabelRules, RegisterFormatterEvent } from 'vs/platform/label/common/label';
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -240,18 +240,18 @@ export class StandaloneCommandService implements ICommandService {
 		});
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
+	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
 		if (!command) {
-			return TPromise.wrapError<T>(new Error(`command '${id}' not found`));
+			return Promise.reject(new Error(`command '${id}' not found`));
 		}
 
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
-			return TPromise.as(result);
+			return Promise.resolve(result);
 		} catch (err) {
-			return TPromise.wrapError<T>(err);
+			return Promise.reject(err);
 		}
 	}
 }
@@ -562,17 +562,17 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): TPromise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
 		for (let edit of workspaceEdit.edits) {
 			if (!isResourceTextEdit(edit)) {
-				return TPromise.wrapError(new Error('bad edit - only text edits are supported'));
+				return Promise.reject(new Error('bad edit - only text edits are supported'));
 			}
 			let model = this._modelService.getModel(edit.resource);
 			if (!model) {
-				return TPromise.wrapError(new Error('bad edit - model not found'));
+				return Promise.reject(new Error('bad edit - model not found'));
 			}
 			let array = edits.get(model);
 			if (!array) {
@@ -589,7 +589,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 			totalEdits += edits.length;
 		});
 
-		return TPromise.as({
+		return Promise.resolve({
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
@@ -599,10 +599,10 @@ export class SimpleBulkEditService implements IBulkEditService {
 export class SimpleUriLabelService implements ILabelService {
 	_serviceBrand: any;
 
-	private readonly _onDidRegisterFormatter: Emitter<{ scheme: string, formatter: LabelRules }> = new Emitter<{ scheme: string, formatter: LabelRules }>();
-	public readonly onDidRegisterFormatter: Event<{ scheme: string, formatter: LabelRules }> = this._onDidRegisterFormatter.event;
+	private readonly _onDidRegisterFormatter: Emitter<RegisterFormatterEvent> = new Emitter<RegisterFormatterEvent>();
+	public readonly onDidRegisterFormatter: Event<RegisterFormatterEvent> = this._onDidRegisterFormatter.event;
 
-	public getUriLabel(resource: URI, relative?: boolean): string {
+	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
 			return resource.fsPath;
 		}
@@ -613,7 +613,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
+	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
 		throw new Error('Not implemented');
 	}
 }

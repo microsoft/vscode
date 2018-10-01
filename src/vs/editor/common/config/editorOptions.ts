@@ -193,6 +193,10 @@ export interface ISuggestOptions {
 	 * Prevent quick suggestions when a snippet is active. Defaults to true.
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
+	/**
+	 * Favours words that appear close to the cursor.
+	 */
+	localityBonus?: boolean;
 }
 
 /**
@@ -544,6 +548,10 @@ export interface IEditorOptions {
 	 */
 	emptySelectionClipboard?: boolean;
 	/**
+	 * Syntax highlighting is copied.
+	 */
+	copyWithSyntaxHighlighting?: boolean;
+	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
 	wordBasedSuggestions?: boolean;
@@ -561,6 +569,10 @@ export interface IEditorOptions {
 	 * Defaults to the editor line height.
 	 */
 	suggestLineHeight?: number;
+	/**
+	 * Enable tab completion.
+	 */
+	tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -885,6 +897,7 @@ export interface InternalSuggestOptions {
 	readonly filterGraceful: boolean;
 	readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 	readonly snippetsPreventQuickSuggestions: boolean;
+	readonly localityBonus: boolean;
 }
 
 export interface InternalParameterHintOptions {
@@ -959,11 +972,11 @@ export interface EditorContribOptions {
 	readonly suggestOnTriggerCharacters: boolean;
 	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 	readonly acceptSuggestionOnCommitCharacter: boolean;
-	// readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
+	readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 	readonly suggest: InternalSuggestOptions;
 	readonly selectionHighlight: boolean;
 	readonly occurrencesHighlight: boolean;
@@ -1006,6 +1019,7 @@ export interface IValidatedEditorOptions {
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
 	readonly useTabStops: boolean;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
@@ -1045,6 +1059,7 @@ export class InternalEditorOptions {
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
 
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
@@ -1074,6 +1089,7 @@ export class InternalEditorOptions {
 		tabFocusMode: boolean;
 		dragAndDrop: boolean;
 		emptySelectionClipboard: boolean;
+		copyWithSyntaxHighlighting: boolean;
 		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
@@ -1098,6 +1114,7 @@ export class InternalEditorOptions {
 		this.tabFocusMode = source.tabFocusMode;
 		this.dragAndDrop = source.dragAndDrop;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
+		this.copyWithSyntaxHighlighting = source.copyWithSyntaxHighlighting;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;
@@ -1129,6 +1146,7 @@ export class InternalEditorOptions {
 			&& this.dragAndDrop === other.dragAndDrop
 			&& this.showUnused === other.showUnused
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
+			&& this.copyWithSyntaxHighlighting === other.copyWithSyntaxHighlighting
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
@@ -1159,6 +1177,7 @@ export class InternalEditorOptions {
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
 			emptySelectionClipboard: (this.emptySelectionClipboard !== newOpts.emptySelectionClipboard),
+			copyWithSyntaxHighlighting: (this.copyWithSyntaxHighlighting !== newOpts.copyWithSyntaxHighlighting),
 			layoutInfo: (!InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
@@ -1322,7 +1341,8 @@ export class InternalEditorOptions {
 		} else {
 			return a.filterGraceful === b.filterGraceful
 				&& a.snippets === b.snippets
-				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions;
+				&& a.snippetsPreventQuickSuggestions === b.snippetsPreventQuickSuggestions
+				&& a.localityBonus === b.localityBonus;
 		}
 	}
 
@@ -1365,6 +1385,7 @@ export class InternalEditorOptions {
 			&& a.suggestSelection === b.suggestSelection
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
+			&& a.tabCompletion === b.tabCompletion
 			&& this._equalsSuggestOptions(a.suggest, b.suggest)
 			&& a.selectionHighlight === b.selectionHighlight
 			&& a.occurrencesHighlight === b.occurrencesHighlight
@@ -1542,6 +1563,7 @@ export interface IConfigurationChangedEvent {
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
+	readonly copyWithSyntaxHighlighting: boolean;
 	readonly layoutInfo: boolean;
 	readonly fontInfo: boolean;
 	readonly viewInfo: boolean;
@@ -1726,7 +1748,7 @@ export class EditorOptionsValidator {
 		} else {
 			autoClosingBrackets = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingBrackets, defaults.autoClosingBrackets, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
 			autoClosingQuotes = _stringSet<EditorAutoClosingStrategy>(opts.autoClosingQuotes, defaults.autoClosingQuotes, ['always', 'languageDefined', 'beforeWhitespace', 'never']);
-			autoSurround = _stringSet<EditorAutoSurroundStrategy>(opts.autoSurround, defaults.autoSurround, ['languageDefined', 'brackets', 'quotes', 'never'], );
+			autoSurround = _stringSet<EditorAutoSurroundStrategy>(opts.autoSurround, defaults.autoSurround, ['languageDefined', 'brackets', 'quotes', 'never']);
 		}
 
 		return {
@@ -1751,6 +1773,7 @@ export class EditorOptionsValidator {
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
+			copyWithSyntaxHighlighting: _boolean(opts.copyWithSyntaxHighlighting, defaults.copyWithSyntaxHighlighting),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			multiCursorModifier: multiCursorModifier,
 			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
@@ -1849,9 +1872,19 @@ export class EditorOptionsValidator {
 			filterGraceful: _boolean(suggestOpts.filterGraceful, defaults.filterGraceful),
 			snippets: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippets, ['top', 'bottom', 'inline', 'none']),
 			snippetsPreventQuickSuggestions: _boolean(suggestOpts.snippetsPreventQuickSuggestions, defaults.filterGraceful),
+			localityBonus: _boolean(suggestOpts.localityBonus, defaults.localityBonus),
 		};
 	}
 
+	private static _sanitizeTabCompletionOpts(opts: boolean | 'on' | 'off' | 'onlySnippets', defaults: 'on' | 'off' | 'onlySnippets'): 'on' | 'off' | 'onlySnippets' {
+		if (opts === false) {
+			return 'off';
+		} else if (opts === true) {
+			return 'onlySnippets';
+		} else {
+			return _stringSet<'on' | 'off' | 'onlySnippets'>(opts, defaults, ['on', 'off', 'onlySnippets']);
+		}
+	}
 
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
@@ -1987,6 +2020,7 @@ export class EditorOptionsValidator {
 			suggestSelection: _stringSet<'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>(opts.suggestSelection, defaults.suggestSelection, ['first', 'recentlyUsed', 'recentlyUsedByPrefix']),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
+			tabCompletion: this._sanitizeTabCompletionOpts(opts.tabCompletion, defaults.tabCompletion),
 			suggest: this._sanitizeSuggestOpts(opts, defaults.suggest),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
@@ -2034,6 +2068,7 @@ export class InternalEditorOptionsFactory {
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
+			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
 			useTabStops: opts.useTabStops,
 			multiCursorModifier: opts.multiCursorModifier,
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
@@ -2097,6 +2132,7 @@ export class InternalEditorOptionsFactory {
 				suggestSelection: opts.contribInfo.suggestSelection,
 				suggestFontSize: opts.contribInfo.suggestFontSize,
 				suggestLineHeight: opts.contribInfo.suggestLineHeight,
+				tabCompletion: opts.contribInfo.tabCompletion,
 				suggest: opts.contribInfo.suggest,
 				selectionHighlight: (accessibilityIsOn ? false : opts.contribInfo.selectionHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
 				occurrencesHighlight: (accessibilityIsOn ? false : opts.contribInfo.occurrencesHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2259,6 +2295,7 @@ export class InternalEditorOptionsFactory {
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
+			copyWithSyntaxHighlighting: opts.copyWithSyntaxHighlighting,
 			layoutInfo: layoutInfo,
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
@@ -2492,6 +2529,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,
+	copyWithSyntaxHighlighting: true,
 	useTabStops: true,
 	multiCursorModifier: 'altKey',
 	multiCursorMergeOverlapping: true,
@@ -2575,10 +2613,12 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		suggestSelection: 'recentlyUsed',
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
+		tabCompletion: 'off',
 		suggest: {
 			filterGraceful: true,
 			snippets: 'inline',
-			snippetsPreventQuickSuggestions: true
+			snippetsPreventQuickSuggestions: true,
+			localityBonus: false
 		},
 		selectionHighlight: true,
 		occurrencesHighlight: true,

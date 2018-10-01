@@ -10,8 +10,7 @@ import { localize } from 'vs/nls';
 import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import URI, { UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -115,7 +114,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string> {
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Thenable<string> {
 		const uri = URI.revive(resource);
 
 		const editorOptions: ITextEditorOptions = {
@@ -137,7 +136,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 	}
 
-	$tryShowEditor(id: string, position?: EditorViewColumn): TPromise<void> {
+	$tryShowEditor(id: string, position?: EditorViewColumn): Thenable<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -149,7 +148,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$tryHideEditor(id: string): TPromise<void> {
+	$tryHideEditor(id: string): Thenable<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._editorService.visibleControls;
@@ -162,65 +161,65 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return undefined;
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<void> {
+	$trySetSelections(id: string, selections: ISelection[]): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setSelections(selections);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<void> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Thenable<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorations(key, ranges);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Thenable<void> {
 		key = `${this._instanceId}-${key}`;
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void> {
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).revealRange(range, revealType);
 		return undefined;
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Thenable<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
 		this._documentsAndEditors.getEditor(id).setConfiguration(options);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
+	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
-	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): TPromise<boolean> {
+	$tryApplyWorkspaceEdit(dto: WorkspaceEditDto): Thenable<boolean> {
 		const { edits } = reviveWorkspaceEditDto(dto);
 		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
 	}
 
-	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
+	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): Thenable<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError<boolean>(disposed(`TextEditor(${id})`));
+			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
-		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
+		return Promise.resolve(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
 
 	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
@@ -235,11 +234,11 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): TPromise<ILineChange[]> {
+	$getDiffInformation(id: string): Thenable<ILineChange[]> {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {
-			return TPromise.wrapError<ILineChange[]>(new Error('No such TextEditor'));
+			return Promise.reject(new Error('No such TextEditor'));
 		}
 
 		const codeEditor = editor.getCodeEditor();
@@ -247,31 +246,37 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const diffEditors = this._codeEditorService.listDiffEditors();
 		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
 
-		if (!diffEditor) {
-			return TPromise.as([]);
+		if (diffEditor) {
+			return Promise.resolve(diffEditor.getLineChanges());
 		}
 
-		return TPromise.as(diffEditor.getLineChanges());
+		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
+
+		if (dirtyDiffContribution) {
+			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+		}
+
+		return Promise.resolve([]);
 	}
 }
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn]) {
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn, string?]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
 
-	const [resource, options, position] = args;
+	const [resource, options, position, label] = args;
 
 	if (options || typeof position === 'number') {
 		// use editor options or editor view column as a hint to use the editor service for opening
-		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
+		return editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
 	}
 
 	if (resource && resource.scheme === 'command') {
 		// do not allow to execute commands from here
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 
 	// finally, delegate to opener service

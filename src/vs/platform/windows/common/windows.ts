@@ -17,7 +17,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ExportData } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export const IWindowsService = createDecorator<IWindowsService>('windowsService');
 
@@ -84,13 +84,7 @@ export interface SaveDialogOptions {
 	showsTagField?: boolean;
 }
 
-export interface OpenDialogOptions {
-	title?: string;
-	defaultPath?: string;
-	buttonLabel?: string;
-	filters?: FileFilter[];
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
-	message?: string;
+export interface INewWindowOptions {
 }
 
 export interface IDevToolsOptions {
@@ -159,7 +153,7 @@ export interface IWindowsService {
 
 	// Global methods
 	openWindow(windowId: number, paths: URI[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean, args?: ParsedArgs }): TPromise<void>;
-	openNewWindow(): TPromise<void>;
+	openNewWindow(options?: INewWindowOptions): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderUri?: ISingleFolderWorkspaceIdentifier; title: string; filename?: string; }[]>;
 	getWindowCount(): TPromise<number>;
@@ -251,7 +245,7 @@ export interface IWindowSettings {
 	vibrancy: 'none' | 'appearance-based' | 'light' | 'dark' | 'titlebar' | 'medium-light' | 'ultra-dark';
 }
 
-export enum OpenContext {
+export const enum OpenContext {
 
 	// opening when running from the command line
 	CLI,
@@ -272,7 +266,7 @@ export enum OpenContext {
 	API
 }
 
-export enum ReadyState {
+export const enum ReadyState {
 
 	/**
 	 * This window has not loaded any HTML yet

@@ -10,7 +10,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 /**
  * Supported memento scopes.
  */
-export enum Scope {
+export const enum Scope {
 
 	/**
 	 * The memento will be scoped to all workspaces of this domain.

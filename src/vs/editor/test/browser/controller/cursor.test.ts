@@ -25,6 +25,7 @@ import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { createTextModel, IRelaxedTextModelCreationOptions } from 'vs/editor/test/common/editorTestUtils';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 
 const H = Handler;
 
@@ -3517,31 +3518,7 @@ suite('Editor Controller - Indentation Rules', () => {
 						// ^.*\{[^}"']*$
 						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
 					},
-					onEnterRules: [
-						{
-							// e.g. /** | */
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							afterText: /^\s*\*\/$/,
-							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-						}, {
-							// e.g. /** ...|
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							action: { indentAction: IndentAction.None, appendText: ' * ' }
-						}, {
-							// e.g.  * ...|
-							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-							action: { indentAction: IndentAction.None, appendText: '* ' }
-						}, {
-							// e.g.  */|
-							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						},
-						{
-							// e.g.  *-----*/|
-							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						}
-					]
+					onEnterRules: javascriptOnEnterRules
 				}));
 			}
 		}
@@ -4384,6 +4361,51 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #55314: Do not auto-close when ending with open', () => {
+		const languageId = new LanguageIdentifier('myElectricMode', 5);
+		class ElectricMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '\"', close: '\"', notIn: ['string'] },
+						{ open: 'B\"', close: '\"', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] },
+						{ open: '/**', close: ' */', notIn: ['string'] }
+					],
+				}));
+			}
+		}
+
+		const mode = new ElectricMode();
+
+		usingCursor({
+			text: [
+				'little goat',
+				'little LAMB',
+				'little sheep',
+				'Big LAMB'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 1, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 2, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 3, 4, '"', '"', `does not double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 2, '"', '""', `double quote when ending with open`);
+			model.forceTokenization(model.getLineCount());
+			assertType(model, cursor, 4, 3, '"', '"', `does not double quote when ending with open`);
+		});
+		mode.dispose();
+	});
+
 	test('issue #27937: Trying to add an item to the front of a list is cumbersome', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
@@ -4536,7 +4558,7 @@ suite('autoClosingPairs', () => {
 			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '"' }, 'keyboard');
 			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
 
-			assert.equal(model.getValue(), '\'""\'');
+			assert.equal(model.getValue(), '\'"\'');
 
 			// Typing ' + space after '
 			model.setValue('\'');

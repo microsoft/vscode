@@ -38,34 +38,19 @@ declare namespace monaco {
 
 
 
-
-	export type TValueCallback<T = any> = (value: T | PromiseLike<T>) => void;
-
-
 	export class Promise<T = any> {
-		constructor(
-			executor: (
-				resolve: (value: T | PromiseLike<T>) => void,
-				reject: (reason: any) => void) => void,
-			oncancel?: () => void);
+		constructor(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason: any) => void) => void);
 
 		public then<TResult1 = T, TResult2 = never>(
 			onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
 			onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null): Promise<TResult1 | TResult2>;
 
-		public done(
-			onfulfilled?: (value: T) => void,
-			onrejected?: (reason: any) => void): void;
-
-		public cancel(): void;
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
 		public static as<T>(value: PromiseLike<T>): PromiseLike<T>;
 		public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 		public static as<T>(value: T): Promise<T>;
-
-		public static timeout(delay: number): Promise<void>;
 
 		public static join<T1, T2>(promises: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
 		public static join<T>(promises: (T | PromiseLike<T>)[]): Promise<T[]>;
@@ -91,6 +76,7 @@ declare namespace monaco {
 		 */
 		readonly onCancellationRequested: IEvent<any>;
 	}
+
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
 	 * This class is a simple parser which creates the basic component parts
@@ -1202,12 +1188,7 @@ declare namespace monaco.editor {
 		 * CSS color to render in the overview ruler.
 		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		darkColor: string | ThemeColor;
-		/**
-		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
-		 */
-		hcColor?: string | ThemeColor;
+		darkColor?: string | ThemeColor;
 		/**
 		 * The position in the overview ruler.
 		 */
@@ -1658,22 +1639,6 @@ declare namespace monaco.editor {
 		 * @return The range where the previous match is. It is null if no previous match has been found.
 		 */
 		findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch;
-		/**
-		 * Get the language associated with this model.
-		 */
-		getModeId(): string;
-		/**
-		 * Get the word under or besides `position`.
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Might be null.
-		 */
-		getWordAtPosition(position: IPosition): IWordAtPosition;
-		/**
-		 * Get the word under or besides `position` trimmed to `position`.column
-		 * @param position The position to look for a word.
-		 * @return The word under or besides `position`. Will never be null.
-		 */
-		getWordUntilPosition(position: IPosition): IWordAtPosition;
 		/**
 		 * Get the language associated with this model.
 		 */
@@ -2575,6 +2540,10 @@ declare namespace monaco.editor {
 		 * Prevent quick suggestions when a snippet is active. Defaults to true.
 		 */
 		snippetsPreventQuickSuggestions?: boolean;
+		/**
+		 * Favours words that appear close to the cursor.
+		 */
+		localityBonus?: boolean;
 	}
 
 	/**
@@ -2918,6 +2887,10 @@ declare namespace monaco.editor {
 		 */
 		emptySelectionClipboard?: boolean;
 		/**
+		 * Syntax highlighting is copied.
+		 */
+		copyWithSyntaxHighlighting?: boolean;
+		/**
 		 * Enable word based suggestions. Defaults to 'true'
 		 */
 		wordBasedSuggestions?: boolean;
@@ -2935,6 +2908,10 @@ declare namespace monaco.editor {
 		 * Defaults to the editor line height.
 		 */
 		suggestLineHeight?: number;
+		/**
+		 * Enable tab completion.
+		 */
+		tabCompletion?: boolean | 'on' | 'off' | 'onlySnippets';
 		/**
 		 * Enable selection highlight.
 		 * Defaults to true.
@@ -3196,6 +3173,7 @@ declare namespace monaco.editor {
 		readonly filterGraceful: boolean;
 		readonly snippets: 'top' | 'bottom' | 'inline' | 'none';
 		readonly snippetsPreventQuickSuggestions: boolean;
+		readonly localityBonus: boolean;
 	}
 
 	export interface InternalParameterHintOptions {
@@ -3278,6 +3256,7 @@ declare namespace monaco.editor {
 		readonly suggestSelection: 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix';
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
+		readonly tabCompletion: 'on' | 'off' | 'onlySnippets';
 		readonly suggest: InternalSuggestOptions;
 		readonly selectionHighlight: boolean;
 		readonly occurrencesHighlight: boolean;
@@ -3315,6 +3294,7 @@ declare namespace monaco.editor {
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
@@ -3455,6 +3435,7 @@ declare namespace monaco.editor {
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
 		readonly emptySelectionClipboard: boolean;
+		readonly copyWithSyntaxHighlighting: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
 		readonly viewInfo: boolean;
@@ -3567,6 +3548,11 @@ declare namespace monaco.editor {
 		 * `preference` will also affect the placement.
 		 */
 		position: IPosition;
+		/**
+		 * Optionally, a range can be provided to further
+		 * define the position of the content widget.
+		 */
+		range?: IRange;
 		/**
 		 * Placement preference for position, in order of preference.
 		 */
@@ -4696,6 +4682,10 @@ declare namespace monaco.languages {
 		 */
 		afterText?: RegExp;
 		/**
+		 * This rule will only execute if the text above the this line matches this regular expression.
+		 */
+		oneLineAboveText?: RegExp;
+		/**
 		 * The action to execute.
 		 */
 		action: EnterAction;
@@ -4904,6 +4894,17 @@ declare namespace monaco.languages {
 		activeParameter: number;
 	}
 
+	export enum SignatureHelpTriggerReason {
+		Invoke = 1,
+		TriggerCharacter = 2,
+		Retrigger = 3
+	}
+
+	export interface SignatureHelpContext {
+		triggerReason: SignatureHelpTriggerReason;
+		triggerCharacter?: string;
+	}
+
 	/**
 	 * The signature help provider interface defines the contract between extensions and
 	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -4913,7 +4914,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */
-		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<SignatureHelp>;
+		provideSignatureHelp(model: editor.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
 	/**
@@ -5324,6 +5325,9 @@ declare namespace monaco.languages {
 
 	export interface WorkspaceEdit {
 		edits: Array<ResourceTextEdit | ResourceFileEdit>;
+	}
+
+	export interface Rejection {
 		rejectReason?: string;
 	}
 
@@ -5333,8 +5337,8 @@ declare namespace monaco.languages {
 	}
 
 	export interface RenameProvider {
-		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
-		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
+		provideRenameEdits(model: editor.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
+		resolveRenameLocation?(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 	}
 
 	export interface Command {

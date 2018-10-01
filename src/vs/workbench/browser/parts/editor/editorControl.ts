@@ -15,7 +15,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { toWinJsPromise } from 'vs/base/common/async';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -175,7 +174,7 @@ export class EditorControl extends Disposable {
 
 		// Call into editor control
 		const editorWillChange = !inputMatches;
-		return toWinJsPromise(control.setInput(editor, options, operation.token)).then(() => {
+		return TPromise.wrap(control.setInput(editor, options, operation.token)).then(() => {
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {

@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -258,37 +258,108 @@ export interface HoverProvider {
 /**
  * @internal
  */
-export type SuggestionType = 'method'
-	| 'function'
-	| 'constructor'
-	| 'field'
-	| 'variable'
-	| 'class'
-	| 'struct'
-	| 'interface'
-	| 'module'
-	| 'property'
-	| 'event'
-	| 'operator'
-	| 'unit'
-	| 'value'
-	| 'constant'
-	| 'enum'
-	| 'enum-member'
-	| 'keyword'
-	| 'snippet'
-	| 'text'
-	| 'color'
-	| 'file'
-	| 'reference'
-	| 'customcolor'
-	| 'folder'
-	| 'type-parameter';
+export const enum SuggestionKind {
+	Method,
+	Function,
+	Constructor,
+	Field,
+	Variable,
+	Class,
+	Struct,
+	Interface,
+	Module,
+	Property,
+	Event,
+	Operator,
+	Unit,
+	Value,
+	Constant,
+	Enum,
+	EnumMember,
+	Keyword,
+	Snippet,
+	Text,
+	Color,
+	File,
+	Reference,
+	Customcolor,
+	Folder,
+	TypeParameter,
+}
 
 /**
  * @internal
  */
-export type SnippetType = 'internal' | 'textmate';
+export let suggestionKindToCssClass = (function () {
+	let data = Object.create(null);
+	data[SuggestionKind.Method] = 'method';
+	data[SuggestionKind.Function] = 'function';
+	data[SuggestionKind.Constructor] = 'constructor';
+	data[SuggestionKind.Field] = 'field';
+	data[SuggestionKind.Variable] = 'variable';
+	data[SuggestionKind.Class] = 'class';
+	data[SuggestionKind.Struct] = 'struct';
+	data[SuggestionKind.Interface] = 'interface';
+	data[SuggestionKind.Module] = 'module';
+	data[SuggestionKind.Property] = 'property';
+	data[SuggestionKind.Event] = 'event';
+	data[SuggestionKind.Operator] = 'operator';
+	data[SuggestionKind.Unit] = 'unit';
+	data[SuggestionKind.Value] = 'value';
+	data[SuggestionKind.Constant] = 'constant';
+	data[SuggestionKind.Enum] = 'enum';
+	data[SuggestionKind.EnumMember] = 'enum-member';
+	data[SuggestionKind.Keyword] = 'keyword';
+	data[SuggestionKind.Snippet] = 'snippet';
+	data[SuggestionKind.Text] = 'text';
+	data[SuggestionKind.Color] = 'color';
+	data[SuggestionKind.File] = 'file';
+	data[SuggestionKind.Reference] = 'reference';
+	data[SuggestionKind.Customcolor] = 'customcolor';
+	data[SuggestionKind.Folder] = 'folder';
+	data[SuggestionKind.TypeParameter] = 'type-parameter';
+
+	return function (kind: SuggestionKind) {
+		return data[kind] || 'property';
+	};
+})();
+
+/**
+ * @internal
+ */
+export let suggestionKindFromLegacyString = (function () {
+	let data = Object.create(null);
+	data['method'] = SuggestionKind.Method;
+	data['function'] = SuggestionKind.Function;
+	data['constructor'] = SuggestionKind.Constructor;
+	data['field'] = SuggestionKind.Field;
+	data['variable'] = SuggestionKind.Variable;
+	data['class'] = SuggestionKind.Class;
+	data['struct'] = SuggestionKind.Struct;
+	data['interface'] = SuggestionKind.Interface;
+	data['module'] = SuggestionKind.Module;
+	data['property'] = SuggestionKind.Property;
+	data['event'] = SuggestionKind.Event;
+	data['operator'] = SuggestionKind.Operator;
+	data['unit'] = SuggestionKind.Unit;
+	data['value'] = SuggestionKind.Value;
+	data['constant'] = SuggestionKind.Constant;
+	data['enum'] = SuggestionKind.Enum;
+	data['enum-member'] = SuggestionKind.EnumMember;
+	data['keyword'] = SuggestionKind.Keyword;
+	data['snippet'] = SuggestionKind.Snippet;
+	data['text'] = SuggestionKind.Text;
+	data['color'] = SuggestionKind.Color;
+	data['file'] = SuggestionKind.File;
+	data['reference'] = SuggestionKind.Reference;
+	data['customcolor'] = SuggestionKind.Customcolor;
+	data['folder'] = SuggestionKind.Folder;
+	data['type-parameter'] = SuggestionKind.TypeParameter;
+
+	return function (value: string) {
+		return data[value] || 'property';
+	};
+})();
 
 /**
  * @internal
@@ -296,7 +367,8 @@ export type SnippetType = 'internal' | 'textmate';
 export interface ISuggestion {
 	label: string;
 	insertText: string;
-	type: SuggestionType;
+	insertTextIsSnippet?: boolean;
+	kind: SuggestionKind;
 	detail?: string;
 	documentation?: string | IMarkdownString;
 	filterText?: string;
@@ -308,7 +380,6 @@ export interface ISuggestion {
 	overwriteAfter?: number;
 	additionalTextEdits?: model.ISingleEditOperation[];
 	command?: Command;
-	snippetType?: SnippetType;
 	noWhitespaceAdjust?: boolean;
 }
 
@@ -361,7 +432,7 @@ export interface CodeAction {
 /**
  * @internal
  */
-export enum CodeActionTrigger {
+export const enum CodeActionTrigger {
 	Automatic = 1,
 	Manual = 2,
 }
@@ -388,7 +459,7 @@ export interface CodeActionProvider {
 	/**
 	 * Optional list of of CodeActionKinds that this provider returns.
 	 */
-	providedCodeActionKinds?: string[];
+	providedCodeActionKinds?: ReadonlyArray<string>;
 }
 
 /**
@@ -447,6 +518,18 @@ export interface SignatureHelp {
 	 */
 	activeParameter: number;
 }
+
+export enum SignatureHelpTriggerReason {
+	Invoke = 1,
+	TriggerCharacter = 2,
+	Retrigger = 3,
+}
+
+export interface SignatureHelpContext {
+	triggerReason: SignatureHelpTriggerReason;
+	triggerCharacter?: string;
+}
+
 /**
  * The signature help provider interface defines the contract between extensions and
  * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -458,7 +541,7 @@ export interface SignatureHelpProvider {
 	/**
 	 * Provide help for the signature at the given position and document.
 	 */
-	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<SignatureHelp>;
+	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 }
 
 /**
@@ -926,17 +1009,19 @@ export interface ResourceTextEdit {
 
 export interface WorkspaceEdit {
 	edits: Array<ResourceTextEdit | ResourceFileEdit>;
-	rejectReason?: string; // TODO@joh, move to rename
 }
 
+export interface Rejection {
+	rejectReason?: string;
+}
 export interface RenameLocation {
 	range: IRange;
 	text: string;
 }
 
 export interface RenameProvider {
-	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
-	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation>;
+	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
+	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
 
@@ -998,7 +1083,9 @@ export interface Comment {
 	readonly commentId: string;
 	readonly body: IMarkdownString;
 	readonly userName: string;
-	readonly gravatar: string;
+	readonly userIconPath: string;
+	readonly canEdit?: boolean;
+	readonly canDelete?: boolean;
 	readonly command?: Command;
 }
 
@@ -1030,6 +1117,8 @@ export interface DocumentCommentProvider {
 	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
 	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
 	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+	editComment(resource: URI, comment: Comment, text: string, token: CancellationToken): Promise<void>;
+	deleteComment(resource: URI, comment: Comment, token: CancellationToken): Promise<void>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
@@ -1038,8 +1127,6 @@ export interface DocumentCommentProvider {
  */
 export interface WorkspaceCommentProvider {
 	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
-	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
-	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
@@ -1178,10 +1265,21 @@ export interface ITokenizationRegistry {
 	register(language: string, support: ITokenizationSupport): IDisposable;
 
 	/**
+	 * Register a promise for a tokenization support.
+	 */
+	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): Thenable<IDisposable>;
+
+	/**
 	 * Get the tokenization support for a language.
 	 * Returns null if not found.
 	 */
 	get(language: string): ITokenizationSupport;
+
+	/**
+	 * Get the promise of a tokenization support for a language.
+	 * `null` is returned if no support is available and no promise for the support has been registered yet.
+	 */
+	getPromise(language: string): Thenable<ITokenizationSupport>;
 
 	/**
 	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.

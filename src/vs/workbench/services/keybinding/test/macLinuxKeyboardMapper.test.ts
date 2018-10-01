@@ -11,7 +11,7 @@ import { MacLinuxKeyboardMapper, IMacLinuxKeyboardMapping } from 'vs/workbench/s
 import { OperatingSystem } from 'vs/base/common/platform';
 import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { ScanCodeUtils, ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeUtils, ScanCodeBinding, ScanCode } from 'vs/base/common/scanCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 

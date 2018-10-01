@@ -13,10 +13,10 @@
   "main": "./out/jsonServerMain",
   "dependencies": {
     "jsonc-parser": "^2.0.2",
-    "request-light": "^0.2.3",
-    "vscode-json-languageservice": "^3.1.6",
-    "vscode-languageserver": "^5.1.0-next.3",
-    "vscode-nls": "^3.2.5",
+    "request-light": "^0.2.4",
+    "vscode-json-languageservice": "^3.2.0",
+    "vscode-languageserver": "^5.1.0",
+    "vscode-nls": "^4.0.0",
     "vscode-uri": "^1.0.6"
   },
   "devDependencies": {

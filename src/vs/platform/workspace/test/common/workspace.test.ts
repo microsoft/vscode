@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { Workspace, toWorkspaceFolders, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspace', () => {

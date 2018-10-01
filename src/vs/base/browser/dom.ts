@@ -22,12 +22,6 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
-export function removeNode(node: HTMLElement): void {
-	if (node.parentNode) {
-		node.parentNode.removeChild(node);
-	}
-}
-
 export function isInDOM(node: Node): boolean {
 	while (node) {
 		if (node === document.body) {
@@ -976,7 +970,6 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-// Similar to builder, but much more lightweight
 export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (Node | string)[]): T {
 	let match = SELECTOR_REGEX.exec(description);
 

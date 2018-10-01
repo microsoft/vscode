@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import { normalize, isAbsolute, sep } from 'vs/base/common/paths';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -17,7 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { WorkbenchTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { renderViewTree, twistiePixels } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { IAccessibilityProvider, ITree, IRenderer, IDataSource } from 'vs/base/parts/tree/browser/tree';
-import { ISession, IDebugService, IModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IDebugService, IDebugModel, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -25,7 +24,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ltrim } from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -48,7 +47,14 @@ class BaseTreeItem {
 		this._showedMoreThanOne = false;
 	}
 
-	setSource(session: ISession, source: Source): void {
+	getSession(): IDebugSession {
+		if (this._parent) {
+			return this._parent.getSession();
+		}
+		return undefined;
+	}
+
+	setSource(session: IDebugSession, source: Source): void {
 		this._source = source;
 	}
 
@@ -61,8 +67,21 @@ class BaseTreeItem {
 		return child;
 	}
 
+	getChild(key: string): BaseTreeItem {
+		return this._children[key];
+	}
+
 	remove(key: string): void {
 		delete this._children[key];
+	}
+
+	removeFromParent(): void {
+		if (this._parent) {
+			this._parent.remove(this._label);
+			if (Object.keys(this._parent._children).length === 0) {
+				this._parent.removeFromParent();
+			}
+		}
 	}
 
 	getTemplateId(): string {
@@ -112,7 +131,7 @@ class BaseTreeItem {
 			return child.getChildren();
 		}
 		const array = Object.keys(this._children).map(key => this._children[key]);
-		return TPromise.as(array.sort((a, b) => this.compare(a, b)));
+		return Promise.resolve(array.sort((a, b) => this.compare(a, b)));
 	}
 
 	// skips intermediate single-child nodes
@@ -182,15 +201,19 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _debugModel: IModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
+	constructor(private _debugModel: IDebugModel, private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService) {
 		super(undefined, 'Root');
 		this._debugModel.getSessions().forEach(session => {
 			this.add(session);
 		});
 	}
 
-	add(session: ISession): SessionTreeItem {
+	add(session: IDebugSession): SessionTreeItem {
 		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this, session, this._environmentService, this._contextService));
+	}
+
+	find(session: IDebugSession): SessionTreeItem {
+		return <SessionTreeItem>this.getChild(session.getId());
 	}
 }
 
@@ -198,13 +221,19 @@ class SessionTreeItem extends BaseTreeItem {
 
 	private static URL_REGEXP = /^(https?:\/\/[^/]+)(\/.*)$/;
 
-	private _session: ISession;
+	private _session: IDebugSession;
 	private _initialized: boolean;
+	private _map: Map<string, BaseTreeItem>;
 
-	constructor(parent: BaseTreeItem, session: ISession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getName(true));
 		this._initialized = false;
 		this._session = session;
+		this._map = new Map();
+	}
+
+	getSession(): IDebugSession {
+		return this._session;
 	}
 
 	getHoverLabel(): string {
@@ -295,18 +324,28 @@ class SessionTreeItem extends BaseTreeItem {
 			}
 		}
 
-		let x: BaseTreeItem = this;
+		let leaf: BaseTreeItem = this;
 		path.split(/[\/\\]/).forEach((segment, i) => {
 			if (i === 0 && folder) {
-				x = x.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
+				leaf = leaf.createIfNeeded(folder.name, parent => new RootFolderTreeItem(parent, folder));
 			} else if (i === 0 && url) {
-				x = x.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
+				leaf = leaf.createIfNeeded(url, parent => new BaseTreeItem(parent, url));
 			} else {
-				x = x.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
+				leaf = leaf.createIfNeeded(segment, parent => new BaseTreeItem(parent, segment));
 			}
 		});
 
-		x.setSource(this._session, source);
+		leaf.setSource(this._session, source);
+		this._map.set(source.raw.path, leaf);
+	}
+
+	removePath(source: Source): boolean {
+		const leaf = this._map.get(source.raw.path);
+		if (leaf) {
+			leaf.removeFromParent();
+			return true;
+		}
+		return false;
 	}
 }
 
@@ -344,7 +383,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 			{
 				dataSource: new LoadedScriptsDataSource(),
 				renderer: this.instantiationService.createInstance(LoadedScriptsRenderer),
-				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
+				accessibilityProvider: new LoadedSciptsAccessibilityProvider()
 			},
 			{
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
@@ -362,7 +401,7 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 				const source = element.getSource();
 				if (source && source.available) {
 					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
+					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 				}
 			}
 		}));
@@ -388,12 +427,24 @@ export class LoadedScriptsView extends TreeViewsViewletPanel {
 		const root = new RootTreeItem(this.debugService.getModel(), this.environmentService, this.contextService);
 		this.tree.setInput(root);
 
-		const registerLoadedSourceListener = (session: ISession) => {
+		const registerLoadedSourceListener = (session: IDebugSession) => {
 			this.disposables.push(session.onDidLoadedSource(event => {
-				const sessionRoot = root.add(session);
-				sessionRoot.addPath(event.source);
-				nextRefreshIsRecursive = true;
-				refreshScheduler.schedule();
+				let sessionRoot: SessionTreeItem;
+				switch (event.reason) {
+					case 'new':
+						sessionRoot = root.add(session);
+						sessionRoot.addPath(event.source);
+						nextRefreshIsRecursive = true;
+						refreshScheduler.schedule();
+						break;
+					case 'removed':
+						sessionRoot = root.find(session);
+						if (sessionRoot && sessionRoot.removePath(event.source)) {
+							nextRefreshIsRecursive = true;
+							refreshScheduler.schedule();
+						}
+						break;
+				}
 			}));
 		};
 
@@ -441,7 +492,7 @@ class LoadedScriptsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(element.getParent());
+		return Promise.resolve(element.getParent());
 	}
 
 	shouldAutoexpand?(tree: ITree, element: any): boolean {

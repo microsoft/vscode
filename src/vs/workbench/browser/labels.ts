@@ -5,7 +5,7 @@
 
 'use strict';
 
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -137,6 +137,10 @@ export class ResourceLabel extends IconLabel {
 
 		if (newFileKind !== oldFileKind) {
 			return true; // same resource but different kind (file, folder)
+		}
+
+		if (newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource)) {
+			return true;
 		}
 
 		if (newResource && oldResource) {
@@ -298,7 +302,7 @@ export class FileLabel extends ResourceLabel {
 		let description: string;
 		const hidePath = (options && options.hidePath) || (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource));
 		if (!hidePath) {
-			description = this.labelService.getUriLabel(resources.dirname(resource), true);
+			description = this.labelService.getUriLabel(resources.dirname(resource), { relative: true });
 		}
 
 		this.setLabel({ resource, name, description }, options);
@@ -312,13 +316,16 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 	if (resource) {
 
-		// Get the name of the resource. For data-URIs, we need to parse specially
+		// Get the path and name of the resource. For data-URIs, we need to parse specially
 		let name: string;
+		let path: string;
 		if (resource.scheme === Schemas.data) {
 			const metadata = DataUri.parseMetaData(resource);
 			name = metadata.get(DataUri.META_DATA_LABEL);
+			path = name;
 		} else {
 			name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
+			path = resource.path.toLowerCase();
 		}
 
 		// Folders
@@ -343,7 +350,7 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 
 			// Configured Language
 			let configuredLangId = getConfiguredLangId(modelService, resource);
-			configuredLangId = configuredLangId || modeService.getModeIdByFilenameOrFirstLine(name);
+			configuredLangId = configuredLangId || modeService.getModeIdByFilepathOrFirstLine(path);
 			if (configuredLangId) {
 				classes.push(`${cssEscape(configuredLangId)}-lang-file-icon`);
 			}

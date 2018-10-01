@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { workbenchInstantiationService, TestLifecycleService, TestTextFileService, TestWindowsService, TestContextService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
@@ -254,7 +254,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -273,7 +273,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');

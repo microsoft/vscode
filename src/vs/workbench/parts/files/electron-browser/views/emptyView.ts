@@ -74,7 +74,7 @@ export class EmptyView extends ViewletPanel {
 		this.disposables.push(this.button.onDidClick(() => {
 			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
-			this.actionRunner.run(action).done(() => {
+			this.actionRunner.run(action).then(() => {
 				action.dispose();
 			}, err => {
 				action.dispose();
@@ -126,7 +126,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public focusBody(): void {
@@ -136,7 +136,7 @@ export class EmptyView extends ViewletPanel {
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public getActions(): IAction[] {

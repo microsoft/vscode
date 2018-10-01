@@ -17,11 +17,9 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { OS } from 'vs/base/common/platform';
 import { Emitter, toPromise } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-
-// TODO@joao: bad layering!
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
-import { toWinJsPromise } from 'vs/base/common/async';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { timeout } from 'vs/base/common/async';
 
 class WindowRouter implements IClientRouter {
 
@@ -90,7 +88,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void> {
 		return this.whenUnfrozen(windowId).then(() => {
-			const [first, second] = KeybindingIO._readUserBinding(keybinding);
+			const [first, second] = KeybindingParser.parseUserBinding(keybinding);
 
 			return this._dispatchKeybinding(windowId, first).then(() => {
 				if (second) {
@@ -139,7 +137,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 		webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as any);
 
-		return TPromise.timeout(100);
+		return TPromise.wrap(timeout(100));
 	}
 
 	click(windowId: number, selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
@@ -205,7 +203,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	private whenUnfrozen(windowId: number): TPromise<void> {
-		return toWinJsPromise(this._whenUnfrozen(windowId));
+		return TPromise.wrap(this._whenUnfrozen(windowId));
 	}
 
 	private async _whenUnfrozen(windowId: number): Promise<void> {

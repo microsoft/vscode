@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as platform from 'vs/base/common/platform';
-import * as os from 'os';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -19,7 +18,7 @@ import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-brows
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { getTerminalDefaultShellWindows } from 'vs/workbench/parts/terminal/node/terminal';
+import { getDefaultShell } from 'vs/workbench/parts/terminal/node/terminal';
 import { TerminalPanel } from 'vs/workbench/parts/terminal/electron-browser/terminalPanel';
 import { TerminalTab } from 'vs/workbench/parts/terminal/browser/terminalTab';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -56,7 +55,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		this._terminalTabs = [];
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
-
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => {
 			// if the request to open files is coming in from the integrated terminal (identified though
 			// the termProgram variable) and we are instructed to wait for editors close, wait for the
@@ -128,6 +126,22 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 	}
 
+	public findNext(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(false);
+		}
+	}
+
+	public findPrevious(): void {
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(true);
+		}
+	}
+
 	private _suggestShellChange(wasNewTerminalAction?: boolean): void {
 		// Only suggest on Windows since $SHELL works great for macOS/Linux
 		if (!platform.isWindows) {
@@ -147,7 +161,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		}
 
 		// Never suggest if the setting is non-default already (ie. they set the setting manually)
-		if (this._configHelper.config.shell.windows !== getTerminalDefaultShellWindows()) {
+		if (this._configHelper.config.shell.windows !== getDefaultShell(platform.Platform.Windows)) {
 			this._storageService.store(NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, true);
 			return;
 		}
@@ -205,14 +219,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 		const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
 		let useWSLexe = false;
 
-		if (osVersion && osVersion.length === 4) {
-			const buildNumber = parseInt(osVersion[3]);
-			if (buildNumber >= 16299) {
-				useWSLexe = true;
-			}
+		if (TerminalInstance.getWindowsBuildNumber() >= 16299) {
+			useWSLexe = true;
 		}
 
 		const expectedLocations = {
@@ -269,6 +279,10 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message,
 			type: 'warning',
 		}).then(res => !res.confirmed);
+	}
+
+	protected _showNotEnoughSpaceToast(): void {
+		this._notificationService.info(nls.localize('terminal.minWidth', "Not enough space to split terminal."));
 	}
 
 	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {

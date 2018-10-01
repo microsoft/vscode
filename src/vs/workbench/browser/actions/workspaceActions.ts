@@ -13,13 +13,13 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, defaultWorkspacePath, defaultFilePath, defaultFolderPath } from 'vs/workbench/browser/actions/workspaceCommands';
-import URI from 'vs/base/common/uri';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class OpenFileAction extends Action {
 
@@ -29,15 +29,13 @@ export class OpenFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IHistoryService private historyService: IHistoryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IFileDialogService private dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFileAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
+		return this.dialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -49,15 +47,13 @@ export class OpenFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IHistoryService private historyService: IHistoryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IFileDialogService private dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFolderPath(this.contextService, this.historyService) } });
+		return this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -69,15 +65,13 @@ export class OpenFileFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IHistoryService private historyService: IHistoryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IFileDialogService private dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
+		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
 
@@ -128,7 +122,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -140,18 +134,18 @@ export class SaveWorkspaceAsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IHistoryService private historyService: IHistoryService
+		@IFileDialogService private dialogService: IFileDialogService
+
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<any> {
-		return this.getNewWorkspaceConfigPath().then(configPath => {
-			if (configPath) {
+		return this.getNewWorkspaceConfigPath().then(configPathUri => {
+			if (configPathUri) {
+				const configPath = configPathUri.fsPath;
 				switch (this.contextService.getWorkbenchState()) {
 					case WorkbenchState.EMPTY:
 					case WorkbenchState.FOLDER:
@@ -167,12 +161,12 @@ export class SaveWorkspaceAsAction extends Action {
 		});
 	}
 
-	private getNewWorkspaceConfigPath(): TPromise<string> {
-		return this.windowService.showSaveDialog({
+	private getNewWorkspaceConfigPath(): TPromise<URI> {
+		return this.dialogService.showSaveDialog({
 			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService)
+			defaultUri: this.dialogService.defaultWorkspacePath(Schemas.file)
 		});
 	}
 }
@@ -185,16 +179,13 @@ export class OpenWorkspaceAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService private windowService: IWindowService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IFileDialogService private dialogService: IFileDialogService
 	) {
 		super(id, label);
 	}
 
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
-		return this.windowService.pickWorkspaceAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultWorkspacePath(this.contextService, this.historyService, this.environmentService) } });
+		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
 	}
 }
 

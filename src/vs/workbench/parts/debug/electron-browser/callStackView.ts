@@ -7,10 +7,9 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, ISession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
-import { Thread, StackFrame, ThreadAndSessionIds, Model } from 'vs/workbench/parts/debug/common/debugModel';
+import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
+import { Thread, StackFrame, ThreadAndSessionIds, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -28,7 +27,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Session } from 'vs/workbench/parts/debug/electron-browser/debugSession';
+import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 
 const $ = dom.$;
 
@@ -83,7 +82,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 
 			this.needsRefresh = false;
 			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput))
-				.done(() => this.updateTreeSelection(), errors.onUnexpectedError);
+				.then(() => this.updateTreeSelection());
 		}, 50);
 	}
 
@@ -122,12 +121,12 @@ export class CallStackView extends TreeViewsViewletPanel {
 			const element = e.element;
 			if (element instanceof StackFrame) {
 				this.debugService.focusStackFrame(element, element.thread, element.thread.session, true);
-				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned).done(undefined, errors.onUnexpectedError);
+				element.openInEditor(this.editorService, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 			}
 			if (element instanceof Thread) {
 				this.debugService.focusStackFrame(undefined, element, element.session, true);
 			}
-			if (element instanceof Session) {
+			if (element instanceof DebugSession) {
 				this.debugService.focusStackFrame(undefined, undefined, element, true);
 			}
 			if (element instanceof ThreadAndSessionIds) {
@@ -135,7 +134,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
 					(<Thread>thread).fetchCallStack()
-						.done(() => this.tree.refresh(), errors.onUnexpectedError);
+						.then(() => this.tree.refresh());
 				}
 			}
 		}));
@@ -145,7 +144,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				this.callStackItemType.set('stackFrame');
 			} else if (focus instanceof Thread) {
 				this.callStackItemType.set('thread');
-			} else if (focus instanceof Session) {
+			} else if (focus instanceof DebugSession) {
 				this.callStackItemType.set('session');
 			} else {
 				this.callStackItemType.reset();
@@ -168,7 +167,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				return;
 			}
 
-			this.updateTreeSelection().done(undefined, errors.onUnexpectedError);
+			this.updateTreeSelection();
 		}));
 
 		// Schedule the update of the call stack tree if the viewlet is opened after a session started #14684
@@ -187,13 +186,13 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private updateTreeSelection(): TPromise<void> {
 		if (!this.tree.getInput()) {
 			// Tree not initialized yet
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const thread = this.debugService.getViewModel().focusedThread;
 		const session = this.debugService.getViewModel().focusedSession;
-		const updateSelection = (element: IStackFrame | ISession) => {
+		const updateSelection = (element: IStackFrame | IDebugSession) => {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
@@ -205,7 +204,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		if (!thread) {
 			if (!session) {
 				this.tree.clearSelection();
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			updateSelection(session);
@@ -214,7 +213,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 
 		return this.tree.expandAll([thread.session, thread]).then(() => {
 			if (!stackFrame) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			updateSelection(stackFrame);
@@ -263,7 +262,7 @@ class CallStackActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -272,7 +271,7 @@ class CallStackActionProvider implements IActionProvider {
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
-		if (element instanceof Session) {
+		if (element instanceof DebugSession) {
 			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof Thread) {
@@ -295,7 +294,7 @@ class CallStackActionProvider implements IActionProvider {
 			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -314,24 +313,24 @@ class CallStackDataSource implements IDataSource {
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof Model || element instanceof Session || (element instanceof Thread && (<Thread>element).stopped);
+		return element instanceof DebugModel || element instanceof DebugSession || (element instanceof Thread && (<Thread>element).stopped);
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
 			return this.getThreadChildren(element);
 		}
-		if (element instanceof Model) {
-			return TPromise.as(element.getSessions());
+		if (element instanceof DebugModel) {
+			return Promise.resolve(element.getSessions());
 		}
 
-		const session = <ISession>element;
-		return TPromise.as(session.getAllThreads());
+		const session = <IDebugSession>element;
+		return Promise.resolve(session.getAllThreads());
 	}
 
 	private getThreadChildren(thread: Thread): TPromise<any> {
 		let callStack: any[] = thread.getCallStack();
-		let callStackPromise: TPromise<any> = TPromise.as(null);
+		let callStackPromise: TPromise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {
 			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
 		}
@@ -355,7 +354,7 @@ class CallStackDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -409,7 +408,7 @@ class CallStackRenderer implements IRenderer {
 	}
 
 	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof Session) {
+		if (element instanceof DebugSession) {
 			return CallStackRenderer.SESSION_TEMPLATE_ID;
 		}
 		if (element instanceof Thread) {
@@ -483,7 +482,7 @@ class CallStackRenderer implements IRenderer {
 		}
 	}
 
-	private renderSession(session: ISession, data: ISessionTemplateData): void {
+	private renderSession(session: IDebugSession, data: ISessionTemplateData): void {
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.name.textContent = session.getName(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
 		const stoppedThread = session.getAllThreads().filter(t => t.stopped).pop();

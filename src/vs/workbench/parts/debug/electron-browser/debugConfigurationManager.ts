@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
@@ -22,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -92,12 +92,18 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
+	public needsToRunInExtHost(debugType: string): boolean {
+		// if the given debugType matches any registered provider that has a provideTracker method, we need to run the DA in the EH
+		const providers = this.providers.filter(p => p.hasTracker && (p.type === debugType || p.type === '*'));
+		return providers.length > 0;
+	}
+
 	public unregisterDebugConfigurationProvider(handle: number): void {
 		this.providers = this.providers.filter(p => p.handle !== handle);
 	}
 
 	public resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: IConfig): TPromise<IConfig> {
-		return this.extensionService.activateByEvent(`onDebugResolve:${type}`).then(() => {
+		return this.activateDebuggers(`onDebugResolve:${type}`).then(() => {
 			// pipe the config through the promises sequentially. append at the end the '*' types
 			const providers = this.providers.filter(p => p.type === type && p.resolveDebugConfiguration)
 				.concat(this.providers.filter(p => p.type === '*' && p.resolveDebugConfiguration));
@@ -110,21 +116,24 @@ export class ConfigurationManager implements IConfigurationManager {
 						return Promise.resolve(config);
 					}
 				});
-			}, TPromise.as(debugConfiguration));
+			}, Promise.resolve(debugConfiguration));
 		});
 	}
 
 	public provideDebugConfigurations(folderUri: uri | undefined, type: string): TPromise<any[]> {
-		return TPromise.join(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
-			.then(results => results.reduce((first, second) => first.concat(second), []));
+		return this.activateDebuggers('onDebugInitialConfigurations')
+			.then(() => TPromise.join(this.providers.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations(folderUri)))
+				.then(results => results.reduce((first, second) => first.concat(second), [])));
 	}
 
-	public debugAdapterExecutable(folderUri: uri | undefined, type: string): TPromise<IAdapterExecutable | undefined> {
-		const providers = this.providers.filter(p => p.type === type && p.debugAdapterExecutable);
+	public provideDebugAdapter(session: IDebugSession, folderUri: uri | undefined, config: IConfig): TPromise<IAdapterDescriptor | undefined> {
+		const providers = this.providers.filter(p => p.type === config.type && p.provideDebugAdapter);
 		if (providers.length === 1) {
-			return providers[0].debugAdapterExecutable(folderUri);
+			return providers[0].provideDebugAdapter(session, folderUri, config);
+		} else {
+			// TODO@AW handle n > 1 case
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	public registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable {
@@ -140,10 +149,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debugAdapterProviders.get(type);
 	}
 
-	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable, debugPort: number): IDebugAdapter | undefined {
-		let dap = this.getDebugAdapterProvider(debugType);
+	public createDebugAdapter(session: IDebugSession, folder: IWorkspaceFolder, config: IConfig): IDebugAdapter {
+		let dap = this.getDebugAdapterProvider(config.type);
 		if (dap) {
-			return dap.createDebugAdapter(debugType, adapterExecutable, debugPort);
+			return dap.createDebugAdapter(session, folder, config);
 		}
 		return undefined;
 	}
@@ -153,7 +162,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (dap) {
 			return dap.substituteVariables(folder, config);
 		}
-		return TPromise.as(config);
+		return Promise.resolve(config);
 	}
 
 	public runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
@@ -321,33 +330,32 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	public guessDebugger(type?: string): TPromise<Debugger> {
-		return this.activateDebuggers().then(() => {
+		if (type) {
+			const adapter = this.getDebugger(type);
+			return Promise.resolve(adapter);
+		}
 
-			if (type) {
-				const adapter = this.getDebugger(type);
-				return TPromise.as(adapter);
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		let candidates: TPromise<Debugger[]>;
+		if (isCodeEditor(activeTextEditorWidget)) {
+			const model = activeTextEditorWidget.getModel();
+			const language = model ? model.getLanguageIdentifier().language : undefined;
+			const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+			if (adapters.length === 1) {
+				return Promise.resolve(adapters[0]);
 			}
-
-			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-			let candidates: Debugger[];
-			if (isCodeEditor(activeTextEditorWidget)) {
-				const model = activeTextEditorWidget.getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
-				const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-				if (adapters.length === 1) {
-					return TPromise.as(adapters[0]);
-				}
-				if (adapters.length > 1) {
-					candidates = adapters;
-				}
+			if (adapters.length > 1) {
+				candidates = Promise.resolve(adapters);
 			}
+		}
 
-			if (!candidates) {
-				candidates = this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
-			}
+		if (!candidates) {
+			candidates = this.activateDebuggers('onDebugInitialConfigurations').then(() => this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider));
+		}
 
-			candidates = candidates.sort((first, second) => first.label.localeCompare(second.label));
-			const picks = candidates.map(c => ({ label: c.label, debugger: c }));
+		return candidates.then(debuggers => {
+			debuggers.sort((first, second) => first.label.localeCompare(second.label));
+			const picks = debuggers.map(c => ({ label: c.label, debugger: c }));
 			return this.quickInputService.pick<(typeof picks)[0]>([...picks, { type: 'separator' }, { label: 'More...', debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
 					if (picked && picked.debugger) {
@@ -361,8 +369,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		});
 	}
 
-	public activateDebuggers(): TPromise<void> {
-		return this.extensionService.activateByEvent('onDebugInitialConfigurations').then(() => this.extensionService.activateByEvent('onDebug'));
+	private activateDebuggers(activationEvent: string): TPromise<void> {
+		return this.extensionService.activateByEvent(activationEvent).then(() => this.extensionService.activateByEvent('onDebug'));
 	}
 
 	private store(): void {
@@ -448,26 +456,24 @@ class Launch implements ILaunch {
 
 		return this.fileService.resolveContent(resource).then(content => content.value, err => {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
-			return this.configurationManager.activateDebuggers().then(() => {
-				return this.configurationManager.guessDebugger(type).then(adapter => {
-					if (adapter) {
-						return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
-							return adapter.getInitialConfigurationContent(initialConfigs);
-						});
-					} else {
-						return undefined;
-					}
-				}).then(content => {
-
-					if (!content) {
-						return undefined;
-					}
-
-					created = true; // pin only if config file is created #8727
-					return this.fileService.updateContent(resource, content).then(() => {
-						// convert string into IContent; see #32135
-						return content;
+			return this.configurationManager.guessDebugger(type).then(adapter => {
+				if (adapter) {
+					return this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type).then(initialConfigs => {
+						return adapter.getInitialConfigurationContent(initialConfigs);
 					});
+				} else {
+					return undefined;
+				}
+			}).then(content => {
+
+				if (!content) {
+					return undefined;
+				}
+
+				created = true; // pin only if config file is created #8727
+				return this.fileService.updateContent(resource, content).then(() => {
+					// convert string into IContent; see #32135
+					return content;
 				});
 			});
 		}).then(content => {

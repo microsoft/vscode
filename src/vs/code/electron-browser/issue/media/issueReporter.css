@@ -24,6 +24,10 @@ td {
 	vertical-align: top;
 }
 
+label {
+	user-select: none;
+}
+
 .block-settingsSearchResults-details {
 	padding-bottom: .5rem;
 }

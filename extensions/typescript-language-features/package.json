@@ -18,8 +18,8 @@
   "dependencies": {
     "jsonc-parser": "^2.0.1",
     "semver": "5.5.1",
-    "vscode-extension-telemetry": "0.0.18",
-    "vscode-nls": "^3.2.4"
+    "vscode-extension-telemetry": "0.0.22",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "8.0.33",
@@ -145,6 +145,19 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.useCodeSnippetsOnMethodSuggest.deprecationMessage%"
+        },
+        "javascript.suggest.completeFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.completeFunctionCalls%",
+          "scope": "resource"
+        },
+        "typescript.suggest.completeFunctionCalls": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.suggest.completeFunctionCalls%",
           "scope": "resource"
         },
         "typescript.reportStyleChecksAsWarnings": {
@@ -373,6 +386,13 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.nameSuggestions%",
+          "scope": "resource",
+          "deprecationMessage": "%javascript.nameSuggestions.deprecationMessage%"
+        },
+        "javascript.suggest.names": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.names%",
           "scope": "resource"
         },
         "typescript.tsc.autoDetect": {
@@ -384,7 +404,7 @@
             "build",
             "watch"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.tsc.autoDetect.on%",
             "%typescript.tsc.autoDetect.off%",
             "%typescript.tsc.autoDetect.build%",
@@ -397,12 +417,38 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.quickSuggestionsForPaths%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.quickSuggestionsForPaths.deprecationMessage%"
+        },
+        "javascript.suggest.paths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.paths%",
+          "scope": "resource"
+        },
+        "typescript.suggest.paths": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.paths%",
           "scope": "resource"
         },
         "typescript.autoImportSuggestions.enabled": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoImportSuggestions.enabled%",
+          "scope": "resource",
+          "deprecationMessage": "%typescript.autoImportSuggestions.enabled.deprecationMessage%"
+        },
+        "javascript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
+          "scope": "resource"
+        },
+        "typescript.suggest.autoImports": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.autoImports%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -484,7 +530,7 @@
             "relative",
             "non-relative"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.preferences.importModuleSpecifier.auto%",
             "%typescript.preferences.importModuleSpecifier.relative%",
             "%typescript.preferences.importModuleSpecifier.nonRelative%"
@@ -500,7 +546,7 @@
             "always",
             "never"
           ],
-          "enumDescriptions": [
+          "markdownEnumDescriptions": [
             "%typescript.updateImportsOnFileMove.enabled.prompt%",
             "%typescript.updateImportsOnFileMove.enabled.always%",
             "%typescript.updateImportsOnFileMove.enabled.never%"
@@ -516,6 +562,11 @@
             "always",
             "never"
           ],
+          "markdownEnumDescriptions": [
+            "%typescript.updateImportsOnFileMove.enabled.prompt%",
+            "%typescript.updateImportsOnFileMove.enabled.always%",
+            "%typescript.updateImportsOnFileMove.enabled.never%"
+          ],
           "default": "prompt",
           "description": "%typescript.updateImportsOnFileMove.enabled%",
           "scope": "resource"
@@ -529,6 +580,24 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.autoClosingTags%"
+        },
+        "javascript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.suggest.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.suggest.enabled%",
+          "scope": "resource"
+        },
+        "typescript.surveys.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.surveys.enabled%",
+          "scope": "window"
         }
       }
     },

@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import * as nls from 'vs/nls';
@@ -18,13 +17,12 @@ import * as os from 'os';
 import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { timeout } from 'vs/base/common/async';
-import { StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { forEach } from 'vs/base/common/collections';
 import { mergeSort } from 'vs/base/common/arrays';
-
 
 class Info {
 
@@ -34,7 +32,7 @@ class Info {
 		table['nls:start => nls:end'] = new Info(metrics.timers.ellapsedNlsGeneration, '[main]', metrics.initialStartup);
 		table['app.isReady => window.loadUrl()'] = new Info(metrics.timers.ellapsedWindowLoad, '[main]', metrics.initialStartup);
 
-		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKind[metrics.windowKind]);
+		table['window.loadUrl() => begin to require(workbench.main.js)'] = new Info(metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind));
 		table['require(workbench.main.js)'] = new Info(metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${nodeModuleLoadTime ? `, node_modules took ${nodeModuleLoadTime}ms` : ''}`);
 
 		table['register extensions & spawn extension host'] = new Info(metrics.timers.ellapsedExtensions, '[renderer]');
@@ -158,7 +156,7 @@ export class ShowStartupPerformance extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<boolean> {
+	run(): Promise<boolean> {
 
 		// Show dev tools
 		this.windowService.openDevTools();
@@ -217,7 +215,7 @@ export class ShowStartupPerformance extends Action {
 			console.groupEnd();
 		});
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -238,7 +236,7 @@ export class ReportPerformanceIssueAction extends Action {
 		super(id, label);
 	}
 
-	run(appendix?: string): TPromise<boolean> {
+	run(appendix?: string): Promise<boolean> {
 		Promise.all([
 			this.timerService.startupMetrics,
 			this.integrityService.isPure()
@@ -248,7 +246,7 @@ export class ReportPerformanceIssueAction extends Action {
 			window.open(issueUrl);
 		});
 
-		return TPromise.wrap(true);
+		return Promise.resolve(true);
 	}
 
 	private generatePerformanceIssueUrl(metrics: IStartupMetrics, baseUrl: string, name: string, version: string, _commit: string, _date: string, isPure: boolean, appendix?: string): string {

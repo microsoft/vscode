@@ -5,13 +5,11 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { getNonWhitespacePrefix, SnippetSuggestion } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -19,9 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
-import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
@@ -36,18 +32,18 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 	private _hasSnippets: IContextKey<boolean>;
 	private _activeSnippets: Snippet[] = [];
+	private _enabled: boolean;
 	private _selectionListener: IDisposable;
 	private _configListener: IDisposable;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ISnippetsService private readonly _snippetService: ISnippetsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
-		this._configListener = this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.tabCompletion')) {
+		this._configListener = this._editor.onDidChangeConfiguration(e => {
+			if (e.contribInfo) {
 				this._update();
 			}
 		});
@@ -64,13 +60,16 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	}
 
 	private _update(): void {
-		const enabled = this._configurationService.getValue<boolean>('editor.tabCompletion');
-		if (!enabled) {
-			dispose(this._selectionListener);
-		} else {
-			this._selectionListener = this._editor.onDidChangeCursorSelection(e => this._updateSnippets());
-			if (this._editor.getModel()) {
-				this._updateSnippets();
+		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion === 'onlySnippets';
+		if (this._enabled !== enabled) {
+			this._enabled = enabled;
+			if (!this._enabled) {
+				dispose(this._selectionListener);
+			} else {
+				this._selectionListener = this._editor.onDidChangeCursorSelection(e => this._updateSnippets());
+				if (this._editor.getModel()) {
+					this._updateSnippets();
+				}
 			}
 		}
 	}
@@ -151,17 +150,3 @@ registerEditorCommand(new TabCompletionCommand({
 		primary: KeyCode.Tab
 	}
 }));
-
-
-Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
-	id: 'editor',
-	order: 5,
-	type: 'object',
-	properties: {
-		'editor.tabCompletion': {
-			'type': 'boolean',
-			'default': false,
-			'description': localize('tabCompletion', "Insert snippets when their prefix matches. Works best when 'quickSuggestions' aren't enabled.")
-		},
-	}
-});

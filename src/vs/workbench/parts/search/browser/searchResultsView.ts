@@ -341,7 +341,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof FileMatch) {
-			const path = this.labelService.getUriLabel(element.resource(), true) || element.resource().fsPath;
+			const path = this.labelService.getUriLabel(element.resource(), { relative: true }) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}

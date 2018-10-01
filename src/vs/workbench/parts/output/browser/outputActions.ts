@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelIdentifier, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -19,8 +19,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { groupBy } from 'vs/base/common/arrays';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import URI from 'vs/base/common/uri';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -112,6 +114,9 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	private static readonly SEPARATOR = '─────────';
 
+	private outputChannels: IOutputChannelDescriptor[];
+	private logChannels: IOutputChannelDescriptor[];
+
 	constructor(
 		action: IAction,
 		@IOutputService private outputService: IOutputService,
@@ -129,31 +134,31 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		this.updateOtions(this.outputService.getActiveChannel().id);
 	}
 
-	protected getActionContext(option: string): string {
-		const channel = this.outputService.getChannels().filter(channelData => channelData.label === option).pop();
+	protected getActionContext(option: string, index: number): string {
+		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
 		return channel ? channel.id : option;
 	}
 
 	private updateOtions(selectedChannel: string): void {
-		const groups = groupBy(this.outputService.getChannels(), (c1: IOutputChannelIdentifier, c2: IOutputChannelIdentifier) => {
-			if (!c1.file && c2.file) {
+		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
+			if (!c1.log && c2.log) {
 				return -1;
 			}
-			if (c1.file && !c2.file) {
+			if (c1.log && !c2.log) {
 				return 1;
 			}
 			return 0;
 		});
-		const channels = groups[0] || [];
-		const fileChannels = groups[1] || [];
-		const showSeparator = channels.length && fileChannels.length;
-		const separatorIndex = showSeparator ? channels.length : -1;
-		const options: string[] = [...channels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...fileChannels.map(c => c.label)];
+		this.outputChannels = groups[0] || [];
+		this.logChannels = groups[1] || [];
+		const showSeparator = this.outputChannels.length && this.logChannels.length;
+		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
 		let selected = 0;
 		if (selectedChannel) {
-			selected = channels.map(c => c.id).indexOf(selectedChannel);
+			selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);
 			if (selected === -1) {
-				selected = separatorIndex + 1 + fileChannels.map(c => c.id).indexOf(selectedChannel);
+				selected = separatorIndex + 1 + this.logChannels.map(c => c.id).indexOf(selectedChannel);
 			}
 		}
 		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
@@ -168,8 +173,9 @@ export class OpenLogOutputFile extends Action {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@ICommandService private commandService: ICommandService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
 		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
@@ -177,17 +183,74 @@ export class OpenLogOutputFile extends Action {
 	}
 
 	private update(): void {
-		const logFile = this.getActiveLogChannelFile();
-		this.enabled = !!logFile;
+		const outputChannelDescriptor = this.getOutputChannelDescriptor();
+		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, this.getActiveLogChannelFile());
+		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : TPromise.as(null);
 	}
 
-	private getActiveLogChannelFile(): URI {
+	private getOutputChannelDescriptor(): IOutputChannelDescriptor {
 		const channel = this.outputService.getActiveChannel();
-		const identifier = channel ? this.outputService.getChannels().filter(c => c.id === channel.id)[0] : null;
-		return identifier ? identifier.file : null;
+		return channel ? this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0] : null;
+	}
+}
+
+export class ShowLogsOutputChannelAction extends Action {
+
+	static ID = 'workbench.action.showLogs';
+	static LABEL = nls.localize('showLogs', "Show Logs...");
+
+	constructor(id: string, label: string,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IOutputService private outputService: IOutputService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
+			.map(({ id, label }) => (<IQuickPickItem>{ id, label }));
+
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") })
+			.then(entry => {
+				if (entry) {
+					return this.outputService.showChannel(entry.id);
+				}
+				return null;
+			});
+	}
+}
+
+interface IOutputChannelQuickPickItem extends IQuickPickItem {
+	channel: IOutputChannelDescriptor;
+}
+
+export class OpenOutputLogFileAction extends Action {
+
+	static ID = 'workbench.action.openLogFile';
+	static LABEL = nls.localize('openLogFile', "Open Log File...");
+
+	constructor(id: string, label: string,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IOutputService private outputService: IOutputService,
+		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries: IOutputChannelQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
+			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
+
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
+			.then(entry => {
+				if (entry) {
+					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel)).then(() => null);
+				}
+				return null;
+			});
 	}
 }

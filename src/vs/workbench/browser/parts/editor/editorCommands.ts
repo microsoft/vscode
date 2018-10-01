@@ -13,17 +13,17 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -37,7 +37,11 @@ export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
-export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
+
+export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
+export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
+export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
+export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
@@ -224,7 +228,7 @@ export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
 
 function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.compareEditor.nextChange',
+		id: GOTO_NEXT_CHANGE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: KeyMod.Alt | KeyCode.F5,
@@ -232,7 +236,7 @@ function registerDiffEditorCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'workbench.action.compareEditor.previousChange',
+		id: GOTO_PREVIOUS_CHANGE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
@@ -248,31 +252,53 @@ function registerDiffEditorCommands(): void {
 		}
 	}
 
+	function toggleDiffSideBySide(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
+	}
+
+	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const newValue = !configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
+		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue, ConfigurationTarget.USER);
+	}
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_DIFF_INLINE_MODE,
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
+		handler: accessor => toggleDiffSideBySide(accessor)
+	});
 
-			const { control } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-			if (control instanceof TextDiffEditor) {
-				const widget = control.getControl();
-				const isInlineMode = !widget.renderSideBySide;
-				widget.updateOptions(<IDiffEditorOptions>{
-					renderSideBySide: isInlineMode
-				});
-			}
-		}
+	// TODO@Ben remove me after a while
+	CommandsRegistry.registerCommand('toggle.diff.editorMode', accessor => {
+		toggleDiffSideBySide(accessor);
+
+		accessor.get(INotificationService).warn(nls.localize('diffCommandDeprecation', "Command 'toggle.diff.editorMode' has been deprecated. Please use '{0}' instead.", TOGGLE_DIFF_SIDE_BY_SIDE));
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
-			id: TOGGLE_DIFF_INLINE_MODE,
-			title: nls.localize('toggleInlineView', "Compare: Toggle Inline View")
+			id: TOGGLE_DIFF_SIDE_BY_SIDE,
+			title: {
+				value: nls.localize('toggleInlineView', "Toggle Inline View"),
+				original: 'Compare: Toggle Inline View'
+			},
+			category: nls.localize('compare', "Compare")
 		},
 		when: ContextKeyExpr.has('textCompareEditorActive')
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: void 0,
+		primary: void 0,
+		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
 	});
 }
 

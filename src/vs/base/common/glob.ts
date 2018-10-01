@@ -343,7 +343,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 			return null;
 		}
 
-		return parsedPattern(paths.normalize(arg2.pathToRelative(arg2.base, path)), basename);
+		return parsedPattern(arg2.pathToRelative(arg2.base, path), basename);
 	};
 }
 

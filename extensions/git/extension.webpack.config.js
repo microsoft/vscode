@@ -11,9 +11,6 @@ const withDefaults = require('../shared.webpack.config');
 
 module.exports = withDefaults({
 	context: __dirname,
-	node: {
-		__dirname: false // leave the __dirname-behaviour intact
-	},
 	entry: {
 		main: './src/main.ts',
 		['askpass-main']: './src/askpass-main.ts'

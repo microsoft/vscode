@@ -16,7 +16,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { Event, once, Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
@@ -376,6 +376,25 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region isOpen()
 
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean {
+		return !!this.doGetOpened(editor);
+	}
+
+	//#endregion
+
+	//#region getOpend()
+
+	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput {
+		return this.doGetOpened(editor);
+	}
+
+	private doGetOpened(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput {
+		if (!(editor instanceof EditorInput)) {
+			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
+			if (!resourceInput.resource) {
+				return void 0; // we need a resource at least
+			}
+		}
+
 		let groups: IEditorGroup[] = [];
 		if (typeof group === 'number') {
 			groups.push(this.editorGroupService.getGroup(group));
@@ -385,22 +404,35 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			groups = [...this.editorGroupService.groups];
 		}
 
-		return groups.some(group => {
+		// For each editor group
+		for (let i = 0; i < groups.length; i++) {
+			const group = groups[i];
+
+			// Typed editor
 			if (editor instanceof EditorInput) {
-				return group.isOpened(editor);
+				if (group.isOpened(editor)) {
+					return editor;
+				}
 			}
 
-			const resourceInput = editor as IResourceInput | IUntitledResourceInput;
-			if (!resourceInput.resource) {
-				return false;
+			// Resource editor
+			else {
+				for (let j = 0; j < group.editors.length; j++) {
+					const editorInGroup = group.editors[j];
+					const resource = toResource(editorInGroup, { supportSideBySide: true });
+					if (!resource) {
+						continue; // need a resource to compare with
+					}
+
+					const resourceInput = editor as IResourceInput | IUntitledResourceInput;
+					if (resource.toString() === resourceInput.resource.toString()) {
+						return editorInGroup;
+					}
+				}
 			}
+		}
 
-			return group.editors.some(editorInGroup => {
-				const resource = toResource(editorInGroup, { supportSideBySide: true });
-
-				return resource && resource.toString() === resourceInput.resource.toString();
-			});
-		});
+		return void 0;
 	}
 
 	//#endregion
@@ -563,7 +595,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return this.labelService.getUriLabel(res, true);
+		return this.labelService.getUriLabel(res, { relative: true });
 	}
 
 	//#endregion

@@ -78,6 +78,10 @@
 	white-space: nowrap;
 }
 
+.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text-description {
+	display: none;
+}
+
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control {
 	flex: 1 1 auto;
 	align-self: flex-start;

@@ -556,6 +556,11 @@ export interface IController {
 	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
+	 * Called when a mouse middle button is pressed down on an element.
+	 */
+	onMouseMiddleClick?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
+
+	/**
 	 * Called when a mouse button is pressed down on an element.
 	 */
 	onMouseDown?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
@@ -566,12 +571,12 @@ export interface IController {
 	onMouseUp?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 }
 
-export enum DragOverEffect {
+export const enum DragOverEffect {
 	COPY,
 	MOVE
 }
 
-export enum DragOverBubble {
+export const enum DragOverBubble {
 	BUBBLE_DOWN,
 	BUBBLE_UP
 }

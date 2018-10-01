@@ -120,7 +120,7 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 }
 
 const schemaId = 'vscode://schemas/vscode-extensions';
-const schema: IJSONSchema = {
+export const schema = {
 	properties: {
 		engines: {
 			type: 'object',

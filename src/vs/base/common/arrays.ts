@@ -27,6 +27,14 @@ export function tail2<T>(arr: T[]): [T[], T] {
 }
 
 export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+	if (one === other) {
+		return true;
+	}
+
+	if (!one || !other) {
+		return false;
+	}
+
 	if (one.length !== other.length) {
 		return false;
 	}
@@ -514,4 +522,15 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 		arr.splice(index, 1);
 		arr.push(value);
 	}
+}
+
+export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
+	for (let i = 0; i < arr.length; i++) {
+		const element = arr[i];
+		if (predicate(element, i, arr)) {
+			return element;
+		}
+	}
+
+	return undefined;
 }

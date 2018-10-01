@@ -10,7 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { language } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -49,7 +49,7 @@ export class ConfigureLocaleAction extends Action {
 				resource: stat.resource
 			});
 		}, (error) => {
-			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(file, true), error));
+			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", this.labelService.getUriLabel(file, { relative: true }), error));
 		});
 	}
 }

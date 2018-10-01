@@ -12,8 +12,7 @@ import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from '
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 export class OutputPosition {
@@ -527,7 +526,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber, modelMinPosition.lineNumber, modelMaxPosition.lineNumber);
 
 		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
-		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, 1);
+		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, this.model.getLineMaxColumn(result.endLineNumber));
 		return {
 			startLineNumber: viewStartPosition.lineNumber,
 			endLineNumber: viewEndPosition.lineNumber,
@@ -793,11 +792,11 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts.position;
+			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
 				continue;
 			}
-			const color = resolveColor(opts, theme);
+			const color = opts.getColor(theme);
 			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
 			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
 
@@ -812,7 +811,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, modelStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
+			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
+			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
 		}
 
 		let result: IModelDecoration[] = [];
@@ -842,7 +842,35 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			reqStart = null;
 		}
 
-		return result;
+		result.sort((a, b) => {
+			const res = Range.compareRangesUsingStarts(a.range, b.range);
+			if (res === 0) {
+				if (a.id < b.id) {
+					return -1;
+				}
+				if (a.id > b.id) {
+					return 1;
+				}
+				return 0;
+			}
+			return res;
+		});
+
+		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
+		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
+		let prevDecId: string = null;
+		for (let i = 0, len = result.length; i < len; i++) {
+			const dec = result[i];
+			const decId = dec.id;
+			if (prevDecId === decId) {
+				// skip
+				continue;
+			}
+			prevDecId = decId;
+			finalResult[finalResultLen++] = dec;
+		}
+
+		return finalResult;
 	}
 }
 
@@ -1356,11 +1384,11 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts.position;
+			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
 				continue;
 			}
-			const color = resolveColor(opts, theme);
+			const color = opts.getColor(theme);
 			const viewStartLineNumber = decoration.range.startLineNumber;
 			const viewEndLineNumber = decoration.range.endLineNumber;
 
@@ -1401,25 +1429,4 @@ class OverviewRulerDecorations {
 			this.result[color] = [lane, startLineNumber, endLineNumber];
 		}
 	}
-}
-
-
-function resolveColor(opts: ModelDecorationOverviewRulerOptions, theme: ITheme): string {
-	if (!opts._resolvedColor) {
-		const themeType = theme.type;
-		const color = (themeType === 'dark' ? opts.darkColor : themeType === 'light' ? opts.color : opts.hcColor);
-		opts._resolvedColor = resolveRulerColor(color, theme);
-	}
-	return opts._resolvedColor;
-}
-
-function resolveRulerColor(color: string | ThemeColor, theme: ITheme): string {
-	if (typeof color === 'string') {
-		return color;
-	}
-	let c = color ? theme.getColor(color.id) : null;
-	if (!c) {
-		c = Color.transparent;
-	}
-	return c.toString();
 }

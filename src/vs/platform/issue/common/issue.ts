@@ -22,7 +22,7 @@ export interface WindowData {
 	zoomLevel: number;
 }
 
-export enum IssueType {
+export const enum IssueType {
 	Bug,
 	PerformanceIssue,
 	FeatureRequest,

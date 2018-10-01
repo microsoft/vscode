@@ -167,7 +167,7 @@ export class FoldingController implements IEditorContribution {
 				if (foldingModel) {
 					foldingModel.applyMemento(state.collapsedRegions);
 				}
-			}).done(undefined, onUnexpectedError);
+			}).then(undefined, onUnexpectedError);
 		}
 	}
 
@@ -313,7 +313,7 @@ export class FoldingController implements IEditorContribution {
 					}
 				}
 			}
-		}).done(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
 
 	}
 
@@ -408,7 +408,7 @@ export class FoldingController implements IEditorContribution {
 					}
 				}
 			}
-		}).done(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedError);
 	}
 
 	public reveal(position: IPosition): void {

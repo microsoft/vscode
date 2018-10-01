@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -30,6 +30,9 @@ export interface ParsedArgs {
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	verbose?: boolean;
+	trace?: boolean;
+	'trace-category-filter'?: string;
+	'trace-options'?: string;
 	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
