@@ -682,6 +682,7 @@ export class CodeMenu {
 		}
 
 		const moveSidebar = this.createMenuItem(moveSideBarLabel, 'workbench.action.toggleSidebarPosition');
+		const movePanel = this.createMenuItem(nls.localize('togglePanelPosition', "Toggle Panel Position"), 'workbench.action.togglePanelPosition');
 		const togglePanel = this.createMenuItem(nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel"), 'workbench.action.togglePanel');
 
 		let statusBarLabel: string;
@@ -712,6 +713,7 @@ export class CodeMenu {
 			__separator__(),
 			moveSidebar,
 			toggleSidebar,
+			movePanel,
 			togglePanel,
 			toggleStatusbar,
 			toggleActivtyBar,
