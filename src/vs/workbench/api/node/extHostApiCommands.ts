@@ -5,7 +5,6 @@
 'use strict';
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -350,7 +349,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
+				return Promise.reject(new Error(value.rejectReason));
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		});

@@ -167,7 +167,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	openPanel(id: string, focus?: boolean): TPromise<Panel> {
 		if (this.blockOpeningPanel) {
-			return TPromise.as(null); // Workaround against a potential race condition
+			return Promise.resolve(null); // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so

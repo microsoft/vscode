@@ -58,6 +58,7 @@ export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	autoFocus?: IAutoFocus;
 	inputSelection?: IRange;
+	value?: string;
 }
 
 export class QuickOpenController extends DefaultController {
@@ -603,6 +604,9 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		if (types.isString(param)) {
 			this.doShowWithPrefix(param);
 		} else {
+			if (options.value) {
+				this.restoreLastInput(options.value);
+			}
 			this.doShowWithInput(param, options && options.autoFocus ? options.autoFocus : {});
 		}
 
@@ -614,6 +618,12 @@ export class QuickOpenWidget extends Disposable implements IModelProvider {
 		if (this.callbacks.onShow) {
 			this.callbacks.onShow();
 		}
+	}
+
+	private restoreLastInput(lastInput: string) {
+		this.inputBox.value = lastInput;
+		this.inputBox.select();
+		this.callbacks.onType(lastInput);
 	}
 
 	private doShowWithPrefix(prefix: string): void {

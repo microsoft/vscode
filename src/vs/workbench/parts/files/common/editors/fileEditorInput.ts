@@ -278,7 +278,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return TPromise.wrapError(error);
+			return Promise.reject(error);
 		});
 	}
 

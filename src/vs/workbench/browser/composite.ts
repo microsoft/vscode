@@ -92,7 +92,7 @@ export abstract class Composite extends Component implements IComposite {
 	create(parent: HTMLElement): TPromise<void> {
 		this.parent = parent;
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	updateStyles(): void {
@@ -121,7 +121,7 @@ export abstract class Composite extends Component implements IComposite {
 	setVisible(visible: boolean): TPromise<void> {
 		this.visible = visible;
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	/**

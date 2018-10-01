@@ -1090,7 +1090,15 @@ export class SettingsRenderer implements ITreeRenderer {
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+						let uri: URI;
+						try {
+							uri = URI.parse(content);
+						} catch (err) {
+							// ignore
+						}
+						if (uri) {
+							this.openerService.open(uri).catch(onUnexpectedError);
+						}
 					}
 				},
 				disposeables

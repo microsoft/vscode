@@ -229,7 +229,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
 					if (node && node.children) {
-						return TPromise.as(node.children);
+						return Promise.resolve(node.children);
 					}
 					const promise = node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node);
 					return promise.then(children => {
@@ -362,7 +362,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 				this.elementsToRefresh.push(...elements);
 			}
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean, focus?: boolean }): TPromise<void> {
@@ -372,9 +372,9 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 			const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
 
 			const root: Root = this.tree.getInput();
-			const promise = root.children ? TPromise.as(null) : this.refresh(); // Refresh if root is not populated
+			const promise: Thenable<void> = root.children ? Promise.resolve(null) : this.refresh(); // Refresh if root is not populated
 			return promise.then(() => {
-				var result = TPromise.as(null);
+				var result = Promise.resolve(null);
 				parentChain.forEach((e) => {
 					result = result.then(() => this.tree.expand(e));
 				});
@@ -390,7 +390,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 			});
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private activate() {
@@ -404,7 +404,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		if (this.tree) {
 			return TPromise.join(elements.map(e => this.tree.refresh(e))).then(() => null);
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private onSelection({ payload }: any): void {
@@ -447,7 +447,7 @@ class TreeDataSource implements IDataSource {
 		if (this.treeView.dataProvider) {
 			return this.progressService.withProgress({ location: this.container }, () => this.treeView.dataProvider.getChildren(node));
 		}
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
@@ -455,7 +455,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, node: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -635,7 +635,7 @@ class TreeController extends WorkbenchTreeController {
 			getAnchor: () => anchor,
 
 			getActions: () => {
-				return TPromise.as(actions);
+				return Promise.resolve(actions);
 			},
 
 			getActionItem: (action) => {

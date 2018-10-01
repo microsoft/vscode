@@ -150,6 +150,11 @@ function fromLocalNormal(extensionPath) {
         .catch(function (err) { return result.emit('error', err); });
     return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
+function error(err) {
+    var result = es.through();
+    setTimeout(function () { return result.emit('error', err); });
+    return result;
+}
 var baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
     'User-Agent': 'VSCode Build',
@@ -168,13 +173,6 @@ function fromMarketplace(extensionName, version, metadata) {
     };
     var packageJsonFilter = filter('package.json', { restore: true });
     return remote('', options)
-        .on('error', function (err) {
-        console.log('Error downloading extension:', util.colors.yellow(extensionName + "@" + version));
-        console.error(err);
-    })
-        .on('end', function () {
-        console.log('Downloaded extension:', util.colors.yellow(extensionName + "@" + version));
-    })
         .pipe(vzip.src())
         .pipe(filter('extension/**'))
         .pipe(rename(function (p) { return p.dirname = p.dirname.replace(/^extension\/?/, ''); }))

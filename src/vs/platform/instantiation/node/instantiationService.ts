@@ -6,11 +6,17 @@
 'use strict';
 import { IdleValue } from 'vs/base/common/async';
 import { InstantiationService as BaseInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 // this is in the /node/-layer because it depends on Proxy which isn't available
 // in IE11 and therefore not in the /common/-layer
 
 export class InstantiationService extends BaseInstantiationService {
+
+	createChild(services: ServiceCollection): IInstantiationService {
+		return new InstantiationService(services, this._strict, this);
+	}
 
 	protected _createServiceInstance<T>(ctor: any, args: any[] = [], _trace): T {
 		return InstantiationService._newIdleProxyService(() => super._createServiceInstance(ctor, args, _trace));

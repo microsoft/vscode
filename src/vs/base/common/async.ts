@@ -314,9 +314,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
  * @param promise a promise
  * @param callback a function that will be call in the success and error case.
  */
-export function always<T>(thenable: TPromise<T>, callback: () => void): TPromise<T>;
-export function always<T>(promise: Thenable<T>, callback: () => void): Thenable<T>;
-export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => void) {
+export function always<T>(promise: Thenable<T>, callback: () => void): Promise<T> {
 	function safeCallback() {
 		try {
 			callback();
@@ -324,8 +322,8 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => v
 			errors.onUnexpectedError(err);
 		}
 	}
-	winjsPromiseOrThenable.then(_ => safeCallback(), _ => safeCallback());
-	return winjsPromiseOrThenable;
+	promise.then(_ => safeCallback(), _ => safeCallback());
+	return Promise.resolve(promise);
 }
 
 /**

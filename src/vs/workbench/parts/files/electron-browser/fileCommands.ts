@@ -183,7 +183,7 @@ function save(
 		return textFileService.save(resource, options);
 	}
 
-	return TPromise.as(false);
+	return Promise.resolve(false);
 }
 
 function saveAll(saveAllArguments: any, editorService: IEditorService, untitledEditorService: IUntitledEditorService,
@@ -247,7 +247,7 @@ CommandsRegistry.registerCommand({
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -281,7 +281,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -310,7 +310,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => void 0);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -348,7 +348,7 @@ CommandsRegistry.registerCommand({
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 

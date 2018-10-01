@@ -131,7 +131,7 @@ class BaseTreeItem {
 			return child.getChildren();
 		}
 		const array = Object.keys(this._children).map(key => this._children[key]);
-		return TPromise.as(array.sort((a, b) => this.compare(a, b)));
+		return Promise.resolve(array.sort((a, b) => this.compare(a, b)));
 	}
 
 	// skips intermediate single-child nodes
@@ -492,7 +492,7 @@ class LoadedScriptsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(element.getParent());
+		return Promise.resolve(element.getParent());
 	}
 
 	shouldAutoexpand?(tree: ITree, element: any): boolean {

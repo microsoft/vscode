@@ -3539,15 +3539,15 @@ growl@1.9.2:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.9.2.tgz#0ea7743715db8d8de2c5ede1775e1b45ac85c02f"
   integrity sha1-Dqd0NxXbjY3ixe3hd14bRayFwC8=
 
-gulp-atom-electron@^1.16.1:
-  version "1.16.1"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.16.1.tgz#bdaad96dbdf1257cfad317c6eca81805055fe3ac"
-  integrity sha512-Du+ZSrYU7S+1sfkB8bAOPrf8/fXrFcFonbBzpUAYOmg8HVXVXdIiiNYF8WZCtAPkKvZFh4s3Rm0Yi88TX93rqw==
+gulp-atom-electron@^1.18.0:
+  version "1.18.0"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.18.0.tgz#94c40768bfdaa08d66594918d1a7b01af591d2b7"
+  integrity sha512-Uo7zTgs1kRAbQl/Lu7ln/kVizUDmx03MDA2mLr1uf25pQAtUGCZPuMY+FpLURcy9FRPHOb4rTLlvbq579yvF6A==
   dependencies:
     event-stream "^3.1.7"
     github-releases "^0.4.1"
     gulp-filter "^4.0.0"
-    gulp-rename "^1.2.0"
+    gulp-rename "1.2.2"
     gulp-symdest "^1.0.0"
     gulp-vinyl-zip "^1.2.0"
     mkdirp "^0.5.0"
@@ -3709,7 +3709,7 @@ gulp-remote-src@^0.4.0:
     through2 "~2.0.3"
     vinyl "~2.0.1"
 
-gulp-rename@^1.2.0:
+gulp-rename@1.2.2, gulp-rename@^1.2.0:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/gulp-rename/-/gulp-rename-1.2.2.tgz#3ad4428763f05e2764dec1c67d868db275687817"
   integrity sha1-OtRCh2PwXidk3sHGfYaNsnVoeBc=
@@ -9233,10 +9233,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.8.0-beta4:
-  version "3.8.0-beta4"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.8.0-beta4.tgz#669b8aab0990f42c4aa368189baa6fdecb277488"
-  integrity sha512-C/7GKMgQmSlQc2t+4oLUGfByrS1Ab1n+VWPXZG7ZmwFZC4O5yikrm8+/cpBLC7uKWZpt96Vo632DdO2qOo49qQ==
+vscode-xterm@3.9.0-beta1:
+  version "3.9.0-beta1"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta1.tgz#dfe0ff41ee062a9fbcda9eb050dcd9e73fe34278"
+  integrity sha512-PMLI+4n6ysY2VB/6UF9j1OZ8RR4wATc+mdVFb1fEVWI4k6i6mdTNpMrd9U5cLJaswfr+hlql2PQL9EprhuKRNA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

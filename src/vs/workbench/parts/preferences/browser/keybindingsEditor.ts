@@ -26,7 +26,7 @@ import { DefineKeybindingWidget, KeybindingsSearchWidget, KeybindingsSearchOptio
 import {
 	IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
 	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
-	KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE
+	KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, CONTEXT_KEYBINDINGS_SEARCH_VALUE
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -41,7 +41,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -72,6 +71,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
+	private searchValueContextKey: IContextKey<boolean>;
 
 	private actionBar: ActionBar;
 	private sortByPrecedenceAction: Action;
@@ -84,7 +84,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingsService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@INotificationService private notificationService: INotificationService,
@@ -98,6 +97,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
+		this.searchValueContextKey = CONTEXT_KEYBINDINGS_SEARCH_VALUE.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
@@ -288,7 +288,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			ariaLabelledBy: 'keybindings-editor-aria-label-element',
 			recordEnter: true
 		}));
-		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.filterKeybindings())));
+		this._register(this.searchWidget.onDidChange(searchValue => {
+			this.searchValueContextKey.set(!!searchValue);
+			this.delayedFiltering.trigger(() => this.filterKeybindings());
+		}));
 		this._register(this.searchWidget.onEscape(() => this.recordKeysAction.checked = false));
 
 		const actionsContainer = DOM.append(searchContainer, DOM.$('.keybindings-search-actions-container'));
@@ -338,9 +341,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}
 		}));
 		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction]);
-
-
-		this.createOpenKeybindingsElement(this.headerContainer);
 	}
 
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
@@ -367,25 +367,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (dimension.width > 400 && this.recordKeysAction.checked) {
 			this.searchWidget.inputBox.inputElement.style.paddingRight = '180px';
 		}
-	}
-
-	private createOpenKeybindingsElement(parent: HTMLElement): void {
-		const openKeybindingsContainer = DOM.append(parent, $('.open-keybindings-container'));
-		DOM.append(openKeybindingsContainer, $('', null, localize('header-message', "For advanced customizations open and edit")));
-		const fileElement = DOM.append(openKeybindingsContainer, $('.file-name', null, localize('keybindings-file-name', "keybindings.json")));
-		fileElement.tabIndex = 0;
-
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
-		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
-			let keyboardEvent = new StandardKeyboardEvent(e);
-			switch (keyboardEvent.keyCode) {
-				case KeyCode.Enter:
-					this.preferencesService.openGlobalKeybindingSettings(true);
-					keyboardEvent.preventDefault();
-					keyboardEvent.stopPropagation();
-					return;
-			}
-		}));
 	}
 
 	private createBody(parent: HTMLElement): void {

@@ -211,7 +211,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (focus) {
 			view.focus();
 		}
-		return TPromise.as(view);
+		return Promise.resolve(view);
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -330,7 +330,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => Promise.resolve(actions)
 		});
 	}
 

@@ -196,7 +196,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 						return { suggestions: [] };
 					});
 				}
-				return TPromise.as({ suggestions: [] });
+				return Promise.resolve({ suggestions: [] });
 			}
 		});
 

@@ -5,7 +5,6 @@
 'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
@@ -132,7 +131,7 @@ class CodeLensAdapter {
 
 		let resolve: Thenable<vscode.CodeLens>;
 		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
-			resolve = TPromise.as(lens);
+			resolve = Promise.resolve(lens);
 		} else {
 			resolve = asThenable(() => this._provider.resolveCodeLens(lens, token));
 		}
@@ -447,7 +446,7 @@ class NavigateTypeAdapter {
 	resolveWorkspaceSymbol(symbol: WorkspaceSymbolDto, token: CancellationToken): Thenable<WorkspaceSymbolDto> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return TPromise.as(symbol);
+			return Promise.resolve(symbol);
 		}
 
 		const item = this._symbolCache[symbol._id];
@@ -504,7 +503,7 @@ class RenameAdapter {
 
 	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation & modes.Rejection> {
 		if (typeof this._provider.prepareRename !== 'function') {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
@@ -622,13 +621,13 @@ class SuggestAdapter {
 	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		const { _parentId, _id } = (<SuggestionDto>suggestion);
 		const item = this._cache.has(_parentId) && this._cache.get(_parentId)[_id];
 		if (!item) {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		return asThenable(() => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
@@ -928,7 +927,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => Thenable<R>): Thenable<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError<R>(new Error('no adapter found'));
+			return Promise.reject(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}

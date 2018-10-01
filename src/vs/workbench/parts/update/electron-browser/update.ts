@@ -233,7 +233,7 @@ export class UpdateContribution implements IGlobalActivity {
 	private static readonly showExtensionsId = 'workbench.view.extensions';
 
 	get id() { return 'vs.update'; }
-	get name() { return nls.localize('activity', "Activity"); }
+	get name() { return nls.localize('manage', "Manage"); }
 	get cssClass() { return 'update-activity'; }
 
 	private state: UpdateState;

@@ -5,7 +5,6 @@
 'use strict';
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,10 +25,6 @@ export class TokenSelectionSupport {
 
 	constructor(@IModelService modelService: IModelService) {
 		this._modelService = modelService;
-	}
-
-	public getRangesToPosition(resource: URI, position: Position): TPromise<ILogicalSelectionEntry[]> {
-		return TPromise.as(this.getRangesToPositionSync(resource, position));
 	}
 
 	public getRangesToPositionSync(resource: URI, position: Position): ILogicalSelectionEntry[] {

@@ -116,7 +116,7 @@ export class ConfigurationManager implements IConfigurationManager {
 						return Promise.resolve(config);
 					}
 				});
-			}, TPromise.as(debugConfiguration));
+			}, Promise.resolve(debugConfiguration));
 		});
 	}
 
@@ -133,7 +133,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		} else {
 			// TODO@AW handle n > 1 case
 		}
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 
 	public registerDebugAdapterProvider(debugTypes: string[], debugAdapterLauncher: IDebugAdapterProvider): IDisposable {
@@ -162,7 +162,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (dap) {
 			return dap.substituteVariables(folder, config);
 		}
-		return TPromise.as(config);
+		return Promise.resolve(config);
 	}
 
 	public runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
@@ -332,7 +332,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	public guessDebugger(type?: string): TPromise<Debugger> {
 		if (type) {
 			const adapter = this.getDebugger(type);
-			return TPromise.as(adapter);
+			return Promise.resolve(adapter);
 		}
 
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
@@ -342,10 +342,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			const language = model ? model.getLanguageIdentifier().language : undefined;
 			const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
-				return TPromise.as(adapters[0]);
+				return Promise.resolve(adapters[0]);
 			}
 			if (adapters.length > 1) {
-				candidates = TPromise.as(adapters);
+				candidates = Promise.resolve(adapters);
 			}
 		}
 

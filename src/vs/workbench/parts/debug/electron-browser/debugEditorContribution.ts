@@ -105,7 +105,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
 				undefined,
 				true,
-				() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
+				() => Promise.resolve(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoints[0].lineNumber, breakpoints[0].column))
 			));
 
 			actions.push(new Action(
@@ -130,7 +130,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBrekapoint', "Edit Line Breakpoint"),
 					null,
 					true,
-					() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(bp.lineNumber, bp.column))
+					() => Promise.resolve(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(bp.lineNumber, bp.column))
 				)
 			)));
 
@@ -155,18 +155,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint..."),
 				null,
 				true,
-				() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, undefined))
+				() => Promise.resolve(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, undefined))
 			));
 			actions.push(new Action(
 				'addLogPoint',
 				nls.localize('addLogPoint', "Add Logpoint..."),
 				null,
 				true,
-				() => TPromise.as(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, undefined, BreakpointWidgetContext.LOG_MESSAGE))
+				() => Promise.resolve(this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(lineNumber, undefined, BreakpointWidgetContext.LOG_MESSAGE))
 			));
 		}
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	private registerListeners(): void {
@@ -551,7 +551,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.editor.focus();
 		if (!configurationsArrayPosition) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		const insertLine = (position: Position): TPromise<any> => {

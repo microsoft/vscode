@@ -218,7 +218,7 @@ class DoNotShowResolveConflictLearnMoreAction extends Action {
 		// Hide notification
 		notification.dispose();
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -264,7 +264,7 @@ class ResolveSaveConflictAction extends Action {
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -285,7 +285,7 @@ class SaveElevatedAction extends Action {
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -302,7 +302,7 @@ class OverwriteReadonlyAction extends Action {
 			this.model.save({ overwriteReadonly: true });
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 

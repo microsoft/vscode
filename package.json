@@ -49,7 +49,7 @@
     "vscode-nsfw": "Tyriar/vscode-nsfw#electron-3.0.x",
     "vscode-ripgrep": "1.1.0",
     "vscode-textmate": "^4.0.1",
-    "vscode-xterm": "3.8.0-beta4",
+    "vscode-xterm": "3.9.0-beta1",
     "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3"
@@ -75,7 +75,7 @@
     "express": "^4.13.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.16.1",
+    "gulp-atom-electron": "^1.18.0",
     "gulp-azure-storage": "^0.7.0",
     "gulp-bom": "^1.0.0",
     "gulp-buffer": "0.0.2",

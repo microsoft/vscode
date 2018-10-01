@@ -11,7 +11,6 @@ import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/modes';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -128,13 +127,13 @@ export class FileReferences implements IDisposable {
 		}
 	}
 
-	resolve(textModelResolverService: ITextModelService): TPromise<FileReferences> {
+	resolve(textModelResolverService: ITextModelService): Promise<FileReferences> {
 
 		if (this._resolved) {
-			return TPromise.as(this);
+			return Promise.resolve(this);
 		}
 
-		return textModelResolverService.createModelReference(this._uri).then(modelReference => {
+		return Promise.resolve(textModelResolverService.createModelReference(this._uri).then(modelReference => {
 			const model = modelReference.object;
 
 			if (!model) {
@@ -152,7 +151,7 @@ export class FileReferences implements IDisposable {
 			this._resolved = true;
 			this._loadFailure = err;
 			return this;
-		});
+		}));
 	}
 
 	dispose(): void {

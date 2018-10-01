@@ -12,7 +12,6 @@ import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from './extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
@@ -101,7 +100,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 
 	private _save(): Thenable<boolean> {
 		if (this._isDisposed) {
-			return TPromise.wrapError<boolean>(new Error('Document has been closed'));
+			return Promise.reject(new Error('Document has been closed'));
 		}
 		return this._proxy.$trySaveDocument(this._uri);
 	}

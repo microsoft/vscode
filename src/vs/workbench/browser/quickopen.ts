@@ -22,6 +22,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
+export const PREFILL_CONFIG = 'workbench.quickOpen.prefill';
 export const SEARCH_EDITOR_HISTORY = 'search.quickOpen.includeHistory';
 
 export interface IWorkbenchQuickOpenConfiguration {
@@ -45,7 +46,7 @@ export class QuickOpenHandler {
 	 * results in terms of performance when many items are shown.
 	 */
 	getResults(searchValue: string, token: CancellationToken): TPromise<IModel<any>> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	/**
@@ -331,6 +332,6 @@ export class QuickOpenAction extends Action {
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

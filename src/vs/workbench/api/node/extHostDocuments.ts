@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TypeConverters from './extHostTypeConverters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as vscode from 'vscode';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
@@ -73,7 +72,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 		let cached = this._documentsAndEditors.getDocument(uri.toString());
 		if (cached) {
-			return TPromise.as(cached);
+			return Promise.resolve(cached);
 		}
 
 		let promise = this._documentLoader.get(uri.toString());
@@ -83,7 +82,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 				return this._documentsAndEditors.getDocument(uri.toString());
 			}, err => {
 				this._documentLoader.delete(uri.toString());
-				return TPromise.wrapError<ExtHostDocumentData>(err);
+				return Promise.reject(err);
 			});
 			this._documentLoader.set(uri.toString(), promise);
 		}

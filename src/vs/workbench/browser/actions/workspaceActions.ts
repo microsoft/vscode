@@ -122,7 +122,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 

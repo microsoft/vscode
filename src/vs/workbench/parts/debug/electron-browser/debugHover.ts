@@ -149,7 +149,7 @@ export class DebugHoverWidget implements IContentWidget {
 		// use regex to extract the sub-expression #9821
 		const matchingExpression = lineContent.substring(start - 1, end);
 		if (!matchingExpression) {
-			return TPromise.as(this.hide());
+			return Promise.resolve(this.hide());
 		}
 
 		let promise: TPromise<IExpression>;
@@ -181,7 +181,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): TPromise<IExpression> {
 		if (!container) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return container.getChildren().then(children => {
@@ -233,7 +233,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.valueContainer.focus();
 			}
 
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this.valueContainer.hidden = true;

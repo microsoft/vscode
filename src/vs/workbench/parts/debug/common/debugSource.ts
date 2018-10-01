@@ -78,7 +78,7 @@ export class Source {
 	}
 
 	public openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		return !this.available ? TPromise.as(null) : editorService.openEditor({
+		return !this.available ? Promise.resolve(null) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
 			options: {
