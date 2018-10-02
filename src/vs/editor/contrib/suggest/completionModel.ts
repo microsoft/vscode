@@ -175,7 +175,8 @@ export class CompletionModel {
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
-			const wordLen = suggestion.overwriteBefore + characterCountDelta - (item.position.column - this._column);
+			const overwriteBefore = item.position.column - suggestion.range.startColumn;
+			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
@@ -198,7 +199,7 @@ export class CompletionModel {
 				// if it matches we check with the label to compute highlights
 				// and if that doesn't yield a result we have no highlights,
 				// despite having the match
-				let match = scoreFn(word, suggestion.filterText, suggestion.overwriteBefore);
+				let match = scoreFn(word, suggestion.filterText, overwriteBefore);
 				if (!match) {
 					continue;
 				}
@@ -207,7 +208,7 @@ export class CompletionModel {
 
 			} else {
 				// by default match `word` against the `label`
-				let match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
+				let match = scoreFn(word, suggestion.label, overwriteBefore);
 				if (match) {
 					item.score = match[0];
 					item.matches = match[1];

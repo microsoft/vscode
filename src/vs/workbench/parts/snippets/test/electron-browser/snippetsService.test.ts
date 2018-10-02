@@ -85,7 +85,7 @@ suite('SnippetsService', function () {
 			assert.equal(result.incomplete, undefined);
 			assert.equal(result.suggestions.length, 1);
 			assert.equal(result.suggestions[0].label, 'bar');
-			assert.equal(result.suggestions[0].overwriteBefore, 3);
+			assert.equal(result.suggestions[0].range.startColumn, 1);
 			assert.equal(result.suggestions[0].insertText, 'barCodeSnippet');
 		});
 	});
@@ -118,10 +118,10 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 2);
 			assert.equal(result.suggestions[0].label, 'bar');
 			assert.equal(result.suggestions[0].insertText, 's1');
-			assert.equal(result.suggestions[0].overwriteBefore, 2);
+			assert.equal(result.suggestions[0].range.startColumn, 1);
 			assert.equal(result.suggestions[1].label, 'bar-bar');
 			assert.equal(result.suggestions[1].insertText, 's2');
-			assert.equal(result.suggestions[1].overwriteBefore, 2);
+			assert.equal(result.suggestions[1].range.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 5), suggestContext).then(result => {
@@ -129,7 +129,7 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 1);
 			assert.equal(result.suggestions[0].label, 'bar-bar');
 			assert.equal(result.suggestions[0].insertText, 's2');
-			assert.equal(result.suggestions[0].overwriteBefore, 4);
+			assert.equal(result.suggestions[0].range.startColumn, 1);
 		});
 
 		await provider.provideCompletionItems(model, new Position(1, 6), suggestContext).then(result => {
@@ -137,10 +137,10 @@ suite('SnippetsService', function () {
 			assert.equal(result.suggestions.length, 2);
 			assert.equal(result.suggestions[0].label, 'bar');
 			assert.equal(result.suggestions[0].insertText, 's1');
-			assert.equal(result.suggestions[0].overwriteBefore, 1);
+			assert.equal(result.suggestions[0].range.startColumn, 5);
 			assert.equal(result.suggestions[1].label, 'bar-bar');
 			assert.equal(result.suggestions[1].insertText, 's2');
-			assert.equal(result.suggestions[1].overwriteBefore, 5);
+			assert.equal(result.suggestions[1].range.startColumn, 1);
 		});
 	});
 
@@ -166,14 +166,14 @@ suite('SnippetsService', function () {
 			return provider.provideCompletionItems(model, new Position(1, 4), suggestContext);
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
-			assert.equal(result.suggestions[0].overwriteBefore, 2);
+			assert.equal(result.suggestions[0].range.startColumn, 2);
 			model.dispose();
 
 			model = TextModel.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4), suggestContext);
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
-			assert.equal(result.suggestions[0].overwriteBefore, 2);
+			assert.equal(result.suggestions[0].range.startColumn, 2);
 			model.dispose();
 		});
 	});

@@ -759,11 +759,9 @@ class SuggestAdapter {
 
 			// insert the text of the edit and create a dedicated
 			// suggestion-container with overwrite[Before|After]
-			suggestion.overwriteBefore = position.column - editRange.startColumn;
-			suggestion.overwriteAfter = editRange.endColumn - position.column;
+			suggestion.range = editRange;
 		} else {
-			suggestion.overwriteBefore = position.column - wordStartPos.column;
-			suggestion.overwriteAfter = 0;
+			suggestion.range = { startLineNumber: position.lineNumber, startColumn: wordStartPos.column, endLineNumber: position.lineNumber, endColumn: position.column };
 		}
 		if (item.textEdit) {
 			suggestion.insertText = item.textEdit.text;

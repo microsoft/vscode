@@ -469,6 +469,20 @@ declare namespace monaco {
 		readonly column: number;
 		constructor(lineNumber: number, column: number);
 		/**
+		 * Create a new postion from this position.
+		 *
+		 * @param newLineNumber new line number
+		 * @param newColumn new column
+		 */
+		with(newLineNumber?: number, newColumn?: number): Position;
+		/**
+		 * Derive a new position from this position.
+		 *
+		 * @param deltaLineNumber line number delta
+		 * @param deltaColumn column delta
+		 */
+		delta(deltaLineNumber?: number, deltaColumn?: number): Position;
+		/**
 		 * Test if this position equals other position
 		 */
 		equals(other: IPosition): boolean;

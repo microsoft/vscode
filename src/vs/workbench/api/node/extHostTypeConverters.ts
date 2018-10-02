@@ -544,7 +544,7 @@ export const CompletionItemKind = {
 
 export namespace Suggest {
 
-	export function to(position: types.Position, suggestion: modes.CompletionItem): types.CompletionItem {
+	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
@@ -554,15 +554,7 @@ export namespace Suggest {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-
-		// 'overwrite[Before|After]'-logic
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
-		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
-		let endPosition = position;
-		if (typeof suggestion.overwriteAfter === 'number') {
-			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
-		}
-		result.range = new types.Range(startPosition, endPosition);
+		result.range = Range.to(suggestion.range);
 
 		// 'inserText'-logic
 		if (suggestion.insertTextIsSnippet) {

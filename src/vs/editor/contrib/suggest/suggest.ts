@@ -16,6 +16,7 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Range } from 'vs/editor/common/core/range';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -59,6 +60,9 @@ export function provideSuggestionItems(
 	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
 
+	const wordUntil = model.getWordUntilPosition(position);
+	const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
+
 	position = position.clone();
 
 	// get provider groups, always add snippet suggestion provider
@@ -90,7 +94,9 @@ export function provideSuggestionItems(
 					for (let suggestion of container.suggestions) {
 						if (acceptSuggestion(suggestion)) {
 
-							fixOverwriteBeforeAfter(suggestion, container);
+							if (!suggestion.range) {
+								suggestion.range = defaultRange;
+							}
 
 							allSuggestions.push({
 								position,
@@ -129,15 +135,6 @@ export function provideSuggestionItems(
 	// });
 
 	return result;
-}
-
-function fixOverwriteBeforeAfter(suggestion: CompletionItem, container: CompletionList): void {
-	if (typeof suggestion.overwriteBefore !== 'number') {
-		suggestion.overwriteBefore = 0;
-	}
-	if (typeof suggestion.overwriteAfter !== 'number' || suggestion.overwriteAfter < 0) {
-		suggestion.overwriteAfter = 0;
-	}
 }
 
 function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {

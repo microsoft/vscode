@@ -30,6 +30,7 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IRange, Range } from 'vs/editor/common/core/range';
 
 namespace schema {
 
@@ -345,7 +346,7 @@ export class SnippetSuggestion implements CompletionItem {
 	detail: string;
 	insertText: string;
 	documentation: MarkdownString;
-	overwriteBefore: number;
+	range: IRange;
 	sortText: string;
 	noAutoAccept: boolean;
 	kind: CompletionKind;
@@ -353,12 +354,12 @@ export class SnippetSuggestion implements CompletionItem {
 
 	constructor(
 		readonly snippet: Snippet,
-		overwriteBefore: number
+		range: IRange
 	) {
 		this.label = snippet.prefix;
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.body;
-		this.overwriteBefore = overwriteBefore;
+		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
 		this.kind = CompletionKind.Snippet;
@@ -420,7 +421,7 @@ export class SnippetSuggestProvider implements CompletionItemProvider {
 
 			if (lineOffsets.length === 0) {
 				// no interesting spans found -> pick all snippets
-				suggestions = snippets.map(snippet => new SnippetSuggestion(snippet, 0));
+				suggestions = snippets.map(snippet => new SnippetSuggestion(snippet, Range.fromPositions(position)));
 
 			} else {
 				let consumed = new Set<Snippet>();
@@ -429,7 +430,7 @@ export class SnippetSuggestProvider implements CompletionItemProvider {
 					start -= shift;
 					for (const snippet of snippets) {
 						if (!consumed.has(snippet) && matches(linePrefixLow, start, snippet.prefixLow, 0)) {
-							suggestions.push(new SnippetSuggestion(snippet, linePrefixLow.length - start));
+							suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
 							consumed.add(snippet);
 						}
 					}

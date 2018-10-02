@@ -356,7 +356,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						label: 'foo.bar',
 						kind: CompletionKind.Property,
 						insertText: 'foo.bar',
-						overwriteBefore: pos.column - 1
+						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
@@ -371,7 +371,10 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						label: 'boom',
 						kind: CompletionKind.Property,
 						insertText: 'boom',
-						overwriteBefore: doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : pos.column - 1
+						range: Range.fromPositions(
+							pos.delta(0, doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : -1),
+							pos
+						)
 					}]
 				};
 			}
@@ -465,7 +468,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						label: 'foo',
 						kind: CompletionKind.Property,
 						insertText: 'foo',
-						overwriteBefore: pos.column - 1
+						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
@@ -502,7 +505,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						label: 'foo;',
 						kind: CompletionKind.Property,
 						insertText: 'foo',
-						overwriteBefore: pos.column - 1
+						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
@@ -549,7 +552,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 							label: 'foo.bar',
 							kind: CompletionKind.Property,
 							insertText: 'foo.bar',
-							overwriteBefore: pos.column - 1
+							range: Range.fromPositions(pos.with(undefined, 1), pos)
 						}
 					]
 				};
@@ -578,12 +581,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						label: 'abc',
 						kind: CompletionKind.Property,
 						insertText: 'abc',
-						overwriteBefore: pos.column - 1
+						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}, {
 						label: 'äbc',
 						kind: CompletionKind.Property,
 						insertText: 'äbc',
-						overwriteBefore: pos.column - 1
+						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
@@ -650,7 +653,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						label: 'bar',
 						kind: CompletionKind.Property,
 						insertText: 'bar',
-						overwriteBefore: 2,
+						range: Range.fromPositions(pos.delta(0, -2), pos),
 						additionalTextEdits: [{
 							text: ', bar',
 							range: { startLineNumber: 1, endLineNumber: 1, startColumn: 17, endColumn: 17 }

@@ -366,21 +366,20 @@ export let completionKindFromLegacyString = (function () {
  */
 export interface CompletionItem {
 	label: string;
-	insertText: string;
-	insertTextIsSnippet?: boolean;
 	kind: CompletionKind;
 	detail?: string;
 	documentation?: string | IMarkdownString;
-	filterText?: string;
 	sortText?: string;
+	filterText?: string;
 	preselect?: boolean;
+	insertText: string;
+	insertTextIsSnippet?: boolean;
+	noWhitespaceAdjust?: boolean;
+	range?: IRange;
 	noAutoAccept?: boolean;
 	commitCharacters?: string[];
-	overwriteBefore?: number;
-	overwriteAfter?: number;
 	additionalTextEdits?: model.ISingleEditOperation[];
 	command?: Command;
-	noWhitespaceAdjust?: boolean;
 }
 
 /**

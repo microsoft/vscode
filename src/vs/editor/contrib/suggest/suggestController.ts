@@ -165,7 +165,7 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.push(this._widget.onDidFocus(({ item }) => {
 
 			const position = this._editor.getPosition();
-			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const startColumn = item.suggestion.range.startColumn;
 			const endColumn = position.column;
 			let value = true;
 			if (
@@ -236,10 +236,13 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
+		const overwriteBefore = position.column - suggestion.range.startColumn;
+		const overwriteAfter = suggestion.range.endColumn - position.column;
+
 		SnippetController2.get(this._editor).insert(
 			insertText,
-			suggestion.overwriteBefore + columnDelta,
-			suggestion.overwriteAfter,
+			overwriteBefore + columnDelta,
+			overwriteAfter,
 			false, false,
 			!suggestion.noWhitespaceAdjust
 		);
@@ -310,7 +313,7 @@ export class SuggestController implements IEditorContribution {
 				return true;
 			}
 			const position = this._editor.getPosition();
-			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const startColumn = item.suggestion.range.startColumn;
 			const endColumn = position.column;
 			if (endColumn - startColumn !== item.suggestion.insertText.length) {
 				// unequal lengths -> makes edit

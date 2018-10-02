@@ -462,10 +462,10 @@ export abstract class BaseEditorSimpleWorker {
 		if (model) {
 			const suggestions: CompletionItem[] = [];
 			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
+			const currentWord = model.getWordUntilPosition(position, wordDefRegExp);
 
 			const seen: Record<string, boolean> = Object.create(null);
-			seen[currentWord] = true;
+			seen[currentWord.word] = true;
 
 			for (
 				let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
@@ -486,7 +486,7 @@ export abstract class BaseEditorSimpleWorker {
 					label: word,
 					insertText: word,
 					noAutoAccept: true,
-					overwriteBefore: currentWord.length
+					range: { startLineNumber: position.lineNumber, startColumn: currentWord.startColumn, endLineNumber: position.lineNumber, endColumn: currentWord.endColumn }
 				});
 			}
 

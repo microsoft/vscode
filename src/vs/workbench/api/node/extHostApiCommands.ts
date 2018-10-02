@@ -378,7 +378,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
+				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(suggestion));
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;

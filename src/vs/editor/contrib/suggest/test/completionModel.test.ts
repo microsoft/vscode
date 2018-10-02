@@ -19,7 +19,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 
 		suggestion: CompletionItem = {
 			label,
-			overwriteBefore,
+			range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
 			insertText: label,
 			kind
 		};

@@ -27,6 +27,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { Range } from 'vs/editor/common/core/range';
 
 export class DebugSession implements IDebugSession {
 
@@ -463,7 +464,7 @@ export class DebugSession implements IDebugSession {
 								insertText: item.text || item.label,
 								kind: completionKindFromLegacyString(item.type),
 								filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
-								overwriteBefore: item.length || overwriteBefore
+								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position)
 							});
 						}
 					});
