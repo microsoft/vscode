@@ -159,8 +159,12 @@ function addUnknown(arg) {
 export function parseArgs(args: string[]): ParsedArgs {
 	var parsedArgs = minimist(args, options) as ParsedArgs;
 	if (unknownArgs.length > 0) {
-		throw new Error('Unknown CLI options provided. Run with -h or --help to print usage.');
+		// The user has passed in unknown arguments, so display usage.
+		if (!parsedArgs.help) {
+			parsedArgs.help = true;
+		}
 	}
+	unknownArgs = [];
 	return parsedArgs;
 }
 
