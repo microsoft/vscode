@@ -162,7 +162,7 @@ function save(
 					}
 				};
 
-				return TPromise.join(editorGroupService.groups.map(g =>
+				return Promise.all(editorGroupService.groups.map(g =>
 					editorService.replaceEditors([{
 						editor: { resource },
 						replacement

@@ -659,7 +659,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 					}
 
 					// Call function
-					const servicePromise = TPromise.join(distinctElements.map(e => this.fileService.del(e.resource, { useTrash: this.useTrash, recursive: true }))).then(() => {
+					const servicePromise = Promise.all(distinctElements.map(e => this.fileService.del(e.resource, { useTrash: this.useTrash, recursive: true }))).then(() => {
 						if (distinctElements[0].parent) {
 							this.tree.setFocus(distinctElements[0].parent); // move focus to parent
 						}
@@ -1655,7 +1655,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
+	return Promise.all(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));
