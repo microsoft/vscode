@@ -37,7 +37,6 @@ import { URLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { timeout } from 'vs/base/common/async';
 
 suite('ExtensionsActions Test', () => {
 
@@ -407,9 +406,15 @@ suite('ExtensionsActions Test', () => {
 			.then(async extensions => {
 				testObject.extension = extensions[0];
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' })));
-				await instantiationService.get(IExtensionsWorkbenchService).queryGallery();
-				await timeout(0);
-				assert.ok(testObject.enabled);
+				assert.ok(!testObject.enabled);
+				return new Promise(c => {
+					testObject.onDidChange(() => {
+						if (testObject.enabled) {
+							c();
+						}
+					});
+					instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+				});
 			});
 	});
 
@@ -947,9 +952,15 @@ suite('ExtensionsActions Test', () => {
 		return workbenchService.queryLocal()
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
-				await workbenchService.queryGallery();
-				await timeout(0);
-				assert.ok(testObject.enabled);
+				assert.ok(!testObject.enabled);
+				return new Promise(c => {
+					testObject.onDidChange(() => {
+						if (testObject.enabled) {
+							c();
+						}
+					});
+					workbenchService.queryGallery();
+				});
 			});
 	});
 
@@ -962,10 +973,16 @@ suite('ExtensionsActions Test', () => {
 		return workbenchService.queryLocal()
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
-				await workbenchService.queryGallery();
-				installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
-				await timeout(0);
-				assert.ok(testObject.enabled);
+				assert.ok(!testObject.enabled);
+				return new Promise(c => {
+					installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
+					testObject.onDidChange(() => {
+						if (testObject.enabled) {
+							c();
+						}
+					});
+					workbenchService.queryGallery();
+				});
 			});
 	});
 
