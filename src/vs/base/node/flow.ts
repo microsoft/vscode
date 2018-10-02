@@ -5,7 +5,7 @@
 
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 
 /**
  * Executes the given function (fn) over the given array of items (list) in parallel and returns the resulting errors and results as

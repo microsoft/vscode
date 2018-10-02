@@ -4,8 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import {ISelection} from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+
+/**
+ * A selection in the editor.
+ * The selection is a range that has an orientation.
+ */
+export interface ISelection {
+	/**
+	 * The line number on which the selection has started.
+	 */
+	readonly selectionStartLineNumber: number;
+	/**
+	 * The column on `selectionStartLineNumber` where the selection has started.
+	 */
+	readonly selectionStartColumn: number;
+	/**
+	 * The line number on which the selection has ended.
+	 */
+	readonly positionLineNumber: number;
+	/**
+	 * The column on `positionLineNumber` where the selection has ended.
+	 */
+	readonly positionColumn: number;
+}
 
 /**
  * The direction of a selection.
@@ -29,19 +52,19 @@ export class Selection extends Range {
 	/**
 	 * The line number on which the selection has started.
 	 */
-	public selectionStartLineNumber: number;
+	public readonly selectionStartLineNumber: number;
 	/**
 	 * The column on `selectionStartLineNumber` where the selection has started.
 	 */
-	public selectionStartColumn: number;
+	public readonly selectionStartColumn: number;
 	/**
 	 * The line number on which the selection has ended.
 	 */
-	public positionLineNumber: number;
+	public readonly positionLineNumber: number;
 	/**
 	 * The column on `positionLineNumber` where the selection has ended.
 	 */
-	public positionColumn: number;
+	public readonly positionColumn: number;
 
 	constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number) {
 		super(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
@@ -77,7 +100,7 @@ export class Selection extends Range {
 	/**
 	 * Test if the two selections are equal.
 	 */
-	public static selectionsEqual(a:ISelection, b:ISelection): boolean {
+	public static selectionsEqual(a: ISelection, b: ISelection): boolean {
 		return (
 			a.selectionStartLineNumber === b.selectionStartLineNumber &&
 			a.selectionStartColumn === b.selectionStartColumn &&
@@ -107,6 +130,13 @@ export class Selection extends Range {
 	}
 
 	/**
+	 * Get the position at `positionLineNumber` and `positionColumn`.
+	 */
+	public getPosition(): Position {
+		return new Position(this.positionLineNumber, this.positionColumn);
+	}
+
+	/**
 	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 	 */
 	public setStartPosition(startLineNumber: number, startColumn: number): Selection {
@@ -119,16 +149,23 @@ export class Selection extends Range {
 	// ----
 
 	/**
+	 * Create a `Selection` from one or two positions
+	 */
+	public static fromPositions(start: IPosition, end: IPosition = start): Selection {
+		return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
+
+	/**
 	 * Create a `Selection` from an `ISelection`.
 	 */
-	public static liftSelection(sel:ISelection): Selection {
+	public static liftSelection(sel: ISelection): Selection {
 		return new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 	}
 
 	/**
 	 * `a` equals `b`.
 	 */
-	public static selectionsArrEqual(a:ISelection[], b:ISelection[]): boolean {
+	public static selectionsArrEqual(a: ISelection[], b: ISelection[]): boolean {
 		if (a && !b || !a && b) {
 			return false;
 		}
@@ -138,7 +175,7 @@ export class Selection extends Range {
 		if (a.length !== b.length) {
 			return false;
 		}
-		for (var i = 0, len = a.length; i < len; i++) {
+		for (let i = 0, len = a.length; i < len; i++) {
 			if (!this.selectionsEqual(a[i], b[i])) {
 				return false;
 			}
@@ -162,7 +199,7 @@ export class Selection extends Range {
 	/**
 	 * Create with a direction.
 	 */
-	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction:SelectionDirection): Selection {
+	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction: SelectionDirection): Selection {
 
 		if (direction === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);

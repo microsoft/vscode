@@ -6,22 +6,22 @@
 
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import {IframeUtils} from 'vs/base/browser/iframe';
+import { IframeUtils } from 'vs/base/browser/iframe';
 
 export interface IMouseEvent {
-	browserEvent:MouseEvent;
-	leftButton:boolean;
-	middleButton:boolean;
-	rightButton:boolean;
-	target:HTMLElement;
-	detail:number;
-	posx:number;
-	posy:number;
-	ctrlKey:boolean;
-	shiftKey:boolean;
-	altKey:boolean;
-	metaKey:boolean;
-	timestamp:number;
+	readonly browserEvent: MouseEvent;
+	readonly leftButton: boolean;
+	readonly middleButton: boolean;
+	readonly rightButton: boolean;
+	readonly target: HTMLElement;
+	readonly detail: number;
+	readonly posx: number;
+	readonly posy: number;
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly timestamp: number;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -29,22 +29,22 @@ export interface IMouseEvent {
 
 export class StandardMouseEvent implements IMouseEvent {
 
-	public browserEvent:MouseEvent;
+	public readonly browserEvent: MouseEvent;
 
-	public leftButton:boolean;
-	public middleButton:boolean;
-	public rightButton:boolean;
-	public target:HTMLElement;
-	public detail:number;
-	public posx:number;
-	public posy:number;
-	public ctrlKey:boolean;
-	public shiftKey:boolean;
-	public altKey:boolean;
-	public metaKey:boolean;
-	public timestamp:number;
+	public readonly leftButton: boolean;
+	public readonly middleButton: boolean;
+	public readonly rightButton: boolean;
+	public readonly target: HTMLElement;
+	public detail: number;
+	public readonly posx: number;
+	public readonly posy: number;
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly timestamp: number;
 
-	constructor(e:MouseEvent) {
+	constructor(e: MouseEvent) {
 		this.timestamp = Date.now();
 		this.browserEvent = e;
 		this.leftButton = e.button === 0;
@@ -91,57 +91,49 @@ export class StandardMouseEvent implements IMouseEvent {
 }
 
 export interface IDataTransfer {
-	dropEffect:string;
-	effectAllowed:string;
-	types:any[];
-	files:any[];
+	dropEffect: string;
+	effectAllowed: string;
+	types: any[];
+	files: any[];
 
-	setData(type:string, data:string):void;
-	setDragImage(image:any, x:number, y:number):void;
+	setData(type: string, data: string): void;
+	setDragImage(image: any, x: number, y: number): void;
 
-	getData(type:string):string;
-	clearData(types?:string[]):void;
+	getData(type: string): string;
+	clearData(types?: string[]): void;
 }
 
 export class DragMouseEvent extends StandardMouseEvent {
 
-	public dataTransfer:IDataTransfer;
+	public readonly dataTransfer: IDataTransfer;
 
-	constructor(e:MouseEvent) {
+	constructor(e: MouseEvent) {
 		super(e);
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
 
 }
 
-export class DropMouseEvent extends DragMouseEvent {
-
-	constructor(e:MouseEvent) {
-		super(e);
-	}
-
-}
-
 interface IWebKitMouseWheelEvent {
-	wheelDeltaY:number;
-	wheelDeltaX:number;
+	wheelDeltaY: number;
+	wheelDeltaX: number;
 }
 
 interface IGeckoMouseWheelEvent {
-	HORIZONTAL_AXIS:number;
-	VERTICAL_AXIS:number;
-	axis:number;
-	detail:number;
+	HORIZONTAL_AXIS: number;
+	VERTICAL_AXIS: number;
+	axis: number;
+	detail: number;
 }
 
 export class StandardMouseWheelEvent {
 
-	public browserEvent:MouseWheelEvent;
-	public deltaY:number;
-	public deltaX:number;
-	public target:Node;
+	public readonly browserEvent: MouseWheelEvent;
+	public readonly deltaY: number;
+	public readonly deltaX: number;
+	public readonly target: Node;
 
-	constructor(e:MouseWheelEvent, deltaX:number = 0, deltaY:number = 0) {
+	constructor(e: MouseWheelEvent, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;

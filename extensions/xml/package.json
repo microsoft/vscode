@@ -1,12 +1,16 @@
 {
 	"name": "xml",
-	"version": "0.1.0",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "1.0.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"contributes": {
 		"languages": [{
 			"id": "xml",
 			"extensions": [
+				".xml",
+				".xsd",
 				".ascx",
 				".atom",
 				".axml",
@@ -32,7 +36,9 @@
 				".opml",
 				".owl",
 				".proj",
+        ".props",
 				".pt",
+				".publishsettings",
 				".pubxml",
 				".pubxml.user",
 				".rdf",
@@ -43,6 +49,7 @@
 				".svg",
 				".targets",
 				".tld",
+				".tmx",
 				".vbproj",
 				".vbproj.user",
 				".vcxproj",
@@ -56,9 +63,7 @@
 				".xib",
 				".xlf",
 				".xliff",
-				".xml",
 				".xpdl",
-				".xsd",
 				".xul",
 				".xoml"
 			],
@@ -77,11 +82,14 @@
 		"grammars": [{
 			"language": "xml",
 			"scopeName": "text.xml",
-			"path": "./syntaxes/XML.plist"
+			"path": "./syntaxes/xml.tmLanguage.json"
 		}, {
 			"language": "xsl",
 			"scopeName": "text.xml.xsl",
-			"path": "./syntaxes/XSL.plist"
+			"path": "./syntaxes/xsl.tmLanguage.json"
 		}]
+	},
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-xml grammars/xml.cson ./syntaxes/xml.tmLanguage.json grammars/xsl.cson ./syntaxes/xsl.tmLanguage.json"
 	}
 }

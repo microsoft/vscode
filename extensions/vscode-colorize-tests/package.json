@@ -8,12 +8,13 @@
 		"vscode": "*"
 	},
 	"scripts": {
-		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json",
 		"postinstall": "node ./node_modules/vscode/bin/install"
 	},
 	"devDependencies": {
-		"typescript": "^1.6.2",
-		"vscode": "^0.11.1"
+		"@types/node": "^8.10.25",
+		"mocha-junit-reporter": "^1.17.0",
+		"mocha-multi-reporters": "^1.1.7",
+		"vscode": "1.1.5"
 	}
 }

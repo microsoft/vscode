@@ -68,7 +68,7 @@ AboutSetupMessage=%1 °æ±¾ %2%n%3%n%n%1 Ö÷Ò³:%n%4
 AboutSetupNote=
 TranslatorNote=
 ; *** Buttons
-ButtonBack=< ·µ»Ø(&B)
+ButtonBack=< ÉÏÒ»²½(&B)
 ButtonNext=ÏÂÒ»²½(&N) >
 ButtonInstall=°²×°(&I)
 ButtonOK=È·¶¨
@@ -101,17 +101,17 @@ PasswordEditLabel=ÃÜÂë(&P):
 IncorrectPassword=ÊäÈëµÄÃÜÂë²»ÕıÈ·¡£ÇëÖØÊÔ¡£
 ; *** "License Agreement" wizard page
 WizardLicense=Ğí¿ÉĞ­Òé
-LicenseLabel=ÇëÔÚ¼ÌĞøÖ®Ç°ÔÄ¶ÁÒÔÏÂÖØÒªĞÅÏ¢¡£
+LicenseLabel=ÇëÔÚ¼ÌĞø²Ù×÷Ç°ÔÄ¶ÁÒÔÏÂÖØÒªĞÅÏ¢¡£
 LicenseLabel3=ÇëÔÄ¶ÁÒÔÏÂĞí¿ÉĞ­Òé¡£±ØĞë½ÓÊÜ´ËĞ­ÒéÌõ¿î²Å¿É¼ÌĞø°²×°¡£
 LicenseAccepted=ÎÒ½ÓÊÜĞ­Òé(&A)
 LicenseNotAccepted=ÎÒ²»½ÓÊÜĞ­Òé(&D)
 ; *** "Information" wizard pages
 WizardInfoBefore=ĞÅÏ¢
-InfoBeforeLabel=ÇëÔÚ¼ÌĞøÖ®Ç°ÔÄ¶ÁÒÔÏÂÖØÒªĞÅÏ¢¡£
+InfoBeforeLabel=ÇëÔÚ¼ÌĞø²Ù×÷Ç°ÔÄ¶ÁÒÔÏÂÖØÒªĞÅÏ¢¡£
 InfoBeforeClickLabel=×¼±¸ºÃ¼ÌĞø°²×°ºó£¬µ¥»÷¡°ÏÂÒ»²½¡±¡£
 WizardInfoAfter=ĞÅÏ¢
 InfoAfterLabel=ÇëÔÚ¼ÌĞø²Ù×÷Ç°ÔÄ¶ÁÒÔÏÂÖØÒªĞÅÏ¢¡£
-InfoAfterClickLabel=µ±×¼±¸ºÃ¼ÌĞøÖ´ĞĞ°²×°³ÌĞòÊ±£¬µ¥»÷¡°ÏÂÒ»²½¡±¡£
+InfoAfterClickLabel=×¼±¸ºÃ¼ÌĞø°²×°ºó£¬µ¥»÷¡°ÏÂÒ»²½¡±¡£
 ; *** "User Information" wizard page
 WizardUserInfo=ÓÃ»§ĞÅÏ¢
 UserInfoDesc=ÇëÊäÈëÄãµÄĞÅÏ¢¡£
@@ -127,12 +127,12 @@ SelectDirBrowseLabel=ÈôÒª¼ÌĞø£¬µ¥»÷¡°ÏÂÒ»²½¡±¡£Èç¹ûÏëÑ¡ÔñÆäËûÎÄ¼ş¼Ğ£¬µ¥»÷¡°ä¯ÀÀ¡
 DiskSpaceMBLabel=ĞèÒªÖÁÉÙ [mb] MB ¿ÉÓÃ´ÅÅÌ¿Õ¼ä¡£
 CannotInstallToNetworkDrive=°²×°³ÌĞòÎŞ·¨°²×°µ½ÍøÂçÇı¶¯Æ÷¡£
 CannotInstallToUNCPath=°²×°³ÌĞòÎŞ·¨°²×°µ½ UNC Â·¾¶¡£
-InvalidPath=±ØĞëÊäÈë´øÇı¶¯Æ÷ºÅµÄÍêÕûÂ·¾¶(ÀıÈç:%n%nC:APP%n%n)»òÒÔÏÂ¸ñÊ½µÄ UNC Â·¾¶:%n%nservershare
+InvalidPath=±ØĞëÊäÈë´øÇı¶¯Æ÷ºÅµÄÍêÕûÂ·¾¶(ÀıÈç:%n%nC:\APP%n%n)»òÒÔÏÂ¸ñÊ½µÄ UNC Â·¾¶:%n%n\\server\share
 InvalidDrive=ËùÑ¡Çı¶¯Æ÷»ò UNC ¹²Ïí²»´æÔÚ»ò²»¿É·ÃÎÊ¡£ÇëÁíÍâÑ¡Ôñ¡£
 DiskSpaceWarningTitle=´ÅÅÌ¿Õ¼ä²»×ã
 DiskSpaceWarning=°²×°³ÌĞòĞèÒªÖÁÉÙ %1 KB ¿ÉÓÃ¿Õ¼äÀ´°²×°£¬µ«ËùÑ¡Çı¶¯Æ÷½öÓĞ %2 KB ¿ÉÓÃ¿Õ¼ä¡£%n%nÊÇ·ñÈÔÒª¼ÌĞø?
 DirNameTooLong=ÎÄ¼ş¼ĞÃû³Æ»òÂ·¾¶Ì«³¤¡£
-InvalidDirName=ÎÄ¼ş¼ĞÃûÎŞĞ§¡£
+InvalidDirName=ÎÄ¼ş¼ĞÃû³ÆÎŞĞ§¡£
 BadDirName32=ÎÄ¼ş¼ĞÃû²»ÄÜ°üº¬ÒÔÏÂÈÎÒ»×Ö·û:%n%n%1
 DirExistsTitle=ÎÄ¼ş¼Ğ´æÔÚ
 DirExists=ÎÄ¼ş¼Ğ:%n%n%1%n%nÒÑ´æÔÚ¡£ÊÇ·ñÈÔÒª°²×°µ½¸ÃÎÄ¼ş¼Ğ?
@@ -159,7 +159,7 @@ SelectTasksLabel2=Ñ¡Ôñ°²×° [name] Ê±Ï£Íû°²×°³ÌĞòÀ´Ö´ĞĞµÄÆäËûÈÎÎñ£¬È»ºóµ¥»÷¡°ÏÂÒ»
 WizardSelectProgramGroup=Ñ¡Ôñ¿ªÊ¼²Ëµ¥ÎÄ¼ş¼Ğ
 SelectStartMenuFolderDesc=°²×°³ÌĞòÓ¦½«³ÌĞòµÄ¿ì½İ·½Ê½·ÅÖÃµ½ÄÄÀï?
 SelectStartMenuFolderLabel3=°²×°³ÌĞò½«ÔÚÒÔÏÂ¿ªÊ¼²Ëµ¥ÎÄ¼ş¼ĞÖĞ´´½¨¸Ã³ÌĞòµÄ¿ì½İ·½Ê½¡£
-SelectStartMenuFolderBrowseLabel=Òª¼ÌĞø£¬Çëµ¥»÷¡°ÏÂÒ»²½¡±¡£Èç¹ûÏëÒªÑ¡ÔñÆäËûÎÄ¼ş¼Ğ£¬Çëµ¥»÷¡°ä¯ÀÀ¡±¡£
+SelectStartMenuFolderBrowseLabel=ÈôÒª¼ÌĞø£¬µ¥»÷¡°ÏÂÒ»²½¡±¡£Èç¹ûÏëÑ¡ÔñÆäËûÎÄ¼ş¼Ğ£¬µ¥»÷¡°ä¯ÀÀ¡±¡£
 MustEnterGroupName=±ØĞëÊäÈëÎÄ¼ş¼ĞÃû¡£
 GroupNameTooLong=ÎÄ¼ş¼ĞÃû³Æ»òÂ·¾¶Ì«³¤¡£
 InvalidGroupName=ÎÄ¼ş¼ĞÃû³ÆÎŞĞ§¡£
@@ -231,9 +231,9 @@ ErrorFunctionFailed=%1 Ê§°Ü£»´úÂë %2
 ErrorFunctionFailedWithMessage=%1 Ê§°Ü£»´úÂë %2¡£%n%3
 ErrorExecutingProgram=ÎŞ·¨Ö´ĞĞÎÄ¼ş:%n%1
 ; *** Registry errors
-ErrorRegOpenKey=´ò¿ª×¢²á±íÏîÊ±³ö´í:%n%1%2
-ErrorRegCreateKey=´´½¨×¢²á±íÏîÊ±³ö´í:%n%1%2
-ErrorRegWriteKey=Ğ´Èë×¢²á±íÏîÊ±³ö´í:%n%1%2
+ErrorRegOpenKey=´ò¿ª×¢²á±íÏîÊ±³ö´í:%n%1\%2
+ErrorRegCreateKey=´´½¨×¢²á±íÏîÊ±³ö´í:%n%1\%2
+ErrorRegWriteKey=Ğ´Èë×¢²á±íÏîÊ±³ö´í:%n%1\%2
 ; *** INI errors
 ErrorIniEntry=ÔÚÎÄ¼ş¡°%1¡±ÖĞ´´½¨ INI ÏîÊ±³ö´í¡£
 ; *** File copying errors

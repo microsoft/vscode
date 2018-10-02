@@ -5,24 +5,46 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILineTokens} from 'vs/editor/common/editorCommon';
-import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
-import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
-import {TokensInflatorMap} from 'vs/editor/common/model/tokensBinaryEncoding';
-import {IToken} from 'vs/editor/common/modes';
-import {LineToken} from 'vs/editor/common/model/lineToken';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
+import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
-function assertLineTokens(actual:ILineTokens, expected:IToken[]): void {
-	var inflatedActual = actual.inflate();
-	assert.deepEqual(inflatedActual, expected, 'Line tokens are equal');
+interface ILineEdit {
+	startColumn: number;
+	endColumn: number;
+	text: string;
 }
 
-const NO_TAB_SIZE = 0;
+function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
+	let tmp = TestToken.toTokens(_expected);
+	LineTokens.convertToEndOffset(tmp, __actual.getLineContent().length);
+	let expected = ViewLineTokenFactory.inflateArr(tmp);
+	let _actual = __actual.inflate();
+	interface ITestToken {
+		endIndex: number;
+		type: string;
+	}
+	let actual: ITestToken[] = [];
+	for (let i = 0, len = _actual.getCount(); i < len; i++) {
+		actual[i] = {
+			endIndex: _actual.getEndOffset(i),
+			type: _actual.getClassName(i)
+		};
+	}
+	let decode = (token: ViewLineToken) => {
+		return {
+			endIndex: token.endIndex,
+			type: token.getType()
+		};
+	};
+	assert.deepEqual(actual, expected.map(decode));
+}
 
 suite('ModelLine - getIndentLevel', () => {
-	function assertIndentLevel(text:string, expected:number, tabSize:number = 4): void {
-		let modelLine = new ModelLine(1, text, tabSize);
-		let actual = modelLine.getIndentLevel();
+	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
+		let actual = TextModel.computeIndentLevel(text, tabSize);
 		assert.equal(actual, expected, text);
 	}
 
@@ -44,270 +66,417 @@ suite('ModelLine - getIndentLevel', () => {
 	});
 });
 
-suite('Editor Model - modelLine.applyEdits text', () => {
+class TestToken {
+	public readonly startOffset: number;
+	public readonly color: number;
 
-	function testEdits(initial:string, edits:ILineEdit[], expected:string): void {
-		var line = new ModelLine(1, initial, NO_TAB_SIZE);
-		line.applyEdits({}, edits, NO_TAB_SIZE);
-		assert.equal(line.text, expected);
+	constructor(startOffset: number, color: number) {
+		this.startOffset = startOffset;
+		this.color = color;
 	}
 
-	function editOp(startColumn: number, endColumn: number, text:string): ILineEdit {
-		return {
-			startColumn: startColumn,
-			endColumn: endColumn,
-			text: text,
+	public static toTokens(tokens: TestToken[]): Uint32Array {
+		if (tokens === null) {
+			return null;
+		}
+		let tokensLen = tokens.length;
+		let result = new Uint32Array((tokensLen << 1));
+		for (let i = 0; i < tokensLen; i++) {
+			let token = tokens[i];
+			result[(i << 1)] = token.startOffset;
+			result[(i << 1) + 1] = (
+				token.color << MetadataConsts.FOREGROUND_OFFSET
+			) >>> 0;
+		}
+		return result;
+	}
+}
+
+suite('ModelLinesTokens', () => {
+
+	interface IBufferLineState {
+		text: string;
+		tokens: TestToken[];
+	}
+
+	interface IEdit {
+		range: Range;
+		text: string;
+	}
+
+	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
+		const initialText = initial.map(el => el.text).join('\n');
+		const model = new TextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
+			const lineTokens = initial[lineIndex].tokens;
+			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
+			model._tokens._setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
+		}
+
+		model.applyEdits(edits.map((ed) => ({
+			identifier: null,
+			range: ed.range,
+			text: ed.text,
 			forceMoveMarkers: false
-		};
+		})));
+
+		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
+			const actualLine = model.getLineContent(lineIndex + 1);
+			const actualTokens = model.getLineTokens(lineIndex + 1);
+			assert.equal(actualLine, expected[lineIndex].text);
+			assertLineTokens(actualTokens, expected[lineIndex].tokens);
+		}
 	}
-
-	test('single insert 1', () => {
-		testEdits(
-			'',
-			[
-				editOp(1, 1, 'Hello world')
-			],
-			'Hello world'
-		);
-	});
-
-	test('single insert 2', () => {
-		testEdits(
-			'Hworld',
-			[
-				editOp(2, 2, 'ello ')
-			],
-			'Hello world'
-		);
-	});
-
-	test('multiple inserts 1', () => {
-		testEdits(
-			'Hw',
-			[
-				editOp(2, 2, 'ello '),
-				editOp(3, 3, 'orld')
-			],
-			'Hello world'
-		);
-	});
-
-	test('multiple inserts 2', () => {
-		testEdits(
-			'Hw,',
-			[
-				editOp(2, 2, 'ello '),
-				editOp(3, 3, 'orld'),
-				editOp(4, 4, ' this is H.A.L.')
-			],
-			'Hello world, this is H.A.L.'
-		);
-	});
 
 	test('single delete 1', () => {
-		testEdits(
-			'Hello world',
-			[
-				editOp(1, 12, '')
-			],
-			''
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 2), text: '' }],
+			[{
+				text: 'ello world',
+				tokens: [new TestToken(0, 1), new TestToken(4, 2), new TestToken(5, 3)]
+			}]
 		);
 	});
 
 	test('single delete 2', () => {
-		testEdits(
-			'Hello world',
-			[
-				editOp(2, 7, '')
-			],
-			'Hworld'
+		testApplyEdits(
+			[{
+				text: 'helloworld',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
+			}],
+			[{ range: new Range(1, 3, 1, 8), text: '' }],
+			[{
+				text: 'herld',
+				tokens: [new TestToken(0, 1), new TestToken(2, 2)]
+			}]
 		);
 	});
 
-	test('multiple deletes 1', () => {
-		testEdits(
-			'Hello world',
-			[
-				editOp(2, 7, ''),
-				editOp(8, 12, '')
-			],
-			'Hw'
+	test('single delete 3', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 6), text: '' }],
+			[{
+				text: ' world',
+				tokens: [new TestToken(0, 2), new TestToken(1, 3)]
+			}]
 		);
 	});
 
-	test('multiple deletes 2', () => {
-		testEdits(
-			'Hello world, this is H.A.L.',
-			[
-				editOp(2, 7, ''),
-				editOp(8, 12, ''),
-				editOp(13, 28, '')
-			],
-			'Hw,'
+	test('single delete 4', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 2, 1, 7), text: '' }],
+			[{
+				text: 'hworld',
+				tokens: [new TestToken(0, 1), new TestToken(1, 3)]
+			}]
 		);
 	});
 
-	test('single replace 1', () => {
-		testEdits(
-			'',
-			[
-				editOp(1, 1, 'Hello world')
-			],
-			'Hello world'
+	test('single delete 5', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 12), text: '' }],
+			[{
+				text: '',
+				tokens: [new TestToken(0, 1)]
+			}]
 		);
 	});
 
-	test('single replace 2', () => {
-		testEdits(
-			'H1234world',
-			[
-				editOp(2, 6, 'ello ')
-			],
-			'Hello world'
+	test('multi delete 6', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 6, 3, 6), text: '' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 8), new TestToken(6, 9)]
+			}]
 		);
 	});
 
-	test('multiple replace 1', () => {
-		testEdits(
-			'H123w321',
-			[
-				editOp(2, 5, 'ello '),
-				editOp(6, 9, 'orld')
-			],
-			'Hello world'
+	test('multi delete 7', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 12, 3, 12), text: '' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}]
 		);
 	});
 
-	test('multiple replace 2', () => {
-		testEdits(
-			'H1w12,123',
-			[
-				editOp(2, 3, 'ello '),
-				editOp(4, 6, 'orld'),
-				editOp(7, 10, ' this is H.A.L.')
-			],
-			'Hello world, this is H.A.L.'
-		);
-	});
-});
-
-suite('Editor Model - modelLine.split text', () => {
-
-	function testLineSplit(initial:string, splitColumn:number, expected1:string, expected2:string): void {
-		var line = new ModelLine(1, initial, NO_TAB_SIZE);
-		var newLine = line.split({}, splitColumn, false, NO_TAB_SIZE);
-		assert.equal(line.text, expected1);
-		assert.equal(newLine.text, expected2);
-	}
-
-	test('split at the beginning', () => {
-		testLineSplit(
-			'qwerty',
-			1,
-			'',
-			'qwerty'
+	test('multi delete 8', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 1, 3, 1), text: '' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}]
 		);
 	});
 
-	test('split at the end', () => {
-		testLineSplit(
-			'qwerty',
-			7,
-			'qwerty',
-			''
+	test('multi delete 9', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 7), new TestToken(5, 8), new TestToken(6, 9)]
+			}],
+			[{ range: new Range(1, 12, 3, 1), text: '' }],
+			[{
+				text: 'hello worldhello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3), new TestToken(11, 7), new TestToken(16, 8), new TestToken(17, 9)]
+			}]
 		);
 	});
 
-	test('split in the middle', () => {
-		testLineSplit(
-			'qwerty',
-			3,
-			'qw',
-			'erty'
-		);
-	});
-});
-
-suite('Editor Model - modelLine.append text', () => {
-
-	function testLineAppend(a:string, b:string, expected:string): void {
-		var line1 = new ModelLine(1, a, NO_TAB_SIZE);
-		var line2 = new ModelLine(2, b, NO_TAB_SIZE);
-		line1.append({}, line2, NO_TAB_SIZE);
-		assert.equal(line1.text, expected);
-	}
-
-	test('append at the beginning', () => {
-		testLineAppend(
-			'',
-			'qwerty',
-			'qwerty'
+	test('single insert 1', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 1), text: 'xx' }],
+			[{
+				text: 'xxhello world',
+				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
+			}]
 		);
 	});
 
-	test('append at the end', () => {
-		testLineAppend(
-			'qwerty',
-			'',
-			'qwerty'
+	test('single insert 2', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 2, 1, 2), text: 'xx' }],
+			[{
+				text: 'hxxello world',
+				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
+			}]
 		);
 	});
 
-	test('append in the middle', () => {
-		testLineAppend(
-			'qw',
-			'erty',
-			'qwerty'
+	test('single insert 3', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 6, 1, 6), text: 'xx' }],
+			[{
+				text: 'helloxx world',
+				tokens: [new TestToken(0, 1), new TestToken(7, 2), new TestToken(8, 3)]
+			}]
 		);
 	});
-});
 
-suite('Editor Model - modelLine.applyEdits text & tokens', () => {
-	function testLineEditTokens(initialText:string, initialTokens: LineToken[], edits:ILineEdit[], expectedText:string, expectedTokens: LineToken[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
-		let map = new TokensInflatorMap();
-		line.setTokens(map, initialTokens, null, []);
+	test('single insert 4', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 7, 1, 7), text: 'xx' }],
+			[{
+				text: 'hello xxworld',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(8, 3)]
+			}]
+		);
+	});
 
-		line.applyEdits({}, edits, NO_TAB_SIZE);
+	test('single insert 5', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 12, 1, 12), text: 'xx' }],
+			[{
+				text: 'hello worldxx',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}]
+		);
+	});
 
-		assert.equal(line.text, expectedText);
-		assertLineTokens(line.getTokens(map), expectedTokens);
+	test('multi insert 6', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 1, 1, 1), text: '\n' }],
+			[{
+				text: '',
+				tokens: [new TestToken(0, 1)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi insert 7', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 12, 1, 12), text: '\n' }],
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: '',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi insert 8', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}],
+			[{ range: new Range(1, 7, 1, 7), text: '\n' }],
+			[{
+				text: 'hello ',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
+			}, {
+				text: 'world',
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
+	});
+
+	test('multi insert 9', () => {
+		testApplyEdits(
+			[{
+				text: 'hello world',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2), new TestToken(6, 3)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}],
+			[{ range: new Range(1, 7, 1, 7), text: 'xx\nyy' }],
+			[{
+				text: 'hello xx',
+				tokens: [new TestToken(0, 1), new TestToken(5, 2)]
+			}, {
+				text: 'yyworld',
+				tokens: [new TestToken(0, 1)]
+			}, {
+				text: 'hello world',
+				tokens: [new TestToken(0, 4), new TestToken(5, 5), new TestToken(6, 6)]
+			}]
+		);
+	});
+
+	function testLineEditTokens(initialText: string, initialTokens: TestToken[], edits: ILineEdit[], expectedText: string, expectedTokens: TestToken[]): void {
+		testApplyEdits(
+			[{
+				text: initialText,
+				tokens: initialTokens
+			}],
+			edits.map((ed) => ({
+				range: new Range(1, ed.startColumn, 1, ed.endColumn),
+				text: ed.text
+			})),
+			[{
+				text: expectedText,
+				tokens: expectedTokens
+			}]
+		);
 	}
 
 	test('insertion on empty line', () => {
-		let line = new ModelLine(1, 'some text', NO_TAB_SIZE);
-		let map = new TokensInflatorMap();
-		line.setTokens(map, [new LineToken(0, 'bar')], null, []);
+		const model = new TextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
 
-		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}], NO_TAB_SIZE);
-		line.setTokens(map, [], null, []);
-
-		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}], NO_TAB_SIZE);
-		assertLineTokens(line.getTokens(map), [{
-			startIndex: 0,
-			type:''
+		model.applyEdits([{
+			range: new Range(1, 1, 1, 10),
+			text: ''
 		}]);
+
+		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
+
+		model.applyEdits([{
+			range: new Range(1, 1, 1, 1),
+			text: 'a'
+		}]);
+
+		const actualTokens = model.getLineTokens(1);
+		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
 	});
 
 	test('updates tokens on insertion 1', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 1,
 				text: 'a',
-				forceMoveMarkers: false
 			}],
 			'aabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(5, '2'),
-				new LineToken(6, '3')
+				new TestToken(0, 1),
+				new TestToken(5, 2),
+				new TestToken(6, 3)
 			]
 		);
 	});
@@ -316,21 +485,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'aabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(5, '2'),
-				new LineToken(6, '3')
+				new TestToken(0, 1),
+				new TestToken(5, 2),
+				new TestToken(6, 3)
 			],
 			[{
 				startColumn: 2,
 				endColumn: 2,
 				text: 'x',
-				forceMoveMarkers: false
 			}],
 			'axabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(6, '2'),
-				new LineToken(7, '3')
+				new TestToken(0, 1),
+				new TestToken(6, 2),
+				new TestToken(7, 3)
 			]
 		);
 	});
@@ -339,21 +507,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(6, '2'),
-				new LineToken(7, '3')
+				new TestToken(0, 1),
+				new TestToken(6, 2),
+				new TestToken(7, 3)
 			],
 			[{
 				startColumn: 3,
 				endColumn: 3,
 				text: 'stu',
-				forceMoveMarkers: false
 			}],
 			'axstuabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(9, '2'),
-				new LineToken(10, '3')
+				new TestToken(0, 1),
+				new TestToken(9, 2),
+				new TestToken(10, 3)
 			]
 		);
 	});
@@ -362,21 +529,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(9, '2'),
-				new LineToken(10, '3')
+				new TestToken(0, 1),
+				new TestToken(9, 2),
+				new TestToken(10, 3)
 			],
 			[{
 				startColumn: 10,
 				endColumn: 10,
 				text: '\t',
-				forceMoveMarkers: false
 			}],
 			'axstuabcd\t efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(10, '2'),
-				new LineToken(11, '3')
+				new TestToken(0, 1),
+				new TestToken(10, 2),
+				new TestToken(11, 3)
 			]
 		);
 	});
@@ -385,21 +551,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(10, '2'),
-				new LineToken(11, '3')
+				new TestToken(0, 1),
+				new TestToken(10, 2),
+				new TestToken(11, 3)
 			],
 			[{
 				startColumn: 12,
 				endColumn: 12,
 				text: 'dd',
-				forceMoveMarkers: false
 			}],
 			'axstuabcd\t ddefgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(10, '2'),
-				new LineToken(13, '3')
+				new TestToken(0, 1),
+				new TestToken(10, 2),
+				new TestToken(13, 3)
 			]
 		);
 	});
@@ -408,21 +573,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t ddefgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(10, '2'),
-				new LineToken(13, '3')
+				new TestToken(0, 1),
+				new TestToken(10, 2),
+				new TestToken(13, 3)
 			],
 			[{
 				startColumn: 18,
 				endColumn: 18,
 				text: 'xyz',
-				forceMoveMarkers: false
 			}],
 			'axstuabcd\t ddefghxyz',
 			[
-				new LineToken(0, '1'),
-				new LineToken(10, '2'),
-				new LineToken(13, '3')
+				new TestToken(0, 1),
+				new TestToken(10, 2),
+				new TestToken(13, 3)
 			]
 		);
 	});
@@ -431,21 +595,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t ddefghxyz',
 			[
-				new LineToken(0, '1'),
-				new LineToken(10, '2'),
-				new LineToken(13, '3')
+				new TestToken(0, 1),
+				new TestToken(10, 2),
+				new TestToken(13, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 1,
 				text: 'x',
-				forceMoveMarkers: false
 			}],
 			'xaxstuabcd\t ddefghxyz',
 			[
-				new LineToken(0, '1'),
-				new LineToken(11, '2'),
-				new LineToken(14, '3')
+				new TestToken(0, 1),
+				new TestToken(11, 2),
+				new TestToken(14, 3)
 			]
 		);
 	});
@@ -454,21 +617,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'xaxstuabcd\t ddefghxyz',
 			[
-				new LineToken(0, '1'),
-				new LineToken(11, '2'),
-				new LineToken(14, '3')
+				new TestToken(0, 1),
+				new TestToken(11, 2),
+				new TestToken(14, 3)
 			],
 			[{
 				startColumn: 22,
 				endColumn: 22,
 				text: 'x',
-				forceMoveMarkers: false
 			}],
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				new LineToken(0, '1'),
-				new LineToken(11, '2'),
-				new LineToken(14, '3')
+				new TestToken(0, 1),
+				new TestToken(11, 2),
+				new TestToken(14, 3)
 			]
 		);
 	});
@@ -477,21 +639,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				new LineToken(0, '1'),
-				new LineToken(11, '2'),
-				new LineToken(14, '3')
+				new TestToken(0, 1),
+				new TestToken(11, 2),
+				new TestToken(14, 3)
 			],
 			[{
 				startColumn: 2,
 				endColumn: 2,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				new LineToken(0, '1'),
-				new LineToken(11, '2'),
-				new LineToken(14, '3')
+				new TestToken(0, 1),
+				new TestToken(11, 2),
+				new TestToken(14, 3)
 			]
 		);
 	});
@@ -504,11 +665,10 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 				startColumn: 1,
 				endColumn: 1,
 				text: 'a',
-				forceMoveMarkers: false
 			}],
 			'a',
 			[
-				new LineToken(0, '')
+				new TestToken(0, 1)
 			]
 		);
 	});
@@ -517,20 +677,19 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcdefghij',
 			[
-				new LineToken(0, '1'),
-				new LineToken(3, '2'),
-				new LineToken(6, '3')
+				new TestToken(0, 1),
+				new TestToken(3, 2),
+				new TestToken(6, 3)
 			],
 			[{
 				startColumn: 4,
 				endColumn: 7,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'abcghij',
 			[
-				new LineToken(0, '1'),
-				new LineToken(3, '3')
+				new TestToken(0, 1),
+				new TestToken(3, 3)
 			]
 		);
 	});
@@ -539,21 +698,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcdefghij',
 			[
-				new LineToken(0, '1'),
-				new LineToken(3, '2'),
-				new LineToken(6, '3')
+				new TestToken(0, 1),
+				new TestToken(3, 2),
+				new TestToken(6, 3)
 			],
 			[{
 				startColumn: 4,
 				endColumn: 4,
 				text: 'hello',
-				forceMoveMarkers: false
 			}],
 			'abchellodefghij',
 			[
-				new LineToken( 0, '1'),
-				new LineToken( 8, '2'),
-				new LineToken(11, '3')
+				new TestToken(0, 1),
+				new TestToken(8, 2),
+				new TestToken(11, 3)
 			]
 		);
 	});
@@ -562,21 +720,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 2,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'bcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(3, '2'),
-				new LineToken(4, '3')
+				new TestToken(0, 1),
+				new TestToken(3, 2),
+				new TestToken(4, 3)
 			]
 		);
 	});
@@ -585,21 +742,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 2,
 				endColumn: 4,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'ad efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(2, '2'),
-				new LineToken(3, '3')
+				new TestToken(0, 1),
+				new TestToken(2, 2),
+				new TestToken(3, 3)
 			]
 		);
 	});
@@ -608,20 +764,19 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 5,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			' efgh',
 			[
-				new LineToken(0, '2'),
-				new LineToken(1, '3')
+				new TestToken(0, 2),
+				new TestToken(1, 3)
 			]
 		);
 	});
@@ -630,20 +785,19 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 5,
 				endColumn: 6,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'abcdefgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 3)
 			]
 		);
 	});
@@ -652,20 +806,19 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 5,
 				endColumn: 7,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'abcdfgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 3)
 			]
 		);
 	});
@@ -674,19 +827,18 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 5,
 				endColumn: 10,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'abcd',
 			[
-				new LineToken(0, '1')
+				new TestToken(0, 1)
 			]
 		);
 	});
@@ -695,18 +847,19 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 10,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'',
-			[]
+			[
+				new TestToken(0, 1)
+			]
 		);
 	});
 
@@ -714,21 +867,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 1,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			]
 		);
 	});
@@ -737,21 +889,20 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 3,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'cd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(2, '2'),
-				new LineToken(3, '3')
+				new TestToken(0, 1),
+				new TestToken(2, 2),
+				new TestToken(3, 3)
 			]
 		);
 	});
@@ -760,19 +911,18 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			[{
 				startColumn: 5,
 				endColumn: 10,
 				text: '',
-				forceMoveMarkers: false
 			}],
 			'abcd',
 			[
-				new LineToken(0, '1')
+				new TestToken(0, 1)
 			]
 		);
 	});
@@ -781,25 +931,23 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'Hello world, ciao',
 			[
-				new LineToken(0, 'hello'),
-				new LineToken(5, ''),
-				new LineToken(6, 'world'),
-				new LineToken(11, ''),
-				new LineToken(13, '')
+				new TestToken(0, 1),
+				new TestToken(5, 0),
+				new TestToken(6, 2),
+				new TestToken(11, 0),
+				new TestToken(13, 0)
 			],
 			[{
 				startColumn: 1,
 				endColumn: 6,
 				text: 'Hi',
-				forceMoveMarkers: false
 			}],
 			'Hi world, ciao',
 			[
-				new LineToken(0, 'hello'),
-				new LineToken(2, ''),
-				new LineToken(3, 'world'),
-				new LineToken(8, '' ),
-				new LineToken(10, '' ),
+				new TestToken(0, 0),
+				new TestToken(3, 2),
+				new TestToken(8, 0),
+				new TestToken(10, 0),
 			]
 		);
 	});
@@ -808,60 +956,65 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'Hello world, ciao',
 			[
-				new LineToken(0, 'hello'),
-				new LineToken(5, ''),
-				new LineToken(6, 'world'),
-				new LineToken(11, ''),
-				new LineToken(13, ''),
+				new TestToken(0, 1),
+				new TestToken(5, 0),
+				new TestToken(6, 2),
+				new TestToken(11, 0),
+				new TestToken(13, 0),
 			],
 			[{
 				startColumn: 1,
 				endColumn: 6,
 				text: 'Hi',
-				forceMoveMarkers: false
 			}, {
 				startColumn: 8,
 				endColumn: 12,
 				text: 'my friends',
-				forceMoveMarkers: false
 			}],
 			'Hi wmy friends, ciao',
 			[
-				new LineToken(0, 'hello'),
-				new LineToken(2, ''),
-				new LineToken(3, 'world'),
-				new LineToken(14, ''),
-				new LineToken(16, ''),
+				new TestToken(0, 0),
+				new TestToken(3, 2),
+				new TestToken(14, 0),
+				new TestToken(16, 0),
 			]
 		);
 	});
-});
 
-suite('Editor Model - modelLine.split text & tokens', () => {
-	function testLineSplitTokens(initialText:string, initialTokens: LineToken[], splitColumn:number, expectedText1:string, expectedText2:string, expectedTokens: LineToken[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
-		let map = new TokensInflatorMap();
-		line.setTokens(map, initialTokens, null, []);
-
-		let other = line.split({}, splitColumn, false, NO_TAB_SIZE);
-
-		assert.equal(line.text, expectedText1);
-		assert.equal(other.text, expectedText2);
-		assertLineTokens(line.getTokens(map), expectedTokens);
+	function testLineSplitTokens(initialText: string, initialTokens: TestToken[], splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: TestToken[]): void {
+		testApplyEdits(
+			[{
+				text: initialText,
+				tokens: initialTokens
+			}],
+			[{
+				range: new Range(1, splitColumn, 1, splitColumn),
+				text: '\n'
+			}],
+			[{
+				text: expectedText1,
+				tokens: expectedTokens
+			}, {
+				text: expectedText2,
+				tokens: [new TestToken(0, 1)]
+			}]
+		);
 	}
 
 	test('split at the beginning', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			1,
 			'',
 			'abcd efgh',
-			[]
+			[
+				new TestToken(0, 1),
+			]
 		);
 	});
 
@@ -869,17 +1022,17 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			10,
 			'abcd efgh',
 			'',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			]
 		);
 	});
@@ -888,15 +1041,15 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			5,
 			'abcd',
 			' efgh',
 			[
-				new LineToken(0, '1')
+				new TestToken(0, 1)
 			]
 		);
 	});
@@ -905,52 +1058,55 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			6,
 			'abcd ',
 			'efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2')
+				new TestToken(0, 1),
+				new TestToken(4, 2)
 			]
 		);
 	});
-});
 
-suite('Editor Model - modelLine.append text & tokens', () => {
-	function testLineAppendTokens(aText:string, aTokens: LineToken[], bText:string, bTokens:LineToken[], expectedText:string, expectedTokens:IToken[]): void {
-		let inflator = new TokensInflatorMap();
-
-		let a = new ModelLine(1, aText, NO_TAB_SIZE);
-		a.setTokens(inflator, aTokens, null, []);
-
-		let b = new ModelLine(2, bText, NO_TAB_SIZE);
-		b.setTokens(inflator, bTokens, null, []);
-
-		a.append({}, b, NO_TAB_SIZE);
-
-		assert.equal(a.text, expectedText);
-		assertLineTokens(a.getTokens(inflator), expectedTokens);
+	function testLineAppendTokens(aText: string, aTokens: TestToken[], bText: string, bTokens: TestToken[], expectedText: string, expectedTokens: TestToken[]): void {
+		testApplyEdits(
+			[{
+				text: aText,
+				tokens: aTokens
+			}, {
+				text: bText,
+				tokens: bTokens
+			}],
+			[{
+				range: new Range(1, aText.length + 1, 2, 1),
+				text: ''
+			}],
+			[{
+				text: expectedText,
+				tokens: expectedTokens
+			}]
+		);
 	}
 
 	test('append empty 1', () => {
 		testLineAppendTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			'',
 			[],
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			]
 		);
 	});
@@ -961,15 +1117,15 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 			[],
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			]
 		);
 	});
@@ -978,24 +1134,24 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			],
 			'abcd efgh',
 			[
-				new LineToken(0, '4'),
-				new LineToken(4, '5'),
-				new LineToken(5, '6')
+				new TestToken(0, 4),
+				new TestToken(4, 5),
+				new TestToken(5, 6)
 			],
 			'abcd efghabcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3'),
-				new LineToken(9, '4'),
-				new LineToken(13, '5'),
-				new LineToken(14, '6')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3),
+				new TestToken(9, 4),
+				new TestToken(13, 5),
+				new TestToken(14, 6)
 			]
 		);
 	});
@@ -1004,18 +1160,18 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd ',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2')
+				new TestToken(0, 1),
+				new TestToken(4, 2)
 			],
 			'efgh',
 			[
-				new LineToken(0, '3')
+				new TestToken(0, 3)
 			],
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			]
 		);
 	});
@@ -1024,1270 +1180,19 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd',
 			[
-				new LineToken(0, '1'),
+				new TestToken(0, 1),
 			],
 			' efgh',
 			[
-				new LineToken(0, '2'),
-				new LineToken(1, '3')
+				new TestToken(0, 2),
+				new TestToken(1, 3)
 			],
 			'abcd efgh',
 			[
-				new LineToken(0, '1'),
-				new LineToken(4, '2'),
-				new LineToken(5, '3')
+				new TestToken(0, 1),
+				new TestToken(4, 2),
+				new TestToken(5, 3)
 			]
 		);
 	});
 });
-
-interface ILightWeightMarker {
-	id: string;
-	column: number;
-	stickToPreviousCharacter: boolean;
-}
-
-suite('Editor Model - modelLine.applyEdits text & markers', () => {
-
-	function marker(id: number, column: number, stickToPreviousCharacter: boolean): LineMarker {
-		return new LineMarker(String(id), column, stickToPreviousCharacter);
-	}
-
-	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
-		return {
-			id: marker.id,
-			column: marker.column,
-			stickToPreviousCharacter: marker.stickToPreviousCharacter
-		};
-	}
-
-	function testLineEditMarkers(initialText:string, initialMarkers: LineMarker[], edits:ILineEdit[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
-		line.addMarkers(initialMarkers);
-
-		let changedMarkers = Object.create(null);
-		line.applyEdits(changedMarkers, edits, NO_TAB_SIZE);
-
-		assert.equal(line.text, expectedText, 'text');
-
-		let actualMarkers = line.getMarkers().map(toLightWeightMarker);
-		let expectedMarkers = _expectedMarkers.map(toLightWeightMarker);
-		assert.deepEqual(actualMarkers, expectedMarkers, 'markers');
-
-		let actualChangedMarkers = Object.keys(changedMarkers);
-		actualChangedMarkers.sort().map(Object.prototype.toString);
-		assert.deepEqual(actualChangedMarkers, expectedChangedMarkers, 'changed markers');
-	}
-
-	test('insertion: updates markers 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'abc',
-				forceMoveMarkers: false
-			}],
-			'abcabcd efgh',
-			[2,3,4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 4, false),
-				marker(3, 5, true),
-				marker(4, 5, false),
-				marker(5, 8, true),
-				marker(6, 8, false),
-				marker(7, 13, true),
-				marker(8, 13, false)
-			]
-		);
-	});
-
-	test('insertion: updates markers 2', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 2,
-				text: 'abc',
-				forceMoveMarkers: false
-			}],
-			'aabcbcd efgh',
-			[4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 5, false),
-				marker(5, 8, true),
-				marker(6, 8, false),
-				marker(7, 13, true),
-				marker(8, 13, false)
-			]
-		);
-	});
-
-	test('insertion: updates markers 3', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 3,
-				endColumn: 3,
-				text: 'abc',
-				forceMoveMarkers: false
-			}],
-			'ababccd efgh',
-			[5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 8, true),
-				marker(6, 8, false),
-				marker(7, 13, true),
-				marker(8, 13, false)
-			]
-		);
-	});
-
-	test('insertion: updates markers 4', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 5,
-				text: 'abc',
-				forceMoveMarkers: false
-			}],
-			'abcdabc efgh',
-			[6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 8, false),
-				marker(7, 13, true),
-				marker(8, 13, false)
-			]
-		);
-	});
-
-	test('insertion: updates markers 5', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 10,
-				endColumn: 10,
-				text: 'abc',
-				forceMoveMarkers: false
-			}],
-			'abcd efghabc',
-			[8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 13, false)
-			]
-		);
-	});
-
-	test('insertion bis: updates markers 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'aabcd efgh',
-			[2,3,4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 2, false),
-				marker(3, 3, true),
-				marker(4, 3, false),
-				marker(5, 6, true),
-				marker(6, 6, false),
-				marker(7, 11, true),
-				marker(8, 11, false)
-			]
-		);
-	});
-
-	test('insertion bis: updates markers 2', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 2,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'aabcd efgh',
-			[4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 3, false),
-				marker(5, 6, true),
-				marker(6, 6, false),
-				marker(7, 11, true),
-				marker(8, 11, false)
-			]
-		);
-	});
-
-	test('insertion bis: updates markers 3', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 3,
-				endColumn: 3,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'abacd efgh',
-			[5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 6, true),
-				marker(6, 6, false),
-				marker(7, 11, true),
-				marker(8, 11, false)
-			]
-		);
-	});
-
-	test('insertion bis: updates markers 4', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 5,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'abcda efgh',
-			[6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 6, false),
-				marker(7, 11, true),
-				marker(8, 11, false)
-			]
-		);
-	});
-
-	test('insertion bis: updates markers 5', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 10,
-				endColumn: 10,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'abcd efgha',
-			[8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 11, false)
-			]
-		);
-	});
-
-	test('insertion: does not move marker at column 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[marker(1, 1, true)],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'aabcd efgh',
-			[],
-			[marker(1, 1, true)]
-		);
-	});
-
-	test('insertion: does move marker at column 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[marker(1, 1, false)],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'aabcd efgh',
-			[1],
-			[marker(1, 2, false)]
-		);
-	});
-
-	test('insertion: two markers at column 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'aabcd efgh',
-			[2],
-			[
-				marker(1, 1, true),
-				marker(2, 2, false)
-			]
-		);
-	});
-
-	test('insertion: two markers at column 1 unsorted', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(2, 1, false),
-				marker(1, 1, true),
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-				forceMoveMarkers: false
-			}],
-			'aabcd efgh',
-			[2],
-			[
-				marker(1, 1, true),
-				marker(2, 2, false)
-			]
-		);
-	});
-
-	test('deletion: updates markers 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 2,
-				text: '',
-				forceMoveMarkers: false
-			}],
-			'bcd efgh',
-			[3,4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 1, true),
-				marker(4, 1, false),
-				marker(5, 4, true),
-				marker(6, 4, false),
-				marker(7, 9, true),
-				marker(8, 9, false)
-			]
-		);
-	});
-
-	test('deletion: updates markers 2', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 4,
-				text: '',
-				forceMoveMarkers: false
-			}],
-			'd efgh',
-			[3,4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 1, true),
-				marker(4, 1, false),
-				marker(5, 2, true),
-				marker(6, 2, false),
-				marker(7, 7, true),
-				marker(8, 7, false)
-			]
-		);
-	});
-
-	test('deletion: updates markers 3', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 5,
-				endColumn: 6,
-				text: '',
-				forceMoveMarkers: false
-			}],
-			'abcdefgh',
-			[7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 9, true),
-				marker(8, 9, false)
-			]
-		);
-	});
-
-	test('replace: updates markers 1', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: 'a',
-				forceMoveMarkers: false
-			}, {
-				startColumn: 2,
-				endColumn: 3,
-				text: '',
-				forceMoveMarkers: false
-			}],
-			'aacd efgh',
-			[2,3,4],
-			[
-				marker(1, 1, true),
-				marker(2, 2, false),
-				marker(3, 3, true),
-				marker(4, 3, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-
-	test('delete near markers', () => {
-		testLineEditMarkers(
-			'abcd',
-			[
-				marker(1, 3, true),
-				marker(2, 3, false)
-			],
-			[{
-				startColumn: 3,
-				endColumn: 4,
-				text: '',
-				forceMoveMarkers: false
-			}],
-			'abd',
-			[],
-			[
-				marker(1, 3, true),
-				marker(2, 3, false)
-			]
-		);
-	});
-
-	test('replace: updates markers 2', () => {
-		testLineEditMarkers(
-			'Hello world, how are you',
-			[
-				marker(1, 1, false),
-				marker(2, 6, true),
-				marker(3, 14, false),
-				marker(4, 21, true)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: ' - ',
-				forceMoveMarkers: false
-			}, {
-				startColumn: 6,
-				endColumn: 12,
-				text: '',
-				forceMoveMarkers: false
-			}, {
-				startColumn: 22,
-				endColumn: 25,
-				text: 'things',
-				forceMoveMarkers: false
-			}],
-			' - Hello, how are things',
-			[1,2,3,4],
-			[
-				marker(1, 4, false),
-				marker(2, 9, true),
-				marker(3, 11, false),
-				marker(4, 18, true)
-			]
-		);
-	});
-
-	test('sorts markers', () => {
-		testLineEditMarkers(
-			'Hello world, how are you',
-			[
-				marker(4, 21, true),
-				marker(2, 6, true),
-				marker(1, 1, false),
-				marker(3, 14, false)
-			],
-			[{
-				startColumn: 1,
-				endColumn: 1,
-				text: ' - ',
-				forceMoveMarkers: false
-			}, {
-				startColumn: 6,
-				endColumn: 12,
-				text: '',
-				forceMoveMarkers: false
-			}, {
-				startColumn: 22,
-				endColumn: 25,
-				text: 'things',
-				forceMoveMarkers: false
-			}],
-			' - Hello, how are things',
-			[1,2,3,4],
-			[
-				marker(1, 4, false),
-				marker(2, 9, true),
-				marker(3, 11, false),
-				marker(4, 18, true)
-			]
-		);
-	});
-
-	test('change text inside markers', () => {
-		testLineEditMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 6, false),
-				marker(4, 10, true)
-			],
-			[{
-				startColumn: 6,
-				endColumn: 10,
-				text: '1234567',
-				forceMoveMarkers: false
-			}],
-			'abcd 1234567',
-			[],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 6, false),
-				marker(4, 10, true)
-			]
-		);
-	});
-
-	test('inserting is different than replacing for markers part 1', () => {
-		testLineEditMarkers(
-			'abcd',
-			[
-				marker(1, 2, false)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 2,
-				text: 'INSERT',
-				forceMoveMarkers: false
-			}],
-			'aINSERTbcd',
-			[1],
-			[
-				marker(1, 8, false)
-			]
-		);
-	});
-
-	test('inserting is different than replacing for markers part 2', () => {
-		testLineEditMarkers(
-			'abcd',
-			[
-				marker(1, 2, false)
-			],
-			[{
-				startColumn: 2,
-				endColumn: 3,
-				text: 'REPLACED',
-				forceMoveMarkers: false
-			}],
-			'aREPLACEDcd',
-			[],
-			[
-				marker(1, 2, false)
-			]
-		);
-	});
-
-	test('replacing the entire line with more text', () => {
-		testLineEditMarkers(
-			'this is a short text',
-			[
-				marker(1, 1, false),
-				marker(2, 16, true),
-			],
-			[{
-				startColumn: 1,
-				endColumn: 21,
-				text: 'Some new text here',
-				forceMoveMarkers: false
-			}],
-			'Some new text here',
-			[],
-			[
-				marker(1, 1, false),
-				marker(2, 16, true),
-			]
-		);
-	});
-
-	test('replacing the entire line with less text', () => {
-		testLineEditMarkers(
-			'this is a short text',
-			[
-				marker(1, 1, false),
-				marker(2, 16, true),
-			],
-			[{
-				startColumn: 1,
-				endColumn: 21,
-				text: 'ttt',
-				forceMoveMarkers: false
-			}],
-			'ttt',
-			[2],
-			[
-				marker(1, 1, false),
-				marker(2, 4, true),
-			]
-		);
-	});
-
-	test('replace selection', () => {
-		testLineEditMarkers(
-			'first',
-			[
-				marker(1, 1, true),
-				marker(2, 6, false),
-			],
-			[{
-				startColumn: 1,
-				endColumn: 6,
-				text: 'something',
-				forceMoveMarkers: false
-			}],
-			'something',
-			[2],
-			[
-				marker(1, 1, true),
-				marker(2, 10, false),
-			]
-		);
-	});
-});
-
-suite('Editor Model - modelLine.split text & markers', () => {
-
-	function marker(id: number, column: number, stickToPreviousCharacter: boolean): LineMarker {
-		return new LineMarker(String(id), column, stickToPreviousCharacter);
-	}
-
-	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
-		return {
-			id: marker.id,
-			column: marker.column,
-			stickToPreviousCharacter: marker.stickToPreviousCharacter
-		};
-	}
-
-	function testLineSplitMarkers(initialText:string, initialMarkers: LineMarker[], splitColumn:number, forceMoveMarkers:boolean, expectedText1:string, expectedText2:string, expectedChangedMarkers:number[], _expectedMarkers1: LineMarker[], _expectedMarkers2: LineMarker[]): void {
-		let line = new ModelLine(1, initialText, NO_TAB_SIZE);
-		line.addMarkers(initialMarkers);
-
-		let changedMarkers = Object.create(null);
-		let otherLine = line.split(changedMarkers, splitColumn, forceMoveMarkers, NO_TAB_SIZE);
-
-		assert.equal(line.text, expectedText1, 'text');
-		assert.equal(otherLine.text, expectedText2, 'text');
-
-		let actualMarkers1 = line.getMarkers().map(toLightWeightMarker);
-		let expectedMarkers1 = _expectedMarkers1.map(toLightWeightMarker);
-		assert.deepEqual(actualMarkers1, expectedMarkers1, 'markers');
-
-		let actualMarkers2 = otherLine.getMarkers().map(toLightWeightMarker);
-		let expectedMarkers2 = _expectedMarkers2.map(toLightWeightMarker);
-		assert.deepEqual(actualMarkers2, expectedMarkers2, 'markers');
-
-		let actualChangedMarkers = Object.keys(changedMarkers);
-		actualChangedMarkers.sort().map(Object.prototype.toString);
-		assert.deepEqual(actualChangedMarkers, expectedChangedMarkers, 'changed markers');
-	}
-
-	test('split at the beginning', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			1,
-			false,
-			'',
-			'abcd efgh',
-			[2,3,4,5,6,7,8],
-			[
-				marker(1, 1, true)
-			],
-			[
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-
-	test('split at the beginning 2', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			1,
-			true,
-			'',
-			'abcd efgh',
-			[1,2,3,4,5,6,7,8],
-			[],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-
-	test('split at the end', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			10,
-			false,
-			'abcd efgh',
-			'',
-			[8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-			],
-			[
-				marker(8, 1, false)
-			]
-		);
-	});
-
-	test('split it the middle 1', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			2,
-			false,
-			'a',
-			'bcd efgh',
-			[4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-			],
-			[
-				marker(4, 1, false),
-				marker(5, 4, true),
-				marker(6, 4, false),
-				marker(7, 9, true),
-				marker(8, 9, false)
-			]
-		);
-	});
-
-	test('split it the middle 2', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			3,
-			false,
-			'ab',
-			'cd efgh',
-			[5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-			],
-			[
-				marker(5, 3, true),
-				marker(6, 3, false),
-				marker(7, 8, true),
-				marker(8, 8, false)
-			]
-		);
-	});
-
-	test('split it the middle 3', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			5,
-			false,
-			'abcd',
-			' efgh',
-			[6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-			],
-			[
-				marker(6, 1, false),
-				marker(7, 6, true),
-				marker(8, 6, false)
-			]
-		);
-	});
-
-	test('split it the middle 4', () => {
-		testLineSplitMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			],
-			6,
-			false,
-			'abcd ',
-			'efgh',
-			[7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-			],
-			[
-				marker(7, 5, true),
-				marker(8, 5, false)
-			]
-		);
-	});
-});
-
-suite('Editor Model - modelLine.append text & markers', () => {
-
-	function marker(id: number, column: number, stickToPreviousCharacter: boolean): LineMarker {
-		return new LineMarker(String(id), column, stickToPreviousCharacter);
-	}
-
-	function toLightWeightMarker(marker:ILineMarker): ILightWeightMarker {
-		return {
-			id: marker.id,
-			column: marker.column,
-			stickToPreviousCharacter: marker.stickToPreviousCharacter
-		};
-	}
-
-	function testLinePrependMarkers(aText:string, aMarkers: LineMarker[], bText:string, bMarkers: LineMarker[], expectedText:string, expectedChangedMarkers:number[], _expectedMarkers: LineMarker[]): void {
-		let a = new ModelLine(1, aText, NO_TAB_SIZE);
-		a.addMarkers(aMarkers);
-
-		let b = new ModelLine(1, bText, NO_TAB_SIZE);
-		b.addMarkers(bMarkers);
-
-		let changedMarkers = Object.create(null);
-		a.append(changedMarkers, b, NO_TAB_SIZE);
-
-		assert.equal(a.text, expectedText, 'text');
-
-		let actualMarkers = a.getMarkers().map(toLightWeightMarker);
-		let expectedMarkers = _expectedMarkers.map(toLightWeightMarker);
-		assert.deepEqual(actualMarkers, expectedMarkers, 'markers');
-
-		let actualChangedMarkers = Object.keys(changedMarkers);
-		actualChangedMarkers.sort().map(Object.prototype.toString);
-		assert.deepEqual(actualChangedMarkers, expectedChangedMarkers, 'changed markers');
-	}
-
-	test('append to an empty', () => {
-		testLinePrependMarkers(
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false),
-			],
-			'',
-			[
-			],
-			'abcd efgh',
-			[],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-
-	test('append an empty', () => {
-		testLinePrependMarkers(
-			'',
-			[
-			],
-			'abcd efgh',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false),
-			],
-			'abcd efgh',
-			[1,2,3,4,5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-
-	test('append 1', () => {
-		testLinePrependMarkers(
-			'abcd',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false)
-			],
-			' efgh',
-			[
-				marker(5, 1, true),
-				marker(6, 1, false),
-				marker(7, 6, true),
-				marker(8, 6, false),
-			],
-			'abcd efgh',
-			[5,6,7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-
-	test('append 2', () => {
-		testLinePrependMarkers(
-			'abcd e',
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false)
-			],
-			'fgh',
-			[
-				marker(7, 4, true),
-				marker(8, 4, false),
-			],
-			'abcd efgh',
-			[7,8],
-			[
-				marker(1, 1, true),
-				marker(2, 1, false),
-				marker(3, 2, true),
-				marker(4, 2, false),
-				marker(5, 5, true),
-				marker(6, 5, false),
-				marker(7, 10, true),
-				marker(8, 10, false)
-			]
-		);
-	});
-});
-

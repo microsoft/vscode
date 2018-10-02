@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import platform = require('vs/platform/platform');
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as platform from 'vs/platform/registry/common/platform';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'
@@ -19,26 +18,27 @@ export interface ISchemaContributions {
 
 export interface IJSONContributionRegistry {
 
+	readonly onDidChangeSchema: Event<string>;
+
 	/**
 	 * Register a schema to the registry.
 	 */
 	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void;
 
+
+	/**
+	 * Notifies all listeneres that the content of the given schema has changed.
+	 * @param uri The id of the schema
+	 */
+	notifySchemaChanged(uri: string): void;
+
 	/**
 	 * Get all schemas
 	 */
 	getSchemaContributions(): ISchemaContributions;
-
-	/**
-	 * Adds a change listener
-	 */
-	addRegistryChangedListener(callback: (e: IJSONContributionRegistryEvent) => void): IDisposable;
-
 }
 
-export interface IJSONContributionRegistryEvent {
 
-}
 
 function normalizeId(id: string) {
 	if (id.length > 0 && id.charAt(id.length - 1) === '#') {
@@ -50,21 +50,23 @@ function normalizeId(id: string) {
 
 
 class JSONContributionRegistry implements IJSONContributionRegistry {
+
 	private schemasById: { [id: string]: IJSONSchema };
-	private eventEmitter: EventEmitter;
+
+	private readonly _onDidChangeSchema: Emitter<string> = new Emitter<string>();
+	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
 	constructor() {
 		this.schemasById = {};
-		this.eventEmitter = new EventEmitter();
-	}
-
-	public addRegistryChangedListener(callback: (e: IJSONContributionRegistryEvent) => void): IDisposable {
-		return this.eventEmitter.addListener2('registryChanged', callback);
 	}
 
 	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {
 		this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
-		this.eventEmitter.emit('registryChanged', {});
+		this._onDidChangeSchema.fire(uri);
+	}
+
+	public notifySchemaChanged(uri: string): void {
+		this._onDidChangeSchema.fire(uri);
 	}
 
 	public getSchemaContributions(): ISchemaContributions {

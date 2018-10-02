@@ -4,123 +4,82 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as modes from 'vs/editor/common/modes';
-import {ModeTransition} from 'vs/editor/common/core/modeTransition';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
 
-export class Token implements modes.IToken {
-	_tokenBrand: void;
+export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
+	let tokenCount = context.getCount();
+	let tokenIndex = context.findTokenIndexAtOffset(offset);
+	let desiredLanguageId = context.getLanguageId(tokenIndex);
 
-	public startIndex:number;
-	public type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex;
-		this.type = type;
+	let lastTokenIndex = tokenIndex;
+	while (lastTokenIndex + 1 < tokenCount && context.getLanguageId(lastTokenIndex + 1) === desiredLanguageId) {
+		lastTokenIndex++;
 	}
 
-	public toString(): string {
-		return '(' + this.startIndex + ', ' + this.type + ')';
+	let firstTokenIndex = tokenIndex;
+	while (firstTokenIndex > 0 && context.getLanguageId(firstTokenIndex - 1) === desiredLanguageId) {
+		firstTokenIndex--;
 	}
+
+	return new ScopedLineTokens(
+		context,
+		desiredLanguageId,
+		firstTokenIndex,
+		lastTokenIndex + 1,
+		context.getStartOffset(firstTokenIndex),
+		context.getEndOffset(lastTokenIndex)
+	);
 }
 
-export class LineTokens implements modes.ILineTokens {
-	_lineTokensBrand: void;
+export class ScopedLineTokens {
+	_scopedLineTokensBrand: void;
 
-	tokens: Token[];
-	modeTransitions: ModeTransition[];
-	actualStopOffset: number;
-	endState: modes.IState;
-	retokenize: TPromise<void>;
+	public readonly languageId: modes.LanguageId;
+	private readonly _actual: LineTokens;
+	private readonly _firstTokenIndex: number;
+	private readonly _lastTokenIndex: number;
+	public readonly firstCharOffset: number;
+	private readonly _lastCharOffset: number;
 
-	constructor(tokens:Token[], modeTransitions: ModeTransition[], actualStopOffset:number, endState:modes.IState) {
-		this.tokens = tokens;
-		this.modeTransitions = modeTransitions;
-		this.actualStopOffset = actualStopOffset;
-		this.endState = endState;
-		this.retokenize = null;
-	}
-}
-
-export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(modeId:string, newContext:modes.ILineContext, offset:number)=>T):T {
-	var modeTransitions = context.modeTransitions;
-	if (modeTransitions.length === 1) {
-		return runner(modeTransitions[0].modeId, context, offset);
-	}
-
-	var modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
-	var nestedMode = modeTransitions[modeIndex].mode;
-	var modeStartIndex = modeTransitions[modeIndex].startIndex;
-
-	var firstTokenInModeIndex = context.findIndexOfOffset(modeStartIndex);
-	var nextCharacterAfterModeIndex = -1;
-	var nextTokenAfterMode = -1;
-	if (modeIndex + 1 < modeTransitions.length) {
-		nextTokenAfterMode = context.findIndexOfOffset(modeTransitions[modeIndex + 1].startIndex);
-		nextCharacterAfterModeIndex = context.getTokenStartIndex(nextTokenAfterMode);
-	} else {
-		nextTokenAfterMode = context.getTokenCount();
-		nextCharacterAfterModeIndex = context.getLineContent().length;
-	}
-
-	var firstTokenCharacterOffset = context.getTokenStartIndex(firstTokenInModeIndex);
-	var newCtx = new FilteredLineContext(context, nestedMode, firstTokenInModeIndex, nextTokenAfterMode, firstTokenCharacterOffset, nextCharacterAfterModeIndex);
-	return runner(nestedMode.getId(), newCtx, offset - firstTokenCharacterOffset);
-}
-
-export class FilteredLineContext implements modes.ILineContext {
-
-	public modeTransitions: ModeTransition[];
-
-	private _actual:modes.ILineContext;
-	private _firstTokenInModeIndex:number;
-	private _nextTokenAfterMode:number;
-	private _firstTokenCharacterOffset:number;
-	private _nextCharacterAfterModeIndex:number;
-
-	constructor(actual:modes.ILineContext, mode:modes.IMode,
-			firstTokenInModeIndex:number, nextTokenAfterMode:number,
-			firstTokenCharacterOffset:number, nextCharacterAfterModeIndex:number) {
-
-		this.modeTransitions = [new ModeTransition(0, mode)];
+	constructor(
+		actual: LineTokens,
+		languageId: modes.LanguageId,
+		firstTokenIndex: number,
+		lastTokenIndex: number,
+		firstCharOffset: number,
+		lastCharOffset: number
+	) {
 		this._actual = actual;
-		this._firstTokenInModeIndex = firstTokenInModeIndex;
-		this._nextTokenAfterMode = nextTokenAfterMode;
-		this._firstTokenCharacterOffset = firstTokenCharacterOffset;
-		this._nextCharacterAfterModeIndex = nextCharacterAfterModeIndex;
+		this.languageId = languageId;
+		this._firstTokenIndex = firstTokenIndex;
+		this._lastTokenIndex = lastTokenIndex;
+		this.firstCharOffset = firstCharOffset;
+		this._lastCharOffset = lastCharOffset;
 	}
 
 	public getLineContent(): string {
-		var actualLineContent = this._actual.getLineContent();
-		return actualLineContent.substring(this._firstTokenCharacterOffset, this._nextCharacterAfterModeIndex);
+		const actualLineContent = this._actual.getLineContent();
+		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
 	}
 
 	public getTokenCount(): number {
-		return this._nextTokenAfterMode - this._firstTokenInModeIndex;
+		return this._lastTokenIndex - this._firstTokenIndex;
 	}
 
-	public findIndexOfOffset(offset:number): number {
-		return this._actual.findIndexOfOffset(offset + this._firstTokenCharacterOffset) - this._firstTokenInModeIndex;
+	public findTokenIndexAtOffset(offset: number): number {
+		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this._firstTokenIndex;
 	}
 
-	public getTokenStartIndex(tokenIndex:number): number {
-		return this._actual.getTokenStartIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
-	}
-
-	public getTokenEndIndex(tokenIndex:number): number {
-		return this._actual.getTokenEndIndex(tokenIndex + this._firstTokenInModeIndex) - this._firstTokenCharacterOffset;
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return this._actual.getTokenType(tokenIndex + this._firstTokenInModeIndex);
-	}
-
-	public getTokenText(tokenIndex:number): string {
-		return this._actual.getTokenText(tokenIndex + this._firstTokenInModeIndex);
+	public getStandardTokenType(tokenIndex: number): modes.StandardTokenType {
+		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
 	}
 }
 
-const IGNORE_IN_TOKENS = /\b(comment|string|regex)\b/;
-export function ignoreBracketsInToken(tokenType:string): boolean {
-	return IGNORE_IN_TOKENS.test(tokenType);
+const enum IgnoreBracketsInTokens {
+	value = modes.StandardTokenType.Comment | modes.StandardTokenType.String | modes.StandardTokenType.RegEx
+}
+
+export function ignoreBracketsInToken(standardTokenType: modes.StandardTokenType): boolean {
+	return (standardTokenType & IgnoreBracketsInTokens.value) !== 0;
 }

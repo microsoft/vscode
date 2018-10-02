@@ -6,60 +6,71 @@
 'use strict';
 
 import 'vs/css!./media/statusbarpart';
-import dom = require('vs/base/browser/dom');
-import types = require('vs/base/common/types');
-import nls = require('vs/nls');
-import {toErrorMessage} from 'vs/base/common/errors';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {dispose, IDisposable} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
-import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import {Registry} from 'vs/platform/platform';
-import {ICommandService} from 'vs/platform/commands/common/commands';
-import {IAction} from 'vs/base/common/actions';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Part} from 'vs/workbench/browser/part';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IStatusbarService, IStatusbarEntry} from 'vs/platform/statusbar/common/statusbar';
+import * as nls from 'vs/nls';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Part } from 'vs/workbench/browser/part';
+import { IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { isThemeColor } from 'vs/editor/common/editorCommon';
+import { Color } from 'vs/base/common/color';
+import { addClass, EventHelper, createStyleSheet, addDisposableListener } from 'vs/base/browser/dom';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
-	public _serviceBrand: any;
+	_serviceBrand: any;
 
-	private static PRIORITY_PROP = 'priority';
-	private static ALIGNMENT_PROP = 'alignment';
+	private static readonly PRIORITY_PROP = 'statusbar-entry-priority';
+	private static readonly ALIGNMENT_PROP = 'statusbar-entry-alignment';
 
-	private toDispose: IDisposable[];
-	private statusItemsContainer: Builder;
+	private statusItemsContainer: HTMLElement;
 	private statusMsgDispose: IDisposable;
+
+	private styleElement: HTMLStyleElement;
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		super(id);
+		super(id, { hasTitle: false }, themeService);
 
-		this.toDispose = [];
+		this.registerListeners();
 	}
 
-	public addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
+	private registerListeners(): void {
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
+	}
+
+	addEntry(entry: IStatusbarEntry, alignment: StatusbarAlignment, priority: number = 0): IDisposable {
 
 		// Render entry in status bar
-		let el = this.doCreateStatusItem(alignment, priority);
-		let item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
-		let toDispose = item.render(el);
+		const el = this.doCreateStatusItem(alignment, priority, entry.showBeak ? 'has-beak' : void 0);
+		const item = this.instantiationService.createInstance(StatusBarEntryItem, entry);
+		const toDispose = item.render(el);
 
 		// Insert according to priority
-		let container = this.statusItemsContainer.getHTMLElement();
-		let neighbours = this.getEntries(alignment);
+		const container = this.statusItemsContainer;
+		const neighbours = this.getEntries(alignment);
 		let inserted = false;
 		for (let i = 0; i < neighbours.length; i++) {
-			let neighbour = neighbours[i];
-			let nPriority = $(neighbour).getProperty(StatusbarPart.PRIORITY_PROP);
+			const neighbour = neighbours[i];
+			const nPriority = Number(neighbour.getAttribute(StatusbarPart.PRIORITY_PROP));
 			if (
 				alignment === StatusbarAlignment.LEFT && nPriority < priority ||
 				alignment === StatusbarAlignment.RIGHT && nPriority > priority
@@ -74,25 +85,23 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			container.appendChild(el);
 		}
 
-		return {
-			dispose: () => {
-				$(el).destroy();
+		return toDisposable(() => {
+			el.remove();
 
-				if (toDispose) {
-					toDispose.dispose();
-				}
+			if (toDispose) {
+				toDispose.dispose();
 			}
-		};
+		});
 	}
 
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {
-		let entries: HTMLElement[] = [];
+		const entries: HTMLElement[] = [];
 
-		let container = this.statusItemsContainer.getHTMLElement();
-		let children = container.children;
+		const container = this.statusItemsContainer;
+		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
-			let childElement = <HTMLElement>children.item(i);
-			if ($(childElement).getProperty(StatusbarPart.ALIGNMENT_PROP) === alignment) {
+			const childElement = <HTMLElement>children.item(i);
+			if (Number(childElement.getAttribute(StatusbarPart.ALIGNMENT_PROP)) === alignment) {
 				entries.push(childElement);
 			}
 		}
@@ -100,47 +109,83 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return entries;
 	}
 
-	public createContentArea(parent: Builder): Builder {
-		this.statusItemsContainer = $(parent);
+	createContentArea(parent: HTMLElement): HTMLElement {
+		this.statusItemsContainer = parent;
 
 		// Fill in initial items that were contributed from the registry
-		let registry = (<IStatusbarRegistry>Registry.as(Extensions.Statusbar));
+		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
 
-		let leftDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.LEFT).sort((a, b) => b.priority - a.priority);
-		let rightDescriptors = registry.items.filter(d => d.alignment === StatusbarAlignment.RIGHT).sort((a, b) => a.priority - b.priority);
+		const descriptors = registry.items.slice().sort((a, b) => {
+			if (a.alignment === b.alignment) {
+				if (a.alignment === StatusbarAlignment.LEFT) {
+					return b.priority - a.priority;
+				} else {
+					return a.priority - b.priority;
+				}
+			} else if (a.alignment === StatusbarAlignment.LEFT) {
+				return 1;
+			} else if (a.alignment === StatusbarAlignment.RIGHT) {
+				return -1;
+			} else {
+				return 0;
+			}
+		});
 
-		let descriptors = rightDescriptors.concat(leftDescriptors); // right first because they float
+		for (const descriptor of descriptors) {
+			const item = this.instantiationService.createInstance(descriptor.syncDescriptor);
+			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
-		this.toDispose.push(...descriptors.map(descriptor => {
-			let item = this.instantiationService.createInstance(descriptor.syncDescriptor);
-			let el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
-
-			let dispose = item.render(el);
-			this.statusItemsContainer.append(el);
-
-			return dispose;
-		}));
+			this._register(item.render(el));
+			this.statusItemsContainer.appendChild(el);
+		}
 
 		return this.statusItemsContainer;
 	}
 
-	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
-		let el = document.createElement('div');
-		dom.addClass(el, 'statusbar-item');
+	protected updateStyles(): void {
+		super.updateStyles();
 
-		if (alignment === StatusbarAlignment.RIGHT) {
-			dom.addClass(el, 'right');
-		} else {
-			dom.addClass(el, 'left');
+		const container = this.getContainer();
+
+		// Background colors
+		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
+		container.style.backgroundColor = backgroundColor;
+		container.style.color = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
+
+		// Border color
+		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
+		container.style.borderTopWidth = borderColor ? '1px' : null;
+		container.style.borderTopStyle = borderColor ? 'solid' : null;
+		container.style.borderTopColor = borderColor;
+
+		// Notification Beak
+		if (!this.styleElement) {
+			this.styleElement = createStyleSheet(container);
 		}
 
-		$(el).setProperty(StatusbarPart.PRIORITY_PROP, priority);
-		$(el).setProperty(StatusbarPart.ALIGNMENT_PROP, alignment);
+		this.styleElement.innerHTML = `.monaco-workbench > .part.statusbar > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
+	}
+
+	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0, extraClass?: string): HTMLElement {
+		const el = document.createElement('div');
+		addClass(el, 'statusbar-item');
+		if (extraClass) {
+			addClass(el, extraClass);
+		}
+
+		if (alignment === StatusbarAlignment.RIGHT) {
+			addClass(el, 'right');
+		} else {
+			addClass(el, 'left');
+		}
+
+		el.setAttribute(StatusbarPart.PRIORITY_PROP, String(priority));
+		el.setAttribute(StatusbarPart.ALIGNMENT_PROP, String(alignment));
 
 		return el;
 	}
 
-	public setStatusMessage(message: string, autoDisposeAfter: number = -1, delayBy: number = 0): IDisposable {
+	setStatusMessage(message: string, autoDisposeAfter: number = -1, delayBy: number = 0): IDisposable {
 		if (this.statusMsgDispose) {
 			this.statusMsgDispose.dispose(); // dismiss any previous
 		}
@@ -148,7 +193,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Create new
 		let statusDispose: IDisposable;
 		let showHandle = setTimeout(() => {
-			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, Number.MIN_VALUE);
+			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
 		let hideHandle: number;
@@ -177,38 +222,38 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		return dispose;
 	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-
-		super.dispose();
-	}
 }
 
+let manageExtensionAction: ManageExtensionAction;
 class StatusBarEntryItem implements IStatusbarItem {
-	private entry: IStatusbarEntry;
 
 	constructor(
-		entry: IStatusbarEntry,
+		private entry: IStatusbarEntry,
 		@ICommandService private commandService: ICommandService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IEditorService private editorService: IEditorService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.entry = entry;
+
+		if (!manageExtensionAction) {
+			manageExtensionAction = this.instantiationService.createInstance(ManageExtensionAction);
+		}
 	}
 
-	public render(el: HTMLElement): IDisposable {
+	render(el: HTMLElement): IDisposable {
 		let toDispose: IDisposable[] = [];
-		dom.addClass(el, 'statusbar-entry');
+		addClass(el, 'statusbar-entry');
 
 		// Text Container
 		let textContainer: HTMLElement;
 		if (this.entry.command) {
 			textContainer = document.createElement('a');
 
-			$(textContainer).on('click', () => this.executeCommand(this.entry.command), toDispose);
+			toDispose.push(addDisposableListener(textContainer, 'click', () => this.executeCommand(this.entry.command, this.entry.arguments)));
 		} else {
 			textContainer = document.createElement('span');
 		}
@@ -218,12 +263,34 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		// Tooltip
 		if (this.entry.tooltip) {
-			$(textContainer).title(this.entry.tooltip);
+			textContainer.title = this.entry.tooltip;
 		}
 
 		// Color
-		if (this.entry.color) {
-			$(textContainer).color(this.entry.color);
+		let color = this.entry.color;
+		if (color) {
+			if (isThemeColor(color)) {
+				let colorId = color.id;
+				color = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
+				toDispose.push(this.themeService.onThemeChange(theme => {
+					let colorValue = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
+					textContainer.style.color = colorValue;
+				}));
+			}
+			textContainer.style.color = color;
+		}
+
+		// Context Menu
+		if (this.entry.extensionId) {
+			toDispose.push(addDisposableListener(textContainer, 'contextmenu', e => {
+				EventHelper.stop(e, true);
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => el,
+					getActionsContext: () => this.entry.extensionId,
+					getActions: () => Promise.resolve([manageExtensionAction])
+				});
+			}));
 		}
 
 		el.appendChild(textContainer);
@@ -235,44 +302,57 @@ class StatusBarEntryItem implements IStatusbarItem {
 		};
 	}
 
-	private executeCommand(id: string) {
-		let action: IAction;
-		let activeEditor = this.editorService.getActiveEditor();
+	private executeCommand(id: string, args?: any[]) {
+		args = args || [];
 
-		// Lookup built in commands
-		let builtInActionDescriptor = (<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).getWorkbenchAction(id);
-		if (builtInActionDescriptor) {
-			action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
+		// Maintain old behaviour of always focusing the editor here
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			activeTextEditorWidget.focus();
 		}
 
-		// Lookup editor commands
-		if (!action) {
-			let activeEditorControl = <any>(activeEditor ? activeEditor.getControl() : null);
-			if (activeEditorControl && types.isFunction(activeEditorControl.getAction)) {
-				action = activeEditorControl.getAction(id);
+		/* __GDPR__
+			"workbenchActionExecuted" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
-		}
-
-		// Some actions or commands might only be enabled for an active editor, so focus it first
-		if (activeEditor) {
-			activeEditor.focus();
-		}
-
-		// Run it if enabled
-		if (action) {
-			if (action.enabled) {
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
-				(action.run() || TPromise.as(null)).done(() => {
-					action.dispose();
-				}, (err) => this.messageService.show(Severity.Error, toErrorMessage(err)));
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' can not be run from here.", action.label || id));
-			}
-		}
-
-		// Fallback to the keybinding service for any other case
-		else {
-			this.commandService.executeCommand(id).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
-		}
+		*/
+		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
+		this.commandService.executeCommand(id, ...args).then(undefined, err => this.notificationService.error(toErrorMessage(err)));
 	}
 }
+
+class ManageExtensionAction extends Action {
+
+	constructor(
+		@ICommandService private commandService: ICommandService
+	) {
+		super('statusbar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
+	}
+
+	run(extensionId: string): TPromise<any> {
+		return this.commandService.executeCommand('_extensions.manage', extensionId);
+	}
+}
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
+	if (statusBarItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
+	}
+
+	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
+	if (statusBarItemActiveBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+	}
+
+	const statusBarProminentItemBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
+	if (statusBarProminentItemBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
+	}
+
+	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
+	if (statusBarProminentItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
+	}
+});

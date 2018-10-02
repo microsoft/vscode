@@ -2,70 +2,101 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
-import { isArray } from './types';
-
-export const empty: IDisposable = Object.freeze({
-	dispose() { }
-});
+import { once } from 'vs/base/common/functional';
 
 export interface IDisposable {
 	dispose(): void;
 }
 
-export function dispose<T extends IDisposable>(...disposables: T[]): T;
-export function dispose<T extends IDisposable>(disposables: T[]): T[];
-export function dispose<T extends IDisposable>(...disposables: T[]): T[] {
-	const first = disposables[0];
-
-	if (isArray(first)) {
-		disposables = first as any as T[];
-	}
-
-	disposables.forEach(d => d && d.dispose());
-	return [];
+export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
+	return typeof (<IDisposable><any>thing).dispose === 'function'
+		&& (<IDisposable><any>thing).dispose.length === 0;
 }
 
-export function combinedDisposable(disposables: IDisposable[]): IDisposable;
-export function combinedDisposable(...disposables: IDisposable[]): IDisposable;
-export function combinedDisposable(disposables: any): IDisposable {
+export function dispose<T extends IDisposable>(disposable: T): T;
+export function dispose<T extends IDisposable>(...disposables: T[]): T[];
+export function dispose<T extends IDisposable>(disposables: T[]): T[];
+export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] {
+	if (Array.isArray(first)) {
+		first.forEach(d => d && d.dispose());
+		return [];
+	} else if (rest.length === 0) {
+		if (first) {
+			first.dispose();
+			return first;
+		}
+		return undefined;
+	} else {
+		dispose(first);
+		dispose(rest);
+		return [];
+	}
+}
+
+export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 	return { dispose: () => dispose(disposables) };
 }
 
-export function toDisposable(...fns: (() => void)[]): IDisposable {
-	return combinedDisposable(fns.map(fn => ({ dispose: fn })));
+export function toDisposable(fn: () => void): IDisposable {
+	return { dispose() { fn(); } };
 }
 
 export abstract class Disposable implements IDisposable {
 
-	private _toDispose: IDisposable[];
+	static None = Object.freeze<IDisposable>({ dispose() { } });
 
-	constructor() {
-		this._toDispose = [];
-	}
+	protected _toDispose: IDisposable[] = [];
+	protected get toDispose(): IDisposable[] { return this._toDispose; }
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	protected _register<T extends IDisposable>(t:T): T {
+	protected _register<T extends IDisposable>(t: T): T {
 		this._toDispose.push(t);
+
 		return t;
 	}
 }
 
-export class Disposables extends Disposable {
+export interface IReference<T> extends IDisposable {
+	readonly object: T;
+}
 
-	public add<T extends IDisposable>(e: T): T;
-	public add(...elements: IDisposable[]): void;
-	public add<T extends IDisposable>(arg: T | T[]): T {
-		if (!Array.isArray(arg)) {
-			return this._register(arg);
-		} else {
-			for (let element of arg) {
-				return this._register(element);
-			}
+export abstract class ReferenceCollection<T> {
+
+	private references: { [key: string]: { readonly object: T; counter: number; } } = Object.create(null);
+
+	constructor() { }
+
+	acquire(key: string): IReference<T> {
+		let reference = this.references[key];
+
+		if (!reference) {
+			reference = this.references[key] = { counter: 0, object: this.createReferencedObject(key) };
 		}
+
+		const { object } = reference;
+		const dispose = once(() => {
+			if (--reference.counter === 0) {
+				this.destroyReferencedObject(reference.object);
+				delete this.references[key];
+			}
+		});
+
+		reference.counter++;
+
+		return { object, dispose };
 	}
+
+	protected abstract createReferencedObject(key: string): T;
+	protected abstract destroyReferencedObject(object: T): void;
+}
+
+export class ImmortalReference<T> implements IReference<T> {
+	constructor(public object: T) { }
+	dispose(): void { /* noop */ }
 }

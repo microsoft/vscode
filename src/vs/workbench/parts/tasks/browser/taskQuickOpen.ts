@@ -4,92 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Filters = require('vs/base/common/filters');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Quickopen = require('vs/workbench/browser/quickopen');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { ITaskService, TaskDescription } from 'vs/workbench/parts/tasks/common/taskService';
+import { CustomTask, ContributedTask } from 'vs/workbench/parts/tasks/common/tasks';
+import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-class TaskEntry extends Model.QuickOpenEntry {
+import * as base from './quickOpen';
 
-	private taskService: ITaskService;
-	private task: TaskDescription;
-
-	constructor(taskService: ITaskService, task: TaskDescription, highlights:Model.IHighlight[] = []) {
-		super(highlights);
-		this.taskService = taskService;
-		this.task = task;
+class TaskEntry extends base.TaskEntry {
+	constructor(quickOpenService: IQuickOpenService, taskService: ITaskService, task: CustomTask | ContributedTask, highlights: Model.IHighlight[] = []) {
+		super(quickOpenService, taskService, task, highlights);
 	}
 
-	public getLabel(): string {
-		return this.task.name;
-	}
-
-	public getAriaLabel(): string {
-		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
-	}
-
-	public run(mode:QuickOpen.Mode, context:Model.IContext):boolean {
+	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.taskService.run(this.task.id);
-		return true;
+		let task = this._task;
+		return this.doRun(task, { attachProblemMatcher: true });
 	}
 }
 
-export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
+export class QuickOpenHandler extends base.QuickOpenHandler {
 
-	private quickOpenService: IQuickOpenService;
-	private taskService: ITaskService;
+	public static readonly ID = 'workbench.picker.tasks';
+
+	private activationPromise: TPromise<void>;
 
 	constructor(
 		@IQuickOpenService quickOpenService: IQuickOpenService,
+		@IExtensionService extensionService: IExtensionService,
 		@ITaskService taskService: ITaskService
 	) {
-		super();
-
-		this.quickOpenService = quickOpenService;
-		this.taskService = taskService;
+		super(quickOpenService, taskService);
+		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}
 
 	public getAriaLabel(): string {
 		return nls.localize('tasksAriaLabel', "Type the name of a task to run");
 	}
 
-	public getResults(input: string): TPromise<Model.QuickOpenModel> {
-		return this.taskService.tasks().then(tasks => tasks
-			.sort((a, b) => a.name.localeCompare(b.name))
-			.map(task => ({ task: task, highlights: Filters.matchesContiguousSubString(input, task.name) }))
-			.filter(({ highlights }) => !!highlights)
-			.map(({ task, highlights }) => new TaskEntry(this.taskService, task, highlights))
-		, _ => []).then(e => new Model.QuickOpenModel(e));
+	protected getTasks(): TPromise<(CustomTask | ContributedTask)[]> {
+		return this.activationPromise.then(() => {
+			return this.taskService.tasks().then(tasks => tasks.filter<CustomTask | ContributedTask>((task): task is CustomTask | ContributedTask => ContributedTask.is(task) || CustomTask.is(task)));
+		});
 	}
 
-	public getClass(): string {
-		return null;
-	}
-
-	public canRun(): boolean {
-		return true;
-	}
-
-	public getAutoFocus(input:string): QuickOpen.IAutoFocus {
-		return {
-			autoFocusFirstEntry: !!input
-		};
-	}
-
-	public onClose(canceled:boolean): void {
-		return;
-	}
-
-	public getGroupLabel(): string {
-		return null;
+	protected createEntry(task: CustomTask | ContributedTask, highlights: Model.IHighlight[]): base.TaskEntry {
+		return new TaskEntry(this.quickOpenService, this.taskService, task, highlights);
 	}
 
 	public getEmptyLabel(searchString: string): string {

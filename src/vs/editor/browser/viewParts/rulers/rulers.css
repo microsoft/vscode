@@ -5,10 +5,5 @@
 
 .monaco-editor .view-ruler {
 	position: absolute;
-	width: 1px;
 	top: 0;
-	background: lightgrey;
-}
-.monaco-editor.vs-dark .view-ruler {
-	background: #5A5A5A;
 }

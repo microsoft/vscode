@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {IAction, IActionItem} from 'vs/base/common/actions';
-import {IEditorControl} from 'vs/platform/editor/common/editor';
+import { IAction, IActionItem } from 'vs/base/common/actions';
 
 export interface IComposite {
 
@@ -29,6 +28,11 @@ export interface IComposite {
 	getSecondaryActions(): IAction[];
 
 	/**
+	 * Returns an array of actions to show in the context menu of the composite
+	 */
+	getContextMenuActions(): IAction[];
+
+	/**
 	 * Returns the action item for a specific action.
 	 */
 	getActionItem(action: IAction): IActionItem;
@@ -36,10 +40,15 @@ export interface IComposite {
 	/**
 	 * Returns the underlying control of this composite.
 	 */
-	getControl(): IEditorControl;
+	getControl(): ICompositeControl;
 
 	/**
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;
 }
+
+/**
+ * Marker interface for the composite control
+ */
+export interface ICompositeControl { }

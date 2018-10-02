@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import * as types from 'vs/base/common/types';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**
  * Supported memento scopes.
  */
-export enum Scope {
+export const enum Scope {
 
 	/**
 	 * The memento will be scoped to all workspaces of this domain.
@@ -32,7 +32,7 @@ export class Memento {
 	private static globalMementos: { [id: string]: ScopedMemento } = {};
 	private static workspaceMementos: { [id: string]: ScopedMemento } = {};
 
-	private static COMMON_PREFIX = 'memento/';
+	private static readonly COMMON_PREFIX = 'memento/';
 
 	private id: string;
 
@@ -46,7 +46,7 @@ export class Memento {
 	 * provided, the scope will be global, Memento.Scope.WORKSPACE can be used to
 	 * scope the memento to the workspace.
 	 */
-	public getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): any {
+	getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): object {
 
 		// Scope by Workspace
 		if (scope === Scope.WORKSPACE) {
@@ -73,23 +73,25 @@ export class Memento {
 	 * Saves all data of the mementos that have been loaded to the local storage. This includes
 	 * global and workspace scope.
 	 */
-	public saveMemento(): void {
+	saveMemento(): void {
 
 		// Global
-		if (Memento.globalMementos[this.id]) {
-			Memento.globalMementos[this.id].save();
+		const globalMemento = Memento.globalMementos[this.id];
+		if (globalMemento) {
+			globalMemento.save();
 		}
 
 		// Workspace
-		if (Memento.workspaceMementos[this.id]) {
-			Memento.workspaceMementos[this.id].save();
+		const workspaceMemento = Memento.workspaceMementos[this.id];
+		if (workspaceMemento) {
+			workspaceMemento.save();
 		}
 	}
 }
 
 class ScopedMemento {
 	private id: string;
-	private mementoObj: any;
+	private mementoObj: object;
 	private scope: Scope;
 
 	constructor(id: string, scope: Scope, private storageService: IStorageService) {
@@ -98,11 +100,11 @@ class ScopedMemento {
 		this.mementoObj = this.loadMemento();
 	}
 
-	public getMemento(): any {
+	getMemento(): object {
 		return this.mementoObj;
 	}
 
-	private loadMemento(): any {
+	private loadMemento(): object {
 		let storageScope = this.scope === Scope.GLOBAL ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 		let memento = this.storageService.get(this.id, storageScope);
 		if (memento) {
@@ -112,7 +114,7 @@ class ScopedMemento {
 		return {};
 	}
 
-	public save(): void {
+	save(): void {
 		let storageScope = this.scope === Scope.GLOBAL ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
 
 		if (!types.isEmptyObject(this.mementoObj)) {

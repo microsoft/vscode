@@ -4,99 +4,253 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {IAction, Action} from 'vs/base/common/actions';
-import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
-import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IAction, Action } from 'vs/base/common/actions';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannelDescriptor } from 'vs/workbench/parts/output/common/output';
+import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { groupBy } from 'vs/base/common/arrays';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LogViewerInput } from 'vs/workbench/parts/output/browser/logViewer';
 
-export class ToggleOutputAction extends Action {
+export class ToggleOutputAction extends TogglePanelAction {
 
-	public static ID = 'workbench.action.output.toggleOutput';
-	public static LABEL = nls.localize('toggleOutput', "Toggle Output");
+	public static readonly ID = 'workbench.action.output.toggleOutput';
+	public static readonly LABEL = nls.localize('toggleOutput', "Toggle Output");
 
 	constructor(
 		id: string, label: string,
-		@IPartService private partService: IPartService,
-		@IPanelService private panelService: IPanelService,
-		@IOutputService private outputService: IOutputService
+		@IPartService partService: IPartService,
+		@IPanelService panelService: IPanelService,
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		const panel = this.panelService.getActivePanel();
-		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
-			this.partService.setPanelHidden(true);
-
-			return TPromise.as(null);
-		}
-
-		return this.outputService.getActiveChannel().show();
+		super(id, label, OUTPUT_PANEL_ID, panelService, partService);
 	}
 }
 
 export class ClearOutputAction extends Action {
 
+	public static readonly ID = 'workbench.output.action.clearOutput';
+	public static readonly LABEL = nls.localize('clearOutput', "Clear Output");
+
 	constructor(
-		@IOutputService private outputService: IOutputService,
-		@IPanelService private panelService: IPanelService
+		id: string, label: string,
+		@IOutputService private outputService: IOutputService
 	) {
-		super('workbench.output.action.clearOutput', nls.localize('clearOutput', "Clear Output"), 'output-action clear-output');
+		super(id, label, 'output-action clear-output');
 	}
 
-	public run(): TPromise<any> {
+	public run(): TPromise<boolean> {
 		this.outputService.getActiveChannel().clear();
-		this.panelService.getActivePanel().focus();
+		aria.status(nls.localize('outputCleared', "Output was cleared"));
 
 		return TPromise.as(true);
 	}
 }
 
+export class ToggleOutputScrollLockAction extends Action {
+
+	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
+	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
+
+	private toDispose: IDisposable[] = [];
+
+	constructor(id: string, label: string,
+		@IOutputService private outputService: IOutputService) {
+		super(id, label, 'output-action output-scroll-unlock');
+		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
+	}
+
+	public run(): TPromise<boolean> {
+		const activeChannel = this.outputService.getActiveChannel();
+		if (activeChannel) {
+			activeChannel.scrollLock = !activeChannel.scrollLock;
+			this.setClass(activeChannel.scrollLock);
+		}
+
+		return TPromise.as(true);
+	}
+
+	private setClass(locked: boolean) {
+		if (locked) {
+			this.class = 'output-action output-scroll-lock';
+		} else {
+			this.class = 'output-action output-scroll-unlock';
+		}
+	}
+
+	public dispose() {
+		super.dispose();
+		this.toDispose = dispose(this.toDispose);
+	}
+}
+
 export class SwitchOutputAction extends Action {
 
-	public static ID = 'workbench.output.action.switchBetweenOutputs';
+	public static readonly ID = 'workbench.output.action.switchBetweenOutputs';
 
-	constructor( @IOutputService private outputService: IOutputService) {
+	constructor(@IOutputService private outputService: IOutputService) {
 		super(SwitchOutputAction.ID, nls.localize('switchToOutput.label', "Switch to Output"));
 
 		this.class = 'output-action switch-to-output';
 	}
 
 	public run(channelId?: string): TPromise<any> {
-		return this.outputService.getChannel(channelId).show();
+		return this.outputService.showChannel(channelId);
 	}
 }
 
 export class SwitchOutputActionItem extends SelectActionItem {
 
+	private static readonly SEPARATOR = '─────────';
+
+	private outputChannels: IOutputChannelDescriptor[];
+	private logChannels: IOutputChannelDescriptor[];
+
 	constructor(
 		action: IAction,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, SwitchOutputActionItem.getChannelLabels(outputService), Math.max(0, SwitchOutputActionItem.getChannelLabels(outputService).indexOf(outputService.getActiveChannel().label)));
-		this.toDispose.push(this.outputService.onOutputChannel(this.onOutputChannel, this));
-		this.toDispose.push(this.outputService.onActiveOutputChannel(this.onOutputChannel, this));
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputs', 'Outputs') });
+
+		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
+		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.updateOtions(activeChannelId)));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
+
+		this.updateOtions(this.outputService.getActiveChannel().id);
 	}
 
-	protected getActionContext(option: string): string {
-		const channel = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().filter(channelData => channelData.label === option).pop();
-
+	protected getActionContext(option: string, index: number): string {
+		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
 		return channel ? channel.id : option;
 	}
 
-	private onOutputChannel(): void {
-		let channels = SwitchOutputActionItem.getChannelLabels(this.outputService);
-		let selected = Math.max(0, channels.indexOf(this.outputService.getActiveChannel().label));
+	private updateOtions(selectedChannel: string): void {
+		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
+			if (!c1.log && c2.log) {
+				return -1;
+			}
+			if (c1.log && !c2.log) {
+				return 1;
+			}
+			return 0;
+		});
+		this.outputChannels = groups[0] || [];
+		this.logChannels = groups[1] || [];
+		const showSeparator = this.outputChannels.length && this.logChannels.length;
+		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
+		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
+		let selected = 0;
+		if (selectedChannel) {
+			selected = this.outputChannels.map(c => c.id).indexOf(selectedChannel);
+			if (selected === -1) {
+				selected = separatorIndex + 1 + this.logChannels.map(c => c.id).indexOf(selectedChannel);
+			}
+		}
+		this.setOptions(options, Math.max(0, selected), separatorIndex !== -1 ? separatorIndex : void 0);
+	}
+}
 
-		this.setOptions(channels, selected);
+export class OpenLogOutputFile extends Action {
+
+	public static readonly ID = 'workbench.output.action.openLogOutputFile';
+	public static readonly LABEL = nls.localize('openInLogViewer', "Open Log File");
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IOutputService private outputService: IOutputService,
+		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(OpenLogOutputFile.ID, OpenLogOutputFile.LABEL, 'output-action open-log-file');
+		this.outputService.onActiveOutputChannel(this.update, this, this.disposables);
+		this.update();
 	}
 
-	private static getChannelLabels(outputService: IOutputService): string[] {
-		const contributedChannels = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels().map(channelData => channelData.label);
-		return contributedChannels.sort(); // sort by name
+	private update(): void {
+		const outputChannelDescriptor = this.getOutputChannelDescriptor();
+		this.enabled = outputChannelDescriptor && outputChannelDescriptor.file && outputChannelDescriptor.log;
+	}
+
+	public run(): TPromise<any> {
+		return this.enabled ? this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, this.getOutputChannelDescriptor())).then(() => null) : TPromise.as(null);
+	}
+
+	private getOutputChannelDescriptor(): IOutputChannelDescriptor {
+		const channel = this.outputService.getActiveChannel();
+		return channel ? this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0] : null;
+	}
+}
+
+export class ShowLogsOutputChannelAction extends Action {
+
+	static ID = 'workbench.action.showLogs';
+	static LABEL = nls.localize('showLogs', "Show Logs...");
+
+	constructor(id: string, label: string,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IOutputService private outputService: IOutputService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries: IQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
+			.map(({ id, label }) => (<IQuickPickItem>{ id, label }));
+
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlog', "Select Log") })
+			.then(entry => {
+				if (entry) {
+					return this.outputService.showChannel(entry.id);
+				}
+				return null;
+			});
+	}
+}
+
+interface IOutputChannelQuickPickItem extends IQuickPickItem {
+	channel: IOutputChannelDescriptor;
+}
+
+export class OpenOutputLogFileAction extends Action {
+
+	static ID = 'workbench.action.openLogFile';
+	static LABEL = nls.localize('openLogFile', "Open Log File...");
+
+	constructor(id: string, label: string,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IOutputService private outputService: IOutputService,
+		@IEditorService private editorService: IEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries: IOutputChannelQuickPickItem[] = this.outputService.getChannelDescriptors().filter(c => c.file && c.log)
+			.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
+
+		return this.quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") })
+			.then(entry => {
+				if (entry) {
+					return this.editorService.openEditor(this.instantiationService.createInstance(LogViewerInput, entry.channel)).then(() => null);
+				}
+				return null;
+			});
 	}
 }

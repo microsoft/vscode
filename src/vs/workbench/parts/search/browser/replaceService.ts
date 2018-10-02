@@ -6,118 +6,87 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
-import * as Map from 'vs/base/common/map';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { IEditorService, IEditorInput, ITextEditorModel } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEventService } from 'vs/platform/event/common/event';
-import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { Range } from 'vs/editor/common/core/range';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { mergeSort } from 'vs/base/common/arrays';
 
-class EditorInputCache {
+const REPLACE_PREVIEW = 'replacePreview';
 
-	private cache: Map.LinkedMap<URI, TPromise<DiffEditorInput>>;
+const toReplaceResource = (fileResource: URI): URI => {
+	return fileResource.with({ scheme: network.Schemas.internal, fragment: REPLACE_PREVIEW, query: JSON.stringify({ scheme: fileResource.scheme }) });
+};
 
-	constructor(private replaceService: ReplaceService, private editorService: IWorkbenchEditorService,
-					private modelService: IModelService) {
-		this.cache= new Map.LinkedMap<URI, TPromise<DiffEditorInput>>();
+const toFileResource = (replaceResource: URI): URI => {
+	return replaceResource.with({ scheme: JSON.parse(replaceResource.query)['scheme'], fragment: '', query: '' });
+};
+
+export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextModelService private textModelResolverService: ITextModelService
+	) {
+		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public hasInput(fileMatch: FileMatch): boolean {
-		return this.cache.has(fileMatch.resource());
-	}
-
-	public getInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
-		let editorInputPromise= this.cache.get(fileMatch.resource());
-		if (!editorInputPromise) {
-			editorInputPromise= this.createInput(fileMatch);
-			this.cache.set(fileMatch.resource(), editorInputPromise);
-			this.refreshInput(fileMatch, true);
-			fileMatch.onDispose(() => this.disposeInput(fileMatch));
-			fileMatch.onChange((modelChange) => this.refreshInput(fileMatch, modelChange));
+	public provideTextContent(uri: URI): TPromise<ITextModel> {
+		if (uri.fragment === REPLACE_PREVIEW) {
+			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
 		}
-		return editorInputPromise;
+		return null;
+	}
+}
+
+class ReplacePreviewModel extends Disposable {
+	constructor(
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IReplaceService private replaceService: IReplaceService,
+		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
+	) {
+		super();
 	}
 
-	public refreshInput(fileMatch: FileMatch, reloadFromSource: boolean= false): void {
-		let editorInputPromise= this.cache.get(fileMatch.resource());
-		if (editorInputPromise) {
-			editorInputPromise.done(() => {
-				if (reloadFromSource) {
-					this.editorService.resolveEditorModel({resource: fileMatch.resource()}).then((value: ITextEditorModel) => {
-						let replaceResource= this.getReplaceResource(fileMatch.resource());
-						this.modelService.getModel(replaceResource).setValue((<IModel> value.textEditorModel).getValue());
-						this.replaceService.replace(fileMatch, null, replaceResource);
-					});
-				} else {
-					let replaceResource= this.getReplaceResource(fileMatch.resource());
-					this.modelService.getModel(replaceResource).undo();
-					this.replaceService.replace(fileMatch, null, replaceResource);
-				}
-			});
-		}
-	}
-
-	public disposeInput(fileMatch: FileMatch): void
-	public disposeInput(resource: URI): void
-	public disposeInput(arg: any): void {
-		let resourceUri= arg instanceof URI ? arg : arg instanceof FileMatch ? arg.resource() : null;
-		if (resourceUri) {
-			let editorInputPromise= this.cache.get(resourceUri);
-			if (editorInputPromise) {
-				editorInputPromise.done((diffInput) => {
-					this.cleanInput(resourceUri);
-					diffInput.dispose();
-				});
-			}
-		}
-	}
-
-	public disposeAll(): void {
-		this.cache.keys().forEach(resource => this.disposeInput(resource));
-	}
-
-	private createInput(fileMatch: FileMatch): TPromise<DiffEditorInput> {
-		return TPromise.join([this.createLeftInput(fileMatch),
-							this.createRightInput(fileMatch)]).then(inputs => {
-			const [left, right] = inputs;
-			let editorInput= new DiffEditorInput(nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()), undefined, <EditorInput>left, <EditorInput>right);
-			editorInput.addListener2('dispose', () => this.cleanInput(fileMatch.resource()));
-			return editorInput;
+	resolve(replacePreviewUri: URI): TPromise<ITextModel> {
+		const fileResource = toFileResource(replacePreviewUri);
+		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource().toString() === fileResource.toString())[0];
+		return this.textModelResolverService.createModelReference(fileResource).then(ref => {
+			ref = this._register(ref);
+			const sourceModel = ref.object.textEditorModel;
+			const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
+			const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.getOrCreateMode(sourceModelModeId), replacePreviewUri);
+			this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
+			this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
+			this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
+			this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
+			this._register(sourceModel.onWillDispose(() => this.dispose()));
+			return replacePreviewModel;
 		});
 	}
 
-	private createLeftInput(element: FileMatch): TPromise<IEditorInput> {
-		return this.editorService.createInput({ resource: element.resource() });
-	}
-
-	private createRightInput(element: FileMatch): TPromise<IEditorInput> {
-		return new TPromise((c, e, p) => {
-			this.editorService.resolveEditorModel({resource: element.resource()}).then((value: ITextEditorModel) => {
-				let model= <IModel> value.textEditorModel;
-				let replaceResource= this.getReplaceResource(element.resource());
-				this.modelService.createModel(model.getValue(), model.getMode(), replaceResource);
-				c(this.editorService.createInput({ resource: replaceResource }));
-			});
-		});
-	}
-
-	private cleanInput(resourceUri: URI):void {
-		this.modelService.destroyModel(this.getReplaceResource(resourceUri));
-		this.cache.delete(resourceUri);
-	}
-
-	private getReplaceResource(resource: URI): URI {
-		return resource.with({scheme: network.Schemas.internal, fragment: 'preview'});
+	private update(sourceModel: ITextModel, replacePreviewModel: ITextModel, fileMatch: FileMatch, override: boolean = false): void {
+		if (!sourceModel.isDisposed() && !replacePreviewModel.isDisposed()) {
+			this.replaceService.updateReplacePreview(fileMatch, override);
+		}
 	}
 }
 
@@ -125,77 +94,118 @@ export class ReplaceService implements IReplaceService {
 
 	public _serviceBrand: any;
 
-	private cache: EditorInputCache;
+	constructor(
+		@ITextFileService private textFileService: ITextFileService,
+		@IEditorService private editorService: IEditorService,
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IBulkEditService private bulkEditorService: IBulkEditService
+	) { }
 
-	constructor(@ITelemetryService private telemetryService: ITelemetryService, @IEventService private eventService: IEventService, @IEditorService private editorService, @IModelService private modelService: IModelService) {
-		this.cache= new EditorInputCache(this, editorService, modelService);
+	public replace(match: Match): TPromise<any>;
+	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
+	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
+	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
+
+		const edits: ResourceTextEdit[] = this.createEdits(arg, resource);
+		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
+
 	}
 
-	public replace(match: Match): TPromise<any>
-	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>
-	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
-	public replace(arg: any, progress: IProgressRunner= null, resource: URI= null): TPromise<any> {
+	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		const fileMatch = element instanceof Match ? element.parent() : element;
 
-		let bulkEdit: BulkEdit = createBulkEdit(this.eventService, this.editorService, null);
-		bulkEdit.progress(progress);
+		return this.editorService.openEditor({
+			leftResource: fileMatch.resource(),
+			rightResource: toReplaceResource(fileMatch.resource()),
+			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
+			options: {
+				preserveFocus,
+				pinned,
+				revealIfVisible: true
+			}
+		}).then(editor => {
+			const disposable = fileMatch.onDispose(() => {
+				if (editor && editor.input) {
+					editor.input.dispose();
+				}
+				disposable.dispose();
+			});
+			this.updateReplacePreview(fileMatch).then(() => {
+				let editorControl = editor.getControl();
+				if (element instanceof Match) {
+					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
+				}
+			});
+		}, errors.onUnexpectedError);
+	}
+
+	public updateReplacePreview(fileMatch: FileMatch, override: boolean = false): TPromise<void> {
+		const replacePreviewUri = toReplaceResource(fileMatch.resource());
+		return TPromise.join([this.textModelResolverService.createModelReference(fileMatch.resource()), this.textModelResolverService.createModelReference(replacePreviewUri)])
+			.then(([sourceModelRef, replaceModelRef]) => {
+				const sourceModel = sourceModelRef.object.textEditorModel;
+				const replaceModel = replaceModelRef.object.textEditorModel;
+				let returnValue = TPromise.wrap(null);
+				// If model is disposed do not update
+				if (sourceModel && replaceModel) {
+					if (override) {
+						replaceModel.setValue(sourceModel.getValue());
+					} else {
+						replaceModel.undo();
+					}
+					this.applyEditsToPreview(fileMatch, replaceModel);
+				}
+				return returnValue.then(() => {
+					sourceModelRef.dispose();
+					replaceModelRef.dispose();
+				});
+			});
+	}
+
+	private applyEditsToPreview(fileMatch: FileMatch, replaceModel: ITextModel): void {
+		const resourceEdits = this.createEdits(fileMatch, replaceModel.uri);
+		const modelEdits = [];
+		for (const resourceEdit of resourceEdits) {
+			for (const edit of resourceEdit.edits) {
+				const range = Range.lift(edit.range);
+				modelEdits.push(EditOperation.replaceMove(range, edit.text));
+			}
+		}
+		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+	}
+
+	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI = null): ResourceTextEdit[] {
+		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
-			let match= <Match>arg;
-			bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
+			let match = <Match>arg;
+			edits.push(this.createEdit(match, match.replaceString, resource));
 		}
 
 		if (arg instanceof FileMatch) {
-			arg= [arg];
+			arg = [arg];
 		}
 
 		if (arg instanceof Array) {
 			arg.forEach(element => {
 				let fileMatch = <FileMatch>element;
 				if (fileMatch.count() > 0) {
-					fileMatch.matches().forEach(match => {
-						bulkEdit.add([this.createEdit(match, match.replaceString, resource)]);
-					});
+					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
 				}
 			});
 		}
 
-		return bulkEdit.finish();
+		return edits;
 	}
 
-	public getInput(element: FileMatch): TPromise<EditorInput> {
-		return this.cache.getInput(element);
-	}
-
-	public refreshInput(element: FileMatch, reload: boolean= false): void {
-		this.cache.refreshInput(element, reload);
-	}
-
-	public disposeAllInputs(): void {
-		this.cache.disposeAll();
-	}
-
-	public openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		this.telemetryService.publicLog('replace.open.previewEditor');
-		return this.getInput(element instanceof Match ? element.parent() : element).then((editorInput) => {
-			this.editorService.openEditor(editorInput, {preserveFocus, pinned, revealIfVisible: true}).then((editor) => {
-				let editorControl= (<IDiffEditor>editor.getControl());
-				if (element instanceof Match) {
-					editorControl.revealLineInCenter(element.range().startLineNumber);
-				}
-			}, errors.onUnexpectedError);
-		}, errors.onUnexpectedError);
-	}
-
-	public isReplacePreviewEditorOpened(element: FileMatchOrMatch): boolean {
-		return this.cache.hasInput(element instanceof Match ? element.parent() : element);
-	}
-
-	private createEdit(match: Match, text: string, resource: URI= null): IResourceEdit {
-		let fileMatch: FileMatch= match.parent();
-		let resourceEdit: IResourceEdit= {
-			resource: resource !== null ? resource: fileMatch.resource(),
-			range: match.range(),
-			newText: text
+	private createEdit(match: Match, text: string, resource: URI = null): ResourceTextEdit {
+		let fileMatch: FileMatch = match.parent();
+		let resourceEdit: ResourceTextEdit = {
+			resource: resource !== null ? resource : fileMatch.resource(),
+			edits: [{
+				range: match.range(),
+				text: text
+			}]
 		};
 		return resourceEdit;
 	}

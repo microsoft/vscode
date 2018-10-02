@@ -4,22 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IThreadService} from 'vs/workbench/services/thread/common/threadService';
-import {MainContext, MainThreadLanguagesShape} from './extHost.protocol';
+import { MainContext, MainThreadLanguagesShape, IMainContext } from './extHost.protocol';
+import * as vscode from 'vscode';
+import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 
 export class ExtHostLanguages {
 
-	private _proxy: MainThreadLanguagesShape;
+	private readonly _proxy: MainThreadLanguagesShape;
+	private readonly _documents: ExtHostDocuments;
 
 	constructor(
-		threadService: IThreadService
+		mainContext: IMainContext,
+		documents: ExtHostDocuments
 	) {
-		this._proxy = threadService.get(MainContext.MainThreadLanguages);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
+		this._documents = documents;
 	}
 
-	getLanguages(): TPromise<string[]> {
+	getLanguages(): Thenable<string[]> {
 		return this._proxy.$getLanguages();
 	}
-}
 
+	changeLanguage(uri: vscode.Uri, languageId: string): Thenable<vscode.TextDocument> {
+		return this._proxy.$changeLanguage(uri, languageId).then(() => {
+			return this._documents.getDocumentData(uri).document;
+		});
+	}
+}

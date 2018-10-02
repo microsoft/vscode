@@ -8,10 +8,6 @@
 	top: 0;
 }
 
-.monaco-editor.vs		.glyph-margin { background: white; }
-.monaco-editor.vs-dark	.glyph-margin { background: #1E1E1E; }
-.monaco-editor.hc-black	.glyph-margin { background: #000; }
-
 /*
 	Keeping name short for faster parsing.
 	cgmr = core glyph margin rendering (div)

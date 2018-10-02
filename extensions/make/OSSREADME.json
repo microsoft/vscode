@@ -1,11 +1,11 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 
 [{
-	"name": "textmate/make.tmbundle",
+	"name": "fadeevab/make.tmbundle",
 	"version": "0.0.0",
 	"license": "TextMate Bundle License",
-	"repositoryURL": "https://github.com/textmate/make.tmbundle",
-	"description": "The file syntaxes/Makefile.json was derived from Makefile.plist in https://github.com/textmate/make.tmbundle.",
+	"repositoryURL": "https://github.com/fadeevab/make.tmbundle",
+	"description": "The file syntaxes/Makefile.json was derived from Makefile.plist in https://github.com/fadeevab/make.tmbundle.",
 	"licenseDetail": [
 		"Copyright (c) textmate-make.tmbundle project authors",
 		"",

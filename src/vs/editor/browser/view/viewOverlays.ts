@@ -4,29 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IScrollEvent, IConfigurationChangedEvent, EditorLayoutInfo} from 'vs/editor/common/editorCommon';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
-import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
-import {Configuration} from 'vs/editor/browser/config/configuration';
-import {ViewContext} from 'vs/editor/common/view/viewContext';
-import {IRenderingContext, IRestrictedRenderingContext} from 'vs/editor/common/view/renderingContext';
-import {ILayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
-import {InlineDecoration} from 'vs/editor/common/viewModel/viewModel';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IVisibleLine, VisibleLinesCollection, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
+import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
-export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
+export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
-	private _dynamicOverlays:DynamicViewOverlay[];
-	private _isFocused:boolean;
-	_layoutProvider:ILayoutProvider;
+	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
+	protected readonly domNode: FastDomNode<HTMLElement>;
+	private _dynamicOverlays: DynamicViewOverlay[];
+	private _isFocused: boolean;
 
-	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
+	constructor(context: ViewContext) {
 		super(context);
+
+		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>(this);
+		this.domNode = this._visibleLines.domNode;
 
 		this._dynamicOverlays = [];
 		this._isFocused = false;
-		this._layoutProvider = layoutProvider;
 
 		this.domNode.setClassName('view-overlays');
 	}
@@ -48,7 +52,6 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 
 	public dispose(): void {
 		super.dispose();
-		this._layoutProvider = null;
 
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];
@@ -57,30 +60,63 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 		this._dynamicOverlays = null;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this.domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this.domNode;
 	}
 
-	public addDynamicOverlay(overlay:DynamicViewOverlay): void {
+	// ---- begin IVisibleLinesHost
+
+	public createVisibleLine(): ViewOverlayLine {
+		return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
+	}
+
+	// ---- end IVisibleLinesHost
+
+	public addDynamicOverlay(overlay: DynamicViewOverlay): void {
 		this._dynamicOverlays.push(overlay);
 	}
 
 	// ----- event handlers
 
-	public onViewFocusChanged(isFocused:boolean): boolean {
-		this._isFocused = isFocused;
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._visibleLines.onConfigurationChanged(e);
+		let startLineNumber = this._visibleLines.getStartLineNumber();
+		let endLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			let line = this._visibleLines.getVisibleLine(lineNumber);
+			line.onConfigurationChanged(e);
+		}
 		return true;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return this._visibleLines.onFlushed(e);
+	}
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this._isFocused = e.isFocused;
+		return true;
+	}
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return this._visibleLines.onLinesChanged(e);
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return this._visibleLines.onLinesDeleted(e);
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return this._visibleLines.onLinesInserted(e);
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return this._visibleLines.onScrollChanged(e) || true;
+	}
+	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+		return this._visibleLines.onTokensChanged(e);
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return this._visibleLines.onZonesChanged(e);
 	}
 
 	// ----- end event handlers
 
-	_createLine(): ViewOverlayLine {
-		var r = new ViewOverlayLine(this._context, this._dynamicOverlays);
-		return r;
-	}
-
-
-	public prepareRender(ctx:IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
@@ -92,33 +128,33 @@ export class ViewOverlays extends ViewLayer<ViewOverlayLine> {
 		return null;
 	}
 
-	public render(ctx:IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		// Overwriting to bypass `shouldRender` flag
 		this._viewOverlaysRender(ctx);
 
 		this.domNode.toggleClassName('focused', this._isFocused);
 	}
 
-	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
-		super._renderLines(ctx.linesViewportData);
+	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
+		this._visibleLines.renderLines(ctx.viewportData);
 	}
 }
 
-export class ViewOverlayLine implements IVisibleLineData {
+export class ViewOverlayLine implements IVisibleLine {
 
-	private _context:ViewContext;
-	private _dynamicOverlays:DynamicViewOverlay[];
-	private _domNode: FastDomNode;
-	private _renderPieces: string;
+	private _configuration: IConfiguration;
+	private _dynamicOverlays: DynamicViewOverlay[];
+	private _domNode: FastDomNode<HTMLElement>;
+	private _renderedContent: string;
 	private _lineHeight: number;
 
-	constructor(context:ViewContext, dynamicOverlays:DynamicViewOverlay[]) {
-		this._context = context;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
+		this._configuration = configuration;
+		this._lineHeight = this._configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
-		this._renderPieces = null;
+		this._renderedContent = null;
 	}
 
 	public getDomNode(): HTMLElement {
@@ -127,189 +163,124 @@ export class ViewOverlayLine implements IVisibleLineData {
 		}
 		return this._domNode.domNode;
 	}
-	public setDomNode(domNode:HTMLElement): void {
+	public setDomNode(domNode: HTMLElement): void {
 		this._domNode = createFastDomNode(domNode);
 	}
 
-	onContentChanged(): void {
+	public onContentChanged(): void {
 		// Nothing
 	}
-	onLinesInsertedAbove(): void {
+	public onTokensChanged(): void {
 		// Nothing
 	}
-	onLinesDeletedAbove(): void {
-		// Nothing
-	}
-	onLineChangedAbove(): void {
-		// Nothing
-	}
-	onTokensChanged(): void {
-		// Nothing
-	}
-	onConfigurationChanged(e:IConfigurationChangedEvent): void {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
 		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
+			this._lineHeight = this._configuration.editor.lineHeight;
 		}
 	}
 
-	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:InlineDecoration[]): boolean {
-		let newPieces = '';
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
+		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
 			let dynamicOverlay = this._dynamicOverlays[i];
-			newPieces += dynamicOverlay.render(startLineNumber, lineNumber);
+			result += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
 		}
 
-		let piecesEqual = (this._renderPieces === newPieces);
-
-		if (!piecesEqual) {
-			this._renderPieces = newPieces;
+		if (this._renderedContent === result) {
+			// No rendering needed
+			return false;
 		}
 
-		return !piecesEqual;
+		this._renderedContent = result;
+
+		sb.appendASCIIString('<div style="position:absolute;top:');
+		sb.appendASCIIString(String(deltaTop));
+		sb.appendASCIIString('px;width:100%;height:');
+		sb.appendASCIIString(String(this._lineHeight));
+		sb.appendASCIIString('px;">');
+		sb.appendASCIIString(result);
+		sb.appendASCIIString('</div>');
+
+		return true;
 	}
 
-	getLineOuterHTML(out:string[], lineNumber:number, deltaTop:number): void {
-		out.push('<div lineNumber="');
-		out.push(lineNumber.toString());
-		out.push('" style="top:');
-		out.push(deltaTop.toString());
-		out.push('px;height:');
-		out.push(this._lineHeight.toString());
-		out.push('px;" class="');
-		out.push(editorBrowser.ClassNames.VIEW_LINE);
-		out.push('">');
-		out.push(this.getLineInnerHTML(lineNumber));
-		out.push('</div>');
-	}
-
-	getLineInnerHTML(lineNumber: number): string {
-		return this._renderPieces;
-	}
-
-	layoutLine(lineNumber: number, deltaTop:number): void {
-		this._domNode.setLineNumber(String(lineNumber));
-		this._domNode.setTop(deltaTop);
-		this._domNode.setHeight(this._lineHeight);
+	public layoutLine(lineNumber: number, deltaTop: number): void {
+		if (this._domNode) {
+			this._domNode.setTop(deltaTop);
+			this._domNode.setHeight(this._lineHeight);
+		}
 	}
 }
 
 export class ContentViewOverlays extends ViewOverlays {
 
-	private _scrollWidth: number;
-	private _contentWidth:number;
+	private _contentWidth: number;
 
-	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
-		super(context, layoutProvider);
+	constructor(context: ViewContext) {
+		super(context);
 
-		this._scrollWidth = this._layoutProvider.getScrollWidth();
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 
-		this.domNode.setWidth(this._scrollWidth);
 		this.domNode.setHeight(0);
 	}
 
-	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
+	// --- begin event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.layoutInfo) {
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		}
 		return super.onConfigurationChanged(e);
 	}
-	public onScrollChanged(e:IScrollEvent): boolean {
-		this._scrollWidth = e.scrollWidth;
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
 
-	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
+	// --- end event handlers
+
+	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
-		this.domNode.setWidth(Math.max(this._scrollWidth, this._contentWidth));
+		this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
 	}
 }
 
 export class MarginViewOverlays extends ViewOverlays {
 
-	private _glyphMarginLeft:number;
-	private _glyphMarginWidth:number;
-	private _scrollHeight:number;
 	private _contentLeft: number;
-	private _canUseTranslate3d: boolean;
 
-	constructor(context:ViewContext, layoutProvider:ILayoutProvider) {
-		super(context, layoutProvider);
+	constructor(context: ViewContext) {
+		super(context);
 
-		this._glyphMarginLeft = context.configuration.editor.layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = context.configuration.editor.layoutInfo.glyphMarginWidth;
-		this._scrollHeight = layoutProvider.getScrollHeight();
-		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
-		this._canUseTranslate3d = context.configuration.editor.viewInfo.canUseTranslate3d;
+		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
-		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
+		this.domNode.setClassName('margin-view-overlays');
 		this.domNode.setWidth(1);
 
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 	}
 
-	protected _extraDomNodeHTML(): string {
-		return [
-			'<div class="',
-			editorBrowser.ClassNames.GLYPH_MARGIN,
-			'" style="left:',
-			String(this._glyphMarginLeft),
-			'px;width:',
-			String(this._glyphMarginWidth),
-			'px;height:',
-			String(this._scrollHeight),
-			'px;"></div>'
-		].join('');
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		let shouldRender = false;
+		if (e.fontInfo) {
+			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+			shouldRender = true;
+		}
+		if (e.layoutInfo) {
+			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+			shouldRender = true;
+		}
+		return super.onConfigurationChanged(e) || shouldRender;
 	}
 
-	private _getGlyphMarginDomNode(): HTMLElement {
-		return <HTMLElement>this.domNode.domNode.children[0];
-	}
-
-	public onScrollChanged(e:IScrollEvent): boolean {
-		this._scrollHeight = e.scrollHeight;
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
-	public onLayoutChanged(layoutInfo:EditorLayoutInfo): boolean {
-		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
-		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
-		this._scrollHeight = this._layoutProvider.getScrollHeight();
-		this._contentLeft = layoutInfo.contentLeft;
-		return super.onLayoutChanged(layoutInfo) || true;
-	}
-
-	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
-		}
-		if (e.viewInfo.canUseTranslate3d) {
-			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
-		}
-		return super.onConfigurationChanged(e);
-	}
-
-
-	_viewOverlaysRender(ctx:IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		if (this._canUseTranslate3d) {
-			var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-			this.domNode.setTransform(transform);
-			this.domNode.setTop(0);
-		} else {
-			this.domNode.setTransform('');
-			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
-		}
-		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
+		let height = Math.min(ctx.scrollHeight, 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
-
-		var glyphMargin = this._getGlyphMarginDomNode();
-		if (glyphMargin) {
-			StyleMutator.setHeight(glyphMargin, this._scrollHeight);
-			StyleMutator.setLeft(glyphMargin, this._glyphMarginLeft);
-			StyleMutator.setWidth(glyphMargin, this._glyphMarginWidth);
-		}
 	}
 }

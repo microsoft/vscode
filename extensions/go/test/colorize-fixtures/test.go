@@ -8,6 +8,7 @@ import (
 func main() {
     dnsName := "test-vm-from-go"
     storageAccount := "mystorageaccount"
+    c := make(chan int)
 
     client, err := management.ClientFromPublishSettingsFile("path/to/downloaded.publishsettings", "")
     if err != nil {

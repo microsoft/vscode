@@ -5,19 +5,20 @@
 
 'use strict';
 
-import {$} from 'vs/base/browser/builder';
-import URI from 'vs/base/common/uri';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
-export class DelayedDragHandler {
-
+export class DelayedDragHandler extends Disposable {
 	private timeout: number;
 
 	constructor(container: HTMLElement, callback: () => void) {
-		$(container).on('dragover', () => {
+		super();
+
+		this._register(addDisposableListener(container, 'dragover', () => {
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();
@@ -25,9 +26,13 @@ export class DelayedDragHandler {
 					this.timeout = null;
 				}, 800);
 			}
-		});
+		}));
 
-		$(container).on(['dragleave', 'drop', 'dragend'], () => this.clearDragTimeout());
+		['dragleave', 'drop', 'dragend'].forEach(type => {
+			this._register(addDisposableListener(container, type, () => {
+				this.clearDragTimeout();
+			}));
+		});
 	}
 
 	private clearDragTimeout(): void {
@@ -37,40 +42,45 @@ export class DelayedDragHandler {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
+		super.dispose();
+
 		this.clearDragTimeout();
 	}
 }
 
-export function extractResources(e: DragEvent, externalOnly?: boolean): URI[] {
-	const resources: URI[] = [];
-	if (e.dataTransfer.types.length > 0) {
+// Common data transfers
+export const DataTransfers = {
 
-		// Check for in-app DND
-		if (!externalOnly) {
-			const rawData = e.dataTransfer.getData(e.dataTransfer.types[0]);
-			if (rawData) {
-				try {
-					resources.push(URI.parse(rawData));
-				} catch (error) {
-					// Invalid URI
-				}
-			}
-		}
+	/**
+	 * Application specific resource transfer type
+	 */
+	RESOURCES: 'ResourceURLs',
 
-		// Check for native file transfer
-		if (e.dataTransfer && e.dataTransfer.files) {
-			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
-					try {
-						resources.push(URI.file(e.dataTransfer.files[i].path));
-					} catch (error) {
-						// Invalid URI
-					}
-				}
-			}
-		}
-	}
+	/**
+	 * Browser specific transfer type to download
+	 */
+	DOWNLOAD_URL: 'DownloadURL',
 
-	return resources;
+	/**
+	 * Browser specific transfer type for files
+	 */
+	FILES: 'Files',
+
+	/**
+	 * Typicaly transfer type for copy/paste transfers.
+	 */
+	TEXT: 'text/plain'
+};
+
+export function applyDragImage(event: DragEvent, label: string, clazz: string): void {
+	const dragImage = document.createElement('div');
+	dragImage.className = clazz;
+	dragImage.textContent = label;
+
+	document.body.appendChild(dragImage);
+	event.dataTransfer.setDragImage(dragImage, -10, -10);
+
+	// Removes the element when the DND operation is done
+	setTimeout(() => document.body.removeChild(dragImage), 0);
 }

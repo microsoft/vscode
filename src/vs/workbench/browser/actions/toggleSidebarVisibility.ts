@@ -4,33 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 export class ToggleSidebarVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleSidebarVisibility';
-	public static LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
+	static readonly ID = 'workbench.action.toggleSidebarVisibility';
+	static readonly LABEL = nls.localize('toggleSidebar', "Toggle Side Bar Visibility");
 
-	constructor(id: string, label: string, @IPartService private partService: IPartService) {
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService
+	) {
 		super(id, label);
 
 		this.enabled = !!this.partService;
 	}
 
-	public run(): TPromise<any> {
-		let hideSidebar = !this.partService.isSideBarHidden();
-		this.partService.setSideBarHidden(hideSidebar);
-
-		return TPromise.as(null);
+	run(): TPromise<any> {
+		const hideSidebar = this.partService.isVisible(Parts.SIDEBAR_PART);
+		return this.partService.setSideBarHidden(hideSidebar);
 	}
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarVisibilityAction, ToggleSidebarVisibilityAction.ID, ToggleSidebarVisibilityAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_B }), 'View: Toggle Side Bar Visibility', nls.localize('view', "View"));
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: ToggleSidebarVisibilityAction.ID,
+		title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
+	},
+	order: 1
+});

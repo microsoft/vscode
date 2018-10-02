@@ -1,12 +1,24 @@
+<<<<<<< HEAD
 {	"compilerOptions": {
+=======
+{
+	"compilerOptions": {
+		"target": "es5",
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		"module": "commonjs",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es5",
 		"sourceMap": false,
+		"resolveJsonModule": true,
 		"experimentalDecorators": true,
-		"noLib": true,
-		"newLine": "LF"
-	}
+		// enable JavaScript type checking for the language service
+		// use the tsconfig.build.json for compiling wich disable JavaScript
+		// type checking so that JavaScript file are not transpiled
+		"allowJs": true,
+		"checkJs": true
+	},
+	"exclude": [
+		"node_modules/**"
+	]
 }

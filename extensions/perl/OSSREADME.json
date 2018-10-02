@@ -4,6 +4,7 @@
 	"version": "0.0.0",
 	"license": "TextMate Bundle License",
 	"repositoryURL": "https://github.com/textmate/perl.tmbundle",
+	"description": "The files syntaxes/perl.tmLanguage.json and syntaxes/perl6.tmLanguage.json were derived from Perl.plist and Perl 6.tmLanguage from https://github.com/textmate/perl.tmbundle.",
 	"licenseDetail": [
 		"Copyright (c) textmate-perl.tmbundle project authors",
 		"",

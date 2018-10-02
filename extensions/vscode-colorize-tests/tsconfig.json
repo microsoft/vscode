@@ -1,12 +1,9 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"module": "commonjs",
-		"target": "ES5",
-		"outDir": "out",
-		"noLib": true,
-		"sourceMap": true
+		"outDir": "./out"
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

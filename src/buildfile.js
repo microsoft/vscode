@@ -3,9 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-exports.base = require('./vs/base/buildfile').collectModules();
-exports.editor = require('./vs/editor/buildfile').collectModules();
-exports.languages = require('./vs/languages/buildfile').collectModules();
+exports.base = [{
+	name: 'vs/base/common/worker/simpleWorker',
+	include: [ 'vs/editor/common/services/editorSimpleWorker' ],
+	prepend: [ 'vs/loader.js' ],
+	append: [ 'vs/base/worker/workerMain' ],
+	dest: 'vs/base/worker/workerMain.js'
+}];
+//@ts-ignore review
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/workbench.main']);
 exports.code = require('./vs/code/buildfile').collectModules();
 

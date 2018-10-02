@@ -21,6 +21,10 @@
 	display: inline-block;
 }
 
+.monaco-action-bar.reverse .actions-container {
+	flex-direction: row-reverse;
+}
+
 .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;
@@ -49,8 +53,8 @@
 }
 
 .monaco-action-bar .action-label {
-	font-size: 12px;
-	margin-right: 0.3em;
+	font-size: 11px;
+	margin-right: 4px;
 }
 
 .monaco-action-bar .action-label.octicon {
@@ -71,7 +75,6 @@
 }
 
 .monaco-action-bar.vertical .action-item {
-	padding-bottom: 0.1em;
 	display: block;
 }
 
@@ -101,4 +104,7 @@
 	flex: 1;
 	max-width: 170px;
 	min-width: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }

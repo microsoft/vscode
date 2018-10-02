@@ -5,9 +5,9 @@
 
 'use strict';
 
-import {Server} from 'vs/base/parts/ipc/node/ipc.cp';
-import {SearchChannel} from './searchIpc';
-import {SearchService} from './rawSearchService';
+import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
+import { SearchChannel } from './searchIpc';
+import { SearchService } from './rawSearchService';
 
 const server = new Server();
 const service = new SearchService();

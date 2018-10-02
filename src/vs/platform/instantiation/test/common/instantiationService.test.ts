@@ -5,11 +5,11 @@
 'use strict';
 
 
-import assert = require('assert');
-import {createDecorator, optional, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {InstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {ServiceCollection} from 'vs/platform/instantiation/common/serviceCollection';
-import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import * as assert from 'assert';
+import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 let IService1 = createDecorator<IService1>('service1');
 
@@ -56,7 +56,7 @@ interface IDependentService {
 
 class DependentService implements IDependentService {
 	_serviceBrand: any;
-	constructor( @IService1 service: IService1) {
+	constructor(@IService1 service: IService1) {
 		assert.equal(service.c, 1);
 	}
 
@@ -65,7 +65,7 @@ class DependentService implements IDependentService {
 
 class Service1Consumer {
 
-	constructor( @IService1 service1: IService1) {
+	constructor(@IService1 service1: IService1) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
 	}
@@ -73,7 +73,7 @@ class Service1Consumer {
 
 class Target2Dep {
 
-	constructor( @IService1 service1: IService1, @IService2 service2) {
+	constructor(@IService1 service1: IService1, @IService2 service2) {
 		assert.ok(service1 instanceof Service1);
 		assert.ok(service2 instanceof Service2);
 	}
@@ -88,12 +88,12 @@ class TargetWithStaticParam {
 }
 
 class TargetNotOptional {
-	constructor( @IService1 service1: IService1, @IService2 service2: IService2) {
+	constructor(@IService1 service1: IService1, @IService2 service2: IService2) {
 
 	}
 }
 class TargetOptional {
-	constructor( @IService1 service1: IService1, @optional(IService2) service2: IService2) {
+	constructor(@IService1 service1: IService1, @optional(IService2) service2: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
 		assert.ok(service2 === void 0);
@@ -101,14 +101,14 @@ class TargetOptional {
 }
 
 class DependentServiceTarget {
-	constructor( @IDependentService d) {
+	constructor(@IDependentService d) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 	}
 }
 
 class DependentServiceTarget2 {
-	constructor( @IDependentService d: IDependentService, @IService1 s: IService1) {
+	constructor(@IDependentService d: IDependentService, @IService1 s: IService1) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 		assert.ok(s);
@@ -121,7 +121,7 @@ class ServiceLoop1 implements IService1 {
 	_serviceBrand: any;
 	c = 1;
 
-	constructor( @IService2 s: IService2) {
+	constructor(@IService2 s: IService2) {
 
 	}
 }
@@ -130,7 +130,7 @@ class ServiceLoop2 implements IService2 {
 	_serviceBrand: any;
 	d = true;
 
-	constructor( @IService1 s: IService1) {
+	constructor(@IService1 s: IService1) {
 
 	}
 }
@@ -230,7 +230,7 @@ suite('Instantiation Service', () => {
 	// 	assert.throws(() => service.createInstance(ParameterTarget2));
 	// });
 
-	test('SyncDesc - no dependencies', function() {
+	test('SyncDesc - no dependencies', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
@@ -246,7 +246,7 @@ suite('Instantiation Service', () => {
 		});
 	});
 
-	test('SyncDesc - service with service dependency', function() {
+	test('SyncDesc - service with service dependency', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
@@ -259,7 +259,7 @@ suite('Instantiation Service', () => {
 		});
 	});
 
-	test('SyncDesc - target depends on service future', function() {
+	test('SyncDesc - target depends on service future', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
@@ -272,7 +272,7 @@ suite('Instantiation Service', () => {
 		assert.ok(d2 instanceof DependentServiceTarget2);
 	});
 
-	test('SyncDesc - explode on loop', function() {
+	test('SyncDesc - explode on loop', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
@@ -299,7 +299,7 @@ suite('Instantiation Service', () => {
 		}
 	});
 
-	test('Invoke - get services', function() {
+	test('Invoke - get services', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
@@ -328,7 +328,7 @@ suite('Instantiation Service', () => {
 		assert.equal(service.invokeFunction(test), true);
 	});
 
-	test('Invoke - keeping accessor NOT allowed', function() {
+	test('Invoke - keeping accessor NOT allowed', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
@@ -348,7 +348,7 @@ suite('Instantiation Service', () => {
 		assert.throws(() => cached.get(IService2));
 	});
 
-	test('Invoke - throw error', function() {
+	test('Invoke - throw error', function () {
 		let collection = new ServiceCollection();
 		let service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());

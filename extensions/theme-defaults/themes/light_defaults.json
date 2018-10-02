@@ -1,0 +1,19 @@
+{
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Light Default Colors",
+	"colors": {
+		"editor.background": "#FFFFFF",
+		"editor.foreground": "#000000",
+		"editor.inactiveSelectionBackground": "#E5EBF1",
+		"editorIndentGuide.background": "#D3D3D3",
+		"editorIndentGuide.activeBackground": "#939393",
+		"editor.selectionHighlightBackground": "#ADD6FF4D",
+		"editorSuggestWidget.background": "#F3F3F3",
+		"activityBarBadge.background": "#007ACC",
+		"sideBarTitle.foreground": "#6F6F6F",
+		"list.hoverBackground": "#E8E8E8",
+		"input.placeholderForeground": "#767676",
+		"settings.textInputBorder": "#CECECE",
+		"settings.numberInputBorder": "#CECECE"
+	}
+}

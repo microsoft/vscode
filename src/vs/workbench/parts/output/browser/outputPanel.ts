@@ -3,66 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {Action, IAction} from 'vs/base/common/actions';
-import {Builder} from 'vs/base/browser/builder';
-import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
-import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
-import {OUTPUT_PANEL_ID, IOutputService} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
-import {SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction} from 'vs/workbench/parts/output/browser/outputActions';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IThemeService} from 'vs/workbench/services/themes/common/themeService';
+import 'vs/css!./media/output';
+import * as nls from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Action, IAction } from 'vs/base/common/actions';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
+import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
-export class OutputPanel extends StringEditor {
-
-	private toDispose: lifecycle.IDisposable[];
+export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
+	private scopedInstantiationService: IInstantiationService;
+	private _focus: boolean;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IMessageService messageService: IMessageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IModeService modeService: IModeService,
+		@IConfigurationService private baseConfigurationService: IConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IWindowService windowService: IWindowService
 	) {
-		super(telemetryService, instantiationService, contextService, storageService,
-			messageService, configurationService, eventService, editorService, modeService, themeService);
-		this.toDispose = [];
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+
+		this.scopedInstantiationService = instantiationService;
 	}
 
 	public getId(): string {
 		return OUTPUT_PANEL_ID;
 	}
 
+	public getTitle(): string {
+		return nls.localize('output', "Output");
+	}
+
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
-				this.instantiationService.createInstance(ClearOutputAction)
+				this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
+				this.instantiationService.createInstance(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL),
+				this.instantiationService.createInstance(OpenLogOutputFile)
 			];
 
-			this.actions.forEach(a => {
-				this.toDispose.push(a);
-			});
+			this.actions.forEach(a => this._register(a));
 		}
 
 		return this.actions;
@@ -76,39 +82,73 @@ export class OutputPanel extends StringEditor {
 		return super.getActionItem(action);
 	}
 
-	protected getCodeEditorOptions(): IEditorOptions {
-		const options = super.getCodeEditorOptions();
-		options.wrappingColumn = 0;				// all output editors wrap
-		options.lineNumbers = false;			// all output editors hide line numbers
+	protected getConfigurationOverrides(): IEditorOptions {
+		const options = super.getConfigurationOverrides();
+		options.wordWrap = 'on';				// all output editors wrap
+		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
 		options.rulers = [];
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
+		options.renderLineHighlight = 'none';
+		options.minimap = { enabled: false };
 
-		const channel = this.outputService.getActiveChannel();
-		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
+		const outputConfig = this.baseConfigurationService.getValue('[Log]');
+		if (outputConfig) {
+			if (outputConfig['editor.minimap.enabled']) {
+				options.minimap = { enabled: true };
+			}
+			if ('editor.wordWrap' in outputConfig) {
+				options.wordWrap = outputConfig['editor.wordWrap'];
+			}
+		}
 
 		return options;
 	}
 
-	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		return super.setInput(input, options).then(() => this.revealLastLine());
+	protected getAriaLabel(): string {
+		const channel = this.outputService.getActiveChannel();
+
+		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public createEditor(parent: Builder): void {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		this._focus = !options.preserveFocus;
+		if (input.matches(this.input)) {
+			return TPromise.as(null);
+		}
+
+		if (this.input) {
+			// Dispose previous input (Output panel is not a workbench editor)
+			this.input.dispose();
+		}
+		return super.setInput(input, options, token).then(() => {
+			if (this._focus) {
+				this.focus();
+			}
+			this.revealLastLine(false);
+		});
+	}
+
+	public clearInput(): void {
+		if (this.input) {
+			// Dispose current input (Output panel is not a workbench editor)
+			this.input.dispose();
+		}
+		super.clearInput();
+	}
+
+	protected createEditor(parent: HTMLElement): void {
+		// First create the scoped instantation service and only then construct the editor using the scoped service
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);
 
-		this.setInput(OutputEditorInput.getInstance(this.instantiationService, this.outputService.getActiveChannel()), null);
+		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
 	}
 
-	public focus(): void {
-		super.focus();
-		this.revealLastLine();
-	}
-
-	public dispose(): void {
-		this.toDispose = lifecycle.dispose(this.toDispose);
-		super.dispose();
+	public get instantiationService(): IInstantiationService {
+		return this.scopedInstantiationService;
 	}
 }

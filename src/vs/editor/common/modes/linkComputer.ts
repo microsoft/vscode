@@ -4,112 +4,174 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ILink} from 'vs/editor/common/modes';
+import { ILink } from 'vs/editor/common/modes';
+import { CharCode } from 'vs/base/common/charCode';
+import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { Uint8Matrix } from 'vs/editor/common/core/uint';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
-	getLineContent(lineNumber:number): string;
+	getLineContent(lineNumber: number): string;
+}
+
+const enum State {
+	Invalid = 0,
+	Start = 1,
+	H = 2,
+	HT = 3,
+	HTT = 4,
+	HTTP = 5,
+	F = 6,
+	FI = 7,
+	FIL = 8,
+	BeforeColon = 9,
+	AfterColon = 10,
+	AlmostThere = 11,
+	End = 12,
+	Accept = 13
+}
+
+type Edge = [State, number, State];
+
+class StateMachine {
+
+	private _states: Uint8Matrix;
+	private _maxCharCode: number;
+
+	constructor(edges: Edge[]) {
+		let maxCharCode = 0;
+		let maxState = State.Invalid;
+		for (let i = 0, len = edges.length; i < len; i++) {
+			let [from, chCode, to] = edges[i];
+			if (chCode > maxCharCode) {
+				maxCharCode = chCode;
+			}
+			if (from > maxState) {
+				maxState = from;
+			}
+			if (to > maxState) {
+				maxState = to;
+			}
+		}
+
+		maxCharCode++;
+		maxState++;
+
+		let states = new Uint8Matrix(maxState, maxCharCode, State.Invalid);
+		for (let i = 0, len = edges.length; i < len; i++) {
+			let [from, chCode, to] = edges[i];
+			states.set(from, chCode, to);
+		}
+
+		this._states = states;
+		this._maxCharCode = maxCharCode;
+	}
+
+	public nextState(currentState: State, chCode: number): State {
+		if (chCode < 0 || chCode >= this._maxCharCode) {
+			return State.Invalid;
+		}
+		return this._states.get(currentState, chCode);
+	}
 }
 
 // State machine for http:// or https:// or file://
-const STATE_MAP:{[ch:string]:number}[] = [];
-const START_STATE = 1;
-const END_STATE = 12;
-const ACCEPT_STATE = 13;
+let _stateMachine: StateMachine = null;
+function getStateMachine(): StateMachine {
+	if (_stateMachine === null) {
+		_stateMachine = new StateMachine([
+			[State.Start, CharCode.h, State.H],
+			[State.Start, CharCode.H, State.H],
+			[State.Start, CharCode.f, State.F],
+			[State.Start, CharCode.F, State.F],
 
-STATE_MAP[1] = { 'h': 2, 'H': 2, 'f': 6, 'F': 6 };
-STATE_MAP[2] = { 't': 3, 'T': 3 };
-STATE_MAP[3] = { 't': 4, 'T': 4 };
-STATE_MAP[4] = { 'p': 5, 'P': 5 };
-STATE_MAP[5] = { 's': 9, 'S': 9, ':': 10 };
-STATE_MAP[6] = { 'i': 7, 'I': 7 };
-STATE_MAP[7] = { 'l': 8, 'L': 8 };
-STATE_MAP[8] = { 'e': 9, 'E': 9 };
-STATE_MAP[9] = { ':': 10 };
-STATE_MAP[10] = { '/': 11 };
-STATE_MAP[11] = { '/': END_STATE };
+			[State.H, CharCode.t, State.HT],
+			[State.H, CharCode.T, State.HT],
 
-enum CharacterClass {
+			[State.HT, CharCode.t, State.HTT],
+			[State.HT, CharCode.T, State.HTT],
+
+			[State.HTT, CharCode.p, State.HTTP],
+			[State.HTT, CharCode.P, State.HTTP],
+
+			[State.HTTP, CharCode.s, State.BeforeColon],
+			[State.HTTP, CharCode.S, State.BeforeColon],
+			[State.HTTP, CharCode.Colon, State.AfterColon],
+
+			[State.F, CharCode.i, State.FI],
+			[State.F, CharCode.I, State.FI],
+
+			[State.FI, CharCode.l, State.FIL],
+			[State.FI, CharCode.L, State.FIL],
+
+			[State.FIL, CharCode.e, State.BeforeColon],
+			[State.FIL, CharCode.E, State.BeforeColon],
+
+			[State.BeforeColon, CharCode.Colon, State.AfterColon],
+
+			[State.AfterColon, CharCode.Slash, State.AlmostThere],
+
+			[State.AlmostThere, CharCode.Slash, State.End],
+		]);
+	}
+	return _stateMachine;
+}
+
+
+const enum CharacterClass {
 	None = 0,
 	ForceTermination = 1,
 	CannotEndIn = 2
 }
 
-const _openParens = '('.charCodeAt(0);
-const _closeParens = ')'.charCodeAt(0);
-const _openSquareBracket = '['.charCodeAt(0);
-const _closeSquareBracket = ']'.charCodeAt(0);
-const _openCurlyBracket = '{'.charCodeAt(0);
-const _closeCurlyBracket = '}'.charCodeAt(0);
+let _classifier: CharacterClassifier<CharacterClass> = null;
+function getClassifier(): CharacterClassifier<CharacterClass> {
+	if (_classifier === null) {
+		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
-class CharacterClassifier {
-
-	/**
-	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
-	 */
-	private _asciiMap: CharacterClass[];
-
-	/**
-	 * The entire map (sparse array).
-	 */
-	private _map: CharacterClass[];
-
-	constructor() {
 		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
-		const CANNOT_END_WITH_CHARACTERS = '.,;';
-
-		this._asciiMap = [];
-		for (let i = 0; i < 256; i++) {
-			this._asciiMap[i] = CharacterClass.None;
-		}
-
-		this._map = [];
-
 		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
-			this._set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}
 
+		const CANNOT_END_WITH_CHARACTERS = '.,;';
 		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
-			this._set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
+			_classifier.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
 		}
 	}
-
-	private _set(charCode:number, charClass:CharacterClass): void {
-		if (charCode < 256) {
-			this._asciiMap[charCode] = charClass;
-		}
-		this._map[charCode] = charClass;
-	}
-
-	public classify(charCode:number): CharacterClass {
-		if (charCode < 256) {
-			return this._asciiMap[charCode];
-		}
-
-		let charClass = this._map[charCode];
-		if (charClass) {
-			return charClass;
-		}
-
-		return CharacterClass.None;
-	}
+	return _classifier;
 }
-
-const characterClassifier = new CharacterClassifier();
 
 class LinkComputer {
 
-	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
+	private static _createLink(classifier: CharacterClassifier<CharacterClass>, line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
 		// Do not allow to end link in certain characters...
 		let lastIncludedCharIndex = linkEndIndex - 1;
 		do {
 			const chCode = line.charCodeAt(lastIncludedCharIndex);
-			const chClass = characterClassifier.classify(chCode);
+			const chClass = classifier.get(chCode);
 			if (chClass !== CharacterClass.CannotEndIn) {
 				break;
 			}
 			lastIncludedCharIndex--;
 		} while (lastIncludedCharIndex > linkBeginIndex);
+
+		// Handle links enclosed in parens, square brackets and curlys.
+		if (linkBeginIndex > 0) {
+			const charCodeBeforeLink = line.charCodeAt(linkBeginIndex - 1);
+			const lastCharCodeInLink = line.charCodeAt(lastIncludedCharIndex);
+
+			if (
+				(charCodeBeforeLink === CharCode.OpenParen && lastCharCodeInLink === CharCode.CloseParen)
+				|| (charCodeBeforeLink === CharCode.OpenSquareBracket && lastCharCodeInLink === CharCode.CloseSquareBracket)
+				|| (charCodeBeforeLink === CharCode.OpenCurlyBrace && lastCharCodeInLink === CharCode.CloseCurlyBrace)
+			) {
+				// Do not end in ) if ( is before the link start
+				// Do not end in ] if [ is before the link start
+				// Do not end in } if { is before the link start
+				lastIncludedCharIndex--;
+			}
+		}
 
 		return {
 			range: {
@@ -122,15 +184,19 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model:ILinkComputerTarget):ILink[] {
-		let result:ILink[] = [];
+	public static computeLinks(model: ILinkComputerTarget): ILink[] {
+		const stateMachine = getStateMachine();
+		const classifier = getClassifier();
+
+		let result: ILink[] = [];
 		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			const line = model.getLineContent(i);
 			const len = line.length;
 
 			let j = 0;
 			let linkBeginIndex = 0;
-			let state = START_STATE;
+			let linkBeginChCode = 0;
+			let state = State.Start;
 			let hasOpenParens = false;
 			let hasOpenSquareBracket = false;
 			let hasOpenCurlyBracket = false;
@@ -138,75 +204,83 @@ class LinkComputer {
 			while (j < len) {
 
 				let resetStateMachine = false;
+				const chCode = line.charCodeAt(j);
 
-				if (state === ACCEPT_STATE) {
-					const chCode = line.charCodeAt(j);
-					let chClass:CharacterClass;
+				if (state === State.Accept) {
+					let chClass: CharacterClass;
 					switch (chCode) {
-						case _openParens:
+						case CharCode.OpenParen:
 							hasOpenParens = true;
 							chClass = CharacterClass.None;
 							break;
-						case _closeParens:
+						case CharCode.CloseParen:
 							chClass = (hasOpenParens ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
-						case _openSquareBracket:
+						case CharCode.OpenSquareBracket:
 							hasOpenSquareBracket = true;
 							chClass = CharacterClass.None;
 							break;
-						case _closeSquareBracket:
+						case CharCode.CloseSquareBracket:
 							chClass = (hasOpenSquareBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
-						case _openCurlyBracket:
+						case CharCode.OpenCurlyBrace:
 							hasOpenCurlyBracket = true;
 							chClass = CharacterClass.None;
 							break;
-						case _closeCurlyBracket:
+						case CharCode.CloseCurlyBrace:
 							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
+						/* The following three rules make it that ' or " or ` are allowed inside links if the link began with a different one */
+						case CharCode.SingleQuote:
+							chClass = (linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.DoubleQuote:
+							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
+						case CharCode.BackTick:
+							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
+							break;
 						default:
-							chClass = characterClassifier.classify(chCode);
+							chClass = classifier.get(chCode);
 					}
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
-						result.push(LinkComputer._createLink(line, i, linkBeginIndex, j));
+						result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
 						resetStateMachine = true;
 					}
-				} else if (state === END_STATE) {
-					const chCode = line.charCodeAt(j);
-					const chClass = characterClassifier.classify(chCode);
+				} else if (state === State.End) {
+					const chClass = classifier.get(chCode);
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
 						resetStateMachine = true;
 					} else {
-						state = ACCEPT_STATE;
+						state = State.Accept;
 					}
 				} else {
-					const ch = line.charAt(j);
-					if (STATE_MAP[state].hasOwnProperty(ch)) {
-						state = STATE_MAP[state][ch];
-					} else {
+					state = stateMachine.nextState(state, chCode);
+					if (state === State.Invalid) {
 						resetStateMachine = true;
 					}
 				}
 
 				if (resetStateMachine) {
-					state = START_STATE;
+					state = State.Start;
 					hasOpenParens = false;
 					hasOpenSquareBracket = false;
 					hasOpenCurlyBracket = false;
 
 					// Record where the link started
 					linkBeginIndex = j + 1;
+					linkBeginChCode = chCode;
 				}
 
 				j++;
 			}
 
-			if (state === ACCEPT_STATE) {
-				result.push(LinkComputer._createLink(line, i, linkBeginIndex, len));
+			if (state === State.Accept) {
+				result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, len));
 			}
 
 		}
@@ -220,7 +294,7 @@ class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model:ILinkComputerTarget):ILink[] {
+export function computeLinks(model: ILinkComputerTarget): ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

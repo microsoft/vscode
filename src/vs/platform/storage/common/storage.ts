@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ID = 'storageService';
 
@@ -19,15 +19,6 @@ export interface IStorageService {
 	 * The optional scope argument allows to define the scope of the operation.
 	 */
 	store(key: string, value: any, scope?: StorageScope): void;
-
-	/**
-	 * Swap the value of a stored element to one of the two provided
-	 * values and use the defaultValue if no element with the given key
-	 * exists.
-	 *
-	 * The optional scope argument allows to define the scope of the operation.
-	 */
-	swap(key: string, valueA: any, valueB: any, scope?: StorageScope, defaultValue?: any): void;
 
 	/**
 	 * Delete an element stored under the provided key from local storage.
@@ -63,7 +54,7 @@ export interface IStorageService {
 	getBoolean(key: string, scope?: StorageScope, defaultValue?: boolean): boolean;
 }
 
-export enum StorageScope {
+export const enum StorageScope {
 
 	/**
 	 * The stored data will be scoped to all workspaces of this domain.
@@ -80,9 +71,8 @@ export enum StorageScope {
 export const NullStorageService: IStorageService = {
 	_serviceBrand: undefined,
 	store() { return undefined; },
-	swap() { return undefined; },
 	remove() { return undefined; },
 	get(a, b, defaultValue) { return defaultValue; },
 	getInteger(a, b, defaultValue) { return defaultValue; },
-	getBoolean(a, b, defaultValue) { return defaultValue; },
+	getBoolean(a, b, defaultValue) { return defaultValue; }
 };

@@ -6,15 +6,30 @@
 </head>
 <body>
 	<div id="mocha"></div>
+<<<<<<< HEAD
 	<!--<script src="https://cdn.rawgit.com/jquery/jquery/2.1.4/dist/jquery.min.js"></script>
 	<script src="https://cdn.rawgit.com/Automattic/expect.js/0.3.1/index.js"></script>-->
+=======
+
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	<script src="/out/vs/loader.js"></script>
 	<script src="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.js"></script>
 	<script>
 		mocha.setup('tdd');
 		require.config({
 			baseUrl: '/out',
+<<<<<<< HEAD
 			paths: {assert: '/test/assert.js'}
+=======
+			paths: {
+				assert: '/test/assert.js',
+				sinon: '/node_modules/sinon/pkg/sinon-1.17.7.js'
+			}
+		});
+
+		require({{ modules }}, function () {
+			mocha.run();
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		});
 		require({{ modules }}, function (){mocha.run();});
 	</script>

@@ -5,30 +5,39 @@
 
 'use strict';
 
-import net = require('net');
+import * as net from 'net';
+
+/**
+ * @returns Returns a random port between 1025 and 65535.
+ */
+export function randomPort(): number {
+	let min = 1025;
+	let max = 65535;
+	return min + Math.floor((max - min) * Math.random());
+}
 
 /**
  * Given a start point and a max number of retries, will find a port that
  * is openable. Will return 0 in case no free port can be found.
  */
-export function findFreePort(startPort: number, giveUpAfter: number, timeout: number, clb: (port: number) => void): void {
+export function findFreePort(startPort: number, giveUpAfter: number, timeout: number): Thenable<number> {
 	let done = false;
 
-	const timeoutHandle = setTimeout(() =>  {
-		if (!done) {
-			done = true;
+	return new Promise(resolve => {
+		const timeoutHandle = setTimeout(() => {
+			if (!done) {
+				done = true;
+				return resolve(0);
+			}
+		}, timeout);
 
-			return clb(0);
-		}
-	}, timeout);
-
-	doFindFreePort(startPort, giveUpAfter, (port) => {
-		if (!done) {
-			done = true;
-			clearTimeout(timeoutHandle);
-
-			return clb(port);
-		}
+		doFindFreePort(startPort, giveUpAfter, (port) => {
+			if (!done) {
+				done = true;
+				clearTimeout(timeoutHandle);
+				return resolve(port);
+			}
+		});
 	});
 }
 
@@ -46,7 +55,11 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
 	});
 
-	client.once('error', (err) => {
+	client.once('data', () => {
+		// this listener is required since node.js 8.x
+	});
+
+	client.once('error', (err: Error & { code?: string }) => {
 		dispose(client);
 
 		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
@@ -58,7 +71,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 		return clb(startPort);
 	});
 
-	client.connect(startPort);
+	client.connect(startPort, '127.0.0.1');
 }
 
 function dispose(socket: net.Socket): void {

@@ -4,64 +4,74 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable} from './extHostTypes';
-import {match} from 'vs/base/common/glob';
-import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
-import {FileSystemEvents, ExtHostFileSystemEventServiceShape} from './extHost.protocol';
+import { flatten } from 'vs/base/common/arrays';
+import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
+import { IRelativePattern, parse } from 'vs/base/common/glob';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import * as vscode from 'vscode';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, ResourceFileEditDto, ResourceTextEditDto, MainThreadTextEditorsShape } from './extHost.protocol';
+import * as typeConverter from './extHostTypeConverters';
+import { Disposable, WorkspaceEdit } from './extHostTypes';
 
-export class FileSystemWatcher implements _FileSystemWatcher {
+class FileSystemWatcher implements vscode.FileSystemWatcher {
 
-	private _onDidCreate = new Emitter<Uri>();
-	private _onDidChange = new Emitter<Uri>();
-	private _onDidDelete = new Emitter<Uri>();
+	private _onDidCreate = new Emitter<vscode.Uri>();
+	private _onDidChange = new Emitter<vscode.Uri>();
+	private _onDidDelete = new Emitter<vscode.Uri>();
 	private _disposable: Disposable;
 	private _config: number;
 
-	get ignoreCreateEvents(): boolean{
+	get ignoreCreateEvents(): boolean {
 		return Boolean(this._config & 0b001);
 	}
 
-	get ignoreChangeEvents(): boolean{
+	get ignoreChangeEvents(): boolean {
 		return Boolean(this._config & 0b010);
 	}
 
-	get ignoreDeleteEvents(): boolean{
+	get ignoreDeleteEvents(): boolean {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
+	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
 
 		this._config = 0;
-		if (!ignoreCreateEvents) {
+		if (ignoreCreateEvents) {
 			this._config += 0b001;
 		}
-		if (!ignoreChangeEvents) {
+		if (ignoreChangeEvents) {
 			this._config += 0b010;
 		}
-		if (!ignoreDeleteEvents) {
+		if (ignoreDeleteEvents) {
 			this._config += 0b100;
 		}
+
+		const parsedPattern = parse(globPattern);
 
 		let subscription = dispatcher(events => {
 			if (!ignoreCreateEvents) {
 				for (let created of events.created) {
-					if (match(globPattern, created.fsPath)) {
-						this._onDidCreate.fire(created);
+					let uri = URI.revive(created);
+					if (parsedPattern(uri.fsPath)) {
+						this._onDidCreate.fire(uri);
 					}
 				}
 			}
 			if (!ignoreChangeEvents) {
 				for (let changed of events.changed) {
-					if (match(globPattern, changed.fsPath)) {
-						this._onDidChange.fire(changed);
+					let uri = URI.revive(changed);
+					if (parsedPattern(uri.fsPath)) {
+						this._onDidChange.fire(uri);
 					}
 				}
 			}
 			if (!ignoreDeleteEvents) {
 				for (let deleted of events.deleted) {
-					if (match(globPattern, deleted.fsPath)) {
-						this._onDidDelete.fire(deleted);
+					let uri = URI.revive(deleted);
+					if (parsedPattern(uri.fsPath)) {
+						this._onDidDelete.fire(uri);
 					}
 				}
 			}
@@ -74,32 +84,100 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 		this._disposable.dispose();
 	}
 
-	get onDidCreate(): Event<Uri> {
+	get onDidCreate(): Event<vscode.Uri> {
 		return this._onDidCreate.event;
 	}
 
-	get onDidChange(): Event<Uri> {
+	get onDidChange(): Event<vscode.Uri> {
 		return this._onDidChange.event;
 	}
 
-	get onDidDelete(): Event<Uri> {
+	get onDidDelete(): Event<vscode.Uri> {
 		return this._onDidDelete.event;
 	}
 }
 
-export class ExtHostFileSystemEventService extends ExtHostFileSystemEventServiceShape {
+interface WillRenameListener {
+	extension: IExtensionDescription;
+	(e: vscode.FileWillRenameEvent): any;
+}
 
-	private _emitter = new Emitter<FileSystemEvents>();
+export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
-	constructor() {
-		super();
+	private readonly _onFileEvent = new Emitter<FileSystemEvents>();
+	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
+	private readonly _onWillRenameFile = new AsyncEmitter<vscode.FileWillRenameEvent>();
+
+	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
+
+	constructor(
+		mainContext: IMainContext,
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
+	) {
+		//
 	}
 
-	public createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
-		return new FileSystemWatcher(this._emitter.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
+	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
+		return new FileSystemWatcher(this._onFileEvent.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._emitter.fire(events);
+		this._onFileEvent.fire(events);
+	}
+
+	$onFileRename(oldUri: UriComponents, newUri: UriComponents) {
+		this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(oldUri), newUri: URI.revive(newUri) }));
+	}
+
+	getOnWillRenameFileEvent(extension: IExtensionDescription): Event<vscode.FileWillRenameEvent> {
+		return (listener, thisArg, disposables) => {
+			let wrappedListener = <WillRenameListener><any>function () {
+				listener.apply(thisArg, arguments);
+			};
+			wrappedListener.extension = extension;
+			return this._onWillRenameFile.event(wrappedListener, undefined, disposables);
+		};
+	}
+
+	$onWillRename(oldUriDto: UriComponents, newUriDto: UriComponents): Thenable<any> {
+		const oldUri = URI.revive(oldUriDto);
+		const newUri = URI.revive(newUriDto);
+
+		const edits: WorkspaceEdit[] = [];
+		return Promise.resolve(this._onWillRenameFile.fireAsync((bucket, _listener) => {
+			return {
+				oldUri,
+				newUri,
+				waitUntil: (thenable: Thenable<vscode.WorkspaceEdit>): void => {
+					if (Object.isFrozen(bucket)) {
+						throw new TypeError('waitUntil cannot be called async');
+					}
+					const index = bucket.length;
+					const wrappedThenable = Promise.resolve(thenable).then(result => {
+						// ignore all results except for WorkspaceEdits. Those
+						// are stored in a spare array
+						if (result instanceof WorkspaceEdit) {
+							edits[index] = result;
+						}
+					});
+					bucket.push(wrappedThenable);
+				}
+			};
+		}).then(() => {
+			if (edits.length === 0) {
+				return undefined;
+			}
+			// flatten all WorkspaceEdits collected via waitUntil-call
+			// and apply them in one go.
+			let allEdits = new Array<(ResourceFileEditDto | ResourceTextEditDto)[]>();
+			for (let edit of edits) {
+				if (edit) { // sparse array
+					let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+					allEdits.push(edits);
+				}
+			}
+			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
+		}));
 	}
 }

@@ -1,0 +1,18 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-objective-c/blob/master/grammars/objective-c%2B%2B.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/atom/language-objective-c/commit/7fdf0c40ec1d592a902ed6a7cf5565bdf12e2ae8",
+	"name": "Objective-C++",
+	"scopeName": "source.objcpp",
+	"patterns": [
+		{
+			"include": "source.cpp"
+		},
+		{
+			"include": "source.objc"
+		}
+	]
+}

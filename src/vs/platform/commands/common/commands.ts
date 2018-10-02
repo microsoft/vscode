@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
-import {ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
+export interface ICommandEvent {
+	commandId: string;
+}
+
 export interface ICommandService {
 	_serviceBrand: any;
-	executeCommand<T>(commandId: string, ...args: any[]): TPromise<T>;
-	executeCommand(commandId: string, ...args: any[]): TPromise<any>;
+	onWillExecuteCommand: Event<ICommandEvent>;
+	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T>;
 }
 
 export interface ICommandsMap {
@@ -25,6 +31,7 @@ export interface ICommandHandler {
 }
 
 export interface ICommand {
+	id: string;
 	handler: ICommandHandler;
 	description?: ICommandHandlerDescription;
 }
@@ -36,68 +43,89 @@ export interface ICommandHandlerDescription {
 }
 
 export interface ICommandRegistry {
-	registerCommand(id: string, command: ICommandHandler): void;
-	registerCommand(id: string, command: ICommand): void;
+	registerCommand(id: string, command: ICommandHandler): IDisposable;
+	registerCommand(command: ICommand): IDisposable;
+	registerCommandAlias(oldId: string, newId: string): IDisposable;
 	getCommand(id: string): ICommand;
 	getCommands(): ICommandsMap;
 }
 
-function isCommand(thing: any): thing is ICommand {
-	return typeof thing === 'object'
-		&& typeof (<ICommand>thing).handler === 'function'
-		&& (!(<ICommand>thing).description || typeof (<ICommand>thing).description === 'object');
-}
-
 export const CommandsRegistry: ICommandRegistry = new class implements ICommandRegistry {
 
-	private _commands: { [id: string]: ICommand } = Object.create(null);
+	private _commands = new Map<string, LinkedList<ICommand>>();
 
-	registerCommand(id: string, commandOrDesc: ICommandHandler | ICommand): void {
-		// if (this._commands[id] !== void 0) {
-		// 	throw new Error(`command already exists: '${id}'`);
-		// }
-		if (!commandOrDesc) {
+	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable {
+
+		if (!idOrCommand) {
 			throw new Error(`invalid command`);
 		}
 
-		if (!isCommand(commandOrDesc)) {
-			// simple handler
-			this._commands[id] = { handler: commandOrDesc };
-
-		} else {
-			const {handler, description} = commandOrDesc;
-			if (description) {
-				// add argument validation if rich command metadata is provided
-				const constraints: TypeConstraint[] = [];
-				for (let arg of description.args) {
-					constraints.push(arg.constraint);
-				}
-				this._commands[id] = {
-					description,
-					handler(accessor, ...args: any[]) {
-						validateConstraints(args, constraints);
-						return handler(accessor, ...args);
-					}
-				};
-			} else {
-				// add as simple handler
-				this._commands[id] = { handler };
+		if (typeof idOrCommand === 'string') {
+			if (!handler) {
+				throw new Error(`invalid command`);
 			}
+			return this.registerCommand({ id: idOrCommand, handler });
 		}
+
+		// add argument validation if rich command metadata is provided
+		if (idOrCommand.description) {
+			const constraints: TypeConstraint[] = [];
+			for (let arg of idOrCommand.description.args) {
+				constraints.push(arg.constraint);
+			}
+			const actualHandler = idOrCommand.handler;
+			idOrCommand.handler = function (accessor, ...args: any[]) {
+				validateConstraints(args, constraints);
+				return actualHandler(accessor, ...args);
+			};
+		}
+
+		// find a place to store the command
+		const { id } = idOrCommand;
+
+		let commands = this._commands.get(id);
+		if (!commands) {
+			commands = new LinkedList<ICommand>();
+			this._commands.set(id, commands);
+		}
+
+		let removeFn = commands.unshift(idOrCommand);
+
+		return toDisposable(() => {
+			removeFn();
+			if (this._commands.get(id).isEmpty()) {
+				this._commands.delete(id);
+			}
+		});
+	}
+
+	registerCommandAlias(oldId: string, newId: string): IDisposable {
+		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => {
+			accessor.get(ICommandService).executeCommand(newId, ...args);
+		});
 	}
 
 	getCommand(id: string): ICommand {
-		return this._commands[id];
+		const list = this._commands.get(id);
+		if (!list || list.isEmpty()) {
+			return undefined;
+		}
+		return list.iterator().next().value;
 	}
 
 	getCommands(): ICommandsMap {
-		return this._commands;
+		const result: ICommandsMap = Object.create(null);
+		this._commands.forEach((value, key) => {
+			result[key] = this.getCommand(key);
+		});
+		return result;
 	}
 };
 
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
+	onWillExecuteCommand: () => ({ dispose: () => { } }),
 	executeCommand() {
-		return TPromise.as(undefined);
+		return Promise.resolve(undefined);
 	}
 };

@@ -10,32 +10,39 @@ fi
 function code() {
 	cd $ROOT
 
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		NAME=`node -p "require('./product.json').nameLong"`
+		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
+	else
+		NAME=`node -p "require('./product.json').applicationName"`
+		CODE=".build/electron/$NAME"
+	fi
+
 	# Node modules
-	test -d node_modules || ./scripts/npm.sh install
+	test -d node_modules || yarn
 
 	# Get electron
-	if [[ "$OSTYPE" == "darwin"* ]]; then
-		test -d .build/electron/Code\ -\ OSS.app || ./node_modules/.bin/gulp electron
-	else
-		test -d .build/electron/code-oss || ./node_modules/.bin/gulp electron
+	node build/lib/electron.js || ./node_modules/.bin/gulp electron
+
+
+	# Manage built-in extensions
+	if [[ "$1" == "--builtin" ]]; then
+		exec "$CODE" build/builtin
+		return
 	fi
+
+	# Sync built-in extensions
+	node build/lib/builtInExtensions.js
 
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
 
-	# Launch Code
-	[[ "$OSTYPE" == "darwin"* ]] \
-		&& ELECTRON=.build/electron/Code\ -\ OSS.app/Contents/MacOS/Electron \
-		|| ELECTRON=.build/electron/code-oss
-
-	CLI="$ROOT/out/cli.js"
-
-	ATOM_SHELL_INTERNAL_RUN_AS_NODE=1 \
+	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$ELECTRON" "$CLI" . "$@"
+	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . "$@"
 }
 
 code "$@"

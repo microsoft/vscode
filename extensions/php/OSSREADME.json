@@ -1,29 +1,8 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
 	"name": "language-php",
-	"version": "0.29.0",
+	"version": "0.0.0",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/atom/language-php",
-	"description": "The file snippets/php.json was derived from the Atom package https://atom.io/packages/language-php which was originally converted from the PHP TextMate bundle https://github.com/textmate/php.tmbundle."
-},
-{
-	"name": "textmate/php.tmbundle",
-	"version": "0.0.0",
-	"license": "TextMate Bundle License",
-	"repositoryURL": "https://github.com/textmate/php.tmbundle",
-	"licenseDetail": [
-		"Copyright (c) textmate-php.tmbundle project authors",
-		"",
-		"If not otherwise specified (see below), files in this repository fall under the following license:",
-		"",
-		"Permission to copy, use, modify, sell and distribute this",
-		"software is granted. This software is provided \"as is\" without",
-		"express or implied warranty, and with no claim as to its",
-		"suitability for any purpose.",
-		"",
-		"An exception is made for files in readable text which contain their own license information,",
-		"or files where an accompanying file exists (in the same directory) with a \"-license\" suffix added",
-		"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
-		"\"tidy\" is accompanied by \"tidy-license.txt\"."
-	]
+	"description": "The files snippets/php.json & syntaxes/php.tmLanguage.json were derived from the Atom package https://atom.io/packages/language-php which was originally converted from the PHP TextMate bundle https://github.com/textmate/php.tmbundle."
 }]

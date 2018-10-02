@@ -5,7 +5,8 @@
 
 'use strict';
 
-import sd = require('string_decoder');
+import * as sd from 'string_decoder';
+import { CharCode } from 'vs/base/common/charCode';
 
 /**
  * Convenient way to iterate over output line by line. This helper accommodates for the fact that
@@ -24,7 +25,7 @@ export class LineDecoder {
 		this.remaining = null;
 	}
 
-	public write(buffer: NodeBuffer): string[] {
+	public write(buffer: Buffer): string[] {
 		let result: string[] = [];
 		let value = this.remaining
 			? this.remaining + this.stringDecoder.write(buffer)
@@ -35,17 +36,18 @@ export class LineDecoder {
 		}
 		let start = 0;
 		let ch: number;
-		while (start < value.length && ((ch = value.charCodeAt(start)) === 13 || ch === 10)) {
-			start++;
-		}
 		let idx = start;
 		while (idx < value.length) {
 			ch = value.charCodeAt(idx);
-			if (ch === 13 || ch === 10) {
+			if (ch === CharCode.CarriageReturn || ch === CharCode.LineFeed) {
 				result.push(value.substring(start, idx));
 				idx++;
-				while (idx < value.length && ((ch = value.charCodeAt(idx)) === 13 || ch === 10)) {
-					idx++;
+				if (idx < value.length) {
+					let lastChar = ch;
+					ch = value.charCodeAt(idx);
+					if ((lastChar === CharCode.CarriageReturn && ch === CharCode.LineFeed) || (lastChar === CharCode.LineFeed && ch === CharCode.CarriageReturn)) {
+						idx++;
+					}
 				}
 				start = idx;
 			} else {

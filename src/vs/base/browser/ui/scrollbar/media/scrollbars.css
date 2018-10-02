@@ -52,6 +52,7 @@
 }
 .monaco-scrollable-element > .invisible {
 	opacity: 0;
+	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
 	-webkit-transition: opacity 800ms linear;
@@ -102,17 +103,14 @@
 	background: rgba(121, 121, 121, .4);
 }
 .hc-black .monaco-scrollable-element > .scrollbar > .slider {
-	background: none;
-	outline: 20px solid #6FC3DF; /* IE and Edge render no backgrounds, so we must use borders/outlines */
-	outline-offset: -20px;
-	opacity: .4;
+	background: rgba(111, 195, 223, .6);
 }
 
 .monaco-scrollable-element > .scrollbar > .slider:hover {
 	background: rgba(100, 100, 100, .7);
 }
 .hc-black .monaco-scrollable-element > .scrollbar > .slider:hover {
-	opacity: .85;
+	background: rgba(111, 195, 223, .8);
 }
 
 .monaco-scrollable-element > .scrollbar > .slider.active {
@@ -122,5 +120,29 @@
 	background: rgba(191, 191, 191, .4);
 }
 .hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
-	opacity: .9;
+	background: rgba(111, 195, 223, 1);
+}
+
+.vs-dark .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
+}
+
+.vs-dark .monaco-scrollable-element .shadow.left {
+	box-shadow: #000 6px 0 6px -6px inset;
+}
+
+.vs-dark .monaco-scrollable-element .shadow.top.left {
+	box-shadow: #000 6px 6px 6px -6px inset;
+}
+
+.hc-black .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
+}
+
+.hc-black .monaco-scrollable-element .shadow.left {
+	box-shadow: none;
+}
+
+.hc-black .monaco-scrollable-element .shadow.top.left {
+	box-shadow: none;
 }

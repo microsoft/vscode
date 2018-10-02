@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Formatter = require('vs/base/common/jsonFormatter');
-import assert = require('assert');
+import * as Formatter from 'vs/base/common/jsonFormatter';
+import * as assert from 'assert';
 
 suite('JSON - formatter', () => {
 
@@ -23,7 +23,7 @@ suite('JSON - formatter', () => {
 		let lastEditOffset = content.length;
 		for (let i = edits.length - 1; i >= 0; i--) {
 			let edit = edits[i];
-			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length)
+			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length);
 			assert(typeof edit.content === 'string');
 			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered
 			lastEditOffset = edit.offset;

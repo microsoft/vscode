@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Keybinding} from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IQuickNavigateConfiguration {
-	keybindings: Keybinding[];
+	keybindings: ResolvedKeybinding[];
 }
 
 export interface IAutoFocus {
@@ -41,15 +41,21 @@ export interface IAutoFocus {
 	autoFocusPrefixMatch?: string;
 }
 
-export enum Mode {
+export const enum Mode {
 	PREVIEW,
-	OPEN
+	OPEN,
+	OPEN_IN_BACKGROUND
 }
 
 export interface IEntryRunContext {
 	event: any;
-	keymods: number[];
+	keymods: IKeyMods;
 	quickNavigateConfiguration: IQuickNavigateConfiguration;
+}
+
+export interface IKeyMods {
+	ctrlCmd: boolean;
+	alt: boolean;
 }
 
 export interface IDataSource<T> {
@@ -63,8 +69,8 @@ export interface IDataSource<T> {
 export interface IRenderer<T> {
 	getHeight(entry: T): number;
 	getTemplateId(entry: T): string;
-	renderTemplate(templateId: string, container: HTMLElement): any;
-	renderElement(entry: T, templateId: string, templateData: any): void;
+	renderTemplate(templateId: string, container: HTMLElement, styles: any): any;
+	renderElement(entry: T, templateId: string, templateData: any, styles: any): void;
 	disposeTemplate(templateId: string, templateData: any): void;
 }
 

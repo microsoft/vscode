@@ -6,72 +6,74 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
-import assert = require('vs/base/common/assert');
-import browser = require('vs/base/browser/browser');
-import {Builder, $} from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
-import uuid = require('vs/base/common/uuid');
-import {IDisposable,dispose} from 'vs/base/common/lifecycle';
+import * as assert from 'vs/base/common/assert';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
+import { removeClasses, addClass, hasClass, addClasses, removeClass, hide, show } from 'vs/base/browser/dom';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const css_done = 'done';
 const css_active = 'active';
 const css_infinite = 'infinite';
 const css_discrete = 'discrete';
-const css_progress_container = 'progress-container';
+const css_progress_container = 'monaco-progress-container';
 const css_progress_bit = 'progress-bit';
+
+export interface IProgressBarOptions extends IProgressBarStyles {
+}
+
+export interface IProgressBarStyles {
+	progressBarBackground?: Color;
+}
+
+const defaultOpts = {
+	progressBarBackground: Color.fromHex('#0E70C0')
+};
 
 /**
  * A progress bar with support for infinite or discrete progress.
  */
-export class ProgressBar {
-
-	private toUnbind: IDisposable[];
+export class ProgressBar extends Disposable {
+	private options: IProgressBarOptions;
 	private workedVal: number;
-	private element: Builder;
-	private animationRunning: boolean;
+	private element: HTMLElement;
 	private bit: HTMLElement;
 	private totalWork: number;
-	private animationStopToken: ValueCallback;
-	private currentProgressToken: string;
+	private progressBarBackground: Color;
+	private showDelayedScheduler: RunOnceScheduler;
 
-	constructor(builder: Builder) {
-		this.toUnbind = [];
+	constructor(container: HTMLElement, options?: IProgressBarOptions) {
+		super();
+
+		this.options = options || Object.create(null);
+		mixin(this.options, defaultOpts, false);
+
 		this.workedVal = 0;
 
-		this.create(builder);
+		this.progressBarBackground = this.options.progressBarBackground;
+
+		this._register(this.showDelayedScheduler = new RunOnceScheduler(() => show(this.element), 0));
+
+		this.create(container);
 	}
 
-	private create(parent: Builder): void {
-		parent.div({ 'class': css_progress_container }, (builder) => {
-			this.element = builder.clone();
+	private create(container: HTMLElement): void {
+		this.element = document.createElement('div');
+		addClass(this.element, css_progress_container);
+		container.appendChild(this.element);
 
-			builder.div({ 'class': css_progress_bit }).on([DOM.EventType.ANIMATION_START, DOM.EventType.ANIMATION_END, DOM.EventType.ANIMATION_ITERATION], (e: Event) => {
-				switch (e.type) {
-					case DOM.EventType.ANIMATION_START:
-					case DOM.EventType.ANIMATION_END:
-						this.animationRunning = e.type === DOM.EventType.ANIMATION_START;
-						break;
+		this.bit = document.createElement('div');
+		addClass(this.bit, css_progress_bit);
+		this.element.appendChild(this.bit);
 
-					case DOM.EventType.ANIMATION_ITERATION:
-						if (this.animationStopToken) {
-							this.animationStopToken(null);
-						}
-						break;
-				}
-
-			}, this.toUnbind);
-
-			this.bit = builder.getHTMLElement();
-		});
+		this.applyStyles();
 	}
 
 	private off(): void {
 		this.bit.style.width = 'inherit';
 		this.bit.style.opacity = '1';
-		this.element.removeClass(css_active);
-		this.element.removeClass(css_infinite);
-		this.element.removeClass(css_discrete);
+		removeClasses(this.element, css_active, css_infinite, css_discrete);
 
 		this.workedVal = 0;
 		this.totalWork = undefined;
@@ -80,26 +82,26 @@ export class ProgressBar {
 	/**
 	 * Indicates to the progress bar that all work is done.
 	 */
-	public done(): ProgressBar {
+	done(): ProgressBar {
 		return this.doDone(true);
 	}
 
 	/**
 	 * Stops the progressbar from showing any progress instantly without fading out.
 	 */
-	public stop(): ProgressBar {
+	stop(): ProgressBar {
 		return this.doDone(false);
 	}
 
 	private doDone(delayed: boolean): ProgressBar {
-		this.element.addClass(css_done);
+		addClass(this.element, css_done);
 
 		// let it grow to 100% width and hide afterwards
-		if (!this.element.hasClass(css_infinite)) {
+		if (!hasClass(this.element, css_infinite)) {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				TPromise.timeout(200).then(() => this.off());
+				setTimeout(() => this.off(), 200);
 			} else {
 				this.off();
 			}
@@ -109,7 +111,7 @@ export class ProgressBar {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				TPromise.timeout(200).then(() => this.off());
+				setTimeout(() => this.off(), 200);
 			} else {
 				this.off();
 			}
@@ -121,69 +123,21 @@ export class ProgressBar {
 	/**
 	 * Use this mode to indicate progress that has no total number of work units.
 	 */
-	public infinite(): ProgressBar {
+	infinite(): ProgressBar {
 		this.bit.style.width = '2%';
 		this.bit.style.opacity = '1';
 
-		this.element.removeClass(css_discrete);
-		this.element.removeClass(css_done);
-		this.element.addClass(css_active);
-		this.element.addClass(css_infinite);
-
-		if (!browser.hasCSSAnimationSupport()) {
-
-			// Use a generated token to avoid race conditions from reentrant calls to this function
-			let currentProgressToken = uuid.v4().asHex();
-			this.currentProgressToken = currentProgressToken;
-
-			this.manualInfinite(currentProgressToken);
-		}
+		removeClasses(this.element, css_discrete, css_done);
+		addClasses(this.element, css_active, css_infinite);
 
 		return this;
-	}
-
-	private manualInfinite(currentProgressToken: string): void {
-		this.bit.style.width = '5%';
-		this.bit.style.display = 'inherit';
-
-		let counter = 0;
-		let animationFn: () => void = () => {
-			TPromise.timeout(50).then(() => {
-
-				// Return if another manualInfinite() call was made
-				if (currentProgressToken !== this.currentProgressToken) {
-					return;
-				}
-
-				// Animation done
-				else if (this.element.hasClass(css_done)) {
-					this.bit.style.display = 'none';
-					this.bit.style.left = '0';
-				}
-
-				// Wait until progress bar becomes visible
-				else if (this.element.isHidden()) {
-					animationFn();
-				}
-
-				// Continue Animation until done
-				else {
-					counter = (counter + 1) % 95;
-					this.bit.style.left = counter + '%';
-					animationFn();
-				}
-			});
-		};
-
-		// Start Animation
-		animationFn();
 	}
 
 	/**
 	 * Tells the progress bar the total number of work. Use in combination with workedVal() to let
 	 * the progress bar show the actual progress based on the work that is done.
 	 */
-	public total(value: number): ProgressBar {
+	total(value: number): ProgressBar {
 		this.workedVal = 0;
 		this.totalWork = value;
 
@@ -193,37 +147,52 @@ export class ProgressBar {
 	/**
 	 * Finds out if this progress bar is configured with total work
 	 */
-	public hasTotal(): boolean {
+	hasTotal(): boolean {
 		return !isNaN(this.totalWork);
 	}
 
 	/**
-	 * Tells the progress bar that an amount of work has been completed.
+	 * Tells the progress bar that an increment of work has been completed.
 	 */
-	public worked(value: number): ProgressBar {
-		assert.ok(!isNaN(this.totalWork), 'Total work not set');
-
+	worked(value: number): ProgressBar {
 		value = Number(value);
 		assert.ok(!isNaN(value), 'Value is not a number');
 		value = Math.max(1, value);
 
-		this.workedVal += value;
+		return this.doSetWorked(this.workedVal + value);
+	}
+
+	/**
+	 * Tells the progress bar the total amount of work that has been completed.
+	 */
+	setWorked(value: number): ProgressBar {
+		value = Number(value);
+		assert.ok(!isNaN(value), 'Value is not a number');
+		value = Math.max(1, value);
+
+		return this.doSetWorked(value);
+	}
+
+	private doSetWorked(value: number): ProgressBar {
+		assert.ok(!isNaN(this.totalWork), 'Total work not set');
+
+		this.workedVal = value;
 		this.workedVal = Math.min(this.totalWork, this.workedVal);
 
-		if (this.element.hasClass(css_infinite)) {
-			this.element.removeClass(css_infinite);
+		if (hasClass(this.element, css_infinite)) {
+			removeClass(this.element, css_infinite);
 		}
 
-		if (this.element.hasClass(css_done)) {
-			this.element.removeClass(css_done);
+		if (hasClass(this.element, css_done)) {
+			removeClass(this.element, css_done);
 		}
 
-		if (!this.element.hasClass(css_active)) {
-			this.element.addClass(css_active);
+		if (!hasClass(this.element, css_active)) {
+			addClass(this.element, css_active);
 		}
 
-		if (!this.element.hasClass(css_discrete)) {
-			this.element.addClass(css_discrete);
+		if (!hasClass(this.element, css_discrete)) {
+			addClass(this.element, css_discrete);
 		}
 
 		this.bit.style.width = 100 * (this.workedVal / this.totalWork) + '%';
@@ -231,14 +200,36 @@ export class ProgressBar {
 		return this;
 	}
 
-	/**
-	 * Returns the builder this progress bar is building in.
-	 */
-	public getContainer(): Builder {
-		return $(this.element);
+	getContainer(): HTMLElement {
+		return this.element;
 	}
 
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
+	show(delay?: number): void {
+		this.showDelayedScheduler.cancel();
+
+		if (typeof delay === 'number') {
+			this.showDelayedScheduler.schedule(delay);
+		} else {
+			show(this.element);
+		}
+	}
+
+	hide(): void {
+		hide(this.element);
+		this.showDelayedScheduler.cancel();
+	}
+
+	style(styles: IProgressBarStyles): void {
+		this.progressBarBackground = styles.progressBarBackground;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		if (this.bit) {
+			const background = this.progressBarBackground ? this.progressBarBackground.toString() : null;
+
+			this.bit.style.backgroundColor = background;
+		}
 	}
 }

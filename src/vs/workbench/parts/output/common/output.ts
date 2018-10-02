@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Event from 'vs/base/common/event';
-import {Registry} from 'vs/platform/platform';
-import {createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IEditor} from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Mime type used by the output editor.
@@ -16,14 +17,29 @@ import {IEditor} from 'vs/platform/editor/common/editor';
 export const OUTPUT_MIME = 'text/x-code-output';
 
 /**
+ * Output resource scheme.
+ */
+export const OUTPUT_SCHEME = 'output';
+
+/**
  * Id used by the output editor.
  */
 export const OUTPUT_MODE_ID = 'Log';
 
 /**
- * Output editor input id.
+ * Mime type used by the log output editor.
  */
-export const OUTPUT_EDITOR_INPUT_ID = 'vs.output';
+export const LOG_MIME = 'text/x-code-log-output';
+
+/**
+ * Log resource scheme.
+ */
+export const LOG_SCHEME = 'log';
+
+/**
+ * Id used by the log output editor.
+ */
+export const LOG_MODE_ID = 'log';
 
 /**
  * Output panel id
@@ -38,13 +54,9 @@ export const OUTPUT_SERVICE_ID = 'outputService';
 
 export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
 
-/**
- * The output event informs when new output got received.
- */
-export interface IOutputEvent {
-	output: string;
-	channelId?: string;
-}
+export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
+
+export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
 
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
@@ -61,20 +73,20 @@ export interface IOutputService {
 	getChannel(id: string): IOutputChannel;
 
 	/**
+	 * Returns an array of all known output channels descriptors.
+	 */
+	getChannelDescriptors(): IOutputChannelDescriptor[];
+
+	/**
 	 * Returns the currently active channel.
 	 * Only one channel can be active at a given moment.
 	 */
 	getActiveChannel(): IOutputChannel;
 
 	/**
-	 * Allows to register on Output events.
+	 * Show the channel with the passed id.
 	 */
-	onOutput: Event<IOutputEvent>;
-
-	/**
-	 * Allows to register on a new Output channel getting filled with output.
-	 */
-	onOutputChannel: Event<string>;
+	showChannel(id: string, preserveFocus?: boolean): TPromise<void>;
 
 	/**
 	 * Allows to register on active output channel change.
@@ -95,9 +107,9 @@ export interface IOutputChannel {
 	label: string;
 
 	/**
-	 * Returns the received output content.
+	 * Returns the value indicating whether the channel has scroll locked.
 	 */
-	output: string;
+	scrollLock: boolean;
 
 	/**
 	 * Appends output to the channel.
@@ -105,44 +117,83 @@ export interface IOutputChannel {
 	append(output: string): void;
 
 	/**
-	 * Opens the output for this channel.
+	 * Update the channel.
 	 */
-	show(preserveFocus?: boolean): TPromise<IEditor>;
+	update(): void;
 
 	/**
 	 * Clears all received output for this channel.
 	 */
-	clear(): void;
+	clear(till?: number): void;
+
+	/**
+	 * Disposes the output channel.
+	 */
+	dispose(): void;
+}
+
+export interface IOutputChannelDescriptor {
+	id: string;
+	label: string;
+	log: boolean;
+	file?: URI;
 }
 
 export interface IOutputChannelRegistry {
 
+	readonly onDidRegisterChannel: Event<string>;
+	readonly onDidRemoveChannel: Event<string>;
+
 	/**
 	 * Make an output channel known to the output world.
 	 */
-	registerChannel(id: string, name: string): void;
+	registerChannel(descriptor: IOutputChannelDescriptor): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): { id: string, label: string}[];
+	getChannels(): IOutputChannelDescriptor[];
+
+	/**
+	 * Returns the channel with the passed id.
+	 */
+	getChannel(id: string): IOutputChannelDescriptor;
+
+	/**
+	 * Remove the output channel with the passed id.
+	 */
+	removeChannel(id: string): void;
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: { id: string, label: string }[];
+	private channels = new Map<string, IOutputChannelDescriptor>();
 
-	constructor() {
-		this.channels = [];
-	}
+	private readonly _onDidRegisterChannel: Emitter<string> = new Emitter<string>();
+	readonly onDidRegisterChannel: Event<string> = this._onDidRegisterChannel.event;
 
-	public registerChannel(id: string, label: string): void {
-		if (this.channels.every(channel => channel.id !== id)) {
-			this.channels.push({ id, label });
+	private readonly _onDidRemoveChannel: Emitter<string> = new Emitter<string>();
+	readonly onDidRemoveChannel: Event<string> = this._onDidRemoveChannel.event;
+
+	public registerChannel(descriptor: IOutputChannelDescriptor): void {
+		if (!this.channels.has(descriptor.id)) {
+			this.channels.set(descriptor.id, descriptor);
+			this._onDidRegisterChannel.fire(descriptor.id);
 		}
 	}
 
-	public getChannels(): { id: string, label: string}[] {
-		return this.channels;
+	public getChannels(): IOutputChannelDescriptor[] {
+		const result: IOutputChannelDescriptor[] = [];
+		this.channels.forEach(value => result.push(value));
+		return result;
+	}
+
+	public getChannel(id: string): IOutputChannelDescriptor {
+		return this.channels.get(id);
+	}
+
+	public removeChannel(id: string): void {
+		this.channels.delete(id);
+		this._onDidRemoveChannel.fire(id);
 	}
 }
 

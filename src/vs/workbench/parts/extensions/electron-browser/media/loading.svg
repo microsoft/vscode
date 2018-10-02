@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="575" height="6px">
+  <style>
+    circle {
+      animation: ball 2.5s cubic-bezier(0.000, 1.000, 1.000, 0.000) infinite;
+      fill: #bbb;
+    }
+
+    #balls {
+      animation: balls 2.5s linear infinite;
+    }
+
+    #circle2 { animation-delay: 0.1s; }
+    #circle3 { animation-delay: 0.2s; }
+    #circle4 { animation-delay: 0.3s; }
+    #circle5 { animation-delay: 0.4s; }
+
+    @keyframes ball {
+      from { transform: none; }
+      20% { transform: none; }
+      80% { transform: translateX(864px); }
+      to { transform: translateX(864px); }
+    }
+
+    @keyframes balls {
+      from { transform: translateX(-40px); }
+      to { transform: translateX(30px); }
+    }
+  </style>
+  <g id="balls">
+    <circle class="circle" id="circle1" cx="-115" cy="3" r="3"/>
+    <circle class="circle" id="circle2" cx="-130" cy="3" r="3" />
+    <circle class="circle" id="circle3" cx="-145" cy="3" r="3" />
+    <circle class="circle" id="circle4" cx="-160" cy="3" r="3" />
+    <circle class="circle" id="circle5" cx="-175" cy="3" r="3" />
+  </g>
+</svg>

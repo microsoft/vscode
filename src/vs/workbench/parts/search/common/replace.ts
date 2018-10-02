@@ -7,7 +7,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { EditorInput } from 'vs/workbench/common/editor';
 
 export const IReplaceService = createDecorator<IReplaceService>('replaceService');
 
@@ -27,28 +26,13 @@ export interface IReplaceService {
 	replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
 
 	/**
-	 * Gets the input for the file match
+	 * Opens the replace preview for given file match or match
 	 */
-	getInput(element: FileMatch): TPromise<EditorInput>;
+	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any>;
 
 	/**
-	 * Refresh the input for the file match. If reload, content of repalced editor is reloaded completely
-	 * Otherwise undo the last changes and refreshes with new text.
+	 * Update the replace preview for the given file.
+	 * If `override` is `true`, then replace preview is constructed from source model
 	 */
-	refreshInput(element: FileMatch, reload?: boolean): void;
-
-	/**
-	 * Opens the replace preview editor for given element
-	 */
-	openReplacePreviewEditor(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any>;
-
-	/**
-	 * Return true if preview is already opened otherwise false
-	 */
-	isReplacePreviewEditorOpened(element: FileMatchOrMatch): boolean;
-
-	/**
-	 * Disposes all Inputs
-	 */
-	disposeAllInputs(): void;
+	updateReplacePreview(file: FileMatch, override?: boolean): TPromise<void>;
 }

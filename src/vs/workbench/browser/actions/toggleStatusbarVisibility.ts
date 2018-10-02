@@ -4,32 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
+import { TPromise } from 'vs/base/common/winjs.base';
+import * as nls from 'vs/nls';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleStatusbarVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleStatusbarVisibility';
-	public static LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
+	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
+	static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
-	constructor(id: string, label: string, @IPartService private partService: IPartService) {
+	private static readonly statusbarVisibleKey = 'workbench.statusBar.visible';
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super(id, label);
 
 		this.enabled = !!this.partService;
 	}
 
-	public run(): TPromise<any> {
-		let hideStatusbar = !this.partService.isStatusBarHidden();
-		this.partService.setStatusBarHidden(hideStatusbar);
+	run(): TPromise<any> {
+		const visibility = this.partService.isVisible(Parts.STATUSBAR_PART);
+		const newVisibilityValue = !visibility;
 
-		return TPromise.as(null);
+		return this.configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, ToggleStatusbarVisibilityAction.LABEL), 'View: Toggle Status Bar Visibility', nls.localize('view', "View"));
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: ToggleStatusbarVisibilityAction.ID,
+		title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
+	},
+	order: 3
+});

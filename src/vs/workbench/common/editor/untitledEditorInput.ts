@@ -4,175 +4,257 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import {isUnspecific, guessMimeTypes, MIME_TEXT, suggestFilename} from 'vs/base/common/mime';
-import labels = require('vs/base/common/labels');
-import paths = require('vs/base/common/paths');
-import {UntitledEditorInput as AbstractUntitledEditorInput, EditorModel, EncodingMode, ConfirmResult} from 'vs/workbench/common/editor';
-import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IDisposable, dispose} from 'vs/base/common/lifecycle';
-import {IEventService} from 'vs/platform/event/common/event';
-import {EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/common/events';
-
-import {ITextFileService} from 'vs/workbench/parts/files/common/files'; // TODO@Ben layer breaker
+import { TPromise } from 'vs/base/common/winjs.base';
+import { URI } from 'vs/base/common/uri';
+import { suggestFilename } from 'vs/base/common/mime';
+import { memoize } from 'vs/base/common/decorators';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
+import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 /**
  * An editor input to be used for untitled text buffers.
  */
-export class UntitledEditorInput extends AbstractUntitledEditorInput {
+export class UntitledEditorInput extends EditorInput implements IEncodingSupport {
 
-	public static ID: string = 'workbench.editors.untitledEditorInput';
-	public static SCHEMA: string = 'untitled';
+	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private resource: URI;
-	private hasAssociatedFilePath: boolean;
-	private modeId: string;
+	private _hasAssociatedFilePath: boolean;
 	private cachedModel: UntitledEditorModel;
+	private modelResolve: TPromise<UntitledEditorModel>;
 
-	private toUnbind: IDisposable[];
+	private readonly _onDidModelChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	get onDidModelChangeContent(): Event<void> { return this._onDidModelChangeContent.event; }
+
+	private readonly _onDidModelChangeEncoding: Emitter<void> = this._register(new Emitter<void>());
+	get onDidModelChangeEncoding(): Event<void> { return this._onDidModelChangeEncoding.event; }
 
 	constructor(
-		resource: URI,
+		private resource: URI,
 		hasAssociatedFilePath: boolean,
-		modeId: string,
+		private modeId: string,
+		private initialValue: string,
+		private preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEventService private eventService: IEventService
+		@IHashService private hashService: IHashService,
+		@ILabelService private labelService: ILabelService
 	) {
 		super();
 
-		this.resource = resource;
-		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.modeId = modeId;
-		this.toUnbind = [];
-
-		this.registerListeners();
+		this._hasAssociatedFilePath = hasAssociatedFilePath;
 	}
 
-	private registerListeners(): void {
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_SAVED, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
-		this.toUnbind.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onDirtyStateChange(e)));
+	get hasAssociatedFilePath(): boolean {
+		return this._hasAssociatedFilePath;
 	}
 
-	private onDirtyStateChange(e: UntitledEditorEvent): void {
-		if (e.resource.toString() === this.resource.toString()) {
-			this._onDidChangeDirty.fire();
-		}
-	}
-
-	public getTypeId(): string {
+	getTypeId(): string {
 		return UntitledEditorInput.ID;
 	}
 
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
-	public getName(): string {
-		return this.hasAssociatedFilePath ? paths.basename(this.resource.fsPath) : this.resource.fsPath;
+	getModeId(): string {
+		if (this.cachedModel) {
+			return this.cachedModel.getModeId();
+		}
+
+		return this.modeId;
 	}
 
-	public getDescription(): string {
-		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService) : null;
+	getName(): string {
+		return this.hasAssociatedFilePath ? resources.basenameOrAuthority(this.resource) : this.resource.path;
 	}
 
-	public isDirty(): boolean {
-		return this.cachedModel && this.cachedModel.isDirty();
+	@memoize
+	private get shortDescription(): string {
+		return paths.basename(this.labelService.getUriLabel(resources.dirname(this.resource)));
 	}
 
-	public confirmSave(): ConfirmResult {
+	@memoize
+	private get mediumDescription(): string {
+		return this.labelService.getUriLabel(resources.dirname(this.resource), { relative: true });
+	}
+
+	@memoize
+	private get longDescription(): string {
+		return this.labelService.getUriLabel(resources.dirname(this.resource));
+	}
+
+	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
+		if (!this.hasAssociatedFilePath) {
+			return null;
+		}
+
+		let description: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				description = this.shortDescription;
+				break;
+			case Verbosity.LONG:
+				description = this.longDescription;
+				break;
+			case Verbosity.MEDIUM:
+			default:
+				description = this.mediumDescription;
+				break;
+		}
+
+		return description;
+	}
+
+	@memoize
+	private get shortTitle(): string {
+		return this.getName();
+	}
+
+	@memoize
+	private get mediumTitle(): string {
+		return this.labelService.getUriLabel(this.resource, { relative: true });
+	}
+
+	@memoize
+	private get longTitle(): string {
+		return this.labelService.getUriLabel(this.resource);
+	}
+
+	getTitle(verbosity: Verbosity): string {
+		if (!this.hasAssociatedFilePath) {
+			return this.getName();
+		}
+
+		let title: string;
+		switch (verbosity) {
+			case Verbosity.SHORT:
+				title = this.shortTitle;
+				break;
+			case Verbosity.MEDIUM:
+				title = this.mediumTitle;
+				break;
+			case Verbosity.LONG:
+				title = this.longTitle;
+				break;
+		}
+
+		return title;
+	}
+
+	isDirty(): boolean {
+		if (this.cachedModel) {
+			return this.cachedModel.isDirty();
+		}
+
+		// A disposed input is never dirty, even if it was restored from backup
+		if (this.isDisposed()) {
+			return false;
+		}
+
+		// untitled files with an associated path or associated resource
+		return this.hasAssociatedFilePath;
+	}
+
+	confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
-	public save(): TPromise<boolean> {
+	save(): TPromise<boolean> {
 		return this.textFileService.save(this.resource);
 	}
 
-	public revert(): TPromise<boolean> {
-		this.cachedModel.revert();
+	revert(): TPromise<boolean> {
+		if (this.cachedModel) {
+			this.cachedModel.revert();
+		}
 
 		this.dispose(); // a reverted untitled editor is no longer valid, so we dispose it
 
 		return TPromise.as(true);
 	}
 
-	public suggestFileName(): string {
+	suggestFileName(): string {
 		if (!this.hasAssociatedFilePath) {
-			let mime = this.getMime();
-			if (mime && mime !== MIME_TEXT /* do not suggest when the mime type is simple plain text */) {
-				return suggestFilename(mime, this.getName());
+			if (this.cachedModel) {
+				const modeId = this.cachedModel.getModeId();
+				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
+					return suggestFilename(modeId, this.getName());
+				}
 			}
 		}
 
 		return this.getName();
 	}
 
-	public getMime(): string {
-		if (this.cachedModel) {
-			return this.modeService.getMimeForMode(this.cachedModel.getModeId());
-		}
-
-		return null;
-	}
-
-	public getEncoding(): string {
+	getEncoding(): string {
 		if (this.cachedModel) {
 			return this.cachedModel.getEncoding();
 		}
 
-		return null;
+		return this.preferredEncoding;
 	}
 
-	public setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
+	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
+		this.preferredEncoding = encoding;
+
 		if (this.cachedModel) {
 			this.cachedModel.setEncoding(encoding);
 		}
 	}
 
-	public resolve(refresh?: boolean): TPromise<EditorModel> {
+	resolve(): TPromise<UntitledEditorModel> {
 
-		// Use Cached Model
-		if (this.cachedModel) {
-			return TPromise.as(this.cachedModel);
+		// Join a model resolve if we have had one before
+		if (this.modelResolve) {
+			return this.modelResolve;
 		}
 
 		// Otherwise Create Model and load
-		let model = this.createModel();
-		return model.load().then((resolvedModel: UntitledEditorModel) => {
-			this.cachedModel = resolvedModel;
+		this.cachedModel = this.createModel();
+		this.modelResolve = this.cachedModel.load();
 
-			return this.cachedModel;
-		});
+		return this.modelResolve;
 	}
 
 	private createModel(): UntitledEditorModel {
-		let content = '';
-		let mime = this.modeId;
-		if (!mime && this.hasAssociatedFilePath) {
-			let mimeFromPath = guessMimeTypes(this.resource.fsPath)[0];
-			if (!isUnspecific(mimeFromPath)) {
-				mime = mimeFromPath; // take most specific mime type if file path is associated and mime is specific
-			}
-		}
+		const model = this._register(this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue, this.preferredEncoding));
 
-		return this.instantiationService.createInstance(UntitledEditorModel, content, mime || MIME_TEXT, this.resource, this.hasAssociatedFilePath);
+		// re-emit some events from the model
+		this._register(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));
+		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(model.onDidChangeEncoding(() => this._onDidModelChangeEncoding.fire()));
+
+		return model;
 	}
 
-	public matches(otherInput: any): boolean {
+	getTelemetryDescriptor(): object {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
+
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
+		return descriptor;
+	}
+
+	matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
 
 		if (otherInput instanceof UntitledEditorInput) {
-			let otherUntitledEditorInput = <UntitledEditorInput>otherInput;
+			const otherUntitledEditorInput = <UntitledEditorInput>otherInput;
 
 			// Otherwise compare by properties
 			return otherUntitledEditorInput.resource.toString() === this.resource.toString();
@@ -181,16 +263,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		return false;
 	}
 
-	public dispose(): void {
-
-		// Listeners
-		dispose(this.toUnbind);
-
-		// Model
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
-			this.cachedModel = null;
-		}
+	dispose(): void {
+		this.modelResolve = void 0;
 
 		super.dispose();
 	}

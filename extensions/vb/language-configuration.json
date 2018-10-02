@@ -20,5 +20,11 @@
 		["(", ")"],
 		["\"", "\""],
 		["<", ">"]
-	]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*#Region\\b",
+			"end": "^\\s*#End Region\\b"
+		}
+	}
 }

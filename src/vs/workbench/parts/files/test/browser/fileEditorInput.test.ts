@@ -4,94 +4,78 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/test/utils/instantiationTestUtils';
-import URI from 'vs/base/common/uri';
-import {join} from 'vs/base/common/paths';
-import {FileEditorInput} from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import {ITelemetryService, NullTelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ILifecycleService, NullLifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IFileService} from 'vs/platform/files/common/files';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {ITextFileService} from 'vs/workbench/parts/files/common/files';
-import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {createMockModelService, TestTextFileService, TestEditorGroupService, TestFileService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestQuickOpenService, TestStorageService} from 'vs/test/utils/servicesTestUtils';
-import {IHistoryService} from 'vs/workbench/services/history/common/history';
-import {IEditorGroupService} from 'vs/workbench/services/group/common/groupService';
+import { URI } from 'vs/base/common/uri';
+import { join } from 'vs/base/common/paths';
+import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EncodingMode, Verbosity } from 'vs/workbench/common/editor';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
-function toResource(path) {
-	return URI.file(join('C:\\', path));
+function toResource(self, path) {
+	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
+}
+
+class ServiceAccessor {
+	constructor(
+		@IEditorService public editorService: IEditorService,
+		@ITextFileService public textFileService: TestTextFileService,
+		@IModelService public modelService: IModelService
+	) {
+	}
 }
 
 suite('Files - FileEditorInput', () => {
 
-	let instantiationService: TestInstantiationService;
+	let instantiationService: IInstantiationService;
+	let accessor: ServiceAccessor;
 
 	setup(() => {
-		instantiationService= new TestInstantiationService();
-		instantiationService.stub(IHistoryService, 'getHistory', []);
+		instantiationService = workbenchInstantiationService();
+		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('FileEditorInput', function (done) {
-		let editorService = new TestEditorService(function () { });
-		let eventService = new TestEventService();
-		let telemetryService = NullTelemetryService;
-		let contextService = new TestContextService();
-
-		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(IFileService, <any>TestFileService);
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IWorkbenchEditorService, editorService);
-		instantiationService.stub(IPartService, new TestPartService());
-		instantiationService.stub(IModeService);
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		instantiationService.stub(ITelemetryService, telemetryService);
-		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
-		instantiationService.stub(ILifecycleService, NullLifecycleService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
-
-		let input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
-		let otherInput = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/otherfile.js'), 'text/javascript', void 0);
-		let otherInputSame = instantiationService.createInstance(FileEditorInput, toResource('foo/bar/file.js'), 'text/javascript', void 0);
+	test('Basics', function () {
+		let input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/file.js'), void 0);
+		const otherInput = instantiationService.createInstance(FileEditorInput, toResource(this, 'foo/bar/otherfile.js'), void 0);
+		const otherInputSame = instantiationService.createInstance(FileEditorInput, toResource(this, 'foo/bar/file.js'), void 0);
 
 		assert(input.matches(input));
 		assert(input.matches(otherInputSame));
 		assert(!input.matches(otherInput));
 		assert(!input.matches(null));
-		assert(input.getName());
+		assert.ok(input.getName());
+		assert.ok(input.getDescription());
+		assert.ok(input.getTitle(Verbosity.SHORT));
 
 		assert.strictEqual('file.js', input.getName());
 
-		assert.strictEqual(toResource('/foo/bar/file.js').fsPath, input.getResource().fsPath);
+		assert.strictEqual(toResource(this, '/foo/bar/file.js').fsPath, input.getResource().fsPath);
 		assert(input.getResource() instanceof URI);
 
-		input = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar.html'), 'text/html', void 0);
+		input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar.html'), void 0);
 
-		let inputToResolve:any = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
-		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/file.js'), 'text/javascript', void 0);
+		const inputToResolve: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/file.js'), void 0);
+		const sameOtherInput: FileEditorInput = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/file.js'), void 0);
 
-		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
-			let resolvedModelA = resolved;
-			return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
+		return inputToResolve.resolve().then(resolved => {
+			assert.ok(inputToResolve.isResolved());
+
+			const resolvedModelA = resolved;
+			return inputToResolve.resolve().then(resolved => {
 				assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
 
-				return editorService.resolveEditorModel(sameOtherInput, true).then(function (otherResolved) {
+				return sameOtherInput.resolve().then(otherResolved => {
 					assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
 
-					inputToResolve.dispose(false);
+					inputToResolve.dispose();
 
-					return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
+					return inputToResolve.resolve().then(resolved => {
 						assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
 
 						inputToResolve.dispose();
@@ -99,19 +83,12 @@ suite('Files - FileEditorInput', () => {
 
 						resolvedModelA.dispose();
 
-						return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
+						return inputToResolve.resolve().then(resolved => {
 							assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
-							let stat = (<any>resolved).versionOnDiskStat;
-							return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
-								assert(stat !== (<any>resolved).versionOnDiskStat); // Different stat, because resolve always goes to the server for refresh
-
-								stat = (<any>resolved).versionOnDiskStat;
-								return editorService.resolveEditorModel(inputToResolve, false).then(function (resolved) {
-									assert(stat === (<any>resolved).versionOnDiskStat); // Same stat, because not refreshed
-
-									done();
-								});
+							let stat = (resolved as TextFileEditorModel).getStat();
+							return inputToResolve.resolve().then(resolved => {
+								assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
 							});
 						});
 					});
@@ -120,103 +97,84 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
-	test('Input.matches() - FileEditorInput', function () {
-		let eventService = new TestEventService();
-		let contextService = new TestContextService();
+	test('matches', function () {
+		const input1 = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
+		const input2 = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
+		const input3 = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/other.js'), void 0);
+		const input2Upper = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/UPDATEFILE.js'), void 0);
 
-		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+		assert.strictEqual(input1.matches(null), false);
+		assert.strictEqual(input1.matches(input1), true);
+		assert.strictEqual(input1.matches(input2), true);
+		assert.strictEqual(input1.matches(input3), false);
 
-		let fileEditorInput = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
-		let contentEditorInput2 = instantiationService.createInstance(FileEditorInput, toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0);
-
-		assert.strictEqual(fileEditorInput.matches(null), false);
-		assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);
-		assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
+		assert.strictEqual(input1.matches(input2Upper), false);
 	});
 
-	test('FileTracker - dispose()', function (done) {
-		let editorService = new TestEditorService(function () { });
-		let telemetryService = NullTelemetryService;
-		let contextService = new TestContextService();
+	test('getEncoding/setEncoding', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
-		let eventService = new TestEventService();
+		input.setEncoding('utf16', EncodingMode.Encode);
+		assert.equal(input.getEncoding(), 'utf16');
 
-		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(IFileService, <any>TestFileService);
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IWorkbenchEditorService, editorService);
-		instantiationService.stub(IQuickOpenService, new TestQuickOpenService());
-		instantiationService.stub(IPartService, new TestPartService());
-		instantiationService.stub(IModeService);
-		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		instantiationService.stub(ITelemetryService, telemetryService);
-		instantiationService.stub(ILifecycleService, NullLifecycleService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+		return input.resolve().then((resolved: TextFileEditorModel) => {
+			assert.equal(input.getEncoding(), resolved.getEncoding());
 
-		let tracker = instantiationService.createInstance(FileTracker);
+			resolved.dispose();
+		});
+	});
 
-		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-		return editorService.resolveEditorModel(inputToResolve).then(function (resolved) {
-			return editorService.resolveEditorModel(sameOtherInput).then(function (resolved) {
-				tracker.handleDeleteOrMove(toResource('/bar'), []);
-				assert(!inputToResolve.isDisposed());
-				assert(!sameOtherInput.isDisposed());
+	test('save', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
-				tracker.handleDeleteOrMove(toResource('/fooss5/bar/file2.js'), []);
+		return input.resolve().then((resolved: TextFileEditorModel) => {
+			resolved.textEditorModel.setValue('changed');
+			assert.ok(input.isDirty());
 
-				assert(inputToResolve.isDisposed());
-				assert(sameOtherInput.isDisposed());
+			return input.save().then(() => {
+				assert.ok(!input.isDirty());
 
-				done();
+				resolved.dispose();
 			});
 		});
 	});
 
-	test('FileEditorInput - dispose() also works for folders', function (done) {
-		let editorService = new TestEditorService(function () { });
-		let telemetryService = NullTelemetryService;
-		let contextService = new TestContextService();
+	test('revert', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
 
-		let eventService = new TestEventService();
+		return input.resolve().then((resolved: TextFileEditorModel) => {
+			resolved.textEditorModel.setValue('changed');
+			assert.ok(input.isDirty());
 
-		instantiationService.stub(IEventService, eventService);
-		instantiationService.stub(IWorkspaceContextService, contextService);
-		instantiationService.stub(IFileService, <any>TestFileService);
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IWorkbenchEditorService, editorService);
-		instantiationService.stub(IPartService, new TestPartService());
-		instantiationService.stub(IModeService);
-		instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
-		instantiationService.stub(IQuickOpenService, new TestQuickOpenService());
-		instantiationService.stub(IModelService, createMockModelService(instantiationService));
-		instantiationService.stub(ITelemetryService, telemetryService);
-		instantiationService.stub(ILifecycleService, NullLifecycleService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextFileService, <ITextFileService> instantiationService.createInstance(<any> TestTextFileService));
+			return input.revert().then(() => {
+				assert.ok(!input.isDirty());
 
-		let tracker = instantiationService.createInstance(FileTracker);
-
-		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-		return editorService.resolveEditorModel(inputToResolve, true).then(function (resolved) {
-			return editorService.resolveEditorModel(sameOtherInput, true).then(function (resolved) {
-				tracker.handleDeleteOrMove(toResource('/bar'), []);
-				assert(!inputToResolve.isDisposed());
-				assert(!sameOtherInput.isDisposed());
-
-				tracker.handleDeleteOrMove(toResource('/foo6'), []);
-
-				assert(inputToResolve.isDisposed());
-				assert(sameOtherInput.isDisposed());
-
-				done();
+				resolved.dispose();
 			});
+		});
+	});
+
+	test('resolve handles binary files', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
+
+		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_IS_BINARY));
+
+		return input.resolve().then(resolved => {
+			assert.ok(resolved);
+
+			resolved.dispose();
+		});
+	});
+
+	test('resolve handles too large files', function () {
+		const input = instantiationService.createInstance(FileEditorInput, toResource(this, '/foo/bar/updatefile.js'), void 0);
+
+		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
+
+		return input.resolve().then(resolved => {
+			assert.ok(resolved);
+
+			resolved.dispose();
 		});
 	});
 });

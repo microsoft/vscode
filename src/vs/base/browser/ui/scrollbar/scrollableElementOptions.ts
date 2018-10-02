@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ScrollbarVisibility} from 'vs/base/common/scrollable';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export interface ScrollableElementCreationOptions {
-	/**
-	 * Allow scrollbar rendering to use translate3d.
-	 */
-	canUseTranslate3d: boolean;
 	/**
 	 * The scrollable element should not do any DOM mutations until renderNow() is called.
 	 * Defaults to false.
@@ -31,6 +27,11 @@ export interface ScrollableElementCreationOptions {
 	 */
 	handleMouseWheel?: boolean;
 	/**
+	 * If mouse wheel is handled, make mouse wheel scrolling smooth.
+	 * Defaults to true.
+	 */
+	mouseWheelSmoothScroll?: boolean;
+	/**
 	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
 	 * Defaults to false.
 	 */
@@ -40,6 +41,11 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	scrollYToX?: boolean;
+	/**
+	 * Always consume mouse wheel events, even when scrolling is no longer possible.
+	 * Defaults to false.
+	 */
+	alwaysConsumeMouseWheel?: boolean;
 	/**
 	 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
 	 * Defaults to 1.
@@ -97,27 +103,23 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	verticalHasArrows?: boolean;
-	/**
-	 * Add a `last-scroll-time` attribute to scroll targets or parents of scroll targets matching the following class name
-	 */
-	saveLastScrollTimeOnClassName?: string;
 }
 
 export interface ScrollableElementChangeOptions {
-	canUseTranslate3d: boolean;
 	handleMouseWheel?: boolean;
 	mouseWheelScrollSensitivity?: number;
 }
 
 export interface ScrollableElementResolvedOptions {
-	canUseTranslate3d: boolean;
 	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
 	scrollYToX: boolean;
+	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
+	mouseWheelSmoothScroll: boolean;
 	arrowSize: number;
 	listenOnDomNode: HTMLElement;
 	horizontal: ScrollbarVisibility;
@@ -128,5 +130,4 @@ export interface ScrollableElementResolvedOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
-	saveLastScrollTimeOnClassName: string;
 }

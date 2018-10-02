@@ -7,10 +7,10 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
-			"args": ["${workspaceRoot}/../../", "${workspaceRoot}/test", "--extensionDevelopmentPath=${workspaceRoot}", "--extensionTestsPath=${workspaceRoot}/out" ],
+			"args": ["${workspaceFolder}/../../", "${workspaceFolder}/test", "--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/out" ],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/out",
+			"outDir": "${workspaceFolder}/out",
 			"preLaunchTask": "npm"
 		}
 	]

@@ -5,12 +5,11 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {isValidExtensionDescription as baseIsValidExtensionDescription} from 'vs/platform/extensions/common/extensionsRegistry';
-import {valid} from 'semver';
+import pkg from 'vs/platform/node/package';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
+	hasGreaterEquals: boolean;
 	majorBase: number;
 	majorMustEqual: boolean;
 	minorBase: number;
@@ -27,9 +26,10 @@ export interface INormalizedVersion {
 	minorMustEqual: boolean;
 	patchBase: number;
 	patchMustEqual: boolean;
+	isMinimum: boolean;
 }
 
-const VERSION_REGEXP = /^(\^)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
+const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -46,6 +46,7 @@ export function parseVersion(version: string): IParsedVersion {
 	if (version === '*') {
 		return {
 			hasCaret: false,
+			hasGreaterEquals: false,
 			majorBase: 0,
 			majorMustEqual: false,
 			minorBase: 0,
@@ -58,7 +59,8 @@ export function parseVersion(version: string): IParsedVersion {
 
 	let m = version.match(VERSION_REGEXP);
 	return {
-		hasCaret: !!m[1],
+		hasCaret: m[1] === '^',
+		hasGreaterEquals: m[1] === '>=',
 		majorBase: m[2] === 'x' ? 0 : parseInt(m[2], 10),
 		majorMustEqual: (m[2] === 'x' ? false : true),
 		minorBase: m[4] === 'x' ? 0 : parseInt(m[4], 10),
@@ -96,7 +98,8 @@ export function normalizeVersion(version: IParsedVersion): INormalizedVersion {
 		minorBase: minorBase,
 		minorMustEqual: minorMustEqual,
 		patchBase: patchBase,
-		patchMustEqual: patchMustEqual
+		patchMustEqual: patchMustEqual,
+		isMinimum: version.hasGreaterEquals
 	};
 }
 
@@ -130,6 +133,26 @@ export function isValidVersion(_version: string | INormalizedVersion, _desiredVe
 	let majorMustEqual = desiredVersion.majorMustEqual;
 	let minorMustEqual = desiredVersion.minorMustEqual;
 	let patchMustEqual = desiredVersion.patchMustEqual;
+
+	if (desiredVersion.isMinimum) {
+		if (majorBase > desiredMajorBase) {
+			return true;
+		}
+
+		if (majorBase < desiredMajorBase) {
+			return false;
+		}
+
+		if (minorBase > desiredMinorBase) {
+			return true;
+		}
+
+		if (minorBase < desiredMinorBase) {
+			return false;
+		}
+
+		return patchBase >= desiredPatchBase;
+	}
 
 	// Anything < 1.0.0 is compatible with >= 1.0.0, except exact matches
 	if (majorBase === 1 && desiredMajorBase === 0 && (!majorMustEqual || !minorMustEqual || !patchMustEqual)) {
@@ -194,9 +217,19 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 		return true;
 	}
 
-	let desiredVersion = normalizeVersion(parseVersion(extensionDesc.engines.vscode));
+	return isVersionValid(version, extensionDesc.engines.vscode, notices);
+}
+
+export function isEngineValid(engine: string): boolean {
+	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
+	return engine === '*' || isVersionValid(pkg.version, engine);
+}
+
+export function isVersionValid(currentVersion: string, requestedVersion: string, notices: string[] = []): boolean {
+
+	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
-		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^0.10.0, ^1.2.3, ^0.11.0, ^0.10.x, etc.", extensionDesc.engines.vscode));
+		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^1.22.0, ^1.22.x, etc.", requestedVersion));
 		return false;
 	}
 
@@ -206,35 +239,21 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	if (desiredVersion.majorBase === 0) {
 		// force that major and minor must be specific
 		if (!desiredVersion.majorMustEqual || !desiredVersion.minorMustEqual) {
-			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", extensionDesc.engines.vscode));
+			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", requestedVersion));
 			return false;
 		}
 	} else {
 		// force that major must be specific
 		if (!desiredVersion.majorMustEqual) {
-			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", extensionDesc.engines.vscode));
+			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", requestedVersion));
 			return false;
 		}
 	}
 
-	if (!isValidVersion(version, desiredVersion)) {
-		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", version, extensionDesc.engines.vscode));
+	if (!isValidVersion(currentVersion, desiredVersion)) {
+		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", currentVersion, requestedVersion));
 		return false;
 	}
 
 	return true;
-}
-
-export function isValidExtensionDescription(version: string, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
-
-	if (!baseIsValidExtensionDescription(extensionFolderPath, extensionDescription, notices)) {
-		return false;
-	}
-
-	if (!valid(extensionDescription.version)) {
-		notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
-		return false;
-	}
-
-	return isValidExtensionVersion(version, extensionDescription, notices);
 }

@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import {IframeUtils} from 'vs/base/browser/iframe';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import { IframeUtils } from 'vs/base/browser/iframe';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface IStandardMouseMoveEventData {
-	leftButton:boolean;
-	posx:number;
-	posy:number;
+	leftButton: boolean;
+	posx: number;
+	posy: number;
 }
 
 export interface IEventMerger<R> {
-	(lastEvent:R, currentEvent:MouseEvent):R;
+	(lastEvent: R, currentEvent: MouseEvent): R;
 }
 
 export interface IMouseMoveCallback<R> {
-	(mouseMoveData:R):void;
+	(mouseMoveData: R): void;
 }
 
 export interface IOnStopCallback {
-	():void;
+	(): void;
 }
 
-export function standardMouseMoveMerger(lastEvent:IStandardMouseMoveEventData, currentEvent:MouseEvent):IStandardMouseMoveEventData {
+export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData, currentEvent: MouseEvent): IStandardMouseMoveEventData {
 	let ev = new StandardMouseEvent(currentEvent);
 	ev.preventDefault();
 	return {
@@ -39,10 +39,10 @@ export function standardMouseMoveMerger(lastEvent:IStandardMouseMoveEventData, c
 
 export class GlobalMouseMoveMonitor<R> extends Disposable {
 
-	private hooks:IDisposable[];
-	private mouseMoveEventMerger:IEventMerger<R>;
-	private mouseMoveCallback:IMouseMoveCallback<R>;
-	private onStopCallback:IOnStopCallback;
+	private hooks: IDisposable[];
+	private mouseMoveEventMerger: IEventMerger<R>;
+	private mouseMoveCallback: IMouseMoveCallback<R>;
+	private onStopCallback: IOnStopCallback;
 
 	constructor() {
 		super();
@@ -57,7 +57,7 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 		super.dispose();
 	}
 
-	public stopMonitoring(invokeStopCallback:boolean): void {
+	public stopMonitoring(invokeStopCallback: boolean): void {
 		if (!this.isMonitoring()) {
 			// Not monitoring
 			return;
@@ -80,10 +80,10 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 	}
 
 	public startMonitoring(
-				mouseMoveEventMerger:IEventMerger<R>,
-				mouseMoveCallback:IMouseMoveCallback<R>,
-				onStopCallback:IOnStopCallback
-			): void {
+		mouseMoveEventMerger: IEventMerger<R>,
+		mouseMoveCallback: IMouseMoveCallback<R>,
+		onStopCallback: IOnStopCallback
+	): void {
 		if (this.isMonitoring()) {
 			// I am already hooked
 			return;
@@ -95,31 +95,31 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 		let windowChain = IframeUtils.getSameOriginWindowChain();
 		for (let i = 0; i < windowChain.length; i++) {
 			this.hooks.push(dom.addDisposableThrottledListener(windowChain[i].window.document, 'mousemove',
-				(data:R) => this.mouseMoveCallback(data),
-				(lastEvent:R, currentEvent:MouseEvent) => this.mouseMoveEventMerger(lastEvent, currentEvent)
+				(data: R) => this.mouseMoveCallback(data),
+				(lastEvent: R, currentEvent) => this.mouseMoveEventMerger(lastEvent, currentEvent as MouseEvent)
 			));
-			this.hooks.push(dom.addDisposableListener(windowChain[i].window.document, 'mouseup', (e:MouseEvent) => this.stopMonitoring(true)));
+			this.hooks.push(dom.addDisposableListener(windowChain[i].window.document, 'mouseup', (e: MouseEvent) => this.stopMonitoring(true)));
 		}
 
 		if (IframeUtils.hasDifferentOriginAncestor()) {
 			let lastSameOriginAncestor = windowChain[windowChain.length - 1];
 			// We might miss a mouse up if it happens outside the iframe
 			// This one is for Chrome
-			this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseout', (browserEvent:MouseEvent) => {
+			this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseout', (browserEvent: MouseEvent) => {
 				let e = new StandardMouseEvent(browserEvent);
 				if (e.target.tagName.toLowerCase() === 'html') {
 					this.stopMonitoring(true);
 				}
 			}));
 			// This one is for FF
-			this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseover', (browserEvent:MouseEvent) => {
+			this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseover', (browserEvent: MouseEvent) => {
 				let e = new StandardMouseEvent(browserEvent);
 				if (e.target.tagName.toLowerCase() === 'html') {
 					this.stopMonitoring(true);
 				}
 			}));
 			// This one is for IE
-			this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document.body, 'mouseleave', (browserEvent:MouseEvent) => {
+			this.hooks.push(dom.addDisposableListener(lastSameOriginAncestor.window.document.body, 'mouseleave', (browserEvent: MouseEvent) => {
 				this.stopMonitoring(true);
 			}));
 		}

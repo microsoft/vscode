@@ -3,63 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IRange, Range } from 'vs/base/common/range';
+
 export interface IItem {
 	size: number;
-}
-
-export interface IRange {
-	start: number;
-	end: number;
 }
 
 export interface IRangedGroup {
 	range: IRange;
 	size: number;
-}
-
-/**
- * Returns the intersection between two ranges as a range itself.
- * Returns `null` if the intersection is empty.
- */
-export function intersect(one: IRange, other: IRange): IRange {
-	if (one.start >= other.end || other.start >= one.end) {
-		return null;
-	}
-
-	const start = Math.max(one.start, other.start);
-	const end = Math.min(one.end, other.end);
-
-	if (end - start <= 0) {
-		return null;
-	}
-
-	return { start, end };
-}
-
-export function isEmpty(range: IRange): boolean {
-	return range.end - range.start <= 0;
-}
-
-export function relativeComplement(one: IRange, other: IRange): IRange[] {
-	const result: IRange[] = [];
-	const first = { start: one.start, end: Math.min(other.start, one.end) };
-	const second = { start: Math.max(other.end, one.start), end: one.end };
-
-	if (!isEmpty(first)) {
-		result.push(first);
-	}
-
-	if (!isEmpty(second)) {
-		result.push(second);
-	}
-
-	return result;
-}
-
-export function each(range: IRange, fn: (index : number) => void): void {
-	for (let i = range.start; i < range.end; i++) {
-		fn(i);
-	}
 }
 
 /**
@@ -78,9 +30,9 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 			break;
 		}
 
-		const intersection = intersect(range, r.range);
+		const intersection = Range.intersect(range, r.range);
 
-		if (!intersection) {
+		if (Range.isEmpty(intersection)) {
 			continue;
 		}
 
@@ -96,7 +48,7 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 /**
  * Shifts a range by that `much`.
  */
-function shift({ start, end }: IRange, much: number): IRange {
+export function shift({ start, end }: IRange, much: number): IRange {
 	return { start: start + much, end: end + much };
 }
 

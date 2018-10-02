@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Json = require('./json');
+import * as Json from './json';
 
 export interface FormattingOptions {
 	/**
@@ -27,18 +27,18 @@ export interface Edit {
 	content: string;
 }
 
-export function applyEdit(text: string, edit: Edit) : string {
+export function applyEdit(text: string, edit: Edit): string {
 	return text.substring(0, edit.offset) + edit.content + text.substring(edit.offset + edit.length);
 }
 
-export function applyEdits(text: string, edits: Edit[]) : string {
+export function applyEdits(text: string, edits: Edit[]): string {
 	for (let i = edits.length - 1; i >= 0; i--) {
 		text = applyEdit(text, edits[i]);
 	}
 	return text;
 }
 
-export function format(documentText: string, range: { offset: number, length: number}, options: FormattingOptions): Edit[] {
+export function format(documentText: string, range: { offset: number, length: number }, options: FormattingOptions): Edit[] {
 	let initialIndentLevel: number;
 	let value: string;
 	let rangeStart: number;
@@ -198,7 +198,7 @@ function getEOL(options: FormattingOptions, text: string): string {
 	for (let i = 0; i < text.length; i++) {
 		let ch = text.charAt(i);
 		if (ch === '\r') {
-			if (i + 1 < text.length && text.charAt(i+1) === '\n') {
+			if (i + 1 < text.length && text.charAt(i + 1) === '\n') {
 				return '\r\n';
 			}
 			return '\r';

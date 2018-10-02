@@ -4,25 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {onUnexpectedError} from 'vs/base/common/errors';
-import {IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor} from 'vs/editor/common/controller/oneCursor';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IConfiguration, IModel, ISelection} from 'vs/editor/common/editorCommon';
-import {IAutoClosingPair} from 'vs/editor/common/modes';
-import {Position} from 'vs/editor/common/core/position';
-import {LanguageConfigurationRegistry} from 'vs/editor/common/modes/languageConfigurationRegistry';
-
-export interface ICursorCollectionState {
-	primary: IOneCursorState;
-	secondary: IOneCursorState[];
-}
+import { OneCursor } from 'vs/editor/common/controller/oneCursor';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
+import { CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
 
 export class CursorCollection {
 
-	private editorId: number;
-	private model: IModel;
-	private configuration: IConfiguration;
-	private modeConfiguration: IModeConfiguration;
+	private context: CursorContext;
 
 	private primaryCursor: OneCursor;
 	private secondaryCursors: OneCursor[];
@@ -30,259 +19,222 @@ export class CursorCollection {
 	// An index which identifies the last cursor that was added / moved (think Ctrl+drag)
 	private lastAddedCursorIndex: number;
 
-	private viewModelHelper:IViewModelHelper;
-
-	constructor(editorId: number, model: IModel, configuration: IConfiguration, viewModelHelper:IViewModelHelper) {
-		this.editorId = editorId;
-		this.model = model;
-		this.configuration = configuration;
-		this.viewModelHelper = viewModelHelper;
-		this.modeConfiguration = this.getModeConfiguration();
-
-		this.primaryCursor = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
+	constructor(context: CursorContext) {
+		this.context = context;
+		this.primaryCursor = new OneCursor(context);
 		this.secondaryCursors = [];
 		this.lastAddedCursorIndex = 0;
 	}
 
 	public dispose(): void {
-		this.primaryCursor.dispose();
+		this.primaryCursor.dispose(this.context);
 		this.killSecondaryCursors();
 	}
 
-	public saveState(): ICursorCollectionState {
-		return {
-			primary: this.primaryCursor.saveState(),
-			secondary: this.secondaryCursors.map(c => c.saveState())
-		};
-	}
-
-	public restoreState(state: ICursorCollectionState): void {
-		this.primaryCursor.restoreState(state.primary);
-		this.killSecondaryCursors();
-		for (var i = 0; i < state.secondary.length; i++) {
-			this.addSecondaryCursor(null);
-			this.secondaryCursors[i].restoreState(state.secondary[i]);
+	public startTrackingSelections(): void {
+		this.primaryCursor.startTrackingSelection(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			this.secondaryCursors[i].startTrackingSelection(this.context);
 		}
 	}
 
-
-	public updateMode(): void {
-		this.modeConfiguration = this.getModeConfiguration();
-		this.getAll().forEach((cursor) => {
-			cursor.updateModeConfiguration(this.modeConfiguration);
-		});
+	public stopTrackingSelections(): void {
+		this.primaryCursor.stopTrackingSelection(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			this.secondaryCursors[i].stopTrackingSelection(this.context);
+		}
 	}
 
-	public getAll(): OneCursor[] {
-		var result: OneCursor[] = [];
-		result.push(this.primaryCursor);
-		result = result.concat(this.secondaryCursors);
+	public updateContext(context: CursorContext): void {
+		this.context = context;
+	}
+
+	public ensureValidState(): void {
+		this.primaryCursor.ensureValidState(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			this.secondaryCursors[i].ensureValidState(this.context);
+		}
+	}
+
+	public readSelectionFromMarkers(): Selection[] {
+		let result: Selection[] = [];
+		result[0] = this.primaryCursor.readSelectionFromMarkers(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].readSelectionFromMarkers(this.context);
+		}
 		return result;
 	}
 
-	public getPosition(index: number): Position {
-		if (index === 0) {
-			return this.primaryCursor.getPosition();
-		} else {
-			return this.secondaryCursors[index - 1].getPosition();
-		}
-	}
-
-	public getViewPosition(index: number): Position {
-		if (index === 0) {
-			return this.primaryCursor.getViewPosition();
-		} else {
-			return this.secondaryCursors[index - 1].getViewPosition();
-		}
-	}
-
-	public getPositions(): Position[] {
-		var result: Position[] = [];
-		result.push(this.primaryCursor.getPosition());
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getPosition());
+	public getAll(): CursorState[] {
+		let result: CursorState[] = [];
+		result[0] = this.primaryCursor.asCursorState();
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].asCursorState();
 		}
 		return result;
 	}
 
 	public getViewPositions(): Position[] {
-		var result: Position[] = [];
-		result.push(this.primaryCursor.getViewPosition());
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getViewPosition());
+		let result: Position[] = [];
+		result[0] = this.primaryCursor.viewState.position;
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].viewState.position;
 		}
 		return result;
 	}
 
-	public getSelection(index: number): Selection {
-		if (index === 0) {
-			return this.primaryCursor.getSelection();
-		} else {
-			return this.secondaryCursors[index - 1].getSelection();
-		}
-	}
-
 	public getSelections(): Selection[] {
-		var result: Selection[] = [];
-		result.push(this.primaryCursor.getSelection());
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getSelection());
+		let result: Selection[] = [];
+		result[0] = this.primaryCursor.modelState.selection;
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].modelState.selection;
 		}
 		return result;
 	}
 
 	public getViewSelections(): Selection[] {
-		var result: Selection[] = [];
-		result.push(this.primaryCursor.getViewSelection());
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result.push(this.secondaryCursors[i].getViewSelection());
+		let result: Selection[] = [];
+		result[0] = this.primaryCursor.viewState.selection;
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].viewState.selection;
 		}
 		return result;
 	}
 
-	public setSelections(selections: ISelection[], viewSelections?: ISelection[]): void {
-		this.primaryCursor.setSelection(selections[0]);
-		this._setSecondarySelections(selections.slice(1));
-
-		if (viewSelections) {
-			this.primaryCursor.setViewSelection(viewSelections[0]);
-			for (let i = 0; i < this.secondaryCursors.length; i++) {
-				this.secondaryCursors[i].setViewSelection(viewSelections[i + 1]);
-			}
-		}
+	public setSelections(selections: ISelection[]): void {
+		this.setStates(CursorState.fromModelSelections(selections));
 	}
 
-	public killSecondaryCursors(): boolean {
-		return (this._setSecondarySelections([]) > 0);
+	public getPrimaryCursor(): CursorState {
+		return this.primaryCursor.asCursorState();
 	}
 
-	public normalize(): void {
-		this._mergeCursorsIfNecessary();
-
-		this.primaryCursor.adjustBracketDecorations();
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			this.secondaryCursors[i].adjustBracketDecorations();
+	public setStates(states: CursorState[]): void {
+		if (states === null) {
+			return;
 		}
-	}
-
-	public addSecondaryCursor(selection: ISelection): void {
-		var newCursor = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
-		if (selection) {
-			newCursor.setSelection(selection);
-		}
-		this.secondaryCursors.push(newCursor);
-		this.lastAddedCursorIndex = this.secondaryCursors.length;
-	}
-
-	public duplicateCursors(): void {
-		var newCursors:OneCursor[] = [];
-
-		newCursors.push(this.primaryCursor.duplicate());
-		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			newCursors.push(this.secondaryCursors[i].duplicate());
-		}
-
-		this.secondaryCursors = this.secondaryCursors.concat(newCursors);
-		this.lastAddedCursorIndex = this.secondaryCursors.length;
-	}
-
-	public getLastAddedCursor(): OneCursor {
-		if (this.secondaryCursors.length === 0 || this.lastAddedCursorIndex === 0) {
-			return this.primaryCursor;
-		}
-		return this.secondaryCursors[this.lastAddedCursorIndex - 1];
+		this.primaryCursor.setState(this.context, states[0].modelState, states[0].viewState);
+		this._setSecondaryStates(states.slice(1));
 	}
 
 	/**
 	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
-	 * Return value:
-	 * 		- a positive number indicates the number of secondary cursors added
-	 * 		- a negative number indicates the number of secondary cursors removed
-	 * 		- 0 indicates that no changes have been done to the secondary cursors list
 	 */
-	private _setSecondarySelections(secondarySelections: ISelection[]): number {
-		var secondaryCursorsLength = this.secondaryCursors.length;
-		var secondarySelectionsLength = secondarySelections.length;
-		var returnValue = secondarySelectionsLength - secondaryCursorsLength;
+	private _setSecondaryStates(secondaryStates: CursorState[]): void {
+		const secondaryCursorsLength = this.secondaryCursors.length;
+		const secondaryStatesLength = secondaryStates.length;
 
-		if (secondaryCursorsLength < secondarySelectionsLength) {
-			var createCnt = secondarySelectionsLength - secondaryCursorsLength;
-			for (var i = 0; i < createCnt; i++) {
-				this.addSecondaryCursor(null);
+		if (secondaryCursorsLength < secondaryStatesLength) {
+			let createCnt = secondaryStatesLength - secondaryCursorsLength;
+			for (let i = 0; i < createCnt; i++) {
+				this._addSecondaryCursor();
 			}
-		} else if (secondaryCursorsLength > secondarySelectionsLength) {
-			var removeCnt = secondaryCursorsLength - secondarySelectionsLength;
-			for (var i = 0; i < removeCnt; i++) {
+		} else if (secondaryCursorsLength > secondaryStatesLength) {
+			let removeCnt = secondaryCursorsLength - secondaryStatesLength;
+			for (let i = 0; i < removeCnt; i++) {
 				this._removeSecondaryCursor(this.secondaryCursors.length - 1);
 			}
 		}
 
-		for (var i = 0; i < secondarySelectionsLength; i++) {
-			if (secondarySelections[i]) {
-				this.secondaryCursors[i].setSelection(secondarySelections[i]);
-			}
+		for (let i = 0; i < secondaryStatesLength; i++) {
+			this.secondaryCursors[i].setState(this.context, secondaryStates[i].modelState, secondaryStates[i].viewState);
 		}
+	}
 
-		return returnValue;
+	public killSecondaryCursors(): void {
+		this._setSecondaryStates([]);
+	}
+
+	private _addSecondaryCursor(): void {
+		this.secondaryCursors.push(new OneCursor(this.context));
+		this.lastAddedCursorIndex = this.secondaryCursors.length;
+	}
+
+	public getLastAddedCursorIndex(): number {
+		if (this.secondaryCursors.length === 0 || this.lastAddedCursorIndex === 0) {
+			return 0;
+		}
+		return this.lastAddedCursorIndex;
 	}
 
 	private _removeSecondaryCursor(removeIndex: number): void {
 		if (this.lastAddedCursorIndex >= removeIndex + 1) {
 			this.lastAddedCursorIndex--;
 		}
-		this.secondaryCursors[removeIndex].dispose();
+		this.secondaryCursors[removeIndex].dispose(this.context);
 		this.secondaryCursors.splice(removeIndex, 1);
 	}
 
-	private _mergeCursorsIfNecessary(): void {
+	private _getAll(): OneCursor[] {
+		let result: OneCursor[] = [];
+		result[0] = this.primaryCursor;
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i];
+		}
+		return result;
+	}
+
+	public normalize(): void {
 		if (this.secondaryCursors.length === 0) {
 			return;
 		}
-		var cursors = this.getAll();
-		var sortedCursors:{
+		let cursors = this._getAll();
+
+		interface SortedCursor {
 			index: number;
 			selection: Selection;
-			viewSelection: Selection;
-		}[] = [];
-		for (var i = 0; i < cursors.length; i++) {
+		}
+		let sortedCursors: SortedCursor[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
 			sortedCursors.push({
 				index: i,
-				selection: cursors[i].getSelection(),
-				viewSelection: cursors[i].getViewSelection()
+				selection: cursors[i].modelState.selection,
 			});
 		}
-
 		sortedCursors.sort((a, b) => {
-			if (a.viewSelection.startLineNumber === b.viewSelection.startLineNumber) {
-				return a.viewSelection.startColumn - b.viewSelection.startColumn;
+			if (a.selection.startLineNumber === b.selection.startLineNumber) {
+				return a.selection.startColumn - b.selection.startColumn;
 			}
-			return a.viewSelection.startLineNumber - b.viewSelection.startLineNumber;
+			return a.selection.startLineNumber - b.selection.startLineNumber;
 		});
 
-		for (var sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
-			var current = sortedCursors[sortedCursorIndex];
-			var next = sortedCursors[sortedCursorIndex + 1];
+		for (let sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
+			const current = sortedCursors[sortedCursorIndex];
+			const next = sortedCursors[sortedCursorIndex + 1];
 
-			var currentViewSelection = current.viewSelection;
-			var nextViewSelection = next.viewSelection;
+			const currentSelection = current.selection;
+			const nextSelection = next.selection;
 
-			if (nextViewSelection.getStartPosition().isBeforeOrEqual(currentViewSelection.getEndPosition())) {
-				var winnerSortedCursorIndex = current.index < next.index ? sortedCursorIndex : sortedCursorIndex + 1;
-				var looserSortedCursorIndex = current.index < next.index ? sortedCursorIndex + 1 : sortedCursorIndex;
+			if (!this.context.config.multiCursorMergeOverlapping) {
+				continue;
+			}
 
-				var looserIndex = sortedCursors[looserSortedCursorIndex].index;
-				var winnerIndex = sortedCursors[winnerSortedCursorIndex].index;
+			let shouldMergeCursors: boolean;
+			if (nextSelection.isEmpty() || currentSelection.isEmpty()) {
+				// Merge touching cursors if one of them is collapsed
+				shouldMergeCursors = nextSelection.getStartPosition().isBeforeOrEqual(currentSelection.getEndPosition());
+			} else {
+				// Merge only overlapping cursors (i.e. allow touching ranges)
+				shouldMergeCursors = nextSelection.getStartPosition().isBefore(currentSelection.getEndPosition());
+			}
 
-				var looserSelection = sortedCursors[looserSortedCursorIndex].selection;
-				var winnerSelection = sortedCursors[winnerSortedCursorIndex].selection;
+			if (shouldMergeCursors) {
+				const winnerSortedCursorIndex = current.index < next.index ? sortedCursorIndex : sortedCursorIndex + 1;
+				const looserSortedCursorIndex = current.index < next.index ? sortedCursorIndex + 1 : sortedCursorIndex;
+
+				const looserIndex = sortedCursors[looserSortedCursorIndex].index;
+				const winnerIndex = sortedCursors[winnerSortedCursorIndex].index;
+
+				const looserSelection = sortedCursors[looserSortedCursorIndex].selection;
+				const winnerSelection = sortedCursors[winnerSortedCursorIndex].selection;
 
 				if (!looserSelection.equalsSelection(winnerSelection)) {
-					var resultingRange = looserSelection.plusRange(winnerSelection);
-					var looserSelectionIsLTR = (looserSelection.selectionStartLineNumber === looserSelection.startLineNumber && looserSelection.selectionStartColumn === looserSelection.startColumn);
-					var winnerSelectionIsLTR = (winnerSelection.selectionStartLineNumber === winnerSelection.startLineNumber && winnerSelection.selectionStartColumn === winnerSelection.startColumn);
+					const resultingRange = looserSelection.plusRange(winnerSelection);
+					const looserSelectionIsLTR = (looserSelection.selectionStartLineNumber === looserSelection.startLineNumber && looserSelection.selectionStartColumn === looserSelection.startColumn);
+					const winnerSelectionIsLTR = (winnerSelection.selectionStartLineNumber === winnerSelection.startLineNumber && winnerSelection.selectionStartColumn === winnerSelection.startColumn);
 
 					// Give more importance to the last added cursor (think Ctrl-dragging + hitting another cursor)
-					var resultingSelectionIsLTR:boolean;
+					let resultingSelectionIsLTR: boolean;
 					if (looserIndex === this.lastAddedCursorIndex) {
 						resultingSelectionIsLTR = looserSelectionIsLTR;
 						this.lastAddedCursorIndex = winnerIndex;
@@ -291,7 +243,7 @@ export class CursorCollection {
 						resultingSelectionIsLTR = winnerSelectionIsLTR;
 					}
 
-					var resultingSelection: Selection;
+					let resultingSelection: Selection;
 					if (resultingSelectionIsLTR) {
 						resultingSelection = new Selection(resultingRange.startLineNumber, resultingRange.startColumn, resultingRange.endLineNumber, resultingRange.endColumn);
 					} else {
@@ -299,10 +251,11 @@ export class CursorCollection {
 					}
 
 					sortedCursors[winnerSortedCursorIndex].selection = resultingSelection;
-					cursors[winnerIndex].setSelection(resultingSelection);
+					const resultingState = CursorState.fromModelSelection(resultingSelection);
+					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
 				}
 
-				for (var j = 0; j < sortedCursors.length; j++) {
+				for (let j = 0; j < sortedCursors.length; j++) {
 					if (sortedCursors[j].index > looserIndex) {
 						sortedCursors[j].index--;
 					}
@@ -315,65 +268,5 @@ export class CursorCollection {
 				sortedCursorIndex--;
 			}
 		}
-	}
-
-	private getModeConfiguration(): IModeConfiguration {
-		let i: number;
-
-		let result: IModeConfiguration = {
-			electricChars: {},
-			autoClosingPairsOpen: {},
-			autoClosingPairsClose: {},
-			surroundingPairs: {}
-		};
-
-
-		let electricCharSupport = LanguageConfigurationRegistry.getElectricCharacterSupport(this.model.getMode().getId());
-		if (electricCharSupport) {
-			let electricChars: string[] = null;
-			try {
-				electricChars = electricCharSupport.getElectricCharacters();
-			} catch(e) {
-				onUnexpectedError(e);
-				electricChars = null;
-			}
-			if (electricChars) {
-				for (i = 0; i < electricChars.length; i++) {
-					result.electricChars[electricChars[i]] = true;
-				}
-			}
-		}
-
-		let characterPairSupport = LanguageConfigurationRegistry.getCharacterPairSupport(this.model.getMode().getId());
-		if (characterPairSupport) {
-			let autoClosingPairs: IAutoClosingPair[];
-			try {
-				autoClosingPairs = characterPairSupport.getAutoClosingPairs();
-			} catch(e) {
-				onUnexpectedError(e);
-				autoClosingPairs = null;
-			}
-			if (autoClosingPairs) {
-				for (i = 0; i < autoClosingPairs.length; i++) {
-					result.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
-					result.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
-				}
-			}
-
-			let surroundingPairs: IAutoClosingPair[];
-			try {
-				surroundingPairs = characterPairSupport.getSurroundingPairs();
-			} catch(e) {
-				onUnexpectedError(e);
-				surroundingPairs = null;
-			}
-			if (surroundingPairs) {
-				for (i = 0; i < surroundingPairs.length; i++) {
-					result.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
-				}
-			}
-		}
-
-		return result;
 	}
 }

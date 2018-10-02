@@ -1,13 +1,28 @@
 {
 	"compilerOptions": {
 		"module": "amd",
-		"moduleResolution": "classic",
+		"moduleResolution": "node",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es5",
 		"sourceMap": false,
 		"experimentalDecorators": true,
-		"declaration": true
-	}
+		"declaration": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noImplicitThis": true,
+		"alwaysStrict": true,
+		"baseUrl": ".",
+		"outDir": "../out",
+		"paths": {
+			"vs/*": [
+				"./vs/*"
+			]
+		}
+	},
+	"include": [
+		"./typings",
+		"./vs"
+	]
 }

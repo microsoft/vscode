@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILink} from 'vs/editor/common/modes';
-import {ILinkComputerTarget, computeLinks} from 'vs/editor/common/modes/linkComputer';
+import { ILink } from 'vs/editor/common/modes';
+import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
 
 class SimpleLinkComputerTarget implements ILinkComputerTarget {
 
-	constructor(private _lines:string[]) {
+	constructor(private _lines: string[]) {
 		// Intentional Empty
 	}
 
@@ -18,18 +18,18 @@ class SimpleLinkComputerTarget implements ILinkComputerTarget {
 		return this._lines.length;
 	}
 
-	public getLineContent(lineNumber:number): string {
+	public getLineContent(lineNumber: number): string {
 		return this._lines[lineNumber - 1];
 	}
 }
 
-function myComputeLinks(lines:string[]): ILink[] {
-	var target = new SimpleLinkComputerTarget(lines);
+function myComputeLinks(lines: string[]): ILink[] {
+	let target = new SimpleLinkComputerTarget(lines);
 	return computeLinks(target);
 }
 
-function assertLink(text:string, extractedLink:string): void {
-	var startColumn = 0,
+function assertLink(text: string, extractedLink: string): void {
+	let startColumn = 0,
 		endColumn = 0,
 		chr: string,
 		i = 0;
@@ -50,7 +50,7 @@ function assertLink(text:string, extractedLink:string): void {
 		}
 	}
 
-	var r = myComputeLinks([text]);
+	let r = myComputeLinks([text]);
 	assert.deepEqual(r, [{
 		range: {
 			startLineNumber: 1,
@@ -64,8 +64,8 @@ function assertLink(text:string, extractedLink:string): void {
 
 suite('Editor Modes - Link Computer', () => {
 
-	test('Null model',() => {
-		var r = computeLinks(null);
+	test('Null model', () => {
+		let r = computeLinks(null);
 		assert.deepEqual(r, []);
 	});
 
@@ -184,6 +184,17 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'Some text, then http://www.bing.com.',
 			'                http://www.bing.com '
+		);
+		assertLink(
+			'let url = `http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items`;',
+			'           http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items  '
+		);
+	});
+
+	test('issue #7855', () => {
+		assertLink(
+			'7. At this point, ServiceMain has been called.  There is no functionality presently in ServiceMain, but you can consult the [MSDN documentation](https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx) to add functionality as desired!',
+			'                                                                                                                                                 https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx                                  '
 		);
 	});
 });

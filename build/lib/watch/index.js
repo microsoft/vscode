@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var es = require('event-stream');
+const es = require('event-stream');
 
 /** Ugly hack for gulp-tsb */
 function handleDeletions() {
-	return es.mapSync(function (f) {
+	return es.mapSync(f => {
 		if (/\.ts$/.test(f.relative) && !f.contents) {
-			f.contents = new Buffer('');
+			f.contents = Buffer.from('');
 			f.stat = { mtime: new Date() };
 		}
 
@@ -17,7 +17,11 @@ function handleDeletions() {
 	});
 }
 
-var watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');
+let watch = void 0;
+
+if (!watch) {
+	watch = process.platform === 'win32' ? require('./watch-win32') : require('gulp-watch');
+}
 
 module.exports = function () {
 	return watch.apply(null, arguments)

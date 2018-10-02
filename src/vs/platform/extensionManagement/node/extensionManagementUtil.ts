@@ -5,62 +5,19 @@
 
 'use strict';
 
-import { IExtensionIdentity, ILocalExtension, IGalleryExtension, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as semver from 'semver';
+import { adoptToGalleryExtensionId, LOCAL_EXTENSION_ID_REGEX } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
-export function extensionEquals(one: IExtensionIdentity, other: IExtensionIdentity): boolean {
-	return one.publisher === other.publisher && one.name === other.name;
-}
-
-export function getTelemetryData(extension: ILocalExtension | IGalleryExtension): any {
-	const local = extension as ILocalExtension;
-	const gallery = extension as IGalleryExtension;
-
-	if (local.path) {
-		return {
-			id: `${ local.manifest.publisher }.${ local.manifest.name }`,
-			name: local.manifest.name,
-			galleryId: local.metadata ? local.metadata.id : null,
-			publisherId: local.metadata ? local.metadata.publisherId : null,
-			publisherName: local.manifest.publisher,
-			publisherDisplayName: local.metadata ? local.metadata.publisherDisplayName : null
-		};
-	} else {
-		return {
-			id: `${ gallery.publisher }.${ gallery.name }`,
-			name: gallery.name,
-			galleryId: gallery.id,
-			publisherId: gallery.publisherId,
-			publisherName: gallery.publisher,
-			publisherDisplayName: gallery.publisherDisplayName
-		};
-	}
-}
-
-export function getOutdatedExtensions(extensionsService: IExtensionManagementService, galleryService: IExtensionGalleryService): TPromise<ILocalExtension[]> {
-	if (!galleryService.isEnabled()) {
-		return TPromise.as([]);
-	}
-
-	return extensionsService.getInstalled().then(installed => {
-		const names = installed.map(({ manifest }) => `${ manifest.publisher }.${ manifest.name }`);
-
-		if (installed.length === 0) {
-			return TPromise.as([]);
+export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string } {
+	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
+	if (matches && matches[1] && matches[2]) {
+		const version = semver.valid(matches[2]);
+		if (version) {
+			return { id: adoptToGalleryExtensionId(matches[1]), version };
 		}
-
-		return galleryService.query({ names, pageSize: names.length }).then(result => {
-			const available = result.firstPage;
-
-			return available.map(extension => {
-				const local = installed.filter(local => extensionEquals(local.manifest, extension))[0];
-				if (local && semver.lt(local.manifest.version, extension.versions[0].version)) {
-					return local;
-				} else {
-					return null;
-				}
-			}).filter(e => !!e);
-		});
-	});
+	}
+	return {
+		id: adoptToGalleryExtensionId(localExtensionId),
+		version: null
+	};
 }

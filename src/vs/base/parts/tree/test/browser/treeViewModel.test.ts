@@ -5,14 +5,11 @@
 
 'use strict';
 
-import assert = require('assert');
-import WinJS = require('vs/base/common/winjs.base');
-import TreeView = require('vs/base/parts/tree/browser/treeView');
-import Tree = require('vs/base/parts/tree/browser/treeImpl');
+import * as assert from 'assert';
 import { ArrayIterator } from 'vs/base/common/iterator';
 import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 
-function makeItem(id, height):any {
+function makeItem(id, height): any {
 	return {
 		id: id,
 		getHeight: function () { return height; },
@@ -21,7 +18,7 @@ function makeItem(id, height):any {
 	};
 }
 
-function makeItems(...args:any[]) {
+function makeItems(...args: any[]) {
 	var r = [];
 
 	for (var i = 0; i < args.length; i += 2) {
@@ -31,7 +28,7 @@ function makeItems(...args:any[]) {
 	return r;
 }
 
-function makeNavigator(...args:any[]):any {
+function makeNavigator(...args: any[]): any {
 	var items = makeItems.apply(null, args);
 	var i = 0;
 
@@ -48,7 +45,8 @@ class TestHeightMap extends HeightMap {
 		return {
 			model: item,
 			top: 0,
-			height: item.getHeight()
+			height: item.getHeight(),
+			width: 0
 		};
 	}
 }
