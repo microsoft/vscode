@@ -57,6 +57,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CONTEXT_NOT_IN_DEBUG_MODE } from 'vs/workbench/parts/debug/common/debug';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -676,3 +677,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	},
 	order: 3
 });
+
+// Touch Bar
+if (platform.isMacintosh) {
+	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+		command: {
+			id: VIEW_ID,
+			title: OpenSearchViewletAction.LABEL,
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/parts/search/electron-browser/media/search-dark.png`))
+			}
+		},
+		when: CONTEXT_NOT_IN_DEBUG_MODE,
+		group: '2_activitybar',
+		order: 1
+	});
+}
