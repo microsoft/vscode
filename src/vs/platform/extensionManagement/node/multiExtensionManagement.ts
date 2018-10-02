@@ -5,19 +5,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, EventMultiplexer } from 'vs/base/common/event';
-import * as pfs from 'vs/base/node/pfs';
 import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, LocalExtensionType, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
-	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService, InstallOperation
+	IExtensionManagementServerService, IExtensionManagementServer, IExtensionGalleryService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { flatten } from 'vs/base/common/arrays';
 import { isWorkspaceExtension, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
-import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { Action } from 'vs/base/common/actions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -37,9 +31,6 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 
 	constructor(
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
-		@INotificationService private notificationService: INotificationService,
-		@IWindowService private windowService: IWindowService,
-		@ILogService private logService: ILogService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -52,10 +43,6 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		this.onDidInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>())).event;
 		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>())).event;
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
-
-		if (this.otherServers.length) {
-			this.syncExtensions();
-		}
 	}
 
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]> {
@@ -114,86 +101,5 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension.location);
-	}
-
-	private async syncExtensions(): Promise<void> {
-		this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User)
-			.then(async localExtensions => {
-				const workspaceExtensions = localExtensions.filter(e => isWorkspaceExtension(e.manifest, this.configurationService));
-				const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = await this.getExtensionsToSync(workspaceExtensions);
-				if (extensionsToSync.size > 0) {
-					const handler = this.notificationService.notify({ severity: Severity.Info, message: localize('synchronising', "Synchronising workspace extensions...") });
-					handler.progress.infinite();
-					this.doSyncExtensions(extensionsToSync, handler).then(() => {
-						handler.progress.done();
-						handler.updateMessage(localize('Synchronize.finished', "Finished synchronising. Please reload now."));
-						handler.updateActions({
-							primary: [
-								new Action('Synchronize.reloadNow', localize('Synchronize.reloadNow', "Reload Now"), null, true, () => this.windowService.reloadWindow())
-							]
-						});
-					}, error => {
-						handler.progress.done();
-						handler.updateSeverity(Severity.Error);
-						handler.updateMessage(error);
-					});
-				}
-			}, err => this.logService.error('Error while Synchronisation', err));
-	}
-
-	private async getExtensionsToSync(workspaceExtensions: ILocalExtension[]): Promise<Map<IExtensionManagementServer, ILocalExtension[]>> {
-		const extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]> = new Map<IExtensionManagementServer, ILocalExtension[]>();
-		for (const server of this.otherServers) {
-			const extensions = await server.extensionManagementService.getInstalled(LocalExtensionType.User);
-			const groupedByVersionId: Map<string, ILocalExtension> = extensions.reduce((groupedById, extension) => groupedById.set(`${extension.galleryIdentifier.id}-${extension.manifest.version}`, extension), new Map<string, ILocalExtension>());
-			const toSync = workspaceExtensions.filter(e => !groupedByVersionId.has(`${e.galleryIdentifier.id}-${e.manifest.version}`));
-			if (toSync.length) {
-				extensionsToSync.set(server, toSync);
-			}
-		}
-		return extensionsToSync;
-	}
-
-	private async doSyncExtensions(extensionsToSync: Map<IExtensionManagementServer, ILocalExtension[]>, notificationHandler: INotificationHandle): Promise<void> {
-		const ids: string[] = [];
-		const zipLocationResolvers: TPromise<{ location: URI, vsix: boolean }>[] = [];
-
-		extensionsToSync.forEach(extensions => {
-			for (const extension of extensions) {
-				if (ids.indexOf(extension.galleryIdentifier.id) === -1) {
-					ids.push(extension.galleryIdentifier.id);
-					zipLocationResolvers.push(this.downloadFromGallery(extension)
-						.then(location => location ? { location, vsix: true } : this.localServer.extensionManagementService.zip(extension).then(location => ({ location, vsix: false }))));
-				}
-			}
-		});
-
-		const zipLocations = await TPromise.join(zipLocationResolvers);
-		const promises: Promise<any>[] = [];
-		extensionsToSync.forEach((extensions, server) => {
-			let promise: Promise<any> = Promise.resolve();
-			extensions.forEach(extension => {
-				const index = ids.indexOf(extension.galleryIdentifier.id);
-				const { location, vsix } = zipLocations[index];
-				promise = promise
-					.then(() => {
-						notificationHandler.updateMessage(localize('synchronising extension', "Synchronising workspace extension: {0}", extension.manifest.displayName || extension.manifest.name));
-						return vsix ? server.extensionManagementService.install(location) : server.extensionManagementService.unzip(location, extension.type);
-					}).then(
-						() => pfs.rimraf(location.fsPath),
-						error => pfs.rimraf(location.fsPath).then(() => TPromise.wrapError(error), () => TPromise.wrapError(error)));
-			});
-			promises.push(promise);
-		});
-
-		await Promise.all(promises);
-	}
-
-	private downloadFromGallery(extension: ILocalExtension): TPromise<URI> {
-		if (this.extensionGalleryService.isEnabled()) {
-			return this.extensionGalleryService.getExtension(extension.galleryIdentifier, extension.manifest.version)
-				.then(galleryExtension => galleryExtension ? this.extensionGalleryService.download(galleryExtension, InstallOperation.None).then(location => URI.file(location)) : null);
-		}
-		return TPromise.as(null);
 	}
 }
