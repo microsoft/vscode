@@ -22,11 +22,6 @@
   dependencies:
     commander "*"
 
-"@types/events@*":
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/@types/events/-/events-1.2.0.tgz#81a6731ce4df43619e5c8c945383b3e62a89ea86"
-  integrity sha512-KEIlhXnIutzKwRbQkGWb/I4HFqBuUykAdHgDED6xqwXJfONCjF5VoE0cXEiurh3XauygxzeDzgtXUqvLkxFzzA==
-
 "@types/keytar@^4.0.1":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@types/keytar/-/keytar-4.0.1.tgz#e2cf6405dc33861424e59b67516c66d2cf7bc21b"
@@ -83,21 +78,6 @@
   version "1.2.30"
   resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.30.tgz#91d6710e536d345b9c9b017c574cf6a8da64c518"
   integrity sha1-kdZxDlNtNFucmwF8V0z2qNpkxRg=
-
-"@types/yauzl@^2.9.0":
-  version "2.9.0"
-  resolved "https://registry.yarnpkg.com/@types/yauzl/-/yauzl-2.9.0.tgz#b8427df4659c77a9f5f1bf684a1f54a5159032f6"
-  integrity sha512-KVQbjKvieCq6d5LqZ8KIzzwygF88fWC+l7wvPbRPM3OI3f9ZAlhaKUlk3kjiyvOMqopSTM7enjduXXl5B+msXw==
-  dependencies:
-    "@types/events" "*"
-    "@types/node" "*"
-
-"@types/yazl@^2.4.0":
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/@types/yazl/-/yazl-2.4.0.tgz#8460cecd6e1f00fc2252abe867cd6668d619d9fe"
-  integrity sha512-a71e3Equ/V/lXL3udQ4k9IBCQmPHx4fElSEO+Aao4L//RthbgqasLxeABgRvMVnEmqCGGIq0OLeWuImwFhWZJw==
-  dependencies:
-    "@types/node" "*"
 
 "@webassemblyjs/ast@1.5.13":
   version "1.5.13"
