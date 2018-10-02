@@ -301,6 +301,7 @@ export class TreeModel<T, TFilterData = void> {
 
 			if (typeof node.visible === 'undefined' && childrenRevealedCount === 0) {
 				node.visible = false;
+				node.revealedCount = 0;
 				result.pop();
 				return 0;
 			}
