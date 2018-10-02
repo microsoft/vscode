@@ -113,7 +113,7 @@
 					};
 			}
 
-			collapseall.onclick = () => tree.collapseAll();
+			collapseall.onclick = () => perf('collapse all', () => tree.collapseAll());
 		});
 	</script>
 </body>
