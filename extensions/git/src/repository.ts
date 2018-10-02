@@ -559,6 +559,11 @@ export class Repository implements Disposable {
 	private isFreshRepository: boolean | undefined = undefined;
 	private disposables: Disposable[] = [];
 
+	private _trackedCount: number = 0;
+	public get trackedCount(): number {
+		return this._trackedCount;
+	}
+
 	constructor(
 		private readonly repository: BaseRepository,
 		globalState: Memento
@@ -926,14 +931,7 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(true));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(true, remote, branch));
-		}
+		return this.pullFrom(true, remote, branch);
 	}
 
 	@throttle
@@ -946,25 +944,32 @@ export class Repository implements Disposable {
 			branch = `${head.upstream.name}`;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const fetchOnPull = config.get<boolean>('fetchOnPull');
-
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(false));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(false, remote, branch));
-		}
+		return this.pullFrom(false, remote, branch);
 	}
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const fetchOnPull = config.get<boolean>('fetchOnPull');
+		const autoStash = config.get<boolean>('autoStash');
 
-		if (fetchOnPull) {
-			await this.run(Operation.Pull, () => this.repository.pull(rebase));
-		} else {
-			await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
-		}
+
+		await this.run(Operation.Pull, async () => {
+			const doStash = autoStash && this.trackedCount > 0;
+
+			if (doStash) {
+				await this.repository.createStash();
+			}
+
+			if (fetchOnPull) {
+				await this.run(Operation.Pull, () => this.repository.pull(rebase));
+			} else {
+				await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, branch));
+			}
+
+			if (doStash) {
+				await this.repository.popStash();
+			}
+		});
 	}
 
 	@throttle
@@ -1009,14 +1014,25 @@ export class Repository implements Disposable {
 			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const fetchOnPull = config.get<boolean>('fetchOnPull');
+		const autoStash = config.get<boolean>('autoStash');
+
 		await this.run(Operation.Sync, async () => {
-			const config = workspace.getConfiguration('git', Uri.file(this.root));
-			const fetchOnPull = config.get<boolean>('fetchOnPull');
+			const doStash = autoStash && this.trackedCount > 0;
+
+			if (doStash) {
+				await this.repository.createStash();
+			}
 
 			if (fetchOnPull) {
 				await this.repository.pull(rebase);
 			} else {
 				await this.repository.pull(rebase, remoteName, pullBranch);
+			}
+
+			if (doStash) {
+				await this.repository.popStash();
 			}
 
 			const remote = this.remotes.find(r => r.name === remoteName);
@@ -1299,16 +1315,19 @@ export class Repository implements Disposable {
 		this.indexGroup.resourceStates = index;
 		this.workingTreeGroup.resourceStates = workingTree;
 
+		let totalCount = merge.length + index.length + workingTree.length;
+		this._trackedCount = totalCount - workingTree.filter(r =>
+			r.type === Status.UNTRACKED ||
+			r.type === Status.IGNORED
+		).length;
+
 		// set count badge
 		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
-		let count = merge.length + index.length + workingTree.length;
-
 		switch (countBadge) {
-			case 'off': count = 0; break;
-			case 'tracked': count = count - workingTree.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED).length; break;
+			case 'off': this._sourceControl.count = 0; break;
+			case 'all': this._sourceControl.count = totalCount; break;
+			case 'tracked': this._sourceControl.count = this._trackedCount; break;
 		}
-
-		this._sourceControl.count = count;
 
 		// Disable `Discard All Changes` for "fresh" repositories
 		// https://github.com/Microsoft/vscode/issues/43066
