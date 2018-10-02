@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
