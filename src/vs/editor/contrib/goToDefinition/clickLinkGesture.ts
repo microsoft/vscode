@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./goToDefinitionMouse';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import { IActionRunner } from 'vs/base/common/actions';

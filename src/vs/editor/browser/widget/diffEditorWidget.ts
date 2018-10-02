@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';

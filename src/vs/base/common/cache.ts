@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { always } from 'vs/base/common/async';
 

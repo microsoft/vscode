@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Model } from '../model';
 import { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';

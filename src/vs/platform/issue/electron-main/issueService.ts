@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';

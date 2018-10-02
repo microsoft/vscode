@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-'use strict';
-
 import 'vs/css!./quickOutline';
 import * as nls from 'vs/nls';
 import { matchesFuzzy } from 'vs/base/common/filters';

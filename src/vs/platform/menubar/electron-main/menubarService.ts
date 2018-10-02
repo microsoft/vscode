@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IMenubarService, IMenubarData, IMenubarKeybinding } from 'vs/platform/menubar/common/menubar';
 import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';

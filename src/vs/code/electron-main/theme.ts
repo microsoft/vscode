@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { systemPreferences } from 'electron';
 import { IStateService } from 'vs/platform/state/common/state';

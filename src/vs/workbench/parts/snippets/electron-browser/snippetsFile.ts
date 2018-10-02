@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { parse as jsonParse } from 'vs/base/common/json';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';

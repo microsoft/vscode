@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/activityaction';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';

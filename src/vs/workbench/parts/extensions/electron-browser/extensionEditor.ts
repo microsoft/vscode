@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
 import * as marked from 'vs/base/common/marked/marked';
