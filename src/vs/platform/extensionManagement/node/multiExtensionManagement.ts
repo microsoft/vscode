@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
 	IExtensionManagementService, ILocalExtension, IGalleryExtension, LocalExtensionType, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata,
@@ -45,57 +44,57 @@ export class MulitExtensionManagementService extends Disposable implements IExte
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidUninstallExtension); return emitter; }, new EventMultiplexer<DidUninstallExtensionEvent>())).event;
 	}
 
-	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]> {
-		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)))
+	getInstalled(type?: LocalExtensionType): Promise<ILocalExtension[]> {
+		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.getInstalled(type)))
 			.then(result => flatten(result));
 	}
 
-	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void> {
+	uninstall(extension: ILocalExtension, force?: boolean): Promise<void> {
 		return this.getServer(extension).extensionManagementService.uninstall(extension, force);
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): TPromise<void> {
+	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
 		return this.getServer(extension).extensionManagementService.reinstallFromGallery(extension);
 	}
 
-	updateMetadata(extension: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
+	updateMetadata(extension: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		return this.getServer(extension).extensionManagementService.updateMetadata(extension, metadata);
 	}
 
-	zip(extension: ILocalExtension): TPromise<URI> {
+	zip(extension: ILocalExtension): Promise<URI> {
 		throw new Error('Not Supported');
 	}
 
-	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
-		return TPromise.join(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(() => null);
+	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier> {
+		return Promise.all(this.servers.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation, type))).then(() => null);
 	}
 
-	install(vsix: URI): TPromise<IExtensionIdentifier> {
+	install(vsix: URI): Promise<IExtensionIdentifier> {
 		return this.localServer.extensionManagementService.install(vsix)
 			.then(extensionIdentifer => this.localServer.extensionManagementService.getInstalled(LocalExtensionType.User)
 				.then(installed => {
 					const extension = installed.filter(i => areSameExtensions(i.identifier, extensionIdentifer))[0];
 					if (this.otherServers.length && extension && isWorkspaceExtension(extension.manifest, this.configurationService)) {
-						return TPromise.join(this.otherServers.map(server => server.extensionManagementService.install(vsix)))
+						return Promise.all(this.otherServers.map(server => server.extensionManagementService.install(vsix)))
 							.then(() => extensionIdentifer);
 					}
 					return extensionIdentifer;
 				}));
 	}
 
-	installFromGallery(gallery: IGalleryExtension): TPromise<void> {
+	installFromGallery(gallery: IGalleryExtension): Promise<void> {
 		if (this.otherServers.length === 0) {
 			return this.localServer.extensionManagementService.installFromGallery(gallery);
 		}
 		return this.extensionGalleryService.getManifest(gallery, CancellationToken.None)
 			.then(manifest => {
 				const servers = isWorkspaceExtension(manifest, this.configurationService) ? this.servers : [this.localServer];
-				return TPromise.join(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
+				return Promise.all(servers.map(server => server.extensionManagementService.installFromGallery(gallery)))
 					.then(() => null);
 			});
 	}
 
-	getExtensionsReport(): TPromise<IReportedExtension[]> {
+	getExtensionsReport(): Promise<IReportedExtension[]> {
 		return this.extensionManagementServerService.getLocalExtensionManagementServer().extensionManagementService.getExtensionsReport();
 	}
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IRequestOptions, IRequestContext, IRequestFunction } from 'vs/base/node/request';
 import { Readable } from 'stream';
 import { RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
@@ -16,15 +15,15 @@ import { canceled } from 'vs/base/common/errors';
  * or configured proxy settings.
  */
 export class RequestService extends NodeRequestService {
-	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> {
+	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		return super.request(options, token, xhrRequest);
 	}
 }
 
-export const xhrRequest: IRequestFunction = (options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> => {
+export const xhrRequest: IRequestFunction = (options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> => {
 
 	const xhr = new XMLHttpRequest();
-	return new TPromise<IRequestContext>((resolve, reject) => {
+	return new Promise<IRequestContext>((resolve, reject) => {
 
 		xhr.open(options.type || 'GET', options.url, true, options.user, options.password);
 		setRequestHeaders(xhr, options);

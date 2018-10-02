@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from '../common/extensionManagement';
 import { Event, buffer, mapEvent } from 'vs/base/common/event';
@@ -86,42 +85,42 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	get onUninstallExtension(): Event<IExtensionIdentifier> { return this.channel.listen('onUninstallExtension'); }
 	get onDidUninstallExtension(): Event<DidUninstallExtensionEvent> { return this.channel.listen('onDidUninstallExtension'); }
 
-	zip(extension: ILocalExtension): TPromise<URI> {
-		return TPromise.wrap(this.channel.call('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result))));
+	zip(extension: ILocalExtension): Promise<URI> {
+		return Promise.resolve(this.channel.call('zip', [this._transformOutgoing(extension)]).then(result => URI.revive(this.uriTransformer.transformIncoming(result))));
 	}
 
-	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier> {
-		return TPromise.wrap(this.channel.call('unzip', [this.uriTransformer.transformOutgoing(zipLocation), type]));
+	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier> {
+		return Promise.resolve(this.channel.call('unzip', [this.uriTransformer.transformOutgoing(zipLocation), type]));
 	}
 
-	install(vsix: URI): TPromise<IExtensionIdentifier> {
-		return TPromise.wrap(this.channel.call('install', [this.uriTransformer.transformOutgoing(vsix)]));
+	install(vsix: URI): Promise<IExtensionIdentifier> {
+		return Promise.resolve(this.channel.call('install', [this.uriTransformer.transformOutgoing(vsix)]));
 	}
 
-	installFromGallery(extension: IGalleryExtension): TPromise<void> {
-		return TPromise.wrap(this.channel.call('installFromGallery', [extension]));
+	installFromGallery(extension: IGalleryExtension): Promise<void> {
+		return Promise.resolve(this.channel.call('installFromGallery', [extension]));
 	}
 
-	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
-		return TPromise.wrap(this.channel.call('uninstall', [this._transformOutgoing(extension), force]));
+	uninstall(extension: ILocalExtension, force = false): Promise<void> {
+		return Promise.resolve(this.channel.call('uninstall', [this._transformOutgoing(extension), force]));
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): TPromise<void> {
-		return TPromise.wrap(this.channel.call('reinstallFromGallery', [this._transformOutgoing(extension)]));
+	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+		return Promise.resolve(this.channel.call('reinstallFromGallery', [this._transformOutgoing(extension)]));
 	}
 
-	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
-		return TPromise.wrap(this.channel.call('getInstalled', [type]))
+	getInstalled(type: LocalExtensionType = null): Promise<ILocalExtension[]> {
+		return Promise.resolve(this.channel.call('getInstalled', [type]))
 			.then(extensions => extensions.map(extension => this._transformIncoming(extension)));
 	}
 
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
-		return TPromise.wrap(this.channel.call('updateMetadata', [this._transformOutgoing(local), metadata]))
+	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
+		return Promise.resolve(this.channel.call('updateMetadata', [this._transformOutgoing(local), metadata]))
 			.then(extension => this._transformIncoming(extension));
 	}
 
-	getExtensionsReport(): TPromise<IReportedExtension[]> {
-		return TPromise.wrap(this.channel.call('getExtensionsReport'));
+	getExtensionsReport(): Promise<IReportedExtension[]> {
+		return Promise.resolve(this.channel.call('getExtensionsReport'));
 	}
 
 	private _transformIncoming(extension: ILocalExtension): ILocalExtension {
