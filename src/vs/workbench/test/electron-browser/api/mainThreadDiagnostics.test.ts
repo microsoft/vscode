@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { MainThreadDiagnostics } from 'vs/workbench/api/electron-browser/mainThreadDiagnostics';
