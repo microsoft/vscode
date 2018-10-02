@@ -51,6 +51,7 @@ export class CompletionModel {
 
 	private readonly _items: ICompletionItem[];
 	private readonly _column: number;
+	private readonly _wordDistance: WordDistance;
 	private readonly _options: InternalSuggestOptions;
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
@@ -64,11 +65,12 @@ export class CompletionModel {
 		items: ISuggestionItem[],
 		column: number,
 		lineContext: LineContext,
-		private readonly _wordDistanceOracle: WordDistance,
+		wordDistance: WordDistance,
 		options: InternalSuggestOptions = EDITOR_DEFAULTS.contribInfo.suggest
 	) {
 		this._items = items;
 		this._column = column;
+		this._wordDistance = wordDistance;
 		this._options = options;
 		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
@@ -240,7 +242,7 @@ export class CompletionModel {
 			}
 
 			item.idx = i;
-			item.distance = this._wordDistanceOracle.distance(item.position, suggestion);
+			item.distance = this._wordDistance.distance(item.position, suggestion);
 			target.push(item);
 
 			// update stats
