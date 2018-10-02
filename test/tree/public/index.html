@@ -52,30 +52,30 @@
 				disposeTemplate() { }
 			};
 
-			const tree = new Tree(container, delegate, [renderer], {
-				filter: new class {
-					constructor() {
-						this.pattern = null;
-						let timeout;
-						filter.oninput = () => {
-							clearTimeout(timeout);
-							timeout = setTimeout(() => this.updatePattern(), 300);
-						};
-					}
-					updatePattern() {
-						if (!filter.value) {
-							this.pattern = null;
-						} else {
-							this.pattern = new RegExp(filter.value, 'i');
-						}
-
-						perf('refilter', () => tree.refilter());
-					}
-					filter(el) {
-						return (this.pattern ? this.pattern.test(el) : true) ? Visibility.Visible : Visibility.Recurse;
-					}
+			const treeFilter = new class {
+				constructor() {
+					this.pattern = null;
+					let timeout;
+					filter.oninput = () => {
+						clearTimeout(timeout);
+						timeout = setTimeout(() => this.updatePattern(), 300);
+					};
 				}
-			});
+				updatePattern() {
+					if (!filter.value) {
+						this.pattern = null;
+					} else {
+						this.pattern = new RegExp(filter.value, 'i');
+					}
+
+					perf('refilter', () => tree.refilter());
+				}
+				filter(el) {
+					return (this.pattern ? this.pattern.test(el) : true) ? Visibility.Visible : Visibility.Recurse;
+				}
+			};
+
+			const tree = new Tree(container, delegate, [renderer], { filter: treeFilter });
 
 			function setModel(model) {
 				performance.mark('before splice');
@@ -108,6 +108,7 @@
 					xhr.onreadystatechange = function () {
 						if (this.readyState == 4 && this.status == 200) {
 							perf('splice', () => tree.splice([0], 0, [JSON.parse(this.responseText)]));
+							treeFilter.updatePattern();
 						}
 					};
 			}
