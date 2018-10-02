@@ -70,7 +70,7 @@ function createReporter() {
         ReportFunc.end = function (emitError) {
             errors.length = 0;
             onStart();
-            return es.through(null, function () {
+            return es.through(undefined, function () {
                 onEnd();
                 if (emitError && errors.length > 0) {
                     if (!errors.__logged__) {

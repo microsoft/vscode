@@ -71,7 +71,7 @@ interface Map<V> {
 interface Item {
 	id: string;
 	message: string;
-	comment: string;
+	comment?: string;
 }
 
 export interface Resource {
@@ -235,8 +235,8 @@ export class XLF {
 		let existingKeys = new Set<string>();
 		for (let i = 0; i < keys.length; i++) {
 			let key = keys[i];
-			let realKey: string;
-			let comment: string;
+			let realKey: string | undefined;
+			let comment: string | undefined;
 			if (Is.string(key)) {
 				realKey = key;
 				comment = undefined;
@@ -391,7 +391,7 @@ export class Limiter<T> {
 
 	private consume(): void {
 		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			const iLimitedTask = this.outstandingPromises.shift();
+			const iLimitedTask = this.outstandingPromises.shift()!;
 			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
@@ -520,7 +520,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 		modules.forEach((module) => {
 			let order = keysSection[module];
 			let i18nFile = path.join(cwd, module) + '.i18n.json';
-			let messages: Map<string> = null;
+			let messages: Map<string> | null = null;
 			if (fs.existsSync(i18nFile)) {
 				let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
 				messages = JSON.parse(content);
@@ -533,13 +533,13 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 			}
 			let localizedMessages: string[] = [];
 			order.forEach((keyInfo) => {
-				let key: string = null;
+				let key: string | null = null;
 				if (typeof keyInfo === 'string') {
 					key = keyInfo;
 				} else {
 					key = keyInfo.key;
 				}
-				let message: string = messages[key];
+				let message: string = messages![key];
 				if (!message) {
 					if (process.env['VSCODE_BUILD_VERBOSE']) {
 						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
@@ -816,8 +816,8 @@ export function createXlfFilesForIsl(): ThroughStream {
 }
 
 export function pushXlfFiles(apiHostname: string, username: string, password: string): ThroughStream {
-	let tryGetPromises = [];
-	let updateCreatePromises = [];
+	let tryGetPromises: Array<Promise<boolean>> = [];
+	let updateCreatePromises: Array<Promise<boolean>> = [];
 
 	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
@@ -882,7 +882,7 @@ function getAllResources(project: string, apiHostname: string, username: string,
 
 export function findObsoleteResources(apiHostname: string, username: string, password: string): ThroughStream {
 	let resourcesByProject: Map<string[]> = Object.create(null);
-	resourcesByProject[extensionsProject] = [].concat(externalExtensionsWithTranslations); // clone
+	resourcesByProject[extensionsProject] = ([] as any[]).concat(externalExtensionsWithTranslations); // clone
 
 	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
@@ -899,7 +899,7 @@ export function findObsoleteResources(apiHostname: string, username: string, pas
 
 		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
 		let i18Resources = [...json.editor, ...json.workbench].map((r: Resource) => r.project + '/' + r.name.replace(/\//g, '_'));
-		let extractedResources = [];
+		let extractedResources: string[] = [];
 		for (let project of [workbenchProject, editorProject]) {
 			for (let resource of resourcesByProject[project]) {
 				if (resource !== 'setup_messages') {
@@ -912,7 +912,7 @@ export function findObsoleteResources(apiHostname: string, username: string, pas
 			console.log(`[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(${extractedResources.filter(p => i18Resources.indexOf(p) === -1)})`);
 		}
 
-		let promises = [];
+		let promises: Array<Promise<void>> = [];
 		for (let project in resourcesByProject) {
 			promises.push(
 				getAllResources(project, apiHostname, username, password).then(resources => {
@@ -1048,8 +1048,8 @@ export function pullCoreAndExtensionsXlfFiles(apiHostname: string, username: str
 
 		// extensions
 		let extensionsToLocalize = Object.create(null);
-		glob.sync('./extensions/**/*.nls.json', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-		glob.sync('./extensions/*/node_modules/vscode-nls', ).forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('./extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
+		glob.sync('./extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
 
 		Object.keys(extensionsToLocalize).forEach(extension => {
 			_coreAndExtensionResources.push({ name: extension, project: extensionsProject });
@@ -1099,10 +1099,10 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 		callback();
 	});
 }
-const limiter = new Limiter<File>(NUMBER_OF_CONCURRENT_DOWNLOADS);
+const limiter = new Limiter<File | null>(NUMBER_OF_CONCURRENT_DOWNLOADS);
 
-function retrieveResource(language: Language, resource: Resource, apiHostname, credentials): Promise<File> {
-	return limiter.queue(() => new Promise<File>((resolve, reject) => {
+function retrieveResource(language: Language, resource: Resource, apiHostname, credentials): Promise<File | null> {
+	return limiter.queue(() => new Promise<File | null>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
 		let transifexLanguageId = language.id === 'ps' ? 'en' : language.transifexId || language.id;
@@ -1298,7 +1298,7 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 			let firstChar = line.charAt(0);
 			if (firstChar === '[' || firstChar === ';') {
 				if (line === '; *** Inno Setup version 5.5.3+ English messages ***') {
-					content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo.name} messages ***`);
+					content.push(`; *** Inno Setup version 5.5.3+ ${innoSetup.defaultInfo!.name} messages ***`);
 				} else {
 					content.push(line);
 				}
@@ -1308,9 +1308,9 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 				let translated = line;
 				if (key) {
 					if (key === 'LanguageName') {
-						translated = `${key}=${innoSetup.defaultInfo.name}`;
+						translated = `${key}=${innoSetup.defaultInfo!.name}`;
 					} else if (key === 'LanguageID') {
-						translated = `${key}=${innoSetup.defaultInfo.id}`;
+						translated = `${key}=${innoSetup.defaultInfo!.id}`;
 					} else if (key === 'LanguageCodePage') {
 						translated = `${key}=${innoSetup.codePage.substr(2)}`;
 					} else {

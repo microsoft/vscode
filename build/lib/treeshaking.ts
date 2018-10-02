@@ -105,7 +105,7 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 	options.entryPoints.forEach((entryPoint) => enqueue(entryPoint));
 
 	while (queue.length > 0) {
-		const moduleId = queue.shift();
+		const moduleId = queue.shift()!;
 		const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
@@ -167,7 +167,7 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	getScriptFileNames(): string[] {
 		return (
-			[]
+			([] as string[])
 				.concat(Object.keys(this._libs))
 				.concat(Object.keys(this._files))
 		);
@@ -240,6 +240,9 @@ function nodeOrChildIsBlack(node: ts.Node): boolean {
 
 function markNodes(languageService: ts.LanguageService, options: ITreeShakingOptions) {
 	const program = languageService.getProgram();
+	if (!program) {
+		throw new Error('Could not get program from language service');
+	}
 
 	if (options.shakeLevel === ShakeLevel.Files) {
 		// Mark all source files Black
@@ -266,7 +269,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 			}
 
 			if (ts.isExportDeclaration(node)) {
-				if (ts.isStringLiteral(node.moduleSpecifier)) {
+				if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
 					setColor(node, NodeColor.Black);
 					enqueueImport(node, node.moduleSpecifier.text);
 				}
@@ -349,7 +352,11 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 			if (references) {
 				for (let i = 0, len = references.length; i < len; i++) {
 					const reference = references[i];
-					const referenceSourceFile = program.getSourceFile(reference.fileName);
+					const referenceSourceFile = program!.getSourceFile(reference.fileName);
+					if (!referenceSourceFile) {
+						continue;
+					}
+
 					const referenceNode = getTokenAtPosition(referenceSourceFile, reference.textSpan.start, false, false);
 					if (
 						ts.isMethodDeclaration(referenceNode.parent)
@@ -365,7 +372,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 	}
 
 	function enqueueFile(filename: string): void {
-		const sourceFile = program.getSourceFile(filename);
+		const sourceFile = program!.getSourceFile(filename);
 		if (!sourceFile) {
 			console.warn(`Cannot find source file ${filename}`);
 			return;
@@ -401,7 +408,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		let node: ts.Node;
 
 		if (step % 100 === 0) {
-			console.log(`${step}/${step+black_queue.length+gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+			console.log(`${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
 		}
 
 		if (black_queue.length === 0) {
@@ -418,7 +425,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		}
 
 		if (black_queue.length > 0) {
-			node = black_queue.shift();
+			node = black_queue.shift()!;
 		} else {
 			// only gray nodes remaining...
 			break;
@@ -493,6 +500,9 @@ function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node,
 
 function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLevel): ITreeShakingResult {
 	const program = languageService.getProgram();
+	if (!program) {
+		throw new Error('Could not get program from language service');
+	}
 
 	let result: ITreeShakingResult = {};
 	const writeFile = (filePath: string, contents: string): void => {
@@ -556,12 +566,12 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 						const leadingTriviaWidth = node.getLeadingTriviaWidth();
 						const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
 						if (survivingImports.length > 0) {
-							if (node.importClause && getColor(node.importClause) === NodeColor.Black) {
+							if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
 								return write(`${leadingTrivia}import ${node.importClause.name.text}, {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
 							}
 							return write(`${leadingTrivia}import {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
 						} else {
-							if (node.importClause && getColor(node.importClause) === NodeColor.Black) {
+							if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
 								return write(`${leadingTrivia}import ${node.importClause.name.text} from${node.moduleSpecifier.getFullText(sourceFile)};`);
 							}
 						}
@@ -577,7 +587,7 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 				let toWrite = node.getFullText();
 				for (let i = node.members.length - 1; i >= 0; i--) {
 					const member = node.members[i];
-					if (getColor(member) === NodeColor.Black) {
+					if (getColor(member) === NodeColor.Black || !member.name) {
 						// keep method
 						continue;
 					}
@@ -724,7 +734,7 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol, 
 	}
 
 	let symbol = checker.getSymbolAtLocation(node);
-	let importNode: ts.Declaration = null;
+	let importNode: ts.Declaration | null = null;
 	if (symbol && symbol.flags & ts.SymbolFlags.Alias && shouldSkipAlias(node, symbol.declarations[0])) {
 		const aliased = checker.getAliasedSymbol(symbol);
 		if (aliased.declarations) {

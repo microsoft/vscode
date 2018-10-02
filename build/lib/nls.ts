@@ -83,7 +83,7 @@ function nls(): NodeJS.ReadWriteStream {
 			source = path.join(root, source);
 		}
 
-		const typescript = f.sourceMap.sourcesContent[0];
+		const typescript = f.sourceMap.sourcesContent![0];
 		if (!typescript) {
 			return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
 		}
@@ -206,8 +206,8 @@ module nls {
 
 		// `nls.localize(...)` calls
 		const nlsLocalizeCallExpressions = importDeclarations
-			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport)
-			.map(d => (<ts.NamespaceImport>d.importClause.namedBindings).name)
+			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport))
+			.map(d => (<ts.NamespaceImport>d.importClause!.namedBindings).name)
 			.concat(importEqualsDeclarations.map(d => d.name))
 
 			// find read-only references to `nls`
@@ -226,8 +226,8 @@ module nls {
 
 		// `localize` named imports
 		const allLocalizeImportDeclarations = importDeclarations
-			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports)
-			.map(d => [].concat((<ts.NamedImports>d.importClause.namedBindings).elements))
+			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports))
+			.map(d => ([] as any[]).concat((<ts.NamedImports>d.importClause!.namedBindings!).elements))
 			.flatten();
 
 		// `localize` read-only references
@@ -279,7 +279,7 @@ module nls {
 		constructor(contents: string) {
 			const regex = /\r\n|\r|\n/g;
 			let index = 0;
-			let match: RegExpExecArray;
+			let match: RegExpExecArray | null;
 
 			this.lines = [];
 			this.lineEndings = [];
@@ -360,7 +360,7 @@ module nls {
 		patches = patches.reverse();
 		let currentLine = -1;
 		let currentLineDiff = 0;
-		let source = null;
+		let source: string | null = null;
 
 		smc.eachMapping(m => {
 			const patch = patches[patches.length - 1];

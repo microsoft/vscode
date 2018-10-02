@@ -12,7 +12,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const allErrors: string[][] = [];
-let startTime: number = null;
+let startTime: number | null = null;
 let count = 0;
 
 function onStart(): void {
@@ -64,7 +64,7 @@ function log(): void {
 		//noop
 	}
 
-	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
+	util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime!) + ' ms')}`);
 }
 
 export interface IReporter {
@@ -90,7 +90,7 @@ export function createReporter(): IReporter {
 			errors.length = 0;
 			onStart();
 
-			return es.through(null, function () {
+			return es.through(undefined, function () {
 				onEnd();
 
 				if (emitError && errors.length > 0) {

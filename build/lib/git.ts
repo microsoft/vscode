@@ -10,7 +10,7 @@ import * as fs from 'fs';
 /**
  * Returns the sha1 commit version of a repository or undefined in case of failure.
  */
-export function getVersion(repo: string): string {
+export function getVersion(repo: string): string | undefined {
 	const git = path.join(repo, '.git');
 	const headPath = path.join(git, 'HEAD');
 	let head: string;
@@ -50,7 +50,7 @@ export function getVersion(repo: string): string {
 	}
 
 	const refsRegex = /^([0-9a-f]{40})\s+(.+)$/gm;
-	let refsMatch: RegExpExecArray;
+	let refsMatch: RegExpExecArray | null;
 	let refs: { [ref: string]: string } = {};
 
 	while (refsMatch = refsRegex.exec(refsRaw)) {

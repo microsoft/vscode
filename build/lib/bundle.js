@@ -96,7 +96,7 @@ function emitEntryPoints(modules, entryPoints) {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend, info.append, info.dest);
+        var res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.append || [], info.dest);
         result = result.concat(res.files);
         for (var pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
