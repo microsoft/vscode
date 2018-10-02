@@ -99,7 +99,7 @@ suite('QueryBuilder', () => {
 						}
 					}
 				}],
-				type: QueryType.Text
+				type: QueryType.TextuseIgnoreFiles
 			});
 	});
 

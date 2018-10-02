@@ -387,6 +387,7 @@ class TextSearchEngine {
 			excludes,
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks,
 			encoding: this.config.fileEncoding,
 			maxFileSize: this.config.maxFileSize,
@@ -560,6 +561,7 @@ class FileSearchEngine {
 			excludes,
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks,
 			maxResults: this.config.maxResults
 		};

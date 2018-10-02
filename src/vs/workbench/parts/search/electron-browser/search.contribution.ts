@@ -601,6 +601,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files."),
 			default: false,
+			scope: ConfigurationScope.RESOURCE
 		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',

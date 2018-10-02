@@ -489,6 +489,7 @@ export class DiskSearch implements ISearchResultProvider {
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
 			disregardIgnoreFiles: query.disregardIgnoreFiles,
+			disregardGlobalIgnoreFiles: query.disregardGlobalIgnoreFiles,
 			ignoreSymlinks: query.ignoreSymlinks,
 			previewOptions: query.previewOptions
 		};
@@ -499,6 +500,7 @@ export class DiskSearch implements ISearchResultProvider {
 				includePattern: q.includePattern,
 				fileEncoding: q.fileEncoding,
 				disregardIgnoreFiles: q.disregardIgnoreFiles,
+				disregardGlobalIgnoreFiles: q.disregardGlobalIgnoreFiles,
 				folder: q.folder.fsPath
 			});
 		}

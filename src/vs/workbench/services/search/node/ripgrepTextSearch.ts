@@ -511,7 +511,7 @@ function getRgArgs(config: IRawSearch) {
 	}
 
 	args.push('--no-config');
-	if (!config.useGlobalIgnoreFiles) {
+	if (!config.disregardGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
 
