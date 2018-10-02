@@ -33,6 +33,7 @@ import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -821,16 +822,36 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private doCreateGridControlWithPreviousState(): void {
 		const uiState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
 		if (uiState && uiState.serializedGrid) {
+			try {
 
-			// MRU
-			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+				// MRU
+				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
-			// Grid Widget
-			this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
+				// Grid Widget
+				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
 
-			// Ensure last active group has focus
-			this._activeGroup.focus();
+				// Ensure last active group has focus
+				this._activeGroup.focus();
+			} catch (error) {
+				this.handleGridRestoreError(error, uiState);
+			}
 		}
+	}
+
+	private handleGridRestoreError(error: Error, state: IEditorPartUIState): void {
+
+		// Log error
+		onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(state)})`));
+
+		// Clear any state we have from the failing restore
+		if (this.gridWidget) {
+			this.doSetGridWidget();
+		}
+
+		this.groupViews.forEach(group => group.dispose());
+		this.groupViews.clear();
+		this._activeGroup = void 0;
+		this.mostRecentActiveGroups = [];
 	}
 
 	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
@@ -844,6 +865,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Create new
+		const groupViews: IEditorGroupView[] = [];
 		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
@@ -853,6 +875,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 					groupView = this.doCreateGroupView(serializedEditorGroup);
 				}
 
+				groupViews.push(groupView);
+
 				if (groupView.id === activeGroupId) {
 					this.doSetGroupActive(groupView);
 				}
@@ -860,6 +884,18 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				return groupView;
 			}
 		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
+
+		// If the active group was not found when restoring the grid
+		// make sure to make at least one group active. We always need
+		// an active group.
+		if (!this._activeGroup) {
+			this.doSetGroupActive(groupViews[0]);
+		}
+
+		// Validate MRU group views matches grid widget state
+		if (this.mostRecentActiveGroups.some(groupId => !this.getGroup(groupId))) {
+			this.mostRecentActiveGroups = groupViews.map(group => group.id);
+		}
 
 		// Set it
 		this.doSetGridWidget(gridWidget);

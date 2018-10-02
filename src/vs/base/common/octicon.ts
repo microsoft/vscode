@@ -118,7 +118,7 @@ export function matchesFuzzyOcticonAware(query: string, target: IParsedOcticons,
 	// Map matches back to offsets with octicons and trimming
 	if (matches) {
 		for (let i = 0; i < matches.length; i++) {
-			const octiconOffset = octiconOffsets[matches[i].start] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
+			const octiconOffset = octiconOffsets[matches[i].start + leadingWhitespaceOffset] /* octicon offsets at index */ + leadingWhitespaceOffset /* overall leading whitespace offset */;
 			matches[i].start += octiconOffset;
 			matches[i].end += octiconOffset;
 		}

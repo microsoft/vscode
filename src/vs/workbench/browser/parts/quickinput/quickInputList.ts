@@ -49,7 +49,6 @@ class ListElement implements IListElement {
 	saneLabel: string;
 	saneDescription?: string;
 	saneDetail?: string;
-	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
@@ -153,6 +152,7 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 
 		// ARIA label
 		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
+			.map(s => s && parseOcticons(s).text)
 			.filter(s => !!s)
 			.join(', '));
 
@@ -487,7 +487,7 @@ export class QuickInputList {
 				const descriptionHighlights = this.matchOnDescription ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDescription || '')) : undefined;
 				const detailHighlights = this.matchOnDetail ? matchesFuzzyOcticonAware(query, parseOcticons(element.saneDetail || '')) : undefined;
 
-				if (element.shouldAlwaysShow || labelHighlights || descriptionHighlights || detailHighlights) {
+				if (labelHighlights || descriptionHighlights || detailHighlights) {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;

@@ -233,10 +233,10 @@ export class SubmenuItemAction extends Action {
 
 export class MenuItemAction extends ExecuteCommandAction {
 
-	private _options: IMenuActionOptions;
-
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction;
+
+	private _options: IMenuActionOptions;
 
 	constructor(
 		item: ICommandAction,

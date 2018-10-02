@@ -87,12 +87,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Thenable<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
-			.then(update => {
-				if (update) {
-					// Update found, no need to check more
-					return TPromise.as(null);
-				}
-
+			.then(() => {
 				// Check again after 1 hour
 				return this.scheduleCheckForUpdates(60 * 60 * 1000);
 			});

@@ -12,19 +12,18 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -408,7 +407,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => TPromise.as(this.getDropdownMenuActions()),
-			getActionItem: (action) => null,
+			getActionItem: () => null,
 			onHide: () => {
 				this.anchorElement.blur();
 			}
@@ -702,67 +701,6 @@ export class SearchWidget extends Widget {
 			this.options.focusKey.set(false);
 		}
 		super.dispose();
-	}
-}
-
-export class FloatingClickWidget extends Widget implements IOverlayWidget {
-
-	private _domNode: HTMLElement;
-
-	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onClick: Event<void> = this._onClick.event;
-
-	constructor(
-		private editor: ICodeEditor,
-		private label: string,
-		keyBindingAction: string,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private themeService: IThemeService
-	) {
-		super();
-
-		if (keyBindingAction) {
-			let keybinding = keybindingService.lookupKeybinding(keyBindingAction);
-			if (keybinding) {
-				this.label += ' (' + keybinding.getLabel() + ')';
-			}
-		}
-	}
-
-	public render() {
-		this._domNode = DOM.$('.floating-click-widget');
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : colors.editorBackground.toString();
-			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : colors.editorForeground.toString();
-
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
-			this._domNode.style.borderWidth = borderColor ? '1px' : null;
-			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
-			this._domNode.style.borderColor = borderColor;
-		}));
-
-		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
-		this.onclick(this._domNode, e => this._onClick.fire());
-		this.editor.addOverlayWidget(this);
-	}
-
-	public dispose(): void {
-		this.editor.removeOverlayWidget(this);
-		super.dispose();
-	}
-
-	public getId(): string {
-		return 'editor.overlayWidget.floatingClickWidget';
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-		};
 	}
 }
 

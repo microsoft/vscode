@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemProvider } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -165,7 +165,7 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.push(this._widget.onDidFocus(({ item }) => {
 
 			const position = this._editor.getPosition();
-			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const startColumn = item.suggestion.range.startColumn;
 			const endColumn = position.column;
 			let value = true;
 			if (
@@ -236,10 +236,13 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
+		const overwriteBefore = position.column - suggestion.range.startColumn;
+		const overwriteAfter = suggestion.range.endColumn - position.column;
+
 		SnippetController2.get(this._editor).insert(
 			insertText,
-			suggestion.overwriteBefore + columnDelta,
-			suggestion.overwriteAfter,
+			overwriteBefore + columnDelta,
+			overwriteAfter,
 			false, false,
 			!suggestion.noWhitespaceAdjust
 		);
@@ -270,10 +273,10 @@ export class SuggestController implements IEditorContribution {
 		SuggestController._onDidSelectTelemetry(this._telemetryService, suggestion);
 	}
 
-	private static _onDidSelectTelemetry(service: ITelemetryService, item: ISuggestion): void {
+	private static _onDidSelectTelemetry(service: ITelemetryService, item: CompletionItem): void {
 		/* __GDPR__
 			"acceptSuggestion" : {
-				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
@@ -288,8 +291,8 @@ export class SuggestController implements IEditorContribution {
 		alert(msg);
 	}
 
-	triggerSuggest(): void {
-		this._model.trigger({ auto: false }, false);
+	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
+		this._model.trigger({ auto: false }, false, onlyFrom);
 		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
 		this._editor.focus();
 	}
@@ -310,7 +313,7 @@ export class SuggestController implements IEditorContribution {
 				return true;
 			}
 			const position = this._editor.getPosition();
-			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const startColumn = item.suggestion.range.startColumn;
 			const endColumn = position.column;
 			if (endColumn - startColumn !== item.suggestion.insertText.length) {
 				// unequal lengths -> makes edit

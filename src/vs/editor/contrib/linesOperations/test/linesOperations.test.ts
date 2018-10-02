@@ -447,7 +447,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('transpose', function () {
+	test('transpose', () => {
 		withTestCodeEditor(
 			[
 				'hello world',
@@ -774,7 +774,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('InsertLineBeforeAction', function () {
+	test('InsertLineBeforeAction', () => {
 		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',

@@ -90,7 +90,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 			}
 
 			this.tree.refresh().then(() => {
-				return we instanceof Expression ? this.tree.reveal(we) : TPromise.as(true);
+				return we instanceof Expression ? this.tree.reveal(we) : Promise.resolve(true);
 			});
 		}));
 		this.disposables.push(this.debugService.getViewModel().onDidFocusStackFrame(() => {
@@ -155,7 +155,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return TPromise.as([]);
+		return Promise.resolve([]);
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
@@ -183,7 +183,7 @@ class WatchExpressionsActionProvider implements IActionProvider {
 			actions.push(new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService));
 		}
 
-		return TPromise.as(actions);
+		return Promise.resolve(actions);
 	}
 
 	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
@@ -213,8 +213,8 @@ class WatchExpressionsDataSource implements IDataSource {
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof DebugModel) {
 			const viewModel = this.debugService.getViewModel();
-			return TPromise.join(element.getWatchExpressions().map(we =>
-				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : TPromise.as(we)));
+			return Promise.all(element.getWatchExpressions().map(we =>
+				we.name ? we.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch').then(() => we) : Promise.resolve(we)));
 		}
 
 		let expression = <Expression>element;
@@ -222,7 +222,7 @@ class WatchExpressionsDataSource implements IDataSource {
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -333,10 +333,6 @@ class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		return null;
-	}
-
-	public getAriaRole(tree: ITree, element: any): string {
-		return 'treeitem';
 	}
 }
 

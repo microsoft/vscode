@@ -21,7 +21,7 @@ export interface ItemDescription {
 suite('Completions', () => {
 	const cssLanguageService = getCSSLanguageService();
 
-	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
+	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
 		let matches = completions.items.filter(completion => {
 			return completion.label === expected.label;
 		});

@@ -143,7 +143,7 @@ export function deactivate(): Promise<any> {
 	return telemetryReporter ? telemetryReporter.dispose() : Promise.resolve(null);
 }
 
-function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
+function getSchemaAssociation(_context: ExtensionContext): ISchemaAssociations {
 	let associations: ISchemaAssociations = {};
 	extensions.all.forEach(extension => {
 		let packageJSON = extension.packageJSON;

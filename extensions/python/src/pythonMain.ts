@@ -5,7 +5,7 @@
 'use strict';
 import { ExtensionContext, languages, IndentAction } from 'vscode';
 
-export function activate(context: ExtensionContext): any {
+export function activate(_context: ExtensionContext): any {
 	languages.setLanguageConfiguration('python', {
 		onEnterRules: [
 			{

@@ -207,17 +207,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 			})));
 
 			// Track the last edit location by tracking model content change events
-			this.activeEditorListeners.push(activeTextEditorWidget.onDidChangeModelContent(() => {
-				const position = activeTextEditorWidget.getPosition();
+			// Use a debouncer to make sure to capture the correct cursor position
+			// after the model content has changed.
+			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeModelContent, (last, event) => event, 0)((event => {
+				this.lastEditLocation = { input: activeEditor };
 
-				this.lastEditLocation = {
-					input: activeEditor,
-					selection: {
+				const position = activeTextEditorWidget.getPosition();
+				if (position) {
+					this.lastEditLocation.selection = {
 						startLineNumber: position.lineNumber,
 						startColumn: position.column
-					}
-				};
-			}));
+					};
+				}
+			})));
 		}
 	}
 
@@ -807,7 +809,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}).filter(input => !!input);
 	}
 
-	getLastActiveWorkspaceRoot(schemeFilter: string): URI {
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;

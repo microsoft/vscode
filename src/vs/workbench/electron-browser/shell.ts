@@ -44,7 +44,8 @@ import { ExtensionService } from 'vs/workbench/services/extensions/electron-brow
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
+// import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -97,9 +98,10 @@ import { MulitExtensionManagementService } from 'vs/platform/extensionManagement
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, LabelService } from 'vs/platform/label/common/label';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/node/downloadService';
+import { runWhenIdle } from 'vs/base/common/async';
 
 /**
  * Services that we require for the Shell
@@ -119,7 +121,6 @@ export interface ICoreServices {
 export class WorkbenchShell extends Disposable {
 	private storageService: IStorageService;
 	private environmentService: IEnvironmentService;
-	private labelService: ILabelService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
@@ -207,7 +208,7 @@ export class WorkbenchShell extends Disposable {
 				this.logStartupTelemetry(startupInfos);
 
 				// Set lifecycle phase to `Runnning For A Bit` after a short delay
-				let eventuallPhaseTimeoutHandle = browser.runWhenIdle(() => {
+				let eventuallPhaseTimeoutHandle = runWhenIdle(() => {
 					eventuallPhaseTimeoutHandle = void 0;
 					this.lifecycleService.phase = LifecyclePhase.Eventually;
 				}, 5000);
@@ -323,7 +324,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
-		serviceCollection.set(ILabelService, this.labelService);
+		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
 
 		serviceCollection.set(IStorageService, this.storageService);

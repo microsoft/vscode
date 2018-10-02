@@ -5,7 +5,6 @@
 'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { toThenable } from 'vs/base/common/async';
 import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
@@ -149,6 +148,6 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	}
 
 	getDiffInformation(id: string): Thenable<vscode.LineChange[]> {
-		return toThenable(this._proxy.$getDiffInformation(id));
+		return Promise.resolve(this._proxy.$getDiffInformation(id));
 	}
 }

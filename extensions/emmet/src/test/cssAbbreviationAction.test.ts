@@ -406,7 +406,7 @@ nav#
 				return Promise.resolve();
 			}
 
-			const callBack = (completionList: CompletionList, abbreviation, expandedText) => {
+			const callBack = (completionList: CompletionList, abbreviation: string, expandedText: string) => {
 				if (!completionList.items || !completionList.items.length) {
 					assert.equal(1, 2, `Problem with expanding m10`);
 					return;
@@ -473,7 +473,7 @@ m10
 			editor.selection = new Selection(5, 15, 5, 15); // in the value part of property value
 			completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			if (completionPromise) {
-				return completionPromise.then((completionList: CompletionList) => {
+				return completionPromise.then((completionList: CompletionList | undefined) => {
 					if (completionList && completionList.items && completionList.items.length > 0) {
 						assert.equal(1, 2, `m10 gets expanded in invalid location (n the value part of property value)`);
 					}
@@ -486,18 +486,18 @@ m10
 
 });
 
-	test('Skip when typing property values when there is a nested rule in the next line (SCSS)', () => {
-		return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
-			editor.selection = new Selection(19, 10, 19, 10);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.equal(editor.document.getText(), scssContents);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.equal(1, 2, `Invalid completion at property value`);
-				}
-				return Promise.resolve();
-			});
+test('Skip when typing property values when there is a nested rule in the next line (SCSS)', () => {
+	return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
+		editor.selection = new Selection(19, 10, 19, 10);
+		return expandEmmetAbbreviation(null).then(() => {
+			assert.equal(editor.document.getText(), scssContents);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			if (completionPromise) {
+				assert.equal(1, 2, `Invalid completion at property value`);
+			}
+			return Promise.resolve();
 		});
+	});
 });
 

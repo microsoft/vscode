@@ -128,6 +128,7 @@ export function createApiFactory(
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const exthostCommentProviders = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands.converter, extHostDocuments));
+	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(initData.logsLocation, rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => (<any>ExtHostContext)[key]);
@@ -137,7 +138,6 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
-	const extHostOutputService = new ExtHostOutputService(initData.logsLocation, rpcProtocol);
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol, extHostDocuments);
 
 	// Register an output channel for exthost log
@@ -435,8 +435,8 @@ export function createApiFactory(
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
 				return extHostProgress.withProgress(extension, options, task);
 			},
-			createOutputChannel(name: string, options?: { force?: boolean }): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name, options);
+			createOutputChannel(name: string): vscode.OutputChannel {
+				return extHostOutputService.createOutputChannel(name);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebview(extension.extensionLocation, viewType, title, showOptions, options);
@@ -470,7 +470,7 @@ export function createApiFactory(
 				return extHostUrls.registerUriHandler(extension.id, handler);
 			},
 			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
-				return extHostQuickOpen.createQuickPick(extension.id);
+				return extHostQuickOpen.createQuickPick(extension.id, extension.enableProposedApi);
 			},
 			createInputBox(): vscode.InputBox {
 				return extHostQuickOpen.createInputBox(extension.id);

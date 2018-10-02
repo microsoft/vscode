@@ -34,7 +34,7 @@ export function getTerminalLauncher() {
 let _DEFAULT_TERMINAL_LINUX_READY: TPromise<string> = null;
 export function getDefaultTerminalLinuxReady(): TPromise<string> {
 	if (!_DEFAULT_TERMINAL_LINUX_READY) {
-		_DEFAULT_TERMINAL_LINUX_READY = new TPromise<string>(c => {
+		_DEFAULT_TERMINAL_LINUX_READY = new Promise<string>(c => {
 			if (env.isLinux) {
 				TPromise.join([pfs.exists('/etc/debian_version'), process.lazyEnv]).then(([isDebian]) => {
 					if (isDebian) {
@@ -86,7 +86,7 @@ class WinTerminalService extends TerminalLauncher {
 
 		const exec = configuration.external.windowsExec || getDefaultTerminalWindows();
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 
 			const title = `"${dir} - ${TERMINAL_TITLE}"`;
 			const command = `""${args.join('" "')}" & pause"`; // use '|' to only pause on non-zero exit code
@@ -124,7 +124,7 @@ class MacTerminalService extends TerminalLauncher {
 
 		const terminalApp = configuration.external.osxExec || MacTerminalService.DEFAULT_TERMINAL_OSX;
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 
 			if (terminalApp === MacTerminalService.DEFAULT_TERMINAL_OSX || terminalApp === 'iTerm.app') {
 
@@ -190,14 +190,14 @@ class LinuxTerminalService extends TerminalLauncher {
 	public runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, configuration: ITerminalSettings): TPromise<void> {
 
 		const terminalConfig = configuration.external;
-		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
+		const execThenable: Thenable<string> = terminalConfig.linuxExec ? Promise.resolve(terminalConfig.linuxExec) : getDefaultTerminalLinuxReady();
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 
 			let termArgs: string[] = [];
 			//termArgs.push('--title');
 			//termArgs.push(`"${TERMINAL_TITLE}"`);
-			execPromise.then(exec => {
+			execThenable.then(exec => {
 				if (exec.indexOf('gnome-terminal') >= 0) {
 					termArgs.push('-x');
 				} else {

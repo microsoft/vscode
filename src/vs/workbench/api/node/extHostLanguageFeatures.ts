@@ -5,7 +5,6 @@
 'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
@@ -132,7 +131,7 @@ class CodeLensAdapter {
 
 		let resolve: Thenable<vscode.CodeLens>;
 		if (typeof this._provider.resolveCodeLens !== 'function' || lens.isResolved) {
-			resolve = TPromise.as(lens);
+			resolve = Promise.resolve(lens);
 		} else {
 			resolve = asThenable(() => this._provider.resolveCodeLens(lens, token));
 		}
@@ -447,7 +446,7 @@ class NavigateTypeAdapter {
 	resolveWorkspaceSymbol(symbol: WorkspaceSymbolDto, token: CancellationToken): Thenable<WorkspaceSymbolDto> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return TPromise.as(symbol);
+			return Promise.resolve(symbol);
 		}
 
 		const item = this._symbolCache[symbol._id];
@@ -504,7 +503,7 @@ class RenameAdapter {
 
 	resolveRenameLocation(resource: URI, position: IPosition, token: CancellationToken): Thenable<modes.RenameLocation & modes.Rejection> {
 		if (typeof this._provider.prepareRename !== 'function') {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
@@ -572,7 +571,7 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
@@ -619,16 +618,16 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		const { _parentId, _id } = (<SuggestionDto>suggestion);
 		const item = this._cache.has(_parentId) && this._cache.get(_parentId)[_id];
 		if (!item) {
-			return TPromise.as(suggestion);
+			return Promise.resolve(suggestion);
 		}
 
 		return asThenable(() => this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
@@ -672,10 +671,15 @@ class SuggestAdapter {
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
+			range: undefined,
 			insertText: undefined,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			commitCharacters: item.commitCharacters,
+			// help with perf
+			_labelLow: item.label.toLowerCase(),
+			_filterTextLow: item.filterText && item.filterText.toLowerCase(),
+			_sortTextLow: item.sortText && item.sortText.toLowerCase()
 		};
 
 		// 'insertText'-logic
@@ -705,8 +709,7 @@ class SuggestAdapter {
 		} else {
 			range = defaultRange;
 		}
-		result.overwriteBefore = position.character - range.start.character;
-		result.overwriteAfter = range.end.character - position.character;
+		result.range = typeConvert.Range.from(range);
 
 		if (!range.isSingleLine || range.start.line !== position.line) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
@@ -928,7 +931,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _withAdapter<A, R>(handle: number, ctor: { new(...args: any[]): A }, callback: (adapter: A) => Thenable<R>): Thenable<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError<R>(new Error('no adapter found'));
+			return Promise.reject(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}
@@ -1134,11 +1137,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto> {
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token));
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion, token));
 	}
 

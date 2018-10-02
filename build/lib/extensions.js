@@ -25,7 +25,6 @@ var vsce = require("vsce");
 var stats_1 = require("./stats");
 var util2 = require("./util");
 var remote = require("gulp-remote-src");
-var flatmap = require('gulp-flatmap');
 var vzip = require('gulp-vinyl-zip');
 var filter = require('gulp-filter');
 var rename = require('gulp-rename');
@@ -44,7 +43,6 @@ function fromLocal(extensionPath, sourceMappingURLBase) {
         return fromLocalNormal(extensionPath);
     }
 }
-exports.fromLocal = fromLocal;
 function fromLocalWebpack(extensionPath, sourceMappingURLBase) {
     var result = es.through();
     var packagedDependencies = [];
@@ -173,18 +171,15 @@ function fromMarketplace(extensionName, version, metadata) {
             headers: baseHeaders
         }
     };
+    var packageJsonFilter = filter('package.json', { restore: true });
     return remote('', options)
-        .pipe(flatmap(function (stream) {
-        var packageJsonFilter = filter('package.json', { restore: true });
-        return stream
-            .pipe(vzip.src())
-            .pipe(filter('extension/**'))
-            .pipe(rename(function (p) { return p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
-            .pipe(packageJsonFilter)
-            .pipe(buffer())
-            .pipe(json({ __metadata: metadata }))
-            .pipe(packageJsonFilter.restore);
-    }));
+        .pipe(vzip.src())
+        .pipe(filter('extension/**'))
+        .pipe(rename(function (p) { return p.dirname = p.dirname.replace(/^extension\/?/, ''); }))
+        .pipe(packageJsonFilter)
+        .pipe(buffer())
+        .pipe(json({ __metadata: metadata }))
+        .pipe(packageJsonFilter.restore);
 }
 exports.fromMarketplace = fromMarketplace;
 var excludedExtensions = [
@@ -194,6 +189,28 @@ var excludedExtensions = [
     'ms-vscode.node-debug2',
 ];
 var builtInExtensions = require('../builtInExtensions.json');
+/**
+ * We're doing way too much stuff at once, with webpack et al. So much stuff
+ * that while downloading extensions from the marketplace, node js doesn't get enough
+ * stack frames to complete the download in under 2 minutes, at which point the
+ * marketplace server cuts off the http request. So, we sequentialize the extensino tasks.
+ */
+function sequence(streamProviders) {
+    var result = es.through();
+    function pop() {
+        if (streamProviders.length === 0) {
+            result.emit('end');
+        }
+        else {
+            var fn = streamProviders.shift();
+            fn()
+                .on('end', function () { setTimeout(pop, 0); })
+                .pipe(result, { end: false });
+        }
+    }
+    pop();
+    return result;
+}
 function packageExtensionsStream(opts) {
     opts = opts || {};
     var localExtensionDescriptions = glob.sync('extensions/*/package.json')
@@ -214,12 +231,12 @@ function packageExtensionsStream(opts) {
         var name = _a.name;
         return builtInExtensions.every(function (b) { return b.name !== name; });
     });
-    var localExtensions = es.merge.apply(es, localExtensionDescriptions.map(function (extension) {
+    var localExtensions = function () { return es.merge.apply(es, localExtensionDescriptions.map(function (extension) {
         return fromLocal(extension.path, opts.sourceMappingURLBase)
             .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
-    }));
-    var localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });
-    var marketplaceExtensions = es.merge.apply(es, builtInExtensions
+    })); };
+    var localExtensionDependencies = function () { return gulp.src('extensions/node_modules/**', { base: '.' }); };
+    var marketplaceExtensions = function () { return es.merge.apply(es, builtInExtensions
         .filter(function (_a) {
         var name = _a.name;
         return opts.desiredExtensions ? opts.desiredExtensions.indexOf(name) >= 0 : true;
@@ -227,8 +244,8 @@ function packageExtensionsStream(opts) {
         .map(function (extension) {
         return fromMarketplace(extension.name, extension.version, extension.metadata)
             .pipe(rename(function (p) { return p.dirname = "extensions/" + extension.name + "/" + p.dirname; }));
-    }));
-    return es.merge(localExtensions, localExtensionDependencies, marketplaceExtensions)
+    })); };
+    return sequence([localExtensions, localExtensionDependencies, marketplaceExtensions])
         .pipe(util2.setExecutableBit(['**/*.sh']))
         .pipe(filter(['**', '!**/*.js.map']));
 }

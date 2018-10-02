@@ -28,7 +28,7 @@ class ToggleCenteredLayout extends Action {
 	run(): TPromise<any> {
 		this.partService.centerEditorLayout(!this.partService.isEditorLayoutCentered());
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 

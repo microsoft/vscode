@@ -137,8 +137,13 @@
 	text-overflow: ellipsis;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .splash .showOnStartup {
+	line-height: 1.3em;
+	vertical-align: middle;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .splash .showOnStartup > .checkbox {
-	vertical-align: bottom;
+	vertical-align: middle;
 }
 
 .monaco-workbench > .part.editor > .content .welcomePage .commands ul {

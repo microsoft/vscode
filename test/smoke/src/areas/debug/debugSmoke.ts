@@ -125,7 +125,7 @@ export class Debug extends Viewlet {
 	}
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
-		await this.commands.runCommand('Debug: Focus Debug Console');
+		await this.commands.runCommand('Debug: Focus on Debug Console View');
 		await this.code.waitForActiveElement(REPL_FOCUSED);
 		await this.code.waitForSetValue(REPL_FOCUSED, text);
 

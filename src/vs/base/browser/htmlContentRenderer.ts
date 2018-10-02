@@ -12,6 +12,7 @@ import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlConte
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
@@ -106,6 +107,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 			!href
 			|| href.match(/^data:|javascript:/i)
 			|| (href.match(/^command:/i) && !markdown.isTrusted)
+			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
 		) {
 			// drop the link
 			return text;
@@ -151,10 +153,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 					return;
 				}
 			}
-
-			const href = target.dataset['href'];
-			if (href) {
-				options.actionHandler.callback(href, event);
+			try {
+				const href = target.dataset['href'];
+				if (href) {
+					options.actionHandler.callback(href, event);
+				}
+			} catch (err) {
+				onUnexpectedError(err);
+			} finally {
+				event.preventDefault();
 			}
 		}));
 	}

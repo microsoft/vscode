@@ -8,7 +8,7 @@
 import { done } from './util';
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (target: any, key: string, descriptor: any) => {
+	return (_target: any, key: string, descriptor: any) => {
 		let fnKey: string | null = null;
 		let fn: Function | null = null;
 

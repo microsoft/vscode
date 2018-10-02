@@ -361,6 +361,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 						}
 
+						this._editor.pushUndoStop();
 						this._editor.executeEdits('colorpicker', textEdits);
 
 						if (model.presentation.additionalTextEdits) {

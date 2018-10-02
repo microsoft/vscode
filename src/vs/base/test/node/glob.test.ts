@@ -11,7 +11,7 @@ import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {
 
-	// test('perf', function () {
+	// test('perf', () => {
 
 	// 	let patterns = [
 	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
@@ -71,7 +71,7 @@ suite('Glob', () => {
 		assert(!glob.match(pattern, input), `${pattern} should not match ${input}`);
 	}
 
-	test('simple', function () {
+	test('simple', () => {
 		let p = 'node_modules';
 
 		assertGlobMatch(p, 'node_modules');
@@ -175,7 +175,7 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'some.js/test');
 	});
 
-	test('star', function () {
+	test('star', () => {
 		let p = 'node*modules';
 
 		assertGlobMatch(p, 'node_modules');
@@ -203,7 +203,7 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'foo/node_modules/foo/bar');
 	});
 
-	test('questionmark', function () {
+	test('questionmark', () => {
 		let p = 'node?modules';
 
 		assertGlobMatch(p, 'node_modules');
@@ -220,7 +220,7 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, '/node_modules/foo.js');
 	});
 
-	test('globstar', function () {
+	test('globstar', () => {
 		let p = '**/*.js';
 
 		assertGlobMatch(p, 'foo.js');
@@ -483,7 +483,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expression, 'test.foo', hasSibling), null);
 	});
 
-	test('brackets', function () {
+	test('brackets', () => {
 		let p = 'foo.[0-9]';
 
 		assertGlobMatch(p, 'foo.5');

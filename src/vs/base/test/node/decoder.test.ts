@@ -10,7 +10,7 @@ import * as decoder from 'vs/base/node/decoder';
 
 suite('Decoder', () => {
 
-	test('decoding', function () {
+	test('decoding', () => {
 		const lineDecoder = new decoder.LineDecoder();
 		let res = lineDecoder.write(Buffer.from('hello'));
 		assert.equal(res.length, 0);

@@ -16,13 +16,15 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { SettingsEditor2 } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
+import { SettingsEditor2 } from 'vs/workbench/parts/preferences/electron-browser/settingsEditor2';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
 import { OpenDefaultKeybindingsFileAction, OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction, OpenSettings2Action, OpenSettingsJsonAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IKeybindingsEditor, IPreferencesSearchService, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE,
-	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SEARCH, CONTEXT_SETTINGS_EDITOR, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, CONTEXT_TOC_ROW_FOCUS, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU
+	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SEARCH, CONTEXT_SETTINGS_EDITOR, SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
+	CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH, CONTEXT_TOC_ROW_FOCUS, SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST,
+	SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -253,7 +255,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_SEARCH,
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 	handler: (accessor, args: any) => {
 		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
@@ -343,19 +345,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
-	primary: KeyCode.Escape,
-	handler: (accessor, args: any) => {
-		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
-		if (control) {
-			control.clearSearchResults();
-		}
-	}
-});
-
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
 
 CommandsRegistry.registerCommand(OPEN_FOLDER_SETTINGS_COMMAND, function (accessor: ServicesAccessor, resource: URI) {
@@ -383,6 +372,65 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: { value: `${category}: ${OpenWorkspaceSettingsAction.LABEL}`, original: 'Preferences: Open Workspace Settings' },
 	},
 	when: new RawContextKey<string>('workbenchState', '').notEqualsTo('empty')
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
+	primary: KeyCode.Escape,
+	handler: (accessor, args: any) => {
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		if (control) {
+			control.clearSearchResults();
+		}
+	}
+});
+
+CommandsRegistry.registerCommand(OpenGlobalKeybindingsFileAction.ID, serviceAccessor => {
+	serviceAccessor.get(IInstantiationService).createInstance(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL).run();
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: OpenGlobalKeybindingsFileAction.ID,
+		title: OpenGlobalKeybindingsFileAction.LABEL,
+		iconLocation: {
+			light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/browser/media/open-file.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/browser/media/open-file-inverse.svg`))
+		}
+	},
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: 'navigation',
+});
+
+CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, serviceAccessor => {
+	const control = serviceAccessor.get(IEditorService).activeControl as IKeybindingsEditor;
+	if (control) {
+		control.search('@source:default');
+	}
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
+		title: nls.localize('showDefaultKeybindings', "Show Default Keybindings")
+	},
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: '1_keyboard_preferences_actions'
+});
+
+CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, serviceAccessor => {
+	const control = serviceAccessor.get(IEditorService).activeControl as IKeybindingsEditor;
+	if (control) {
+		control.search('@source:user');
+	}
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS,
+		title: nls.localize('showUserKeybindings', "Show User Keybindings")
+	},
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: '1_keyboard_preferences_actions'
 });
 
 abstract class SettingsCommand extends Command {

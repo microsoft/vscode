@@ -123,6 +123,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		id: string,
 		viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
@@ -132,7 +133,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		@IExtensionService protected extensionService: IExtensionService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
-		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
+		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, configurationService, partService, contextMenuService, telemetryService, themeService);
 
 		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
 		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
@@ -192,7 +193,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 
 	setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible)
-			.then(() => TPromise.join(this.panels.filter(view => view.isVisible() !== visible)
+			.then(() => Promise.all(this.panels.filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))
 			.then(() => void 0);
 	}
@@ -210,7 +211,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		if (focus) {
 			view.focus();
 		}
-		return TPromise.as(view);
+		return Promise.resolve(view);
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -329,7 +330,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(actions)
+			getActions: () => Promise.resolve(actions)
 		});
 	}
 

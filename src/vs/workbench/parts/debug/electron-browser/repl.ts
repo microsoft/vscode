@@ -175,9 +175,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+		modes.CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
 				this.historyNavigationEnablement.set(false);
 
@@ -196,7 +196,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 						return { suggestions: [] };
 					});
 				}
-				return TPromise.as({ suggestions: [] });
+				return Promise.resolve({ suggestions: [] });
 			}
 		});
 

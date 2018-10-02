@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { first2, createCancelablePromise, CancelablePromise, timeout } from 'vs/base/common/async';
+import { first, createCancelablePromise, CancelablePromise, timeout } from 'vs/base/common/async';
 import { onUnexpectedExternalError, onUnexpectedError } from 'vs/base/common/errors';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -45,7 +45,7 @@ export function getOccurrencesAtPosition(model: ITextModel, position: Position, 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
 	// (good = none empty array)
-	return first2(orderedByScore.map(provider => () => {
+	return first(orderedByScore.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
 			.then(undefined, onUnexpectedExternalError);
 	}), result => !isFalsyOrEmpty(result));

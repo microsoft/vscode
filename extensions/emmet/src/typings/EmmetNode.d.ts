@@ -26,7 +26,7 @@ declare module 'EmmetNode' {
 
     export interface CssToken extends Token {
         size: number
-        item(number): any
+        item(number: number): any
         type: string
     }
 
@@ -85,8 +85,8 @@ declare module 'EmmetNode' {
         backUp(n: number): number
         current(): string
         substring(from: Position, to: Position): string
-        eat(match): boolean
-        eatWhile(match): boolean
+        eat(match: any): boolean
+        eatWhile(match: any): boolean
     }
 }
 

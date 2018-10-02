@@ -282,7 +282,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): CodeActionSet {
-		if (!tsAction.fixId || !this.client.apiVersion.gte(API.v270) || results.hasFixAllAction(results)) {
+		if (!tsAction.fixId || this.client.apiVersion.lt(API.v270) || results.hasFixAllAction(results)) {
 			return results;
 		}
 

@@ -55,7 +55,7 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SingleServerExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
-import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface SearchInputEvent extends Event {
@@ -291,7 +291,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@INotificationService private notificationService: INotificationService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -299,7 +299,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		@IExtensionService extensionService: IExtensionService,
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
 	) {
-		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, configurationService, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.searchDelayer = new ThrottledDelayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);

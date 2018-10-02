@@ -9,7 +9,7 @@ import * as winjs from 'vs/base/common/winjs.base';
 
 suite('WinJS and ES6 Promises', function () {
 
-	test('Promise.resolve', function () {
+	test('Promise.resolve', () => {
 		let resolveTPromise;
 		const tPromise = new winjs.Promise((c, e) => {
 			resolveTPromise = c;

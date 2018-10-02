@@ -382,6 +382,8 @@ export class FormatString extends Marker {
 			return !value ? '' : value.toLocaleLowerCase();
 		} else if (this.shorthandName === 'capitalize') {
 			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
+		} else if (this.shorthandName === 'pascalcase') {
+			return !value ? '' : this._toPascalCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -389,6 +391,15 @@ export class FormatString extends Marker {
 		} else {
 			return value || '';
 		}
+	}
+
+	private _toPascalCase(value: string): string {
+		return value.match(/[a-z]+/gi)
+			.map(function (word) {
+				return word.charAt(0).toUpperCase()
+					+ word.substr(1).toLowerCase();
+			})
+			.join('');
 	}
 
 	toTextmateString(): string {

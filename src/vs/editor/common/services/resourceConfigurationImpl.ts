@@ -11,7 +11,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { basename } from 'vs/base/common/paths';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
@@ -43,6 +42,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		if (model) {
 			return position ? this.modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column)).language : model.getLanguageIdentifier().language;
 		}
-		return this.modeService.getModeIdByFilenameOrFirstLine(basename(resource.path));
+		return this.modeService.getModeIdByFilepathOrFirstLine(resource.path);
+
 	}
 }

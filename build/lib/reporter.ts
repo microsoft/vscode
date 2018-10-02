@@ -94,11 +94,11 @@ export function createReporter(): IReporter {
 				onEnd();
 
 				if (emitError && errors.length > 0) {
-					(errors as any).__logged__ = true;
-
 					if (!(errors as any).__logged__) {
 						log();
 					}
+
+					(errors as any).__logged__ = true;
 
 					const err = new Error(`Found ${errors.length} errors`);
 					(err as any).__reporter__ = true;

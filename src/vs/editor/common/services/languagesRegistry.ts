@@ -292,11 +292,11 @@ export class LanguagesRegistry {
 		return [];
 	}
 
-	public getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?: string): string[] {
-		if (!filename && !firstLine) {
+	public getModeIdsFromFilepathOrFirstLine(filepath: string, firstLine?: string): string[] {
+		if (!filepath && !firstLine) {
 			return [];
 		}
-		let mimeTypes = mime.guessMimeTypes(filename, firstLine);
+		let mimeTypes = mime.guessMimeTypes(filepath, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 

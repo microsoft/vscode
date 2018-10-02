@@ -3790,7 +3790,7 @@ declare module 'vscode' {
 			/**
 			 * This property is deprecated and not fully supported anymore by
 			 * the editor (scope and lineStart are ignored).
-			 * Use the the autoClosingPairs property in the language configuration file instead.
+			 * Use the autoClosingPairs property in the language configuration file instead.
 			 * @deprecated
 			 */
 			docComment?: {
@@ -3804,7 +3804,7 @@ declare module 'vscode' {
 		/**
 		 * **Deprecated** Do not use.
 		 *
-		 * @deprecated * Use the the autoClosingPairs property in the language configuration file instead.
+		 * @deprecated * Use the autoClosingPairs property in the language configuration file instead.
 		 */
 		__characterPairSupport?: {
 			autoClosingPairs: {
@@ -4085,9 +4085,8 @@ declare module 'vscode' {
 		source?: string;
 
 		/**
-		 * A code or identifier for this diagnostics. Will not be surfaced
-		 * to the user, but should be used for later processing, e.g. when
-		 * providing [code actions](#CodeActionContext).
+		 * A code or identifier for this diagnostic.
+		 * Should be used for later processing, e.g. when providing [code actions](#CodeActionContext).
 		 */
 		code?: string | number;
 
@@ -6226,14 +6225,9 @@ declare module 'vscode' {
 		/**
 		 * Creates a new [output channel](#OutputChannel) with the given name.
 		 *
-		 * By default, Output channels use a separate transport mechanism when appending data.
-		 * This helps to reduce CPU load on the UI process but also means that the output channel UI updates with a small delay.
-		 * Use the force-flag to enforce immediate updates at the cost of higher CPU usage.
-		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
-		 * @param options Options to control how the channel will be created.
 		 */
-		export function createOutputChannel(name: string, options?: { force?: boolean }): OutputChannel;
+		export function createOutputChannel(name: string): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.

@@ -422,10 +422,6 @@ class AriaProvider implements tree.IAccessibilityProvider {
 			return undefined;
 		}
 	}
-
-	public getAriaRole(tree: tree.ITree, element: any): string {
-		return 'treeitem';
-	}
 }
 
 class VSash {
@@ -708,7 +704,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 	}
 
-	public setModel(newModel: ReferencesModel): TPromise<any> {
+	public setModel(newModel: ReferencesModel): Thenable<any> {
 		// clean up
 		this._disposeOnNewModel = dispose(this._disposeOnNewModel);
 		this._model = newModel;
@@ -718,13 +714,13 @@ export class ReferenceWidget extends PeekViewWidget {
 		return undefined;
 	}
 
-	private _onNewModel(): TPromise<any> {
+	private _onNewModel(): Thenable<any> {
 
 		if (this._model.empty) {
 			this.setTitle('');
 			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		dom.hide(this._messageContainer);
@@ -786,7 +782,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			await this._tree.reveal(reference.parent);
 		}
 
-		return TPromise.join([promise, this._tree.reveal(reference)]).then(values => {
+		return Promise.all([promise, this._tree.reveal(reference)]).then(values => {
 			const ref = values[0];
 
 			if (!this._model) {

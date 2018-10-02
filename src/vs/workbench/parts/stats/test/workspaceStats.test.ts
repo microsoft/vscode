@@ -55,7 +55,7 @@ suite('Telemetry - WorkspaceStats', () => {
 		assert.deepStrictEqual(getDomainsOfRemotes(config, whitelist).sort(), ['example.com', 'github.com']);
 	});
 
-	test('Whitelisting', function () {
+	test('Whitelisting', () => {
 		const config = ['https://github.com/Microsoft/vscode.git', 'https://git.foobar.com/gitproject.git'].map(remote).join('');
 		assert.deepStrictEqual(getDomainsOfRemotes(config, whitelist).sort(), ['aaaaaa.aaa', 'github.com']);
 	});

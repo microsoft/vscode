@@ -240,18 +240,18 @@ export class StandaloneCommandService implements ICommandService {
 		});
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
+	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
 		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
 		if (!command) {
-			return TPromise.wrapError<T>(new Error(`command '${id}' not found`));
+			return Promise.reject(new Error(`command '${id}' not found`));
 		}
 
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
-			return TPromise.as(result);
+			return Promise.resolve(result);
 		} catch (err) {
-			return TPromise.wrapError<T>(err);
+			return Promise.reject(err);
 		}
 	}
 }
@@ -493,7 +493,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public _serviceBrand: any;
 
-	private static SCHEME: 'inmemory';
+	private static SCHEME = 'inmemory';
 
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -562,17 +562,17 @@ export class SimpleBulkEditService implements IBulkEditService {
 		//
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): TPromise<IBulkEditResult> {
+	apply(workspaceEdit: WorkspaceEdit, options: IBulkEditOptions): Promise<IBulkEditResult> {
 
 		let edits = new Map<ITextModel, TextEdit[]>();
 
 		for (let edit of workspaceEdit.edits) {
 			if (!isResourceTextEdit(edit)) {
-				return TPromise.wrapError(new Error('bad edit - only text edits are supported'));
+				return Promise.reject(new Error('bad edit - only text edits are supported'));
 			}
 			let model = this._modelService.getModel(edit.resource);
 			if (!model) {
-				return TPromise.wrapError(new Error('bad edit - model not found'));
+				return Promise.reject(new Error('bad edit - model not found'));
 			}
 			let array = edits.get(model);
 			if (!array) {
@@ -589,7 +589,7 @@ export class SimpleBulkEditService implements IBulkEditService {
 			totalEdits += edits.length;
 		});
 
-		return TPromise.as({
+		return Promise.resolve({
 			selection: undefined,
 			ariaSummary: localize('summary', 'Made {0} edits in {1} files', totalEdits, totalFiles)
 		});
@@ -613,7 +613,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return '';
 	}
 
-	public registerFormatter(schema: string, formatter: LabelRules): IDisposable {
+	public registerFormatter(selector: string, formatter: LabelRules): IDisposable {
 		throw new Error('Not implemented');
 	}
 }

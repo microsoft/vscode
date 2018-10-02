@@ -95,6 +95,16 @@ function save(
 	editorGroupService: IEditorGroupsService
 ): TPromise<any> {
 
+	function ensureForcedSave(options?: ISaveOptions): ISaveOptions {
+		if (!options) {
+			options = { force: true };
+		} else {
+			options.force = true;
+		}
+
+		return options;
+	}
+
 	if (resource && (fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 
 		// Save As (or Save untitled with associated path)
@@ -130,6 +140,11 @@ function save(
 
 			// Otherwise, really "Save As..."
 			else {
+
+				// Force a change to the file to trigger external watchers if any
+				// fixes https://github.com/Microsoft/vscode/issues/59655
+				options = ensureForcedSave(options);
+
 				savePromise = textFileService.saveAs(resource, void 0, options);
 			}
 
@@ -147,7 +162,7 @@ function save(
 					}
 				};
 
-				return TPromise.join(editorGroupService.groups.map(g =>
+				return Promise.all(editorGroupService.groups.map(g =>
 					editorService.replaceEditors([{
 						editor: { resource },
 						replacement
@@ -163,16 +178,12 @@ function save(
 		}
 
 		// Just save (force a change to the file to trigger external watchers if any)
-		if (!options) {
-			options = { force: true };
-		} else {
-			options.force = true;
-		}
+		options = ensureForcedSave(options);
 
 		return textFileService.save(resource, options);
 	}
 
-	return TPromise.as(false);
+	return Promise.resolve(false);
 }
 
 function saveAll(saveAllArguments: any, editorService: IEditorService, untitledEditorService: IUntitledEditorService,
@@ -236,7 +247,7 @@ CommandsRegistry.registerCommand({
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -270,7 +281,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -299,7 +310,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return editorService.openEditor({ leftResource: uri.with({ scheme: COMPARE_WITH_SAVED_SCHEMA }), rightResource: uri, label: editorLabel }).then(() => void 0);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -337,7 +348,7 @@ CommandsRegistry.registerCommand({
 			});
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 });
 
@@ -514,6 +525,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S),
+	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);

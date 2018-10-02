@@ -46,7 +46,7 @@ suite('FileService', () => {
 		return pfs.del(parentDir, os.tmpdir());
 	});
 
-	test('createFile', function () {
+	test('createFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -102,7 +102,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('createFolder', function () {
+	test('createFolder', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -150,7 +150,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFile', function () {
+	test('renameFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -195,7 +195,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('renameFolder', function () {
+	test('renameFolder', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -260,7 +260,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('moveFile', function () {
+	test('moveFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -371,7 +371,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('copyFile', function () {
+	test('copyFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -458,7 +458,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFile', function () {
+	test('deleteFile', () => {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -507,7 +507,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveFile', function () {
+	test('resolveFile', () => {
 		return service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).then(r => {
 			assert.equal(r.children.length, 8);
 
@@ -516,7 +516,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('resolveFiles', function () {
+	test('resolveFiles', () => {
 		return service.resolveFiles([
 			{ resource: uri.file(testDir), options: { resolveTo: [uri.file(path.join(testDir, 'deep'))] } },
 			{ resource: uri.file(path.join(testDir, 'deep')) }
@@ -534,7 +534,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('existsFile', function () {
+	test('existsFile', () => {
 		return service.existsFile(uri.file(testDir)).then((exists) => {
 			assert.equal(exists, true);
 
@@ -544,7 +544,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('updateContent', function () {
+	test('updateContent', () => {
 		const resource = uri.file(path.join(testDir, 'small.txt'));
 
 		return service.resolveContent(resource).then(c => {

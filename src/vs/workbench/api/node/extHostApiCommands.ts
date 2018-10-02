@@ -5,7 +5,6 @@
 'use strict';
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -350,7 +349,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError<types.WorkspaceEdit>(new Error(value.rejectReason));
+				return Promise.reject(new Error(value.rejectReason));
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		});
@@ -377,9 +376,9 @@ export class ExtHostApiCommands {
 			triggerCharacter,
 			maxItemsToResolve
 		};
-		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
+		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
+				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(suggestion));
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;

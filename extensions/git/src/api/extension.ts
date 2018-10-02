@@ -9,7 +9,7 @@ import { Model } from '../model';
 import { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';
 
-export function deprecated(target: any, key: string, descriptor: any): void {
+export function deprecated(_target: any, key: string, descriptor: any): void {
 	if (typeof descriptor.value !== 'function') {
 		throw new Error('not supported');
 	}

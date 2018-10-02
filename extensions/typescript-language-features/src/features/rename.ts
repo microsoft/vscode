@@ -5,11 +5,14 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import API from '../utils/api';
 import * as typeConverters from '../utils/typeConverters';
 
+
+const localize = nls.loadMessageBundle();
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {
 	public constructor(
@@ -32,9 +35,15 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		}
 
 		if (this.client.apiVersion.gte(API.v310)) {
-			const triggerSpan = (renameInfo as any).triggerSpan;
+			const triggerSpan = renameInfo.triggerSpan;
 			if (triggerSpan) {
-				return typeConverters.Range.fromTextSpan(triggerSpan);
+				const range = typeConverters.Range.fromTextSpan(triggerSpan);
+				// Until https://github.com/Microsoft/vscode/issues/58907 is fixed, the returned range must include the
+				// rename trigger position.
+				if (!range.contains(position)) {
+					return Promise.reject<vscode.Range>(localize('cannotRename', "You cannot rename this element"));
+				}
+				return range;
 			}
 		}
 
@@ -57,14 +66,18 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
 		}
 
-		const edit = new vscode.WorkspaceEdit();
+
 		if (this.client.apiVersion.gte(API.v310)) {
 			if (renameInfo.fileToRename) {
-				this.renameFile(edit, renameInfo.fileToRename, newName);
+				const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
+				if (edits) {
+					return edits;
+				} else {
+					return Promise.reject<vscode.WorkspaceEdit>(localize('fileRenameFail', "An error occurred while renaming file"));
+				}
 			}
 		}
-		this.updateLocs(edit, response.body.locs, newName);
-		return edit;
+		return this.updateLocs(response.body.locs, newName);
 	}
 
 	public async execRename(
@@ -87,10 +100,10 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 	}
 
 	private updateLocs(
-		edit: vscode.WorkspaceEdit,
 		locations: ReadonlyArray<Proto.SpanGroup>,
 		newName: string
 	) {
+		const edit = new vscode.WorkspaceEdit();
 		for (const spanGroup of locations) {
 			const resource = this.client.toResource(spanGroup.file);
 			if (resource) {
@@ -102,21 +115,32 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		return edit;
 	}
 
-	private renameFile(
-		edit: vscode.WorkspaceEdit,
+	private async renameFile(
 		fileToRename: string,
 		newName: string,
-	): vscode.WorkspaceEdit {
+		token: vscode.CancellationToken,
+	): Promise<vscode.WorkspaceEdit | undefined> {
 		// Make sure we preserve file exension if none provided
-		if (path.extname(newName)) {
+		if (!path.extname(newName)) {
 			newName += path.extname(fileToRename);
 		}
 
 		const dirname = path.dirname(fileToRename);
 		const newFilePath = path.join(dirname, newName);
-		edit.renameFile(vscode.Uri.file(fileToRename), vscode.Uri.file(newFilePath));
 
-		return edit;
+		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
+			file: fileToRename,
+			oldFilePath: fileToRename,
+			newFilePath: newFilePath,
+		};
+		const response = await this.client.execute('getEditsForFileRename', args, token);
+		if (response.type !== 'response' || !response.body) {
+			return undefined;
+		}
+
+		const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+		edits.renameFile(vscode.Uri.file(fileToRename), vscode.Uri.file(newFilePath));
+		return edits;
 	}
 }
 

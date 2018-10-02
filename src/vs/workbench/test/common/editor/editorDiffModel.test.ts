@@ -38,7 +38,7 @@ suite('Workbench editor model', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('TextDiffEditorModel', function () {
+	test('TextDiffEditorModel', () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {

@@ -16,7 +16,8 @@ export interface IWatcherChannel extends IChannel {
 	listen<T>(event: string, arg?: any): Event<T>;
 
 	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
-	call(command: 'setVerboseLogging', request: boolean): TPromise<void>;
+	call(command: 'setVerboseLogging', enable: boolean): TPromise<void>;
+	call(command: 'stop'): TPromise<void>;
 	call<T>(command: string, arg?: any): TPromise<T>;
 }
 

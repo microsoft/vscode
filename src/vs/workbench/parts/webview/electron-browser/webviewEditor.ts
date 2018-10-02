@@ -190,7 +190,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			enableWrappedPostMessage: true,
 			useSameOriginForRoot: false,
 			localResourceRoots: input.options.localResourceRoots || this.getDefaultLocalResourceRoots()
-		});
+		}, input.options.retainContextWhenHidden);
 
 		if (this._webviewContent) {
 			this._webviewContent.style.visibility = 'visible';

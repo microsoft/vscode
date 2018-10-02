@@ -350,7 +350,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
-		if (!this.apiVersion.gte(API.v222)) {
+		if (this.apiVersion.lt(API.v222)) {
 			vscode.window.showErrorMessage(
 				localize(
 					'typescript.openTsServerLog.notSupported',
@@ -409,7 +409,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		if (!this.apiVersion.gte(API.v206)) {
+		if (this.apiVersion.lt(API.v206)) {
 			return;
 		}
 
@@ -601,6 +601,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case 'syntaxDiag':
 			case 'semanticDiag':
 			case 'suggestionDiag':
+				// This event also roughly signals that project has been loaded successfully
+				if (this._tsServerLoading) {
+					this._tsServerLoading.resolve();
+					this._tsServerLoading = undefined;
+				}
+
 				const diagnosticEvent: Proto.DiagnosticEvent = event;
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 					this._onDiagnosticsReceived.fire({
@@ -631,12 +637,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
 					const resources = body.openFiles.map(vscode.Uri.file);
 					this.bufferSyncSupport.getErr(resources);
-				}
-
-				// This event also roughly signals that project has been loaded successfully
-				if (this._tsServerLoading) {
-					this._tsServerLoading.resolve();
-					this._tsServerLoading = undefined;
 				}
 				break;
 

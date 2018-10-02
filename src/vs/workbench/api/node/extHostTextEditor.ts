@@ -8,7 +8,6 @@
 import { ok } from 'vs/base/common/assert';
 import { readonly, illegalArgument } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -499,7 +498,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor#edit not possible on closed editors'));
+			return Promise.reject(new Error('TextEditor#edit not possible on closed editors'));
 		}
 		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
@@ -511,7 +510,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 		// return when there is nothing to do
 		if (editData.edits.length === 0 && !editData.setEndOfLine) {
-			return TPromise.wrap(true);
+			return Promise.resolve(true);
 		}
 
 		// check that the edits are not overlapping (i.e. illegal)
@@ -538,7 +537,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 			if (nextRangeStart.isBefore(rangeEnd)) {
 				// overlapping ranges
-				return TPromise.wrapError<boolean>(
+				return Promise.reject(
 					new Error('Overlapping ranges are not allowed!')
 				);
 			}
@@ -562,7 +561,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>(new Error('TextEditor#insertSnippet not possible on closed editors'));
+			return Promise.reject(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}
 		let ranges: IRange[];
 
@@ -595,7 +594,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _runOnProxy(callback: () => Thenable<any>): Thenable<ExtHostTextEditor> {
 		if (this._disposed) {
 			console.warn('TextEditor is closed/disposed');
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 		return callback().then(() => this, err => {
 			if (!(err instanceof Error && err.name === 'DISPOSED')) {

@@ -455,13 +455,13 @@ export namespace DocumentHighlight {
 }
 
 export namespace CompletionTriggerKind {
-	export function from(kind: modes.SuggestTriggerKind) {
+	export function from(kind: modes.CompletionTriggerKind) {
 		switch (kind) {
-			case modes.SuggestTriggerKind.TriggerCharacter:
+			case modes.CompletionTriggerKind.TriggerCharacter:
 				return types.CompletionTriggerKind.TriggerCharacter;
-			case modes.SuggestTriggerKind.TriggerForIncompleteCompletions:
+			case modes.CompletionTriggerKind.TriggerForIncompleteCompletions:
 				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
-			case modes.SuggestTriggerKind.Invoke:
+			case modes.CompletionTriggerKind.Invoke:
 			default:
 				return types.CompletionTriggerKind.Invoke;
 		}
@@ -469,7 +469,7 @@ export namespace CompletionTriggerKind {
 }
 
 export namespace CompletionContext {
-	export function from(context: modes.SuggestContext): types.CompletionContext {
+	export function from(context: modes.CompletionContext): types.CompletionContext {
 		return {
 			triggerKind: CompletionTriggerKind.from(context.triggerKind),
 			triggerCharacter: context.triggerCharacter
@@ -479,64 +479,64 @@ export namespace CompletionContext {
 
 export const CompletionItemKind = {
 
-	from(kind: types.CompletionItemKind): modes.SuggestionKind {
+	from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
-			case types.CompletionItemKind.Method: return modes.SuggestionKind.Method;
-			case types.CompletionItemKind.Function: return modes.SuggestionKind.Function;
-			case types.CompletionItemKind.Constructor: return modes.SuggestionKind.Constructor;
-			case types.CompletionItemKind.Field: return modes.SuggestionKind.Field;
-			case types.CompletionItemKind.Variable: return modes.SuggestionKind.Variable;
-			case types.CompletionItemKind.Class: return modes.SuggestionKind.Class;
-			case types.CompletionItemKind.Interface: return modes.SuggestionKind.Interface;
-			case types.CompletionItemKind.Struct: return modes.SuggestionKind.Struct;
-			case types.CompletionItemKind.Module: return modes.SuggestionKind.Module;
-			case types.CompletionItemKind.Property: return modes.SuggestionKind.Property;
-			case types.CompletionItemKind.Unit: return modes.SuggestionKind.Unit;
-			case types.CompletionItemKind.Value: return modes.SuggestionKind.Value;
-			case types.CompletionItemKind.Constant: return modes.SuggestionKind.Constant;
-			case types.CompletionItemKind.Enum: return modes.SuggestionKind.Enum;
-			case types.CompletionItemKind.EnumMember: return modes.SuggestionKind.EnumMember;
-			case types.CompletionItemKind.Keyword: return modes.SuggestionKind.Keyword;
-			case types.CompletionItemKind.Snippet: return modes.SuggestionKind.Snippet;
-			case types.CompletionItemKind.Text: return modes.SuggestionKind.Text;
-			case types.CompletionItemKind.Color: return modes.SuggestionKind.Color;
-			case types.CompletionItemKind.File: return modes.SuggestionKind.File;
-			case types.CompletionItemKind.Reference: return modes.SuggestionKind.Reference;
-			case types.CompletionItemKind.Folder: return modes.SuggestionKind.Folder;
-			case types.CompletionItemKind.Event: return modes.SuggestionKind.Event;
-			case types.CompletionItemKind.Operator: return modes.SuggestionKind.Operator;
-			case types.CompletionItemKind.TypeParameter: return modes.SuggestionKind.TypeParameter;
+			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
+			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
+			case types.CompletionItemKind.Constructor: return modes.CompletionItemKind.Constructor;
+			case types.CompletionItemKind.Field: return modes.CompletionItemKind.Field;
+			case types.CompletionItemKind.Variable: return modes.CompletionItemKind.Variable;
+			case types.CompletionItemKind.Class: return modes.CompletionItemKind.Class;
+			case types.CompletionItemKind.Interface: return modes.CompletionItemKind.Interface;
+			case types.CompletionItemKind.Struct: return modes.CompletionItemKind.Struct;
+			case types.CompletionItemKind.Module: return modes.CompletionItemKind.Module;
+			case types.CompletionItemKind.Property: return modes.CompletionItemKind.Property;
+			case types.CompletionItemKind.Unit: return modes.CompletionItemKind.Unit;
+			case types.CompletionItemKind.Value: return modes.CompletionItemKind.Value;
+			case types.CompletionItemKind.Constant: return modes.CompletionItemKind.Constant;
+			case types.CompletionItemKind.Enum: return modes.CompletionItemKind.Enum;
+			case types.CompletionItemKind.EnumMember: return modes.CompletionItemKind.EnumMember;
+			case types.CompletionItemKind.Keyword: return modes.CompletionItemKind.Keyword;
+			case types.CompletionItemKind.Snippet: return modes.CompletionItemKind.Snippet;
+			case types.CompletionItemKind.Text: return modes.CompletionItemKind.Text;
+			case types.CompletionItemKind.Color: return modes.CompletionItemKind.Color;
+			case types.CompletionItemKind.File: return modes.CompletionItemKind.File;
+			case types.CompletionItemKind.Reference: return modes.CompletionItemKind.Reference;
+			case types.CompletionItemKind.Folder: return modes.CompletionItemKind.Folder;
+			case types.CompletionItemKind.Event: return modes.CompletionItemKind.Event;
+			case types.CompletionItemKind.Operator: return modes.CompletionItemKind.Operator;
+			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
-		return modes.SuggestionKind.Property;
+		return modes.CompletionItemKind.Property;
 	},
 
-	to(kind: modes.SuggestionKind): types.CompletionItemKind {
+	to(kind: modes.CompletionItemKind): types.CompletionItemKind {
 		switch (kind) {
-			case modes.SuggestionKind.Method: return types.CompletionItemKind.Method;
-			case modes.SuggestionKind.Function: return types.CompletionItemKind.Function;
-			case modes.SuggestionKind.Constructor: return types.CompletionItemKind.Constructor;
-			case modes.SuggestionKind.Field: return types.CompletionItemKind.Field;
-			case modes.SuggestionKind.Variable: return types.CompletionItemKind.Variable;
-			case modes.SuggestionKind.Class: return types.CompletionItemKind.Class;
-			case modes.SuggestionKind.Interface: return types.CompletionItemKind.Interface;
-			case modes.SuggestionKind.Struct: return types.CompletionItemKind.Struct;
-			case modes.SuggestionKind.Module: return types.CompletionItemKind.Module;
-			case modes.SuggestionKind.Property: return types.CompletionItemKind.Property;
-			case modes.SuggestionKind.Unit: return types.CompletionItemKind.Unit;
-			case modes.SuggestionKind.Value: return types.CompletionItemKind.Value;
-			case modes.SuggestionKind.Constant: return types.CompletionItemKind.Constant;
-			case modes.SuggestionKind.Enum: return types.CompletionItemKind.Enum;
-			case modes.SuggestionKind.EnumMember: return types.CompletionItemKind.EnumMember;
-			case modes.SuggestionKind.Keyword: return types.CompletionItemKind.Keyword;
-			case modes.SuggestionKind.Snippet: return types.CompletionItemKind.Snippet;
-			case modes.SuggestionKind.Text: return types.CompletionItemKind.Text;
-			case modes.SuggestionKind.Color: return types.CompletionItemKind.Color;
-			case modes.SuggestionKind.File: return types.CompletionItemKind.File;
-			case modes.SuggestionKind.Reference: return types.CompletionItemKind.Reference;
-			case modes.SuggestionKind.Folder: return types.CompletionItemKind.Folder;
-			case modes.SuggestionKind.Event: return types.CompletionItemKind.Event;
-			case modes.SuggestionKind.Operator: return types.CompletionItemKind.Operator;
-			case modes.SuggestionKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
+			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
+			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
+			case modes.CompletionItemKind.Constructor: return types.CompletionItemKind.Constructor;
+			case modes.CompletionItemKind.Field: return types.CompletionItemKind.Field;
+			case modes.CompletionItemKind.Variable: return types.CompletionItemKind.Variable;
+			case modes.CompletionItemKind.Class: return types.CompletionItemKind.Class;
+			case modes.CompletionItemKind.Interface: return types.CompletionItemKind.Interface;
+			case modes.CompletionItemKind.Struct: return types.CompletionItemKind.Struct;
+			case modes.CompletionItemKind.Module: return types.CompletionItemKind.Module;
+			case modes.CompletionItemKind.Property: return types.CompletionItemKind.Property;
+			case modes.CompletionItemKind.Unit: return types.CompletionItemKind.Unit;
+			case modes.CompletionItemKind.Value: return types.CompletionItemKind.Value;
+			case modes.CompletionItemKind.Constant: return types.CompletionItemKind.Constant;
+			case modes.CompletionItemKind.Enum: return types.CompletionItemKind.Enum;
+			case modes.CompletionItemKind.EnumMember: return types.CompletionItemKind.EnumMember;
+			case modes.CompletionItemKind.Keyword: return types.CompletionItemKind.Keyword;
+			case modes.CompletionItemKind.Snippet: return types.CompletionItemKind.Snippet;
+			case modes.CompletionItemKind.Text: return types.CompletionItemKind.Text;
+			case modes.CompletionItemKind.Color: return types.CompletionItemKind.Color;
+			case modes.CompletionItemKind.File: return types.CompletionItemKind.File;
+			case modes.CompletionItemKind.Reference: return types.CompletionItemKind.Reference;
+			case modes.CompletionItemKind.Folder: return types.CompletionItemKind.Folder;
+			case modes.CompletionItemKind.Event: return types.CompletionItemKind.Event;
+			case modes.CompletionItemKind.Operator: return types.CompletionItemKind.Operator;
+			case modes.CompletionItemKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
 		}
 		return types.CompletionItemKind.Property;
 	}
@@ -544,7 +544,7 @@ export const CompletionItemKind = {
 
 export namespace Suggest {
 
-	export function to(position: types.Position, suggestion: modes.ISuggestion): types.CompletionItem {
+	export function to(suggestion: modes.CompletionItem): types.CompletionItem {
 		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
@@ -554,15 +554,7 @@ export namespace Suggest {
 		result.filterText = suggestion.filterText;
 		result.preselect = suggestion.preselect;
 		result.commitCharacters = suggestion.commitCharacters;
-
-		// 'overwrite[Before|After]'-logic
-		let overwriteBefore = (typeof suggestion.overwriteBefore === 'number') ? suggestion.overwriteBefore : 0;
-		let startPosition = new types.Position(position.line, Math.max(0, position.character - overwriteBefore));
-		let endPosition = position;
-		if (typeof suggestion.overwriteAfter === 'number') {
-			endPosition = new types.Position(position.line, position.character + suggestion.overwriteAfter);
-		}
-		result.range = new types.Range(startPosition, endPosition);
+		result.range = Range.to(suggestion.range);
 
 		// 'inserText'-logic
 		if (suggestion.insertTextIsSnippet) {

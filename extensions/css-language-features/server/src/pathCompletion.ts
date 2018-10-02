@@ -201,6 +201,7 @@ function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Workspa
 			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
 		}
 	}
+	return undefined;
 }
 
 function shiftPosition(pos: Position, offset: number): Position {

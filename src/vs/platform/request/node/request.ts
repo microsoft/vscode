@@ -5,7 +5,6 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestOptions, IRequestContext } from 'vs/base/node/request';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -17,7 +16,7 @@ export const IRequestService = createDecorator<IRequestService>('requestService2
 export interface IRequestService {
 	_serviceBrand: any;
 
-	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext>;
+	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
 }
 
 export interface IHTTPConfiguration {

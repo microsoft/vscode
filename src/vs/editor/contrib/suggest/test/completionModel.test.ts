@@ -5,38 +5,37 @@
 'use strict';
 
 import * as assert from 'assert';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IPosition } from 'vs/editor/common/core/position';
-import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestionKind } from 'vs/editor/common/modes';
+import { CompletionList, CompletionItemProvider, CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = SuggestionKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
+export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
 	return new class implements ISuggestionItem {
 
 		position = position;
 
-		suggestion: ISuggestion = {
+		suggestion: CompletionItem = {
 			label,
-			overwriteBefore,
+			range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
 			insertText: label,
 			kind
 		};
 
-		container: ISuggestResult = {
+		container: CompletionList = {
 			incomplete,
 			suggestions: [this.suggestion]
 		};
 
-		support: ISuggestSupport = {
+		support: CompletionItemProvider = {
 			provideCompletionItems(): any {
 				return;
 			}
 		};
 
-		resolve(): TPromise<void> {
+		resolve(): Promise<void> {
 			return null;
 		}
 	};
@@ -76,7 +75,7 @@ suite('CompletionModel', function () {
 	});
 
 
-	test('complete/incomplete', function () {
+	test('complete/incomplete', () => {
 
 		assert.equal(model.incomplete.size, 0);
 
@@ -90,7 +89,7 @@ suite('CompletionModel', function () {
 		assert.equal(incompleteModel.incomplete.size, 1);
 	});
 
-	test('replaceIncomplete', function () {
+	test('replaceIncomplete', () => {
 
 		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
 		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
@@ -162,9 +161,9 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: top, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('Snippet1', 1, SuggestionKind.Snippet),
-			createSuggestItem('tnippet2', 1, SuggestionKind.Snippet),
-			createSuggestItem('semver', 1, SuggestionKind.Property),
+			createSuggestItem('Snippet1', 1, CompletionItemKind.Snippet),
+			createSuggestItem('tnippet2', 1, CompletionItemKind.Snippet),
+			createSuggestItem('semver', 1, CompletionItemKind.Property),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
@@ -181,9 +180,9 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: bottom, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, SuggestionKind.Snippet),
-			createSuggestItem('tnippet2', 1, SuggestionKind.Snippet),
-			createSuggestItem('Semver', 1, SuggestionKind.Property),
+			createSuggestItem('snippet1', 1, CompletionItemKind.Snippet),
+			createSuggestItem('tnippet2', 1, CompletionItemKind.Snippet),
+			createSuggestItem('Semver', 1, CompletionItemKind.Property),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
@@ -199,8 +198,8 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: inline, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, SuggestionKind.Snippet),
-			createSuggestItem('tnippet2', 1, SuggestionKind.Snippet),
+			createSuggestItem('snippet1', 1, CompletionItemKind.Snippet),
+			createSuggestItem('tnippet2', 1, CompletionItemKind.Snippet),
 			createSuggestItem('Semver', 1),
 		], 1, {
 				leadingLineContent: 's',
@@ -234,15 +233,15 @@ suite('CompletionModel', function () {
 		assert.equal(model.items.length, 1);
 	});
 
-	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+	test.skip('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 
-		const item1 = createSuggestItem('<- groups', 2, SuggestionKind.Property, false, { lineNumber: 1, column: 3 });
+		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item1.suggestion.filterText = '  groups';
-		item1.suggestion.sortText = '00002';
+		item1.suggestion._sortTextLow = '00002';
 
-		const item2 = createSuggestItem('source', 0, SuggestionKind.Property, false, { lineNumber: 1, column: 3 });
+		const item2 = createSuggestItem('source', 0, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item2.suggestion.filterText = 'source';
-		item2.suggestion.sortText = '00001';
+		item2.suggestion._sortTextLow = '00001';
 
 		const items = [item1, item2].sort(getSuggestionComparator('inline'));
 

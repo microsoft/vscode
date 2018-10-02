@@ -393,7 +393,7 @@ class MockCommandService implements ICommandService {
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
-	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
+	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
 
 		let result = `${commandId}-result`;
@@ -403,6 +403,6 @@ class MockCommandService implements ICommandService {
 			}
 		}
 
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }

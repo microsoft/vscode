@@ -9,7 +9,6 @@ import 'vs/css!./actionbar';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SelectBox, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
@@ -737,7 +736,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._onDidCancel.fire();
 	}
 
-	run(action: IAction, context?: any): TPromise<void> {
+	run(action: IAction, context?: any): Thenable<void> {
 		return this._actionRunner.run(action, context);
 	}
 

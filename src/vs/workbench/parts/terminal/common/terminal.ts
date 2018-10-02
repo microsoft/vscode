@@ -500,6 +500,15 @@ export interface ITerminalInstance {
 	sendText(text: string, addNewLine: boolean): void;
 
 	/**
+	 * Takes a path and returns the properly escaped path to send to the terminal.
+	 * On Windows, this included trying to prepare the path for WSL if needed.
+	 *
+	 * @param path The path to be escaped and formatted.
+	 * @returns An escaped version of the path to be execuded in the terminal.
+	 */
+	preparePathForTerminalAsync(path: string): Promise<string>;
+
+	/**
 	 * Write text directly to the terminal, skipping the process if it exists.
 	 * @param text The text to write.
 	 */

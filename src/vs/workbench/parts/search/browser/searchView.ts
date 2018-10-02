@@ -112,7 +112,6 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private readonly selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
-	private isWide: boolean;
 
 	private searchWithoutFolderMessageElement: HTMLElement;
 
@@ -127,7 +126,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IStorageService private storageService: IStorageService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -138,7 +137,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@ISearchHistoryService private searchHistoryService: ISearchHistoryService,
 		@IEditorGroupsService private editorGroupsService: IEditorGroupsService
 	) {
-		super(VIEW_ID, partService, telemetryService, themeService);
+		super(VIEW_ID, configurationService, partService, telemetryService, themeService);
 
 		this.viewletVisible = Constants.SearchViewVisibleKey.bindTo(contextKeyService);
 		this.viewletFocused = Constants.SearchViewFocusedKey.bindTo(contextKeyService);
@@ -802,10 +801,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		if (this.size.width >= SearchView.WIDE_VIEW_SIZE) {
-			this.isWide = true;
 			dom.addClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		} else {
-			this.isWide = false;
 			dom.removeClass(this.getContainer(), SearchView.WIDE_CLASS_NAME);
 		}
 
@@ -1064,9 +1061,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).
 		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
 		// https://github.com/Microsoft/vscode/issues/58374
-		const totalChars = content.isRegExp ? 10000 :
-			this.isWide ? 250 :
-				75;
+		const charsPerLine = content.isRegExp ? 10000 :
+			250;
 
 		const options: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
@@ -1076,9 +1072,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			excludePattern,
 			includePattern,
 			previewOptions: {
-				leadingChars: 20,
-				maxLines: 1,
-				totalChars
+				matchLines: 1,
+				charsPerLine
 			}
 		};
 		const folderResources = this.contextService.getWorkspace().folders;

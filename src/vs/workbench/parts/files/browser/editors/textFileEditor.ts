@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -99,11 +98,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// been disposed and we can safely persist the view state still as needed.
 		this._register((group as IEditorGroupView).onWillCloseEditor(e => {
 			if (e.editor === this.input) {
-				if (this.restoreViewState) {
-					this.doSaveTextEditorViewState(this.input);
-				} else {
-					this.clearTextEditorViewState([this.input.getResource()], this.group);
-				}
+				this.doSaveOrClearTextEditorViewState(this.input);
 			}
 		}));
 	}
@@ -117,8 +112,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 	setInput(input: FileEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 
-		// Remember view settings if input changes
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear view settings if input changes
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Set input and resolve
 		return super.setInput(input, options, token).then(() => {
@@ -180,12 +175,12 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_DIRECTORY) {
 					this.openAsFolder(input);
 
-					return TPromise.wrapError(new Error(nls.localize('openFolderError', "File is a directory")));
+					return Promise.reject(new Error(nls.localize('openFolderError', "File is a directory")));
 				}
 
 				// Offer to create a file from the error if we have a file not found and the name is valid
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
-					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+					return Promise.reject(errors.create(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 								return this.fileService.updateContent(input.getResource(), '').then(() => this.editorService.openEditor({
@@ -202,7 +197,7 @@ export class TextFileEditor extends BaseTextEditor {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
 					const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
-					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
+					return Promise.reject(errors.create(toErrorMessage(error), {
 						actions: [
 							new Action('workbench.window.action.relaunchWithIncreasedMemoryLimit', nls.localize('relaunchWithIncreasedMemoryLimit', "Restart with {0} MB", memoryLimit), null, true, () => {
 								return this.windowsService.relaunch({
@@ -219,7 +214,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				// Otherwise make sure the error bubbles up
-				return TPromise.wrapError<void>(error);
+				return Promise.reject(error);
 			});
 		});
 	}
@@ -259,8 +254,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 	clearInput(): void {
 
-		// Keep editor view state in settings to restore when coming back
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear editor view state in settings
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -271,15 +266,26 @@ export class TextFileEditor extends BaseTextEditor {
 
 	shutdown(): void {
 
-		// Save View State
-		this.doSaveTextEditorViewState(this.input);
+		// Update/clear editor view State
+		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Call Super
 		super.shutdown();
 	}
 
-	private doSaveTextEditorViewState(input: FileEditorInput): void {
-		if (input && !input.isDisposed()) {
+	private doSaveOrClearTextEditorViewState(input: FileEditorInput): void {
+		if (!input) {
+			return; // ensure we have an input to handle view state for
+		}
+
+		// If the user configured to not restore view state, we clear the view
+		// state unless the editor is still opened in the group.
+		if (!this.restoreViewState && (!this.group || !this.group.isOpened(input))) {
+			this.clearTextEditorViewState([input.getResource()], this.group);
+		}
+
+		// Otherwise we save the view state to restore it later
+		else if (!input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource());
 		}
 	}

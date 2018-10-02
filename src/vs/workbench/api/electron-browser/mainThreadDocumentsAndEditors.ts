@@ -271,7 +271,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		}
 
 		// active editor: if none of the previous editors had focus we try
-		// to match output panels or the the active workbench editor with
+		// to match output panels or the active workbench editor with
 		// one of editor we have just computed
 		if (!activeEditor) {
 			let candidate: IEditor;

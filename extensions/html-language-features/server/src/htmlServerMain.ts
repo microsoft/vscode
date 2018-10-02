@@ -136,7 +136,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-connection.onInitialized((p) => {
+connection.onInitialized(() => {
 	if (workspaceFoldersSupport) {
 		connection.client.register(DidChangeWorkspaceFoldersNotification.type);
 

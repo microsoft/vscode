@@ -8,20 +8,12 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 
 export function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
-}
-
-export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
-	if (isThenable(arg)) {
-		return arg;
-	} else {
-		return TPromise.as(arg);
-	}
 }
 
 export interface CancelablePromise<T> extends Promise<T> {
@@ -58,12 +50,10 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	};
 }
 
-export function asThenable<T>(callback: () => T | TPromise<T> | Thenable<T>): Thenable<T> {
-	return new TPromise<T>((resolve, reject) => {
+export function asThenable<T>(callback: () => T | Thenable<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
 		let item = callback();
-		if (item instanceof TPromise) {
-			item.then(resolve, reject);
-		} else if (isThenable<T>(item)) {
+		if (isThenable<T>(item)) {
 			item.then(resolve, reject);
 		} else {
 			resolve(item);
@@ -324,9 +314,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
  * @param promise a promise
  * @param callback a function that will be call in the success and error case.
  */
-export function always<T>(thenable: TPromise<T>, callback: () => void): TPromise<T>;
-export function always<T>(promise: Thenable<T>, callback: () => void): Thenable<T>;
-export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => void) {
+export function always<T>(promise: Thenable<T>, callback: () => void): Promise<T> {
 	function safeCallback() {
 		try {
 			callback();
@@ -334,8 +322,8 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => v
 			errors.onUnexpectedError(err);
 		}
 	}
-	winjsPromiseOrThenable.then(_ => safeCallback(), _ => safeCallback());
-	return winjsPromiseOrThenable;
+	promise.then(_ => safeCallback(), _ => safeCallback());
+	return Promise.resolve(promise);
 }
 
 /**
@@ -343,7 +331,7 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T>, callback: () => v
  * promise will complete to an array of results from each promise.
  */
 
-export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[]> {
+export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): Promise<T[]> {
 	const results: T[] = [];
 	let index = 0;
 	const len = promiseFactories.length;
@@ -362,49 +350,27 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[
 			return n.then(thenHandler);
 		}
 
-		return TPromise.as(results);
+		return Promise.resolve(results);
 	}
 
-	return TPromise.as(null).then(thenHandler);
+	return Promise.resolve(null).then(thenHandler);
 }
 
-export function first2<T>(promiseFactories: ITask<Promise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): Promise<T> {
-
+export function first<T>(promiseFactories: ITask<Thenable<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): Promise<T> {
 	let index = 0;
 	const len = promiseFactories.length;
 
-	const loop = () => {
+	const loop: () => Promise<T> = () => {
 		if (index >= len) {
 			return Promise.resolve(defaultValue);
 		}
+
 		const factory = promiseFactories[index++];
-		const promise = factory();
+		const promise = Promise.resolve(factory());
+
 		return promise.then(result => {
 			if (shouldStop(result)) {
 				return Promise.resolve(result);
-			}
-			return loop();
-		});
-	};
-
-	return loop();
-}
-
-export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T = null): TPromise<T> {
-	let index = 0;
-	const len = promiseFactories.length;
-
-	const loop: () => TPromise<T> = () => {
-		if (index >= len) {
-			return TPromise.as(defaultValue);
-		}
-
-		const factory = promiseFactories[index++];
-		const promise = factory();
-
-		return promise.then(result => {
-			if (shouldStop(result)) {
-				return TPromise.as(result);
 			}
 
 			return loop();
@@ -681,10 +647,10 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
-export function nfcall(fn: Function, ...args: any[]): TPromise;
-export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
+export function nfcall(fn: Function, ...args: any[]): Promise<any>;
+export function nfcall<T>(fn: Function, ...args: any[]): Promise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
+	return new Promise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
@@ -692,3 +658,80 @@ export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)));
 }
+
+
+//#region -- run on idle tricks ------------
+
+export interface IdleDeadline {
+	readonly didTimeout: boolean;
+	timeRemaining(): DOMHighResTimeStamp;
+}
+/**
+ * Execute the callback the next time the browser is idle
+ */
+export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function cancelIdleCallback(handle: number): void;
+
+(function () {
+	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
+		let dummyIdle: IdleDeadline = Object.freeze({
+			didTimeout: true,
+			timeRemaining() { return 15; }
+		});
+		runWhenIdle = (runner, timeout = 0) => {
+			let handle = setTimeout(() => runner(dummyIdle), timeout);
+			return { dispose() { clearTimeout(handle); handle = undefined; } };
+		};
+	} else {
+		runWhenIdle = (runner, timeout?) => {
+			let handle = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			return { dispose() { cancelIdleCallback(handle); handle = undefined; } };
+		};
+	}
+})();
+
+/**
+ * An implementation of the "idle-until-urgent"-strategy as introduced
+ * here: https://philipwalton.com/articles/idle-until-urgent/
+ */
+export class IdleValue<T> {
+
+	private readonly _executor: () => void;
+	private readonly _handle: IDisposable;
+
+	private _didRun: boolean;
+	private _value: T;
+	private _error: any;
+
+	constructor(executor: () => T) {
+		this._executor = () => {
+			try {
+				this._value = executor();
+			} catch (err) {
+				this._error = err;
+			} finally {
+				this._didRun = true;
+			}
+		};
+		this._handle = runWhenIdle(() => this._executor());
+	}
+
+	dispose(): void {
+		this._handle.dispose();
+	}
+
+	getValue(): T {
+		if (!this._didRun) {
+			this._handle.dispose();
+			this._executor();
+		}
+		if (this._error) {
+			throw this._error;
+		}
+		return this._value;
+	}
+}
+
+//#endregion

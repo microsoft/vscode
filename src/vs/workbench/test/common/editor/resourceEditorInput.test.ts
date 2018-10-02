@@ -33,7 +33,7 @@ suite('Workbench resource editor input', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('simple', function () {
+	test('simple', () => {
 		let resource = URI.from({ scheme: 'inmemory', authority: null, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.getOrCreateMode('text'), resource);
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);

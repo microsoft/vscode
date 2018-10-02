@@ -29,10 +29,8 @@ export function invalidateHoverScriptsCache(document?: TextDocument) {
 }
 
 export class NpmScriptHoverProvider implements HoverProvider {
-	private extensionContext: ExtensionContext;
 
 	constructor(context: ExtensionContext) {
-		this.extensionContext = context;
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
 		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromHover', this.debugScriptFromHover, this));
 	}

@@ -29,7 +29,7 @@ import { EditorInput, IWorkbenchEditorConfiguration, IEditorInput } from 'vs/wor
 import { Component } from 'vs/workbench/common/component';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG, SEARCH_EDITOR_HISTORY, PREFILL_CONFIG } from 'vs/workbench/browser/quickopen';
 import * as errors from 'vs/base/common/errors';
 import { IQuickOpenService, IShowOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -68,6 +68,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private readonly _onHide: Emitter<void> = this._register(new Emitter<void>());
 	get onHide(): Event<void> { return this._onHide.event; }
 
+	private prefill: boolean;
+	private isQuickOpen: boolean;
+	private lastInputValue: string;
+	private lastSubmittedInputValue: string;
 	private quickOpenWidget: QuickOpenWidget;
 	private dimension: Dimension;
 	private mapResolvedHandlersToPrefix: { [prefix: string]: TPromise<QuickOpenHandler>; } = Object.create(null);
@@ -112,6 +116,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		} else {
 			this.closeOnFocusLost = this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG);
 		}
+		this.prefill = this.configurationService.getValue(PREFILL_CONFIG);
 
 		this.searchInEditorHistory = this.configurationService.getValue(SEARCH_EDITOR_HISTORY);
 	}
@@ -169,7 +174,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.quickOpenWidget = this._register(new QuickOpenWidget(
 				this.partService.getWorkbenchElement(),
 				{
-					onOk: () => { /* ignore */ },
+					onOk: () => this.onOk(),
 					onCancel: () => { /* ignore */ },
 					onType: (value: string) => this.onType(value || ''),
 					onShow: () => this.handleOnShow(),
@@ -216,8 +221,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				// Update context
 				const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 				this.setQuickOpenContextKey(registry.getDefaultQuickOpenHandler().contextKey);
-
-				this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });
+				if (this.prefill) {
+					this.quickOpenWidget.show(editorHistory, { value: this.lastSubmittedInputValue, quickNavigateConfiguration, autoFocus, inputSelection });
+				} else {
+					this.quickOpenWidget.show(editorHistory, { quickNavigateConfiguration, autoFocus, inputSelection });
+				}
 			}
 		}
 
@@ -323,6 +331,12 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return new QuickOpenModel(entries, this.actionProvider);
 	}
 
+	private onOk(): void {
+		if (this.isQuickOpen) {
+			this.lastSubmittedInputValue = this.lastInputValue;
+		}
+	}
+
 	private onType(value: string): void {
 
 		// cancel any pending get results invocation and create new
@@ -360,6 +374,10 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 			this.quickOpenWidget.setInput(this.getEditorHistoryWithGroupLabel(), { autoFocusFirstEntry: true });
 
+			// If quickOpen entered empty we have to clear the prefill-cache
+			this.lastInputValue = '';
+			this.isQuickOpen = true;
+
 			return;
 		}
 
@@ -367,11 +385,15 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		let resultPromiseDone = false;
 
 		if (handlerDescriptor) {
+			this.isQuickOpen = false;
 			resultPromise = this.handleSpecificHandler(handlerDescriptor, value, pendingResultsInvocationToken);
 		}
 
 		// Otherwise handle default handlers if no specific handler present
 		else {
+			this.isQuickOpen = true;
+			// Cache the value for prefilling the quickOpen next time is opened
+			this.lastInputValue = trimmedValue;
 			resultPromise = this.handleDefaultHandler(defaultHandlerDescriptor, value, pendingResultsInvocationToken);
 		}
 
@@ -506,7 +528,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				const model = new QuickOpenModel([new PlaceholderQuickOpenEntry(placeHolderLabel)], this.actionProvider);
 				this.showModel(model, resolvedHandler.getAutoFocus(value, { model, quickNavigateConfiguration: this.quickOpenWidget.getQuickNavigateConfiguration() }), resolvedHandler.getAriaLabel());
 
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
 			// Support extra class from handler
@@ -594,7 +616,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Otherwise load and create
-		return this.mapResolvedHandlersToPrefix[id] = TPromise.as(handler.instantiate(this.instantiationService));
+		return this.mapResolvedHandlersToPrefix[id] = Promise.resolve(handler.instantiate(this.instantiationService));
 	}
 
 	layout(dimension: Dimension): void {

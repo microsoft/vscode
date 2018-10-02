@@ -378,9 +378,13 @@ export class SettingsRenderer implements ITreeRenderer {
 	) {
 		this.descriptionMeasureContainer = $('.setting-item-description');
 		DOM.append(_measureParent,
-			$('.setting-measure-container.monaco-tree-row', undefined,
-				$('.setting-item', undefined,
-					this.descriptionMeasureContainer)));
+			$('.setting-measure-container.monaco-tree.settings-editor-tree', undefined,
+				$('.monaco-scrollable-element', undefined,
+					$('.monaco-tree-wrapper', undefined,
+						$('.monaco-tree-rows', undefined,
+							$('.monaco-tree-row', undefined,
+								$('.setting-item', undefined,
+									this.descriptionMeasureContainer)))))));
 
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
@@ -1086,7 +1090,15 @@ export class SettingsRenderer implements ITreeRenderer {
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						this.openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+						let uri: URI;
+						try {
+							uri = URI.parse(content);
+						} catch (err) {
+							// ignore
+						}
+						if (uri) {
+							this.openerService.open(uri).catch(onUnexpectedError);
+						}
 					}
 				},
 				disposeables
@@ -1395,10 +1407,6 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		return '';
-	}
-
-	public getAriaRole(tree: ITree, element: any): string {
-		return 'treeitem';
 	}
 }
 

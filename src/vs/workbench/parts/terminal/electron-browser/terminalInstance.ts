@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import * as paths from 'vs/base/common/paths';
+import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { WindowsShellHelper } from 'vs/workbench/parts/terminal/node/windowsShellHelper';
 import { Terminal as XTermTerminal, ISearchOptions } from 'vscode-xterm';
@@ -33,6 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { execFile } from 'child_process';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -657,6 +659,48 @@ export class TerminalInstance implements ITerminalInstance {
 				});
 			}
 		}
+	}
+
+	public preparePathForTerminalAsync(path: string): Promise<string> {
+		return new Promise<string>(c => {
+			const hasSpace = path.indexOf(' ') !== -1;
+			if (platform.isWindows) {
+				const exe = this.shellLaunchConfig.executable;
+				// 17063 is the build number where wsl path was introduced.
+				// Update Windows uriPath to be executed in WSL.
+				if (((exe.indexOf('wsl') !== -1) || ((exe.indexOf('bash.exe') !== -1) && (exe.indexOf('git') === -1))) && (TerminalInstance.getWindowsBuildNumber() >= 17063)) {
+					execFile('bash.exe', ['-c', 'echo $(wslpath ' + this._escapeNonWindowsPath(path) + ')'], {}, (error, stdout, stderr) => {
+						c(this._escapeNonWindowsPath(stdout.trim()));
+					});
+				} else if (hasSpace) {
+					c('"' + path + '"');
+				}
+			} else if (!platform.isWindows) {
+				c(this._escapeNonWindowsPath(path));
+			}
+		});
+	}
+
+	private _escapeNonWindowsPath(path: string): string {
+		let newPath = path;
+		if (newPath.indexOf('\\') !== 0) {
+			newPath = newPath.replace(/\\/g, '\\\\');
+		}
+		if (!newPath && (newPath.indexOf('"') !== -1)) {
+			newPath = '\'' + newPath + '\'';
+		} else if (newPath.indexOf(' ') !== -1) {
+			newPath = newPath.replace(/ /g, '\\ ');
+		}
+		return newPath;
+	}
+
+	public static getWindowsBuildNumber(): number {
+		const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
+		let buildNumber: number = 0;
+		if (osVersion && osVersion.length === 4) {
+			buildNumber = parseInt(osVersion[3]);
+		}
+		return buildNumber;
 	}
 
 	public setVisible(visible: boolean): void {

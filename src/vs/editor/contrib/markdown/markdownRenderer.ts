@@ -58,7 +58,15 @@ export class MarkdownRenderer {
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
 			actionHandler: {
 				callback: (content) => {
-					this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
+					let uri: URI;
+					try {
+						uri = URI.parse(content);
+					} catch (err) {
+						// ignore
+					}
+					if (uri) {
+						this._openerService.open(uri).catch(onUnexpectedError);
+					}
 				},
 				disposeables
 			}

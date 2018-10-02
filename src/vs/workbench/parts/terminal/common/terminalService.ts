@@ -82,6 +82,7 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): PromiseLike<boolean>;
+	protected abstract _showNotEnoughSpaceToast(): void;
 	public abstract createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract createTerminalRenderer(name: string): ITerminalInstance;
 	public abstract createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
@@ -262,10 +263,14 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(this._terminalFocusContextKey, this.configHelper, shellLaunchConfig);
-		this._initInstanceListeners(instance);
-		this._onInstancesChanged.fire();
+		if (instance) {
+			this._initInstanceListeners(instance);
+			this._onInstancesChanged.fire();
 
-		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+			this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
+		} else {
+			this._showNotEnoughSpaceToast();
+		}
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {

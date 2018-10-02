@@ -18,7 +18,7 @@ suite('Snippets', function () {
 		}
 	}
 
-	test('SnippetFile#select', function () {
+	test('SnippetFile#select', () => {
 		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), []);
 		let bucket: Snippet[] = [];
 		file.select('', bucket);

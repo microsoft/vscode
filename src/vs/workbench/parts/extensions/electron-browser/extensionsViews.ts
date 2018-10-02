@@ -359,7 +359,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const keywords = this.tipsService.getKeywordsForExtension(ext);
 
 				// Get mode name
-				const modeId = this.modeService.getModeIdByFilenameOrFirstLine(`.${ext}`);
+				const modeId = this.modeService.getModeIdByFilepathOrFirstLine(`.${ext}`);
 				const languageName = modeId && this.modeService.getLanguageName(modeId);
 				const languageTag = languageName ? ` tag:"${languageName}"` : '';
 

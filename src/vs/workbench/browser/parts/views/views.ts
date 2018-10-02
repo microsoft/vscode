@@ -17,7 +17,7 @@ import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
 import { sortedDiff, firstIndex, move } from 'vs/base/common/arrays';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, ICommandAction } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -535,7 +535,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					});
 			}
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
@@ -566,9 +566,9 @@ export class ViewsService extends Disposable implements IViewsService {
 	private onDidRegisterViews(viewDescriptors: IViewDescriptor[]): void {
 		for (const viewDescriptor of viewDescriptors) {
 			const viewlet = this.viewletService.getViewlet(viewDescriptor.container.id);
-			const command = {
+			const command: ICommandAction = {
 				id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-				title: localize('focus view', "Focus on {0} View", viewDescriptor.name),
+				title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
 				category: viewlet ? viewlet.name : localize('view category', "View"),
 			};
 			const when = ContextKeyExpr.has(`${viewDescriptor.id}.active`);

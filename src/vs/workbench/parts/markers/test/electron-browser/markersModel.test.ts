@@ -137,7 +137,7 @@ suite('MarkersModel Test', () => {
 		assert.equal(actuals[14].raw, marker4);
 	});
 
-	test('toString()', function () {
+	test('toString()', () => {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker, null).toString());

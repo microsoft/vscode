@@ -98,7 +98,7 @@ class CreateBranchItem implements QuickPickItem {
 	get label(): string { return localize('create branch', '$(plus) Create new branch'); }
 	get description(): string { return ''; }
 
-	get shouldAlwaysShow(): boolean { return true; }
+	get alwaysShow(): boolean { return true; }
 
 	async run(repository: Repository): Promise<void> {
 		await this.cc.branch(repository);
@@ -120,7 +120,7 @@ interface Command {
 const Commands: Command[] = [];
 
 function command(commandId: string, options: CommandOptions = {}): Function {
-	return (target: any, key: string, descriptor: any) => {
+	return (_target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
@@ -146,11 +146,11 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	const possibleUnresolved = merge.filter(isBothAddedOrModified);
 	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
 	const unresolvedBothModified = await Promise.all<boolean>(promises);
-	const resolved = possibleUnresolved.filter((s, i) => !unresolvedBothModified[i]);
+	const resolved = possibleUnresolved.filter((_s, i) => !unresolvedBothModified[i]);
 	const deletionConflicts = merge.filter(s => isAnyDeleted(s));
 	const unresolved = [
 		...merge.filter(s => !isBothAddedOrModified(s) && !isAnyDeleted(s)),
-		...possibleUnresolved.filter((s, i) => unresolvedBothModified[i])
+		...possibleUnresolved.filter((_s, i) => unresolvedBothModified[i])
 	];
 
 	return { merge, resolved, unresolved, deletionConflicts };
@@ -304,6 +304,7 @@ export class CommandCenter {
 			case Status.DELETED_BY_THEM:
 				return this.getURI(resource.resourceUri, '');
 		}
+		return undefined;
 	}
 
 	private async getRightResource(resource: Resource): Promise<Uri | undefined> {
@@ -346,6 +347,7 @@ export class CommandCenter {
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
 		}
+		return undefined;
 	}
 
 	private getTitle(resource: Resource): string {
@@ -1347,9 +1349,10 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout', { repository: true })
-	async checkout(repository: Repository, treeish: string): Promise<void> {
+	async checkout(repository: Repository, treeish: string): Promise<boolean> {
 		if (typeof treeish === 'string') {
-			return await repository.checkout(treeish);
+			await repository.checkout(treeish);
+			return true;
 		}
 
 		const config = workspace.getConfiguration('git');
@@ -1373,12 +1376,12 @@ export class CommandCenter {
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
-			throw new Error('Cancelled');
+			return false;
 		}
 
 		await choice.run(repository);
+		return true;
 	}
-
 
 	@command('git.branch', { repository: true })
 	async branch(repository: Repository): Promise<void> {
@@ -1948,10 +1951,6 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(async err => {
-				if (err.message === 'Cancelled') {
-					return;
-				}
-
 				const options: MessageOptions = {
 					modal: true
 				};
@@ -2055,6 +2054,7 @@ export class CommandCenter {
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
+		return undefined;
 	}
 
 	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;

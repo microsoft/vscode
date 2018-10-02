@@ -1,13 +1,7 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"target": "es5",
-		"module": "commonjs",
-		"outDir": "./out",
-		"lib": [
-			"es2015"
-		],
-		"strict": true,
-		"noUnusedLocals": true
+		"outDir": "./out"
 	},
 	"include": [
 		"src/**/*"

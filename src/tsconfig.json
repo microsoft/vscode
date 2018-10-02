@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"module": "amd",
-		"moduleResolution": "classic",
+		"moduleResolution": "node",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
@@ -15,13 +15,14 @@
 		"alwaysStrict": true,
 		"baseUrl": ".",
 		"outDir": "../out",
-		"typeRoots": [
-			"typings"
-		]
+		"paths": {
+			"vs/*": [
+				"./vs/*"
+			]
+		}
 	},
-	"exclude": [
-		"../out",
-		"../out-build",
-		"../out-vscode"
+	"include": [
+		"./typings",
+		"./vs"
 	]
 }

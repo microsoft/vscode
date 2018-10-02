@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IRequestOptions, IRequestContext, request, IRawRequestFunction } from 'vs/base/node/request';
 import { RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
 import { assign } from 'vs/base/common/objects';
@@ -17,7 +16,7 @@ function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 
 export class RequestService extends NodeRequestService {
 
-	request(options: IRequestOptions, token: CancellationToken): TPromise<IRequestContext> {
+	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		return super.request(options, token, options => request(assign({}, options || {}, { getRawRequest }), token));
 	}
 }

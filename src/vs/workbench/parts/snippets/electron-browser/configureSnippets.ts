@@ -127,11 +127,15 @@ async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowS
 		defaultPath: defaultPath.fsPath,
 		filters: [{ name: 'Code Snippets', extensions: ['code-snippets'] }]
 	});
-	if (!path || dirname(path) !== defaultPath.fsPath) {
+	if (!path) {
+		return undefined;
+	}
+	const resource = URI.file(path);
+	if (dirname(resource.fsPath) !== defaultPath.fsPath) {
 		return undefined;
 	}
 
-	await fileService.updateContent(URI.file(path), [
+	await fileService.updateContent(resource, [
 		'{',
 		'\t// Place your global snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and ',
 		'\t// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope ',
@@ -152,7 +156,7 @@ async function createGlobalSnippetFile(defaultPath: URI, windowService: IWindowS
 		'}'
 	].join('\n'));
 
-	await opener.open(URI.file(path));
+	await opener.open(resource);
 }
 
 async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileService) {

@@ -14,7 +14,7 @@ import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { ISuggestion, ISuggestResult, ISuggestSupport, LanguageId, SuggestContext, SuggestionKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionList, CompletionItemProvider, LanguageId, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
@@ -29,6 +29,8 @@ import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/parts/snippets
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { IRange, Range } from 'vs/editor/common/core/range';
 
 namespace schema {
 
@@ -289,8 +291,10 @@ class SnippetsService implements ISnippetsService {
 		};
 
 		return this._fileService.resolveFile(folder).then(stat => {
-			for (const entry of stat.children) {
-				addUserSnippet(entry.resource);
+			if (!isFalsyOrEmpty(stat.children)) {
+				for (const entry of stat.children) {
+					addUserSnippet(entry.resource);
+				}
 			}
 		}).then(() => {
 			// watch
@@ -336,29 +340,29 @@ export interface ISimpleModel {
 	getLineContent(lineNumber: number): string;
 }
 
-export class SnippetSuggestion implements ISuggestion {
+export class SnippetSuggestion implements CompletionItem {
 
 	label: string;
 	detail: string;
 	insertText: string;
 	documentation: MarkdownString;
-	overwriteBefore: number;
+	range: IRange;
 	sortText: string;
 	noAutoAccept: boolean;
-	kind: SuggestionKind;
+	kind: CompletionItemKind;
 	insertTextIsSnippet: true;
 
 	constructor(
 		readonly snippet: Snippet,
-		overwriteBefore: number
+		range: IRange
 	) {
 		this.label = snippet.prefix;
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.body;
-		this.overwriteBefore = overwriteBefore;
+		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
-		this.kind = SuggestionKind.Snippet;
+		this.kind = CompletionItemKind.Snippet;
 		this.insertTextIsSnippet = true;
 	}
 
@@ -374,7 +378,7 @@ export class SnippetSuggestion implements ISuggestion {
 }
 
 
-export class SnippetSuggestProvider implements ISuggestSupport {
+export class SnippetSuggestProvider implements CompletionItemProvider {
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
@@ -383,7 +387,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position, context: SuggestContext): Promise<ISuggestResult> {
+	provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		return this._snippets.getSnippets(languageId).then(snippets => {
@@ -417,7 +421,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 
 			if (lineOffsets.length === 0) {
 				// no interesting spans found -> pick all snippets
-				suggestions = snippets.map(snippet => new SnippetSuggestion(snippet, 0));
+				suggestions = snippets.map(snippet => new SnippetSuggestion(snippet, Range.fromPositions(position)));
 
 			} else {
 				let consumed = new Set<Snippet>();
@@ -426,7 +430,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 					start -= shift;
 					for (const snippet of snippets) {
 						if (!consumed.has(snippet) && matches(linePrefixLow, start, snippet.prefixLow, 0)) {
-							suggestions.push(new SnippetSuggestion(snippet, linePrefixLow.length - start));
+							suggestions.push(new SnippetSuggestion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
 							consumed.add(snippet);
 						}
 					}
@@ -451,7 +455,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		});
 	}
 
-	resolveCompletionItem?(model: ITextModel, position: Position, item: ISuggestion): ISuggestion {
+	resolveCompletionItem?(model: ITextModel, position: Position, item: CompletionItem): CompletionItem {
 		return (item instanceof SnippetSuggestion) ? item.resolve() : item;
 	}
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IRequestOptions, IRequestContext, IRequestFunction, request } from 'vs/base/node/request';
@@ -41,11 +40,11 @@ export class RequestService implements IRequestService {
 		this.authorization = config.http && config.http.proxyAuthorization;
 	}
 
-	request(options: IRequestOptions, token: CancellationToken, requestFn: IRequestFunction = request): TPromise<IRequestContext> {
+	request(options: IRequestOptions, token: CancellationToken, requestFn: IRequestFunction = request): Promise<IRequestContext> {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
-		const agentPromise = options.agent ? TPromise.wrap(options.agent) : TPromise.wrap(getProxyAgent(options.url, { proxyUrl, strictSSL }));
+		const agentPromise = options.agent ? Promise.resolve(options.agent) : Promise.resolve(getProxyAgent(options.url, { proxyUrl, strictSSL }));
 
 		return agentPromise.then(agent => {
 			options.agent = agent;

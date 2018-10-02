@@ -22,7 +22,7 @@ function filterOk(filter: IOcticonFilter, word: string, target: { text: string, 
 }
 
 suite('Octicon', () => {
-	test('matchesFuzzzyOcticonAware', function () {
+	test('matchesFuzzzyOcticonAware', () => {
 
 		// Camel Case
 
@@ -58,6 +58,11 @@ suite('Octicon', () => {
 
 		filterOk(matchesFuzzyOcticonAware, 'indent', parseOcticons('This $octicon Indent Using Spaces'), [
 			{ start: 14, end: 20 },
+		]);
+
+		// Testing #59343
+		filterOk(matchesFuzzyOcticonAware, 'unt', parseOcticons('$(primitive-dot) $(file-text) Untitled-1'), [
+			{ start: 30, end: 33 },
 		]);
 	});
 });

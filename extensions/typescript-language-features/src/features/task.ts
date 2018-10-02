@@ -171,6 +171,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
 		const command = await TscTaskProvider.getCommand(project);
+		const args = await this.getBuildShellArgs(project);
 		const label = this.getLabelForTasks(project);
 
 		const tasks: vscode.Task[] = [];
@@ -182,7 +183,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildTscLabel', 'build - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['-p', project.path]),
+				new vscode.ShellExecution(command, args),
 				'$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			buildTask.isBackground = false;
@@ -196,7 +197,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['--watch', '-p', project.path]),
+				new vscode.ShellExecution(command, ['--watch', ...args]),
 				'$tsc-watch');
 			watchTask.group = vscode.TaskGroup.Build;
 			watchTask.isBackground = true;
@@ -204,6 +205,27 @@ class TscTaskProvider implements vscode.TaskProvider {
 		}
 
 		return tasks;
+	}
+
+	private getBuildShellArgs(project: TSConfig): Promise<Array<string>> {
+		const defaultArgs = ['-p', project.path];
+		return new Promise<Array<string>>((resolve) => {
+			fs.readFile(project.path, (error, result) => {
+				if (error) {
+					return resolve(defaultArgs);
+				}
+
+				try {
+					const tsconfig = JSON.parse(result.toString());
+					if (tsconfig.references) {
+						return resolve(['-b', project.path]);
+					}
+				} catch {
+					// noop
+				}
+				return resolve(defaultArgs);
+			});
+		});
 	}
 
 	private getLabelForTasks(project: TSConfig): string {

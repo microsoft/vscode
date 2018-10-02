@@ -43,13 +43,13 @@ export class ViewletActivityAction extends ActivityAction {
 
 	run(event: any): TPromise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return TPromise.as(false); // do not run on right click
+			return Promise.resolve(false); // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
 		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return TPromise.as(true);
+			return Promise.resolve(true);
 		}
 		this.lastRun = now;
 
@@ -155,7 +155,7 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			onHide: () => dispose(actions)
 		});
 	}

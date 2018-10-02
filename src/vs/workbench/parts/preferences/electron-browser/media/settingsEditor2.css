@@ -9,6 +9,7 @@
 
 .settings-editor {
 	padding: 11px 0px 0px;
+	overflow: hidden;
 }
 
 /* header styling */
@@ -106,6 +107,10 @@
 	padding-right: 8px;
 }
 
+.settings-editor > .settings-body {
+	position: relative;
+}
+
 .settings-editor > .settings-body > .no-results {
 	display: none;
 	max-width: 1000px;
@@ -118,12 +123,6 @@
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
 .settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
-	margin-left: 0px;
-}
-
-.settings-editor.no-toc-search > .settings-body > .settings-tree-container .setting-measure-container,
-.settings-editor.narrow > .settings-body > .settings-tree-container .setting-measure-container {
-	width: calc(100% - 33px);
 	margin-left: 0px;
 }
 
@@ -142,13 +141,6 @@
 	/* 3 margin + 20 padding + 2 border */
 	width: calc(100% - 25px);
 	margin-left: 25px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
-	/* 208 margin + 20 padding + 2 border */
-	margin-left: 230px;
-	width: calc(100% - 230px);
-	border: 1px solid transparent;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row > .content::before {
@@ -174,11 +166,12 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-item.focused .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more,
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container:hover > .monaco-toolbar .toolbar-toggle-more,
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row .setting-toolbar-container > .monaco-toolbar .active .toolbar-toggle-more {
-	display: block;
+	opacity: 1;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .toolbar-toggle-more {
-	display: none;
+	opacity: 0;
+	transition: opacity .3s;
 	width: 22px;
 	height: 22px;
 	background-position: center;
@@ -400,9 +393,13 @@
 	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container {
 	position: absolute;
 	visibility: hidden;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-measure-container .monaco-tree-row {
+	padding-left: 20px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container .setting-item-description.measure-bool-description {

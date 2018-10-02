@@ -23,8 +23,6 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	};
 }
 
-declare var Proxy: any; // TODO@TypeScript
-
 export class TestRPCProtocol implements IExtHostContext {
 
 	private _callCountValue: number = 0;

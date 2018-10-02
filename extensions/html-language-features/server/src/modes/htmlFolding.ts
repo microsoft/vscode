@@ -7,7 +7,7 @@ import { TextDocument, CancellationToken, Position, Range } from 'vscode-languag
 import { FoldingRange } from 'vscode-languageserver-types';
 import { LanguageModes, LanguageMode } from './languageModes';
 
-export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, cancellationToken: CancellationToken | null): FoldingRange[] {
+export function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, _cancellationToken: CancellationToken | null): FoldingRange[] {
 	let htmlMode = languageModes.getMode('html');
 	let range = Range.create(Position.create(0, 0), Position.create(document.lineCount, 0));
 	let result: FoldingRange[] = [];

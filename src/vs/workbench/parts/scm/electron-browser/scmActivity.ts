@@ -17,6 +17,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { commonPrefixLength } from 'vs/base/common/strings';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class StatusUpdater implements IWorkbenchContribution {
 
@@ -25,8 +26,13 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	constructor(
 		@ISCMService private scmService: ISCMService,
-		@IActivityService private activityService: IActivityService
+		@IActivityService private activityService: IActivityService,
+		@ILogService private logService: ILogService
 	) {
+		for (const repository of this.scmService.repositories) {
+			this.onDidAddRepository(repository);
+		}
+
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.render();
 	}
@@ -57,6 +63,9 @@ export class StatusUpdater implements IWorkbenchContribution {
 				return r + repository.provider.groups.elements.reduce<number>((r, g) => r + g.elements.length, 0);
 			}
 		}, 0);
+
+		// TODO@joao: remove
+		this.logService.trace('SCM#StatusUpdater.render', count);
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));

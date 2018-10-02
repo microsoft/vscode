@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeNode } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeFilter, Visibility } from 'vs/base/browser/ui/tree/treeModel';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator } from 'vs/base/common/iterator';
 
@@ -22,14 +22,14 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 
 suite('TreeModel2', function () {
 
-	test('ctor', function () {
+	test('ctor', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 	});
 
-	test('insert', function () {
+	test('insert', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -116,7 +116,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('delete', function () {
+	test('delete', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -228,7 +228,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list.length, 3);
 	});
 
-	test('collapse', function () {
+	test('collapse', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -259,7 +259,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('expand', function () {
+	test('expand', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -330,5 +330,280 @@ suite('TreeModel2', function () {
 		model.setCollapsed([1], true);
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(toArray(list), [1, 11, 2]);
+	});
+
+	test('simple filter', function () {
+		const list = [] as ITreeNode<number>[];
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number): Visibility {
+				return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			}
+		]));
+
+		assert.deepEqual(list.length, 4);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+	});
+
+	test('refilter', function () {
+		const list = [] as ITreeNode<number>[];
+		let shouldFilter = false;
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number): Visibility {
+				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		shouldFilter = true;
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+
+		shouldFilter = false;
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+	});
+
+	test('recursive filter', function () {
+		const list = [] as ITreeNode<string>[];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): Visibility {
+				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			}
+		};
+
+		const model = new TreeModel<string>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 'vscode', children: [
+					{ element: '.build' },
+					{ element: 'git' },
+					{
+						element: 'github', children: [
+							{ element: 'calendar.yml' },
+							{ element: 'endgame' },
+							{ element: 'build.js' },
+						]
+					},
+					{
+						element: 'build', children: [
+							{ element: 'lib' },
+							{ element: 'gulpfile.js' }
+						]
+					}
+				]
+			},
+		]));
+
+		assert.deepEqual(list.length, 10);
+
+		query = /build/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
+	});
+
+	test('recursive filter with collapse', function () {
+		const list = [] as ITreeNode<string>[];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): Visibility {
+				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			}
+		};
+
+		const model = new TreeModel<string>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 'vscode', children: [
+					{ element: '.build' },
+					{ element: 'git' },
+					{
+						element: 'github', children: [
+							{ element: 'calendar.yml' },
+							{ element: 'endgame' },
+							{ element: 'build.js' },
+						]
+					},
+					{
+						element: 'build', children: [
+							{ element: 'lib' },
+							{ element: 'gulpfile.js' }
+						]
+					}
+				]
+			},
+		]));
+
+		assert.deepEqual(list.length, 10);
+
+		query = /gulp/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
+
+		model.setCollapsed([0, 3], true);
+		assert.deepEqual(toArray(list), ['vscode', 'build']);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), ['vscode']);
+	});
+
+	test('recursive filter while collapsed', function () {
+		const list = [] as ITreeNode<string>[];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): Visibility {
+				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			}
+		};
+
+		const model = new TreeModel<string>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 'vscode', collapsed: true, children: [
+					{ element: '.build' },
+					{ element: 'git' },
+					{
+						element: 'github', children: [
+							{ element: 'calendar.yml' },
+							{ element: 'endgame' },
+							{ element: 'build.js' },
+						]
+					},
+					{
+						element: 'build', children: [
+							{ element: 'lib' },
+							{ element: 'gulpfile.js' }
+						]
+					}
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		query = /gulp/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		query = new RegExp('');
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(list.length, 10);
+	});
+
+	suite('getNodeLocation', function () {
+
+		test('simple', function () {
+			const list = [] as ITreeNode<number>[];
+			const model = new TreeModel<number>(toSpliceable(list));
+
+			model.splice([0], 0, Iterator.fromArray([
+				{
+					element: 0, children: Iterator.fromArray([
+						{ element: 10 },
+						{ element: 11 },
+						{ element: 12 },
+					])
+				},
+				{ element: 1 },
+				{ element: 2 }
+			]));
+
+			assert.deepEqual(TreeModel.getNodeLocation(list[0]), [0]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[1]), [0, 0]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[2]), [0, 1]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[3]), [0, 2]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[4]), [1]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[5]), [2]);
+		});
+
+		test('with filter', function () {
+			const list = [] as ITreeNode<number>[];
+			const filter = new class implements ITreeFilter<number> {
+				filter(element: number): Visibility {
+					return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+				}
+			};
+
+			const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+			model.splice([0], 0, Iterator.fromArray([
+				{
+					element: 0, children: [
+						{ element: 1 },
+						{ element: 2 },
+						{ element: 3 },
+						{ element: 4 },
+						{ element: 5 },
+						{ element: 6 },
+						{ element: 7 }
+					]
+				}
+			]));
+
+			assert.deepEqual(TreeModel.getNodeLocation(list[0]), [0]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[1]), [0, 1]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[2]), [0, 3]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[3]), [0, 5]);
+		});
 	});
 });

@@ -66,7 +66,7 @@ suite('CommandService', function () {
 		commandRegistration.dispose();
 	});
 
-	test('activateOnCommand', function () {
+	test('activateOnCommand', () => {
 
 		let lastEvent: string;
 

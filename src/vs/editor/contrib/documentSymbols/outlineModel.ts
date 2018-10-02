@@ -134,7 +134,7 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, item.symbol.name, undefined, true);
+		item.score = fuzzyScore(pattern, pattern.toLowerCase(), 0, item.symbol.name, item.symbol.name.toLowerCase(), 0, true);
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}
@@ -150,13 +150,13 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		return this._getItemEnclosingPosition(position, this.children);
+		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
 
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.range, position)) {
+			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;

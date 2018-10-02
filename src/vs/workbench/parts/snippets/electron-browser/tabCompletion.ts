@@ -127,7 +127,11 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box
-			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => new SnippetSuggestion(snippet, snippet.prefix.length)));
+			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => {
+				const position = this._editor.getPosition();
+				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
+				return new SnippetSuggestion(snippet, range);
+			}));
 		}
 	}
 }

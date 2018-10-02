@@ -35,7 +35,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditor } from 'vs/workbench/common/editor';
-import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/browser/suggestEnabledInput';
+import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
@@ -169,7 +169,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private get currentSettingsContextMenuKeyBindingLabel() {
-		return this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU).getLabel();
+		return this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU).getAriaLabel();
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -274,8 +274,7 @@ export class SettingsEditor2 extends BaseEditor {
 		if (labelElement) {
 			const settingsContextMenuShortcut = this.currentSettingsContextMenuKeyBindingLabel;
 			if (settingsContextMenuShortcut) {
-				const settingsMoreActionsLabel = localize('settingsContextMenuAriaShortcut', "For more actions, Press ");
-				labelElement.setAttribute('aria-label', settingsMoreActionsLabel + settingsContextMenuShortcut);
+				labelElement.setAttribute('aria-label', localize('settingsContextMenuAriaShortcut', "For more actions, Press {0}.", settingsContextMenuShortcut));
 			}
 		}
 

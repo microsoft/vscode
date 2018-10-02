@@ -9,14 +9,14 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { always } from 'vs/base/common/async';
 
 export interface CacheResult<T> {
-	promise: Thenable<T>;
+	promise: Promise<T>;
 	dispose(): void;
 }
 
 export class Cache<T> {
 
 	private result: CacheResult<T> = null;
-	constructor(private task: (ct: CancellationToken) => Thenable<T>) { }
+	constructor(private task: (ct: CancellationToken) => Promise<T>) { }
 
 	get(): CacheResult<T> {
 		if (this.result) {

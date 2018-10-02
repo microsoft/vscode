@@ -29,7 +29,7 @@ export class OpenerService implements IOpenerService {
 		//
 	}
 
-	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
+	open(resource: URI, options?: { openToSide?: boolean }): Promise<any> {
 
 		/* __GDPR__
 			"openerService" : {
@@ -76,7 +76,7 @@ export class OpenerService implements IOpenerService {
 
 			if (!resource.scheme) {
 				// we cannot handle those
-				return TPromise.as(undefined);
+				return Promise.resolve(undefined);
 
 			} else if (resource.scheme === Schemas.file) {
 				resource = resources.normalizePath(resource); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
@@ -84,6 +84,6 @@ export class OpenerService implements IOpenerService {
 			promise = this._editorService.openCodeEditor({ resource, options: { selection, } }, this._editorService.getFocusedCodeEditor(), options && options.openToSide);
 		}
 
-		return promise;
+		return Promise.resolve(promise);
 	}
 }

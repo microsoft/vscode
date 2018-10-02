@@ -38,6 +38,12 @@
             comment: "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
         },
         {
+            type: 'label',
+            name: '*as-designed',
+            action: 'close',
+            comment: "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
             type: 'comment',
             name: 'duplicate',
             action: 'updateLabels',
@@ -68,6 +74,13 @@
             action: 'updateLabels',
             addLabel: 'needs more info',
             comment: "Thanks for creating this issue! We figured it's missing some basic information or in some other way doesn't follow our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines. Please take the time to review these and update the issue.\n\nHappy Coding!"
+        },
+        {
+            type: 'comment',
+            name: 'a11ymas',
+            allowUsers: ['AccessibilityTestingTeam-TCS'],
+            action: 'updateLabels',
+            addLabel: 'a11ymas'
         },
     ]
 }

@@ -463,7 +463,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (actions.length) {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => TPromise.as(actions),
+				getActions: () => Promise.resolve(actions),
 				onHide: () => actions.forEach(a => a.dispose())
 			});
 		}

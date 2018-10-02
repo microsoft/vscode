@@ -35,7 +35,6 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
@@ -58,12 +57,13 @@ export class OpenExplorerViewletAction extends ShowViewletAction {
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	constructor(@ILabelService labelService: ILabelService) {
-		labelService.registerFormatter(Schemas.file, {
+		labelService.registerFormatter('file://', {
 			uri: {
 				label: '${authority}${path}',
 				separator: nativeSep,
 				tildify: !platform.isWindows,
-				normalizeDriveLetter: platform.isWindows
+				normalizeDriveLetter: platform.isWindows,
+				authorityPrefix: nativeSep + nativeSep
 			},
 			workspace: {
 				suffix: ''
@@ -235,17 +235,6 @@ configurationRegistry.registerConfiguration({
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.RESOURCE
-		},
-		'files.guessableEncodings': {
-			'type': 'array',
-			'overridable': true,
-			'default': [],
-			'items': {
-				'type': 'string',
-				'enum': Object.keys(SUPPORTED_ENCODINGS)
-			},
-			'scope': ConfigurationScope.RESOURCE,
-			'description': nls.localize('guessableEncodings', "If provided, will restrict the list of encodings that can be used when guessing. If the guessed file encoding is not in the list, the default encoding will be used.")
 		},
 		'files.eol': {
 			'type': 'string',

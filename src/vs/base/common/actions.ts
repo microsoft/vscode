@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+
 import { IDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { isThenable } from 'vs/base/common/async';
 
 export interface ITelemetryData {
 	from?: string;
@@ -23,11 +22,11 @@ export interface IAction extends IDisposable {
 	enabled: boolean;
 	checked: boolean;
 	radio: boolean;
-	run(event?: any): TPromise<any>;
+	run(event?: any): Thenable<any>;
 }
 
 export interface IActionRunner extends IDisposable {
-	run(action: IAction, context?: any): TPromise<any>;
+	run(action: IAction, context?: any): Thenable<any>;
 	onDidRun: Event<IRunEvent>;
 	onDidBeforeRun: Event<IRunEvent>;
 }
@@ -54,7 +53,7 @@ export interface IActionChangeEvent {
 export class Action implements IAction {
 
 	protected _onDidChange = new Emitter<IActionChangeEvent>();
-	get onDidChange(): Event<IActionChangeEvent> { return this._onDidChange.event; }
+	readonly onDidChange: Event<IActionChangeEvent> = this._onDidChange.event;
 
 	protected _id: string;
 	protected _label: string;
@@ -63,9 +62,9 @@ export class Action implements IAction {
 	protected _enabled: boolean;
 	protected _checked: boolean;
 	protected _radio: boolean;
-	protected _actionCallback: (event?: any) => TPromise<any>;
+	protected _actionCallback: (event?: any) => Thenable<any>;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Thenable<any>) {
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -167,12 +166,12 @@ export class Action implements IAction {
 		}
 	}
 
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): Thenable<any> {
 		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
 		}
 
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	dispose() {
@@ -189,14 +188,14 @@ export interface IRunEvent {
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	get onDidBeforeRun(): Event<IRunEvent> { return this._onDidBeforeRun.event; }
+	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	get onDidRun(): Event<IRunEvent> { return this._onDidRun.event; }
+	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
 
-	run(action: IAction, context?: any): TPromise<any> {
+	run(action: IAction, context?: any): Thenable<any> {
 		if (!action.enabled) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this._onDidBeforeRun.fire({ action: action });
@@ -208,14 +207,9 @@ export class ActionRunner extends Disposable implements IActionRunner {
 		});
 	}
 
-	protected runAction(action: IAction, context?: any): TPromise<any> {
+	protected runAction(action: IAction, context?: any): Thenable<any> {
 		const res = context ? action.run(context) : action.run();
-
-		if (isThenable(res)) {
-			return res;
-		}
-
-		return TPromise.wrap(res);
+		return Promise.resolve(res);
 	}
 }
 

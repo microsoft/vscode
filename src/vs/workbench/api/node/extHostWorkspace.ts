@@ -384,10 +384,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions, callback: (result: vscode.TextSearchResult) => void, extensionId: string, token: vscode.CancellationToken = CancellationToken.None): Thenable<vscode.TextSearchComplete> {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId}, entryPoint: findTextInFiles`);
 
-		if (options.previewOptions && options.previewOptions.totalChars <= options.previewOptions.leadingChars) {
-			throw new Error('findTextInFiles: previewOptions.totalChars must be > previewOptions.leadingChars');
-		}
-
 		const requestId = this._requestIdProvider.getNext();
 
 		const globPatternToString = (pattern: vscode.GlobPattern | string) => {
@@ -398,13 +394,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 			return join(pattern.base, pattern.pattern);
 		};
 
+		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
+			{
+				matchLines: 100,
+				charsPerLine: 10000
+			} :
+			options.previewOptions;
+
 		const queryOptions: IQueryOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			disregardExcludeSettings: options.exclude === null,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
-			previewOptions: options.previewOptions,
+			previewOptions,
 
 			includePattern: options.include && globPatternToString(options.include),
 			excludePattern: options.exclude && globPatternToString(options.exclude)

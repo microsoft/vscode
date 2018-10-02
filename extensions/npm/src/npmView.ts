@@ -43,7 +43,7 @@ class PackageJSON extends TreeItem {
 	folder: Folder;
 	scripts: NpmScript[] = [];
 
-	static getLabel(folderName: string, relativePath: string): string {
+	static getLabel(_folderName: string, relativePath: string): string {
 		if (relativePath.length > 0) {
 			return path.join(relativePath, packageName);
 		}
@@ -338,7 +338,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 					folder.addPackage(packageJson);
 					packages.set(fullPath, packageJson);
 				}
-				let fullScriptPath = path.join(packageJson.path, each.name);
 				let script = new NpmScript(this.extensionContext, packageJson, each);
 				packageJson.addScript(script);
 			}

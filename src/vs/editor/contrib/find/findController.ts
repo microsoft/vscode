@@ -196,17 +196,23 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleCaseSensitive(): void {
 		this._state.change({ matchCase: !this._state.matchCase }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleWholeWords(): void {
 		this._state.change({ wholeWord: !this._state.wholeWord }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleRegex(): void {
 		this._state.change({ isRegex: !this._state.isRegex }, false);
-		this.highlightFindOptions();
+		if (!this._state.isRevealed) {
+			this.highlightFindOptions();
+		}
 	}
 
 	public toggleSearchScope(): void {

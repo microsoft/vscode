@@ -6,7 +6,6 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -270,17 +269,17 @@ export interface ITranslation {
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
-	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string>;
-	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
-	getReadme(extension: IGalleryExtension, token: CancellationToken): TPromise<string>;
-	getManifest(extension: IGalleryExtension, token: CancellationToken): TPromise<IExtensionManifest>;
-	getChangelog(extension: IGalleryExtension, token: CancellationToken): TPromise<string>;
-	getCoreTranslation(extension: IGalleryExtension, languageId: string): TPromise<ITranslation>;
-	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
-	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): TPromise<IGalleryExtension[]>;
-	getExtensionsReport(): TPromise<IReportedExtension[]>;
-	getExtension(id: IExtensionIdentifier, version?: string): TPromise<IGalleryExtension>;
+	query(options?: IQueryOptions): Promise<IPager<IGalleryExtension>>;
+	download(extension: IGalleryExtension, operation: InstallOperation): Promise<string>;
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
+	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
+	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest>;
+	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
+	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation>;
+	loadCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension>;
+	loadAllDependencies(dependencies: IExtensionIdentifier[], token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensionsReport(): Promise<IReportedExtension[]>;
+	getExtension(id: IExtensionIdentifier, version?: string): Promise<IGalleryExtension>;
 }
 
 export interface InstallExtensionEvent {
@@ -311,16 +310,16 @@ export interface IExtensionManagementService {
 	onUninstallExtension: Event<IExtensionIdentifier>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 
-	zip(extension: ILocalExtension): TPromise<URI>;
-	unzip(zipLocation: URI, type: LocalExtensionType): TPromise<IExtensionIdentifier>;
-	install(vsix: URI): TPromise<IExtensionIdentifier>;
-	installFromGallery(extension: IGalleryExtension): TPromise<void>;
-	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
-	reinstallFromGallery(extension: ILocalExtension): TPromise<void>;
-	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
-	getExtensionsReport(): TPromise<IReportedExtension[]>;
+	zip(extension: ILocalExtension): Promise<URI>;
+	unzip(zipLocation: URI, type: LocalExtensionType): Promise<IExtensionIdentifier>;
+	install(vsix: URI): Promise<IExtensionIdentifier>;
+	installFromGallery(extension: IGalleryExtension): Promise<void>;
+	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
+	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
+	getInstalled(type?: LocalExtensionType): Promise<ILocalExtension[]>;
+	getExtensionsReport(): Promise<IReportedExtension[]>;
 
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
+	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
 }
 
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
@@ -388,7 +387,7 @@ export interface IExtensionEnablementService {
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
-	setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>;
+	setEnablement(extension: ILocalExtension, state: EnablementState): Promise<boolean>;
 }
 
 export interface IExtensionsConfigContent {
@@ -418,10 +417,10 @@ export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
 	getFileBasedRecommendations(): IExtensionRecommendation[];
-	getOtherRecommendations(): TPromise<IExtensionRecommendation[]>;
-	getWorkspaceRecommendations(): TPromise<IExtensionRecommendation[]>;
+	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
+	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeymapRecommendations(): IExtensionRecommendation[];
-	getAllRecommendations(): TPromise<IExtensionRecommendation[]>;
+	getAllRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeywordsForExtension(extension: string): string[];
 	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
 	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };

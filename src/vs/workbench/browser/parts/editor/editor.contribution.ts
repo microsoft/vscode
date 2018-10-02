@@ -12,7 +12,7 @@ import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExten
 import { StatusbarItemDescriptor, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -25,7 +25,7 @@ import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/bina
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import {
@@ -49,6 +49,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsPicker, ActiveEditorGroupPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { OpenWorkspaceButtonContribution } from 'vs/workbench/browser/parts/editor/editorWidgets';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -212,6 +214,9 @@ class SideBySideEditorInputFactory implements IEditorInputFactory {
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
+
+// Register Editor Contributions
+registerEditorContribution(OpenWorkspaceButtonContribution);
 
 // Register Editor Status
 const statusBar = Registry.as<IStatusbarRegistry>(StatusExtensions.Statusbar);
@@ -436,15 +441,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCo
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_RIGHT, title: nls.localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
 
 // Editor Title Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_INLINE_MODE, title: nls.localize('toggleSideBySideView', "Toggle Side By Side View") }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_SIDE_BY_SIDE, title: nls.localize('toggleSideBySideView', "Toggle Side By Side View") }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
 interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
 
-function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorToolItem, when: ContextKeyExpr, order: number): void {
-	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpr, order: number, alternative?: IEditorToolItem): void {
+	const item: IMenuItem = {
 		command: {
 			id: primary.id,
 			title: primary.title,
@@ -453,18 +458,23 @@ function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorTool
 				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`))
 			}
 		},
-		alt: {
+		group: 'navigation',
+		when,
+		order
+	};
+
+	if (alternative) {
+		item.alt = {
 			id: alternative.id,
 			title: alternative.title,
 			iconLocation: {
 				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)),
 				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`))
 			}
-		},
-		group: 'navigation',
-		when,
-		order
-	});
+		};
+	}
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
 }
 
 // Editor Title Menu: Split Editor
@@ -474,14 +484,15 @@ appendEditorToolItem(
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
 		iconDark: 'split-editor-horizontal-inverse.svg',
 		iconLight: 'split-editor-horizontal.svg'
-	}, {
+	},
+	ContextKeyExpr.not('splitEditorsVertically'),
+	100000, // towards the end
+	{
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
 		iconDark: 'split-editor-vertical-inverse.svg',
 		iconLight: 'split-editor-vertical.svg'
-	},
-	ContextKeyExpr.not('splitEditorsVertically'),
-	100000 /* towards the end */
+	}
 );
 
 appendEditorToolItem(
@@ -490,14 +501,15 @@ appendEditorToolItem(
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
 		iconDark: 'split-editor-vertical-inverse.svg',
 		iconLight: 'split-editor-vertical.svg'
-	}, {
+	},
+	ContextKeyExpr.has('splitEditorsVertically'),
+	100000, // towards the end
+	{
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
 		iconDark: 'split-editor-horizontal-inverse.svg',
 		iconLight: 'split-editor-horizontal.svg'
-	},
-	ContextKeyExpr.has('splitEditorsVertically'),
-	100000 // towards the end
+	}
 );
 
 // Editor Title Menu: Close Group (tabs disabled)
@@ -507,14 +519,15 @@ appendEditorToolItem(
 		title: nls.localize('close', "Close"),
 		iconDark: 'close-big-inverse-alt.svg',
 		iconLight: 'close-big-alt.svg'
-	}, {
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
+	1000000, // towards the far end
+	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
 		iconDark: 'closeall-editors-inverse.svg',
 		iconLight: 'closeall-editors.svg'
-	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
-	1000000 // towards the end
+	}
 );
 
 appendEditorToolItem(
@@ -523,14 +536,63 @@ appendEditorToolItem(
 		title: nls.localize('close', "Close"),
 		iconDark: 'close-dirty-inverse-alt.svg',
 		iconLight: 'close-dirty-alt.svg'
-	}, {
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
+	1000000, // towards the far end
+	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
 		iconDark: 'closeall-editors-inverse.svg',
 		iconLight: 'closeall-editors.svg'
+	}
+);
+
+// Diff Editor Title Menu: Previous Change
+appendEditorToolItem(
+	{
+		id: editorCommands.GOTO_PREVIOUS_CHANGE,
+		title: nls.localize('navigate.prev.label', "Previous Change"),
+		iconDark: 'previous-diff-inverse.svg',
+		iconLight: 'previous-diff.svg'
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
-	1000000 // towards the end
+	TextCompareEditorActiveContext,
+	10
+);
+
+// Diff Editor Title Menu: Next Change
+appendEditorToolItem(
+	{
+		id: editorCommands.GOTO_NEXT_CHANGE,
+		title: nls.localize('navigate.next.label', "Next Change"),
+		iconDark: 'next-diff-inverse.svg',
+		iconLight: 'next-diff.svg'
+	},
+	TextCompareEditorActiveContext,
+	11
+);
+
+// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Enabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Trim Whitespace"),
+		iconDark: 'paragraph-inverse.svg',
+		iconLight: 'paragraph.svg'
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
+	20
+);
+
+// Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Disabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: nls.localize('showTrimWhitespace.label', "Show Trim Whitespace"),
+		iconDark: 'paragraph-disabled-inverse.svg',
+		iconLight: 'paragraph-disabled.svg'
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
+	20
 );
 
 // Editor Commands for Command Palette

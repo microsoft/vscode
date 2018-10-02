@@ -358,7 +358,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.editor, e.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, e.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -380,7 +380,7 @@ export class ReviewController implements IEditorContribution {
 		// add new comment
 		this._reviewPanelVisible.set(true);
 		const { replyCommand, ownerId } = newCommentInfo;
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, ownerId, {
 			threadId: null,
 			resource: null,
 			comments: [],
@@ -507,7 +507,7 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentInfos.forEach(info => {
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.editor, info.owner, thread, {});
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.openerService, this.dialogService, this.notificationService, this.editor, info.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber, this._commentingRangeDecorator.commentsOptions);
 				this._commentWidgets.push(zoneWidget);
 			});

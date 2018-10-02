@@ -14,7 +14,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/workbench/common/editor';
 import { Position } from 'vs/editor/common/core/position';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -195,7 +195,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): TPromise<DebugProtocol.PauseResponse>;
 	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse>;
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]>;
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): TPromise<Source[]>;
@@ -759,8 +759,11 @@ export interface IDebugService {
 	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
 	 * Also saves all files, manages if compounds are present in the configuration
 	 * and resolveds configurations via DebugConfigurationProviders.
+	 *
+	 * Returns true if the start debugging was successfull. For compound launches, all configurations have to start successfuly for it to return success.
+	 * On errors the startDebugging will throw an error, however some error and cancelations are handled and in that case will simply return false.
 	 */
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<void>;
+	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<boolean>;
 
 	/**
 	 * Restarts a session or creates a new one if there is no active session.

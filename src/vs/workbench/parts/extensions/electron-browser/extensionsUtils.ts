@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, IExtensionIdentifier, EnablementState, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -102,8 +102,11 @@ export class KeymapExtensions implements IWorkbenchContribution {
 export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
+	const onDidInstallExtension = chain(extensionService.onDidInstallExtension)
+		.filter(e => e.operation === InstallOperation.Install)
+		.event;
 	return debounceEvent<IExtensionIdentifier, IExtensionIdentifier[]>(anyEvent(
-		chain(anyEvent(extensionService.onDidInstallExtension, extensionService.onDidUninstallExtension))
+		chain(anyEvent(onDidInstallExtension, extensionService.onDidUninstallExtension))
 			.map(e => ({ id: stripVersion(e.identifier.id), uuid: e.identifier.uuid }))
 			.event,
 		extensionEnablementService.onEnablementChanged

@@ -142,7 +142,7 @@ class Main {
 								const outdated = semver.gt(extension.version, installedExtension.manifest.version);
 								if (outdated) {
 									if (force) {
-										console.log(localize('updateMessage', "Updating the Extension '{0}' to a newer version {2}", id, extension.version));
+										console.log(localize('updateMessage', "Updating the Extension '{0}' to a newer version {1}", id, extension.version));
 										return this.installFromGallery(id, extension);
 									} else {
 										const updateMessage = localize('updateConfirmationMessage', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Would you like to update?", id, installedExtension.manifest.version, extension.version);

@@ -154,7 +154,7 @@ const config = {
 		darwinBundleDocumentType(["ps1", "psd1", "psm1"], 'resources/darwin/powershell.icns'),
 		darwinBundleDocumentType(["py"], 'resources/darwin/python.icns'),
 		darwinBundleDocumentType(["gemspec", "rb"], 'resources/darwin/ruby.icns'),
-		darwinBundleDocumentType(["scss"], 'resources/darwin/scss.icns'),
+		darwinBundleDocumentType(["scss"], 'resources/darwin/sass.icns'),
 		darwinBundleDocumentType(["bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "profile", "rhistory", "rprofile", "sh", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"], 'resources/darwin/shell.icns'),
 		darwinBundleDocumentType(["sql"], 'resources/darwin/sql.icns'),
 		darwinBundleDocumentType(["ts"], 'resources/darwin/typescript.icns'),
@@ -169,6 +169,7 @@ const config = {
 		name: product.nameLong,
 		urlSchemes: [product.urlProtocol]
 	}],
+	darwinForceDarkModeSupport: true,
 	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',

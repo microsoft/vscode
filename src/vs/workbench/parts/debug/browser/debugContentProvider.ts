@@ -54,7 +54,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 
 		if (!session) {
-			return TPromise.wrapError<ITextModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
+			return Promise.reject(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const createErrModel = (message: string) => {
 			this.debugService.sourceIsNotAvailable(resource);

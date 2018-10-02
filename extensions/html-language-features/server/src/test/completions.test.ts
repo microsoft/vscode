@@ -21,7 +21,7 @@ export interface ItemDescription {
 	notAvailable?: boolean;
 }
 
-export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
+export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument) {
 	let matches = completions.items.filter(completion => {
 		return completion.label === expected.label;
 	});
@@ -70,7 +70,7 @@ export function testCompletionFor(value: string, expected: { count?: number, ite
 	}
 	if (expected.items) {
 		for (let item of expected.items) {
-			assertCompletion(list, item, document, offset);
+			assertCompletion(list, item, document);
 		}
 	}
 }
@@ -296,7 +296,7 @@ suite('HTML Path Completion', () => {
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
 	});
-	
+
 	test('Completion should ignore files/folders starting with dot', () => {
 		testCompletionFor('<script src="./|"', {
 			count: 3

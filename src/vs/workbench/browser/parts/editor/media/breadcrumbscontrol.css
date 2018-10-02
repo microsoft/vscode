@@ -19,6 +19,12 @@
 
 /* todo@joh move somewhere else */
 
+.monaco-workbench .monaco-breadcrumbs-picker .arrow {
+	position: absolute;
+	width: 0;
+	border-style: solid;
+}
+
 .monaco-workbench .monaco-breadcrumbs-picker .picker-item {
 	line-height: 22px;
 	flex: 1;
