@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/core/position';
 import { CompletionList, CompletionItemProvider, CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
-import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
+import { ISuggestionItem, getSuggestionComparator, ensureLowerCaseVariants } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
 export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
@@ -233,15 +233,18 @@ suite('CompletionModel', function () {
 		assert.equal(model.items.length, 1);
 	});
 
-	test.skip('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 
 		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item1.suggestion.filterText = '  groups';
-		item1.suggestion._sortTextLow = '00002';
+		item1.suggestion.sortText = '00002';
 
 		const item2 = createSuggestItem('source', 0, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item2.suggestion.filterText = 'source';
-		item2.suggestion._sortTextLow = '00001';
+		item2.suggestion.sortText = '00001';
+
+		ensureLowerCaseVariants(item1.suggestion);
+		ensureLowerCaseVariants(item2.suggestion);
 
 		const items = [item1, item2].sort(getSuggestionComparator('inline'));
 
