@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as appInsights from 'applicationinsights';
 import { isObject } from 'vs/base/common/types';
 import { safeStringify, mixin } from 'vs/base/common/objects';

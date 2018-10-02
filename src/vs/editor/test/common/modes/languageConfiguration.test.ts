@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as assert from 'assert';
 import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { StandardTokenType } from 'vs/editor/common/modes';

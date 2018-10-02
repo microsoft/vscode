@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';

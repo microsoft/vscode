@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { ok } from 'vs/base/common/assert';
 import { readonly, illegalArgument } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as semver from 'semver';
 import { adoptToGalleryExtensionId, LOCAL_EXTENSION_ID_REGEX } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 

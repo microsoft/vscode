@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { equals } from 'vs/base/common/arrays';
 
 export interface IMarkdownString {
