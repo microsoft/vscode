@@ -656,16 +656,16 @@ export class DebugSession implements IDebugSession {
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(this, event.body.variablesReference, generateUuid());
 				outputPromises.push(container.getChildren().then(children => {
-					return TPromise.join(waitFor).then(() => children.forEach(child => {
+					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
 						this.debugService.logToRepl(child, outputSeverity, source);
 					}));
 				}));
 			} else if (typeof event.body.output === 'string') {
-				TPromise.join(waitFor).then(() => this.debugService.logToRepl(event.body.output, outputSeverity, source));
+				Promise.all(waitFor).then(() => this.debugService.logToRepl(event.body.output, outputSeverity, source));
 			}
-			TPromise.join(outputPromises).then(() => outputPromises = []);
+			Promise.all(outputPromises).then(() => outputPromises = []);
 		}));
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
