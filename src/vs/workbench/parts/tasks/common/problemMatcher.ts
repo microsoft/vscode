@@ -14,7 +14,7 @@ import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
@@ -134,6 +134,7 @@ export interface ProblemMatcher {
 	pattern: ProblemPattern | ProblemPattern[];
 	severity?: Severity;
 	watching?: WatchingMatcher;
+	uriProvider?: (path: string) => URI;
 }
 
 export interface NamedProblemMatcher extends ProblemMatcher {
@@ -195,7 +196,11 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	return URI.parse('file://' + fullPath);
+	if (matcher.uriProvider !== void 0) {
+		return matcher.uriProvider(fullPath);
+	} else {
+		return URI.file(fullPath);
+	}
 }
 
 export interface ILineMatcher {
@@ -260,10 +265,12 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 	private fillProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
 		if (Types.isUndefined(data[property]) && !Types.isUndefined(pattern[property]) && pattern[property] < matches.length) {
 			let value = matches[pattern[property]];
-			if (trim) {
-				value = Strings.trim(value);
+			if (value !== void 0) {
+				if (trim) {
+					value = Strings.trim(value);
+				}
+				data[property] = value;
 			}
-			data[property] = value;
 		}
 	}
 
@@ -1081,7 +1088,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {
@@ -1191,7 +1198,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 				file: 1
 			},
 			{
-				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)\s\s+(.*)$/,
+				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)(?:\s\s+(.*))?$/,
 				line: 1,
 				character: 2,
 				severity: 3,
@@ -1635,7 +1642,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				resolve(undefined);
 			});
-		}, () => { });
+		});
 	}
 
 	public onReady(): TPromise<void> {

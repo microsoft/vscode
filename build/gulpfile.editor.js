@@ -12,10 +12,12 @@ const File = require('vinyl');
 const i18n = require('./lib/i18n');
 const standalone = require('./lib/standalone');
 const cp = require('child_process');
+const compilation = require('./lib/compilation');
+const monacoapi = require('./monaco/api');
+const fs = require('fs');
 
 var root = path.dirname(__dirname);
 var sha1 = util.getVersion(root);
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 var semver = require('./monaco/package.json').version;
 var headerVersion = semver + '(' + sha1 + ')';
 
@@ -59,29 +61,56 @@ var BUNDLED_FILE_HEADER = [
 	''
 ].join('\n');
 
-function editorLoaderConfig() {
-	var result = common.loaderConfig();
-
-	// never ship octicons in editor
-	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
-
-	// force css inlining to use base64 -- see https://github.com/Microsoft/monaco-editor/issues/148
-	result['vs/css'] = {
-		inlineResources: 'base64',
-		inlineResourcesLimit: 3000 // see https://github.com/Microsoft/monaco-editor/issues/336
-	};
-
-	return result;
-}
-
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
+gulp.task('clean-editor-src', util.rimraf('out-editor-src'));
+gulp.task('extract-editor-src', ['clean-editor-src'], function () {
+	console.log(`If the build fails, consider tweaking shakeLevel below to a lower value.`);
+	const apiusages = monacoapi.execute().usageContent;
+	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
+	standalone.extractEditor({
+		sourcesRoot: path.join(root, 'src'),
+		entryPoints: [
+			'vs/editor/editor.main',
+			'vs/editor/editor.worker',
+			'vs/base/worker/workerMain',
+		],
+		inlineEntryPoints: [
+			apiusages,
+			extrausages
+		],
+		libs: [
+			`lib.d.ts`,
+			`lib.es2015.collection.d.ts`
+		],
+		redirects: {
+			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
+		},
+		compilerOptions: {
+			module: 2, // ModuleKind.AMD
+		},
+		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
+		importIgnorePattern: /^vs\/css!/,
+		destRoot: path.join(root, 'out-editor-src')
+	});
+});
+
+// Full compile, including nls and inline sources in sourcemaps, for build
+gulp.task('clean-editor-build', util.rimraf('out-editor-build'));
+gulp.task('compile-editor-build', ['clean-editor-build', 'extract-editor-src'], compilation.compileTask('out-editor-src', 'out-editor-build', true));
+
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
-gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-client-build'], common.optimizeTask({
+gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'], common.optimizeTask({
+	src: 'out-editor-build',
 	entryPoints: editorEntryPoints,
 	otherSources: editorOtherSources,
 	resources: editorResources,
-	loaderConfig: editorLoaderConfig(),
+	loaderConfig: {
+		paths: {
+			'vs': 'out-editor-build/vs',
+			'vscode': 'empty:'
+		}
+	},
 	bundleLoader: false,
 	header: BUNDLED_FILE_HEADER,
 	bundleInfo: true,
@@ -93,17 +122,25 @@ gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
-gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro'], function () {
-	standalone.createESMSourcesAndResources({
-		entryPoints: [
-			'vs/editor/editor.main',
-			'vs/editor/editor.worker'
-		],
+gulp.task('extract-editor-esm', ['clean-editor-esm', 'clean-editor-distro', 'extract-editor-src'], function () {
+	standalone.createESMSourcesAndResources2({
+		srcFolder: './out-editor-src',
 		outFolder: './out-editor-esm/src',
 		outResourcesFolder: './out-monaco-editor-core/esm',
-		redirects: {
-			'vs/base/browser/ui/octiconLabel/octiconLabel': 'vs/base/browser/ui/octiconLabel/octiconLabel.mock',
-			'vs/nls': 'vs/nls.mock',
+		ignores: [
+			'inlineEntryPoint:0.ts',
+			'inlineEntryPoint:1.ts',
+			'vs/loader.js',
+			'vs/nls.ts',
+			'vs/nls.build.js',
+			'vs/nls.d.ts',
+			'vs/css.js',
+			'vs/css.build.js',
+			'vs/css.d.ts',
+			'vs/base/worker/workerMain.ts',
+		],
+		renames: {
+			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
 });
@@ -114,6 +151,41 @@ gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], f
 	console.log(result.stdout.toString());
 });
 
+function toExternalDTS(contents) {
+	let lines = contents.split('\n');
+	let killNextCloseCurlyBrace = false;
+	for (let i = 0; i < lines.length; i++) {
+		let line = lines[i];
+
+		if (killNextCloseCurlyBrace) {
+			if ('}' === line) {
+				lines[i] = '';
+				killNextCloseCurlyBrace = false;
+				continue;
+			}
+
+			if (line.indexOf('    ') === 0) {
+				lines[i] = line.substr(4);
+			} else if (line.charAt(0) === '\t') {
+				lines[i] = line.substr(1);
+			}
+
+			continue;
+		}
+
+		if ('declare namespace monaco {' === line) {
+			lines[i] = '';
+			killNextCloseCurlyBrace = true;
+			continue;
+		}
+
+		if (line.indexOf('declare namespace monaco.') === 0) {
+			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
+	}
+	return lines.join('\n');
+}
+
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
 gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify-editor', 'optimize-editor'], function () {
 	return es.merge(
@@ -123,6 +195,17 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),
+
+		// place the .d.ts in the esm folder
+		gulp.src('src/vs/monaco.d.ts')
+			.pipe(es.through(function (data) {
+				this.emit('data', new File({
+					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
+					base: data.base,
+					contents: Buffer.from(toExternalDTS(data.contents.toString()))
+				}));
+			}))
+			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),
 
 		// package.json
 		gulp.src('build/monaco/package.json')
@@ -184,7 +267,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 });
 
 gulp.task('analyze-editor-distro', function () {
-	// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
+	// @ts-ignore
 	var bundleInfo = require('../out-editor/bundleInfo.json');
 	var graph = bundleInfo.graph;
 	var bundles = bundleInfo.bundles;

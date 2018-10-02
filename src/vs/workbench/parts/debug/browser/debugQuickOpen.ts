@@ -11,10 +11,10 @@ import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
 import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import * as errors from 'vs/base/common/errors';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 class AddConfigEntry extends Model.QuickOpenEntry {
 
@@ -38,7 +38,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.commandService.executeCommand('debug.addConfiguration', this.launch.uri.toString()).done(undefined, errors.onUnexpectedError);
+		this.commandService.executeCommand('debug.addConfiguration', this.launch.uri.toString());
 
 		return true;
 	}
@@ -68,7 +68,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch).done(undefined, e => this.notificationService.error(e));
+		this.debugService.startDebugging(this.launch).then(undefined, e => this.notificationService.error(e));
 
 		return true;
 	}
@@ -77,6 +77,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.launch';
+
 	private autoFocusIndex: number;
 
 	constructor(
@@ -92,13 +93,13 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return nls.localize('debugAriaLabel', "Type a name of a launch configuration to run.");
 	}
 
-	public getResults(input: string): TPromise<Model.QuickOpenModel> {
+	public getResults(input: string, token: CancellationToken): TPromise<Model.QuickOpenModel> {
 		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();
 		const launches = configManager.getLaunches();
 		for (let launch of launches) {
-			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
+			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesFuzzy(input, config, true) }))
 				.filter(({ highlights }) => !!highlights)
 				.forEach(({ config, highlights }) => {
 					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
@@ -110,7 +111,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		launches.filter(l => !l.hidden).forEach((l, index) => {
 
 			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
-			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
+			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesFuzzy(input, label, true));
 			if (index === 0) {
 				configurations.push(new Model.QuickOpenEntryGroup(entry, undefined, true));
 			} else {
@@ -119,7 +120,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 		});
 
-		return TPromise.as(new Model.QuickOpenModel(configurations));
+		return Promise.resolve(new Model.QuickOpenModel(configurations));
 	}
 
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {

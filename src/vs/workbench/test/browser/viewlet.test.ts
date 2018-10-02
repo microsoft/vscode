@@ -10,12 +10,12 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, Extensions, Viewlet, ViewletRegistry } from 'vs/workbench/browser/viewlet';
 import * as Types from 'vs/base/common/types';
 
-suite('Workbench Viewlet', () => {
+suite('Viewlets', () => {
 
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null, null, null);
+			super('id', null, null, null, null);
 		}
 
 		public layout(dimension: any): void {

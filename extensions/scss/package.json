@@ -1,12 +1,12 @@
 {
     "name": "scss",
     "displayName": "%displayName%",
-	"description": "%description%",
+	  "description": "%description%",
     "version": "1.0.0",
     "publisher": "vscode",
     "engines": { "vscode": "*" },
     "scripts": {
-        "update-grammar": "node ../../build/npm/update-grammar.js atom/language-sass grammars/scss.cson ./syntaxes/scss.tmLanguage.json"
+        "update-grammar": "node ../../build/npm/update-grammar.js atom/language-sass grammars/scss.cson ./syntaxes/scss.tmLanguage.json grammars/sassdoc.cson ./syntaxes/sassdoc.tmLanguage.json"
     },
     "contributes": {
         "languages": [{
@@ -20,6 +20,9 @@
             "language": "scss",
             "scopeName": "source.css.scss",
             "path": "./syntaxes/scss.tmLanguage.json"
+        }, {
+            "scopeName": "source.sassdoc",
+            "path": "./syntaxes/sassdoc.tmLanguage.json"
         }],
         "problemMatchers": [{
             "name": "node-sass",

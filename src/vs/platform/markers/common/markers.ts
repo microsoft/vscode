@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
@@ -36,6 +36,10 @@ export interface IRelatedInformation {
 	startColumn: number;
 	endLineNumber: number;
 	endColumn: number;
+}
+
+export enum MarkerTag {
+	Unnecessary = 1,
 }
 
 export enum MarkerSeverity {
@@ -83,6 +87,7 @@ export interface IMarkerData {
 	endLineNumber: number;
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
+	tags?: MarkerTag[];
 }
 
 export interface IResourceMarker {
@@ -102,6 +107,7 @@ export interface IMarker {
 	endLineNumber: number;
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
+	tags?: MarkerTag[];
 }
 
 export interface MarkerStatistics {

@@ -99,7 +99,7 @@ export class DiffNavigator {
 			if (this._editor.getLineChanges() !== null) {
 				this.revealFirst = false;
 				this.nextIdx = -1;
-				this.next();
+				this.next(ScrollType.Immediate);
 			}
 		}
 	}
@@ -167,7 +167,7 @@ export class DiffNavigator {
 		}
 	}
 
-	private _move(fwd: boolean): void {
+	private _move(fwd: boolean, scrollType: ScrollType): void {
 		assert.ok(!this.disposed, 'Illegal State - diff navigator has been disposed');
 
 		if (!this.canNavigate()) {
@@ -194,7 +194,7 @@ export class DiffNavigator {
 		try {
 			let pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos, ScrollType.Smooth);
+			this._editor.revealPositionInCenter(pos, scrollType);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}
@@ -204,12 +204,12 @@ export class DiffNavigator {
 		return this.ranges && this.ranges.length > 0;
 	}
 
-	next(): void {
-		this._move(true);
+	next(scrollType: ScrollType = ScrollType.Smooth): void {
+		this._move(true, scrollType);
 	}
 
-	previous(): void {
-		this._move(false);
+	previous(scrollType: ScrollType = ScrollType.Smooth): void {
+		this._move(false, scrollType);
 	}
 
 	dispose(): void {

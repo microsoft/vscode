@@ -26,7 +26,7 @@ export class MoveCaretCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		var s = this._selection;
+		let s = this._selection;
 		this._selectionId = builder.trackSelection(s);
 		if (s.startLineNumber !== s.endLineNumber) {
 			return;
@@ -37,12 +37,12 @@ export class MoveCaretCommand implements ICommand {
 			return;
 		}
 
-		var lineNumber = s.selectionStartLineNumber;
-		var lineContent = model.getLineContent(lineNumber);
+		let lineNumber = s.selectionStartLineNumber;
+		let lineContent = model.getLineContent(lineNumber);
 
-		var left;
-		var middle;
-		var right;
+		let left: string;
+		let middle: string;
+		let right: string;
 
 		if (this._isMovingLeft) {
 			left = lineContent.substring(0, s.startColumn - 2);
@@ -54,7 +54,7 @@ export class MoveCaretCommand implements ICommand {
 			right = lineContent.substring(s.endColumn);
 		}
 
-		var newLineContent = left + middle + right;
+		let newLineContent = left + middle + right;
 
 		builder.addEditOperation(new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber)), null);
 		builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), newLineContent);
@@ -65,7 +65,7 @@ export class MoveCaretCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		var result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId);
 		if (this._moved) {
 			result = result.setStartPosition(result.startLineNumber, this._cutStartIndex);
 			result = result.setEndPosition(result.startLineNumber, this._cutEndIndex);

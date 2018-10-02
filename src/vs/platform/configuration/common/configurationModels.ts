@@ -5,11 +5,11 @@
 'use strict';
 
 import * as json from 'vs/base/common/json';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IOverrides, overrideIdentifierFromKey, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, IConfigurationChangeEvent, ConfigurationTarget, removeFromValueTree, toOverrides } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
@@ -278,15 +278,15 @@ export class ConfigurationModelParser {
 export class Configuration {
 
 	private _workspaceConsolidatedConfiguration: ConfigurationModel = null;
-	private _foldersConsolidatedConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+	private _foldersConsolidatedConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>();
 
 	constructor(
 		private _defaultConfiguration: ConfigurationModel,
 		private _userConfiguration: ConfigurationModel,
 		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _folderConfigurations: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		private _folderConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>(),
 		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>(),
+		private _memoryConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>(),
 		private _freeze: boolean = true) {
 	}
 
@@ -394,7 +394,7 @@ export class Configuration {
 		return this._workspaceConfiguration;
 	}
 
-	protected get folders(): StrictResourceMap<ConfigurationModel> {
+	protected get folders(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
 	}
 
@@ -534,7 +534,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 
 	constructor(
 		private _changedConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
+		private _changedConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>()) {
 		super();
 	}
 
@@ -542,7 +542,7 @@ export class ConfigurationChangeEvent extends AbstractConfigurationChangeEvent i
 		return this._changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
 		return this._changedConfigurationByResource;
 	}
 

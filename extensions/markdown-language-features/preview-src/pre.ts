@@ -6,8 +6,12 @@
 import { CspAlerter } from './csp';
 import { StyleLoadingMonitor } from './loading';
 
-// tslint:disable-next-line:no-unused-expression
-new CspAlerter();
+declare global {
+	interface Window {
+		cspAlerter: CspAlerter;
+		styleLoadingMonitor: StyleLoadingMonitor;
+	}
+}
 
-// tslint:disable-next-line:no-unused-expression
-new StyleLoadingMonitor();
+window.cspAlerter = new CspAlerter();
+window.styleLoadingMonitor = new StyleLoadingMonitor();

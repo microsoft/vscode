@@ -27,11 +27,11 @@ export class DeleteLinesCommand implements ICommand {
 			return;
 		}
 
-		var startLineNumber = this.startLineNumber;
-		var endLineNumber = this.endLineNumber;
+		let startLineNumber = this.startLineNumber;
+		let endLineNumber = this.endLineNumber;
 
-		var startColumn = 1;
-		var endColumn = model.getLineMaxColumn(endLineNumber);
+		let startColumn = 1;
+		let endColumn = model.getLineMaxColumn(endLineNumber);
 		if (endLineNumber < model.getLineCount()) {
 			endLineNumber += 1;
 			endColumn = 1;
@@ -44,8 +44,8 @@ export class DeleteLinesCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[0].range;
+		let inverseEditOperations = helper.getInverseEditOperations();
+		let srcRange = inverseEditOperations[0].range;
 		return new Selection(
 			srcRange.endLineNumber,
 			this.restoreCursorToColumn,

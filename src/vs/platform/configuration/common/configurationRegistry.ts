@@ -38,6 +38,12 @@ export interface IConfigurationRegistry {
 	 * Event that fires whenver a configuration has been
 	 * registered.
 	 */
+	onDidSchemaChange: Event<void>;
+
+	/**
+	 * Event that fires whenver a configuration has been
+	 * registered.
+	 */
 	onDidRegisterConfiguration: Event<string[]>;
 
 	/**
@@ -61,7 +67,7 @@ export interface IConfigurationRegistry {
 	registerOverrideIdentifiers(identifiers: string[]): void;
 }
 
-export enum ConfigurationScope {
+export const enum ConfigurationScope {
 	APPLICATION = 1,
 	WINDOW,
 	RESOURCE,
@@ -69,10 +75,9 @@ export enum ConfigurationScope {
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	overridable?: boolean;
-	isExecutable?: boolean;
 	scope?: ConfigurationScope;
-	notMultiRootAdopted?: boolean;
 	included?: boolean;
+	tags?: string[];
 }
 
 export interface IConfigurationNode {
@@ -85,6 +90,7 @@ export interface IConfigurationNode {
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
 	scope?: ConfigurationScope;
+	contributedByExtension?: boolean;
 }
 
 export interface IDefaultConfigurationExtension {
@@ -109,6 +115,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private editorConfigurationSchema: IJSONSchema;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
+
+	private readonly _onDidSchemaChange: Emitter<void> = new Emitter<void>();
+	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
 	private readonly _onDidRegisterConfiguration: Emitter<string[]> = new Emitter<string[]>();
 	readonly onDidRegisterConfiguration: Event<string[]> = this._onDidRegisterConfiguration.event;
@@ -176,7 +185,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, overridable: boolean = false): string[] {
-		scope = configuration.scope !== void 0 && configuration.scope !== null ? configuration.scope : scope;
+		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
 		overridable = configuration.overridable || overridable;
 		let propertyKeys = [];
 		let properties = configuration.properties;
@@ -198,8 +207,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (overridable) {
 					property.overridable = true;
 				}
-				if (property.scope === void 0) {
-					property.scope = scope;
+
+				if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+					property.scope = void 0; // No scope for overridable properties `[${identifier}]`
+				} else {
+					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
 				}
 
 				// Add to properties maps
@@ -240,7 +252,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		function register(configuration: IConfigurationNode) {
 			let properties = configuration.properties;
 			if (properties) {
-				for (let key in properties) {
+				for (const key in properties) {
 					allSettings.properties[key] = properties[key];
 					switch (properties[key].scope) {
 						case ConfigurationScope.APPLICATION:
@@ -261,6 +273,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			}
 		}
 		register(configuration);
+		this._onDidSchemaChange.fire();
 	}
 
 	private updateSchemaForOverrideSettingsConfiguration(configuration: IConfigurationNode): void {
@@ -292,6 +305,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		applicationSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		windowSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
 		resourceSettings.patternProperties[this.overridePropertyPattern] = patternProperties;
+
+		this._onDidSchemaChange.fire();
 	}
 
 	private update(configuration: IConfigurationNode): void {

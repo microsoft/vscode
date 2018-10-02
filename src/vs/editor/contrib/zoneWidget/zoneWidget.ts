@@ -9,7 +9,7 @@ import 'vs/css!./zoneWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
-import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
+import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -459,7 +459,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		if (!this.options.isResizeable) {
 			this._resizeSash.hide();
-			this._resizeSash.disable();
+			this._resizeSash.state = SashState.Disabled;
 		}
 
 		let data: { startY: number; heightInLines: number; };

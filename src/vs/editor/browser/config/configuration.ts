@@ -90,6 +90,7 @@ export interface ISerializedFontInfo {
 	readonly isMonospace: boolean;
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly typicalFullwidthCharacterWidth: number;
+	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
 	readonly maxDigitWidth: number;
 }
@@ -176,6 +177,7 @@ class CSSBasedConfiguration extends Disposable {
 					isMonospace: readConfig.isMonospace,
 					typicalHalfwidthCharacterWidth: Math.max(readConfig.typicalHalfwidthCharacterWidth, 5),
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
+					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
 				}, false);
@@ -214,7 +216,9 @@ class CSSBasedConfiguration extends Disposable {
 		const digit9 = this.createRequest('9', CharWidthRequestType.Regular, all, monospace);
 
 		// monospace test: used for whitespace rendering
-		this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
+		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
+		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
+
 		this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
 
 		// monospace test: some characters
@@ -256,6 +260,16 @@ class CSSBasedConfiguration extends Disposable {
 			}
 		}
 
+		let canUseHalfwidthRightwardsArrow = true;
+		if (isMonospace && halfwidthRightwardsArrow.width !== referenceWidth) {
+			// using a halfwidth rightwards arrow would break monospace...
+			canUseHalfwidthRightwardsArrow = false;
+		}
+		if (halfwidthRightwardsArrow.width > rightwardsArrow.width) {
+			// using a halfwidth rightwards arrow would paint a larger arrow than a regular rightwards arrow
+			canUseHalfwidthRightwardsArrow = false;
+		}
+
 		// let's trust the zoom level only 2s after it was changed.
 		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
@@ -268,6 +282,7 @@ class CSSBasedConfiguration extends Disposable {
 			isMonospace: isMonospace,
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacter.width,
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
+			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
 			spaceWidth: space.width,
 			maxDigitWidth: maxDigitWidth
 		}, canTrustBrowserZoomLevel);
@@ -276,8 +291,21 @@ class CSSBasedConfiguration extends Disposable {
 
 export class Configuration extends CommonEditorConfiguration {
 
+	private static _massageFontFamily(fontFamily: string): string {
+		if (/[,"']/.test(fontFamily)) {
+			// Looks like the font family might be already escaped
+			return fontFamily;
+		}
+		if (/[+ ]/.test(fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${fontFamily}"`;
+		}
+
+		return fontFamily;
+	}
+
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.fontFamily;
+		domNode.style.fontFamily = Configuration._massageFontFamily(fontInfo.fontFamily);
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
@@ -285,7 +313,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.fontFamily);
+		domNode.setFontFamily(Configuration._massageFontFamily(fontInfo.fontFamily));
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setLineHeight(fontInfo.lineHeight);

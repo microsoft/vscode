@@ -19,12 +19,14 @@ export function setup() {
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.debug.configure();
 
-			const launchJsonPath = path.join(app.workspacePath, '.vscode', 'launch.json');
+			const launchJsonPath = path.join(app.workspacePathOrFolder, '.vscode', 'launch.json');
 			const content = fs.readFileSync(launchJsonPath, 'utf8');
 			const config = JSON.parse(stripJsonComments(content));
 			config.configurations[0].protocol = 'inspector';
 			fs.writeFileSync(launchJsonPath, JSON.stringify(config, undefined, 4), 'utf8');
 
+			// force load from disk since file events are sometimes missing
+			await app.workbench.quickopen.runCommand('File: Revert File');
 			await app.workbench.editor.waitForEditorContents('launch.json', contents => /"protocol": "inspector"/.test(contents));
 
 			assert.equal(config.configurations[0].request, 'launch');
@@ -47,15 +49,12 @@ export function setup() {
 		it('start debugging', async function () {
 			const app = this.app as Application;
 
-			// TODO@isidor
-			await new Promise(c => setTimeout(c, 100));
-
 			port = await app.workbench.debug.startDebugging();
 
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
-				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
+				app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
 			});
 		});
 
@@ -79,13 +78,13 @@ export function setup() {
 
 			await app.workbench.debug.stepIn();
 
-			const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
+			const first = await app.workbench.debug.waitForStackFrame(sf => /response\.js$/.test(sf.name), 'looking for response.js');
 			await app.workbench.debug.stepOver();
 
-			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
+			await app.workbench.debug.waitForStackFrame(sf => /response\.js$/.test(sf.name) && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
 			await app.workbench.debug.stepOut();
 
-			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
+			await app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 7, `looking for index.js and line 7`);
 		});
 
 		it('continue', async function () {
@@ -96,7 +95,7 @@ export function setup() {
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
-				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
+				app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
 			});
 
 		});

@@ -23,6 +23,8 @@ import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 // copy lines
 
@@ -35,12 +37,12 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
 		}
 
@@ -60,7 +62,14 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
+				order: 1
 			}
 		});
 	}
@@ -76,7 +85,14 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
+				order: 2
 			}
 		});
 	}
@@ -93,13 +109,13 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
-		var commands: ICommand[] = [];
-		var selections = editor.getSelections();
-		var autoIndent = editor.getConfiguration().autoIndent;
+		let commands: ICommand[] = [];
+		let selections = editor.getSelections();
+		let autoIndent = editor.getConfiguration().autoIndent;
 
-		for (var i = 0; i < selections.length; i++) {
+		for (let i = 0; i < selections.length; i++) {
 			commands.push(new MoveLinesCommand(selections[i], this.down, autoIndent));
 		}
 
@@ -119,7 +135,14 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.UpArrow,
-				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
+				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
+				order: 3
 			}
 		});
 	}
@@ -135,7 +158,14 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.Alt | KeyCode.DownArrow,
-				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
+				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
+				weight: KeybindingWeight.EditorContrib
+			},
+			menubarOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
+				order: 4
 			}
 		});
 	}
@@ -149,7 +179,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 		this.descending = descending;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
 
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -204,12 +234,13 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 
 		let cursors: Position[] = [];
 		if (args.reason === 'auto-save') {
@@ -219,7 +250,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
 		}
 
-		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
+		let command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
@@ -235,12 +266,41 @@ interface IDeleteLinesOperation {
 	positionColumn: number;
 }
 
-abstract class AbstractRemoveLinesAction extends EditorAction {
-	_getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
-		// Construct delete operations
-		var operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
+class DeleteLinesAction extends EditorAction {
 
-			var endLineNumber = s.endLineNumber;
+	constructor() {
+		super({
+			id: 'editor.action.deleteLines',
+			label: nls.localize('lines.delete', "Delete Line"),
+			alias: 'Delete Line',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+
+		let ops = this._getLinesToRemove(editor);
+
+		// Finally, construct the delete lines commands
+		let commands: ICommand[] = ops.map((op) => {
+			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
+		});
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+
+	private _getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
+		// Construct delete operations
+		let operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
+
+			let endLineNumber = s.endLineNumber;
 			if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
 				endLineNumber -= 1;
 			}
@@ -258,9 +318,9 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 		});
 
 		// Merge delete operations on consecutive lines
-		var mergedOperations: IDeleteLinesOperation[] = [];
-		var previousOperation = operations[0];
-		for (var i = 1; i < operations.length; i++) {
+		let mergedOperations: IDeleteLinesOperation[] = [];
+		let previousOperation = operations[0];
+		for (let i = 1; i < operations.length; i++) {
 			if (previousOperation.endLineNumber + 1 === operations[i].startLineNumber) {
 				// Merge current operations into the previous one
 				previousOperation.endLineNumber = operations[i].endLineNumber;
@@ -277,36 +337,6 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 	}
 }
 
-class DeleteLinesAction extends AbstractRemoveLinesAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.deleteLines',
-			label: nls.localize('lines.delete', "Delete Line"),
-			alias: 'Delete Line',
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-
-		var ops = this._getLinesToRemove(editor);
-
-		// Finally, construct the delete lines commands
-		var commands: ICommand[] = ops.map((op) => {
-			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
-		});
-
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
-	}
-}
-
 export class IndentLinesAction extends EditorAction {
 	constructor() {
 		super({
@@ -316,12 +346,13 @@ export class IndentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
+				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
@@ -337,12 +368,13 @@ class OutdentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
+				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 	}
 }
@@ -356,12 +388,13 @@ export class InsertLineBeforeAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
@@ -376,19 +409,20 @@ export class InsertLineAfterAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
 }
 
 export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const primaryCursor = editor.getSelection();
 		let rangesToDelete = this._getRangesToDelete(editor);
 		// merge overlapping selections
@@ -408,8 +442,8 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 		effectiveRanges.push(rangesToDelete[rangesToDelete.length - 1]);
 
 		let endCursorState = this._getEndCursorState(primaryCursor, effectiveRanges);
+
 		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
-			endCursorState.push(new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn));
 			return EditOperation.replace(range, '');
 		});
 
@@ -436,7 +470,8 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -444,17 +479,25 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection;
 		let endCursorState: Selection[] = [];
+		let deletedLines = 0;
 
-		for (let i = 0, len = rangesToDelete.length; i < len; i++) {
-			let range = rangesToDelete[i];
-			let endCursor = new Selection(rangesToDelete[i].startLineNumber, rangesToDelete[i].startColumn, rangesToDelete[i].startLineNumber, rangesToDelete[i].startColumn);
+		rangesToDelete.forEach(range => {
+			let endCursor;
+			if (range.endColumn === 1 && deletedLines > 0) {
+				let newStartLine = range.startLineNumber - deletedLines;
+				endCursor = new Selection(newStartLine, range.startColumn, newStartLine, range.startColumn);
+			} else {
+				endCursor = new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
+			}
+
+			deletedLines += range.endLineNumber - range.startLineNumber;
 
 			if (range.intersectRanges(primaryCursor)) {
 				endPrimaryCursor = endCursor;
 			} else {
 				endCursorState.push(endCursor);
 			}
-		}
+		});
 
 		if (endPrimaryCursor) {
 			endCursorState.unshift(endPrimaryCursor);
@@ -465,11 +508,18 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 
 	_getRangesToDelete(editor: ICodeEditor): Range[] {
 		let rangesToDelete: Range[] = editor.getSelections();
+		let model = editor.getModel();
 
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
-				return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				if (selection.startColumn === 1) {
+					let deleteFromLine = Math.max(1, selection.startLineNumber - 1);
+					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
+					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
+				} else {
+					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				}
 			} else {
 				return selection;
 			}
@@ -489,7 +539,8 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -546,12 +597,13 @@ export class JoinLinesAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J },
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let primaryCursor = editor.getSelection();
 
@@ -595,9 +647,9 @@ export class JoinLinesAction extends EditorAction {
 			let selection = reducedSelections[i];
 			let startLineNumber = selection.startLineNumber;
 			let startColumn = 1;
+			let columnDeltaOffset = 0;
 			let endLineNumber: number,
-				endColumn: number,
-				columnDeltaOffset: number;
+				endColumn: number;
 
 			let selectionEndPositionOffset = model.getLineContent(selection.endLineNumber).length - selection.endColumn;
 
@@ -694,7 +746,7 @@ export class TransposeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
@@ -735,7 +787,7 @@ export class TransposeAction extends EditorAction {
 }
 
 export abstract class AbstractCaseAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];

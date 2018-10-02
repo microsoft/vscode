@@ -8,7 +8,7 @@ import 'vs/css!./textAreaHandler';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import * as strings from 'vs/base/common/strings';
-import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
+import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData, CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -100,6 +100,7 @@ export class TextAreaHandler extends ViewPart {
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
+	private _copyWithSyntaxHighlighting: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -128,6 +129,7 @@ export class TextAreaHandler extends ViewPart {
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
 		this._emptySelectionClipboard = conf.emptySelectionClipboard;
+		this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -164,7 +166,7 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getPlainTextToCopy: (): string => {
-				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
+				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.model.getEOL();
 
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
@@ -191,6 +193,10 @@ export class TextAreaHandler extends ViewPart {
 			},
 
 			getHTMLToCopy: (): string => {
+				if (!this._copyWithSyntaxHighlighting && !CopyOptions.forceCopyWithSyntaxHighlighting) {
+					return null;
+				}
+
 				return this._context.model.getHTMLToCopy(this._selections, this._emptySelectionClipboard);
 			},
 
@@ -387,6 +393,9 @@ export class TextAreaHandler extends ViewPart {
 		if (e.emptySelectionClipboard) {
 			this._emptySelectionClipboard = conf.emptySelectionClipboard;
 		}
+		if (e.copyWithSyntaxHighlighting) {
+			this._copyWithSyntaxHighlighting = conf.copyWithSyntaxHighlighting;
+		}
 
 		return true;
 	}
@@ -542,7 +551,7 @@ export class TextAreaHandler extends ViewPart {
 		tac.setHeight(1);
 
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
-			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
+			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
 		} else {
 			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);

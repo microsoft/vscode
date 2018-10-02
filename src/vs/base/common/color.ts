@@ -114,7 +114,7 @@ export class HSLA {
 		return new HSLA(h, s, l, a);
 	}
 
-	private static _hue2rgb(p: number, q: number, t: number) {
+	private static _hue2rgb(p: number, q: number, t: number): number {
 		if (t < 0) {
 			t += 1;
 		}

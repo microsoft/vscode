@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 
@@ -89,7 +89,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				const contextKey = `config.${configKey}`;
 				if (contextKey in this._value) {
 					this._value[contextKey] = this._configurationService.getValue(configKey);
-					this._emitter.fire(configKey);
+					this._emitter.fire(contextKey);
 				}
 			}
 		}
@@ -108,18 +108,23 @@ class ConfigAwareContextValuesContainer extends Context {
 				if (Object.prototype.hasOwnProperty.call(obj, key)) {
 					keys.push(key);
 					let value = obj[key];
-					if (typeof value === 'boolean') {
-						const configKey = keys.join('.');
-						const oldValue = this._value[configKey];
-						this._value[configKey] = value;
-						if (oldValue !== value) {
-							configKeysChanged.push(configKey);
-							configKeys[configKey] = true;
-						} else {
-							configKeys[configKey] = false;
-						}
-					} else if (typeof value === 'object') {
-						walk(value, keys);
+					switch (typeof value) {
+						case 'boolean':
+						case 'string':
+						case 'number':
+							const configKey = keys.join('.');
+							const oldValue = this._value[configKey];
+							this._value[configKey] = value;
+							if (oldValue !== value) {
+								configKeysChanged.push(configKey);
+								configKeys[configKey] = true;
+							} else {
+								configKeys[configKey] = false;
+							}
+							break;
+						case 'object':
+							walk(value, keys);
+							break;
 					}
 					keys.pop();
 				}
@@ -179,7 +184,7 @@ export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
 		this._keys = this._keys.concat(oneOrManyKeys);
 	}
 
-	affectsSome(keys: Set<string>): boolean {
+	affectsSome(keys: IReadableSet<string>): boolean {
 		for (const key of this._keys) {
 			if (keys.has(key)) {
 				return true;
@@ -331,6 +336,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		this._parent.disposeContext(this._myContextId);
 		if (this._domNode) {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+			this._domNode = undefined;
 		}
 	}
 

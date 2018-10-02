@@ -23,15 +23,15 @@ export class DiffEditorModel extends EditorModel {
 		this._modifiedModel = modifiedModel;
 	}
 
-	public get originalModel(): EditorModel {
+	get originalModel(): EditorModel {
 		return this._originalModel as EditorModel;
 	}
 
-	public get modifiedModel(): EditorModel {
+	get modifiedModel(): EditorModel {
 		return this._modifiedModel as EditorModel;
 	}
 
-	public load(): TPromise<EditorModel> {
+	load(): TPromise<EditorModel> {
 		return TPromise.join([
 			this._originalModel.load(),
 			this._modifiedModel.load()
@@ -40,11 +40,11 @@ export class DiffEditorModel extends EditorModel {
 		});
 	}
 
-	public isResolved(): boolean {
+	isResolved(): boolean {
 		return this.originalModel.isResolved() && this.modifiedModel.isResolved();
 	}
 
-	public dispose(): void {
+	dispose(): void {
 
 		// Do not propagate the dispose() call to the two models inside. We never created the two models
 		// (original and modified) so we can not dispose them without sideeffects. Rather rely on the

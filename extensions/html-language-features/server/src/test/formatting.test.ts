@@ -112,4 +112,101 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<script src="/js/main.js"> </script>', '<script src="/js/main.js"> </script>');
 	});
 
-});
+	test('bug 48049', function (): any {
+		assertFormat(
+			[
+				'<html>',
+				'<head>',
+				'</head>',
+				'',
+				'<body>',
+				'',
+				'    <script>',
+				'        function f(x) {}',
+				'        f(function () {',
+				'        // ',
+				'',
+				'        console.log(" vsc crashes on formatting")',
+				'        });',
+				'    </script>',
+				'',
+				'',
+				'',
+				'        </body>',
+				'',
+				'</html>'
+			].join('\n'),
+			[
+				'<html>',
+				'',
+				'<head>',
+				'</head>',
+				'',
+				'<body>',
+				'',
+				'  <script>',
+				'    function f(x) {}',
+				'    f(function () {',
+				'      // ',
+				'',
+				'      console.log(" vsc crashes on formatting")',
+				'    });',
+				'  </script>',
+				'',
+				'',
+				'',
+				'</body>',
+				'',
+				'</html>'
+			].join('\n')
+		);
+	});
+	test('#58435', () => {
+		let options = {
+			html: {
+				format: {
+					contentUnformatted: 'textarea'
+				}
+			}
+		};
+
+		var content = [
+			'<html>',
+			'',
+			'<body>',
+			'  <textarea name= "" id ="" cols="30" rows="10">',
+			'  </textarea>',
+			'</body>',
+			'',
+			'</html>',
+		].join('\n');
+
+		var expected = [
+			'<html>',
+			'',
+			'<body>',
+			'  <textarea name="" id="" cols="30" rows="10">',
+			'  </textarea>',
+			'</body>',
+			'',
+			'</html>',
+		].join('\n');
+
+		assertFormat(content, expected, options);
+	});
+
+}); /*
+content_unformatted: Array(4)["pre", "code", "textarea", …]
+end_with_newline: false
+eol: "\n"
+extra_liners: Array(3)["head", "body", "/html"]
+indent_char: "\t"
+indent_handlebars: false
+indent_inner_html: false
+indent_size: 1
+max_preserve_newlines: 32786
+preserve_newlines: true
+unformatted: Array(1)["wbr"]
+wrap_attributes: "auto"
+wrap_attributes_indent_size: undefined
+wrap_line_length: 120*/

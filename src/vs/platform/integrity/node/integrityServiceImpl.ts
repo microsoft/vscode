@@ -10,7 +10,7 @@ import * as crypto from 'crypto';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IIntegrityService, IntegrityTestResult, ChecksumPair } from 'vs/platform/integrity/common/integrity';
 import product from 'vs/platform/node/product';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -133,7 +133,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _resolve(filename: string, expected: string): TPromise<ChecksumPair> {
 		let fileUri = URI.parse(require.toUrl(filename));
-		return new TPromise<ChecksumPair>((c, e, p) => {
+		return new TPromise<ChecksumPair>((c, e) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {
 					return e(err);

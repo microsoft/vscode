@@ -113,7 +113,7 @@ const schema: IJSONSchema = {
 					},
 					src: {
 						type: 'array',
-						description: nls.localize('schema.src', 'The locations of the font.'),
+						description: nls.localize('schema.src', 'The location of the font.'),
 						items: {
 							type: 'object',
 							properties: {

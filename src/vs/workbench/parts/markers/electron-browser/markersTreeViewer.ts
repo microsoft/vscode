@@ -19,6 +19,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -28,9 +32,11 @@ interface IResourceMarkersTemplateData {
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
+	actionBar: ActionBar;
 	source: HighlightedLabel;
 	description: HighlightedLabel;
 	lnCol: HTMLElement;
+	code: HighlightedLabel;
 }
 
 interface IRelatedInformationTemplateData {
@@ -70,6 +76,22 @@ export class DataSource implements IDataSource {
 	public getParent(tree: ITree, element: any): Promise {
 		return TPromise.as(null);
 	}
+
+	public shouldAutoexpand(tree: ITree, element: any): boolean {
+		if (element instanceof MarkersModel) {
+			return true;
+		}
+
+		if (element instanceof ResourceMarkers) {
+			return true;
+		}
+
+		if (element instanceof Marker && element.resourceRelatedInformation.length > 0) {
+			return true;
+		}
+
+		return false;
+	}
 }
 
 export class DataFilter implements IFilter {
@@ -92,8 +114,10 @@ export class Renderer implements IRenderer {
 	private static readonly RELATED_INFO_TEMPLATE_ID = 'related-info-template';
 
 	constructor(
+		private actionItemProvider: IActionItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@ILabelService private labelService: ILabelService
 	) {
 	}
 
@@ -161,6 +185,9 @@ export class Renderer implements IRenderer {
 	private renderRelatedInfoTemplate(container: HTMLElement): IRelatedInformationTemplateData {
 		const data: IRelatedInformationTemplateData = Object.create(null);
 
+		dom.append(container, dom.$('.actions'));
+		dom.append(container, dom.$('.icon'));
+
 		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 
@@ -174,9 +201,12 @@ export class Renderer implements IRenderer {
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.icon = dom.append(container, dom.$('.marker-icon'));
+		const actionsContainer = dom.append(container, dom.$('.actions'));
+		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		data.icon = dom.append(container, dom.$('.icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.lnCol = dom.append(container, dom.$('span.marker-line'));
 		return data;
 	}
@@ -197,27 +227,36 @@ export class Renderer implements IRenderer {
 		if (templateData.resourceLabel instanceof FileLabel) {
 			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: element.uri.toString(), resource: element.uri }, { matches: element.uriMatches });
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.uri), { relative: true }), resource: element.uri }, { matches: element.uriMatches });
 		}
 		(<IResourceMarkersTemplateData>templateData).count.setCount(element.filteredCount);
 	}
 
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
 		let marker = element.raw;
+
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
 
 		templateData.source.set(marker.source, element.sourceMatches);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
+		templateData.actionBar.clear();
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
+
 		templateData.description.set(marker.message, element.messageMatches);
 		templateData.description.element.title = marker.message;
 
+		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
+		templateData.code.set(marker.code || '', element.codeMatches);
+
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+
 	}
 
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
 		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath), element.uriMatches);
-		templateData.resourceLabel.element.title = element.raw.resource.toString();
+		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, { relative: true });
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
 		templateData.description.set(element.raw.message, element.messageMatches);
 		templateData.description.element.title = element.raw.message;
@@ -244,6 +283,7 @@ export class Renderer implements IRenderer {
 		} else if (templateId === Renderer.MARKER_TEMPLATE_ID) {
 			(<IMarkerTemplateData>templateData).description.dispose();
 			(<IMarkerTemplateData>templateData).source.dispose();
+			(<IMarkerTemplateData>templateData).actionBar.dispose();
 		} else if (templateId === Renderer.RELATED_INFO_TEMPLATE_ID) {
 			(<IRelatedInformationTemplateData>templateData).description.dispose();
 			(<IRelatedInformationTemplateData>templateData).resourceLabel.dispose();
@@ -253,9 +293,15 @@ export class Renderer implements IRenderer {
 
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
+	constructor(
+		@ILabelService private labelServie: ILabelService
+	) {
+	}
+
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.name, element.filteredCount);
+			const path = this.labelServie.getUriLabel(element.uri, { relative: true }) || element.uri.fsPath;
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.filteredCount, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
@@ -266,4 +312,3 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 		return null;
 	}
 }
-

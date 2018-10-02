@@ -41,7 +41,7 @@ export interface IAutoFocus {
 	autoFocusPrefixMatch?: string;
 }
 
-export enum Mode {
+export const enum Mode {
 	PREVIEW,
 	OPEN,
 	OPEN_IN_BACKGROUND

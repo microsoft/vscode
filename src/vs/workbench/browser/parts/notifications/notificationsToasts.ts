@@ -16,7 +16,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -64,7 +64,7 @@ export class NotificationsToasts extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
@@ -73,14 +73,20 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
-		// Show toast for initial notifications if any
-		model.notifications.forEach(notification => this.addToast(notification));
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+
+		// Wait for the running phase to ensure we can draw notifications properly
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+
+			// Show toast for initial notifications if any
+			this.model.notifications.forEach(notification => this.addToast(notification));
+
+			// Update toasts on notification changes
+			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		});
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -185,7 +191,8 @@ export class NotificationsToasts extends Themable {
 			let timeoutHandle: number;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
-					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast) {
+					const showsProgress = item.hasProgress() && !item.progress.state.done;
+					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast && !showsProgress) {
 						this.removeToast(item);
 					} else {
 						hideAfterTimeout(); // push out disposal if item has focus or is expanded
@@ -204,25 +211,21 @@ export class NotificationsToasts extends Themable {
 		// Context Key
 		this.notificationsToastsVisibleContextKey.set(true);
 
-		// Animate In if we are in a running session (otherwise just show directly)
-		if (this.lifecycleService.phase >= LifecyclePhase.Running) {
-			addClass(notificationToast, 'notification-fade-in');
-			itemDisposeables.push(addDisposableListener(notificationToast, 'transitionend', () => {
-				removeClass(notificationToast, 'notification-fade-in');
-				addClass(notificationToast, 'notification-fade-in-done');
-			}));
-		} else {
+		// Animate in
+		addClass(notificationToast, 'notification-fade-in');
+		itemDisposeables.push(addDisposableListener(notificationToast, 'transitionend', () => {
+			removeClass(notificationToast, 'notification-fade-in');
 			addClass(notificationToast, 'notification-fade-in-done');
-		}
+		}));
 	}
 
 	private removeToast(item: INotificationViewItem): void {
 		const notificationToast = this.mapNotificationToToast.get(item);
-		let focusEditor = false;
+		let focusGroup = false;
 		if (notificationToast) {
 			const toastHasDOMFocus = isAncestor(document.activeElement, notificationToast.container);
 			if (toastHasDOMFocus) {
-				focusEditor = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
+				focusGroup = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
 			}
 
 			// Listeners
@@ -241,17 +244,10 @@ export class NotificationsToasts extends Themable {
 		else {
 			this.doHide();
 
-			// Move focus to editor as needed
-			if (focusEditor) {
-				this.focusEditor();
+			// Move focus back to editor group as needed
+			if (focusGroup) {
+				this.editorGroupService.activeGroup.focus();
 			}
-		}
-	}
-
-	private focusEditor(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
 		}
 	}
 
@@ -271,17 +267,17 @@ export class NotificationsToasts extends Themable {
 		this.notificationsToastsVisibleContextKey.set(false);
 	}
 
-	public hide(): void {
-		const focusEditor = isAncestor(document.activeElement, this.notificationsToastsContainer);
+	hide(): void {
+		const focusGroup = isAncestor(document.activeElement, this.notificationsToastsContainer);
 
 		this.removeToasts();
 
-		if (focusEditor) {
-			this.focusEditor();
+		if (focusGroup) {
+			this.editorGroupService.activeGroup.focus();
 		}
 	}
 
-	public focus(): boolean {
+	focus(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		if (toasts.length > 0) {
 			toasts[0].list.focusFirst();
@@ -292,7 +288,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusNext(): boolean {
+	focusNext(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		for (let i = 0; i < toasts.length; i++) {
 			const toast = toasts[i];
@@ -311,7 +307,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusPrevious(): boolean {
+	focusPrevious(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		for (let i = 0; i < toasts.length; i++) {
 			const toast = toasts[i];
@@ -330,7 +326,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusFirst(): boolean {
+	focusFirst(): boolean {
 		const toast = this.getToasts(ToastVisibility.VISIBLE)[0];
 		if (toast) {
 			toast.list.focusFirst();
@@ -341,7 +337,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public focusLast(): boolean {
+	focusLast(): boolean {
 		const toasts = this.getToasts(ToastVisibility.VISIBLE);
 		if (toasts.length > 0) {
 			toasts[toasts.length - 1].list.focusFirst();
@@ -352,7 +348,7 @@ export class NotificationsToasts extends Themable {
 		return false;
 	}
 
-	public update(isCenterVisible: boolean): void {
+	update(isCenterVisible: boolean): void {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;
 
@@ -397,7 +393,7 @@ export class NotificationsToasts extends Themable {
 		return notificationToasts.reverse(); // from newest to oldest
 	}
 
-	public layout(dimension: Dimension): void {
+	layout(dimension: Dimension): void {
 		this.workbenchDimensions = dimension;
 
 		const maxDimensions = this.computeMaxDimensions();

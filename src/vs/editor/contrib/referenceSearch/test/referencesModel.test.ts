@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
 
 suite('references', function () {
 
-	test('nearestReference', function () {
+	test('nearestReference', () => {
 		const model = new ReferencesModel([{
 			uri: URI.file('/out/obj/can'),
 			range: new Range(1, 1, 1, 1)

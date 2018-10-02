@@ -21,7 +21,10 @@ import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colo
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActivityAction, ActivityActionItem, ICompositeBarColors } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
+import { ActivityAction, ActivityActionItem, ICompositeBarColors, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { URI } from 'vs/base/common/uri';
+import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -32,20 +35,21 @@ export class ViewletActivityAction extends ActivityAction {
 	constructor(
 		activity: IActivity,
 		@IViewletService private viewletService: IViewletService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(activity);
 	}
 
-	public run(event: any): TPromise<any> {
+	run(event: any): TPromise<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return TPromise.as(false); // do not run on right click
+			return Promise.resolve(false); // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
 		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return TPromise.as(true);
+			return Promise.resolve(true);
 		}
 		this.lastRun = now;
 
@@ -54,10 +58,22 @@ export class ViewletActivityAction extends ActivityAction {
 
 		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
+			this.logAction('hide');
 			return this.partService.setSideBarHidden(true);
 		}
 
+		this.logAction('show');
 		return this.viewletService.openViewlet(this.activity.id, true).then(() => this.activate());
+	}
+
+	private logAction(action: string) {
+		/* __GDPR__
+			"activityBarAction" : {
+				"viewletId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"action": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -71,7 +87,7 @@ export class ToggleViewletAction extends Action {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
@@ -95,40 +111,41 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 	constructor(
 		action: GlobalActivityAction,
-		colors: ICompositeBarColors,
+		colors: (theme: ITheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
 
-	public render(container: HTMLElement): void {
+	render(container: HTMLElement): void {
 		super.render(container);
 
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
-		this.$container.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);
 			this.showContextMenu({ x: event.posx, y: event.posy });
-		});
+		}));
 
-		this.$container.on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				DOM.EventHelper.stop(e, true);
 
-				this.showContextMenu(this.$container.getHTMLElement());
+				this.showContextMenu(this.container);
 			}
-		});
+		}));
 
-		this.$container.on(TouchEventType.Tap, (e: GestureEvent) => {
+		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const event = new StandardMouseEvent(e);
 			this.showContextMenu({ x: event.posx, y: event.posy });
-		});
+		}));
 	}
 
 	private showContextMenu(location: HTMLElement | { x: number, y: number }): void {
@@ -138,13 +155,54 @@ export class GlobalActivityActionItem extends ActivityActionItem {
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => TPromise.as(actions),
+			getActions: () => Promise.resolve(actions),
 			onHide: () => dispose(actions)
 		});
 	}
 }
 
+export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
+
+	constructor(
+		id: string, iconUrl: URI,
+		@IViewletService viewletService: IViewletService,
+		@IPartService partService: IPartService,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
+		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, partService, telemetryService);
+
+		const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
+		DOM.createCSSRule(iconClass, `-webkit-mask: url('${iconUrl || ''}') no-repeat 50% 50%`);
+	}
+
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
+	}
+}
+
+export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+
+	constructor(id: string, compositeBar: ICompositeBar) {
+		super({ id, name: id, cssClass: void 0 }, compositeBar);
+	}
+
+	setActivity(activity: IActivity): void {
+		this.label = activity.name;
+	}
+}
+
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+	if (activeForegroundColor) {
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+				background-color: ${activeForegroundColor} !important;
+			}
+		`);
+	}
 
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
@@ -157,7 +215,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				left: 9px;
 				height: 32px;
 				width: 32px;
-				opacity: 0.6;
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
@@ -169,12 +226,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
 				outline: 1px dashed;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
-				opacity: 1;
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
@@ -196,21 +247,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.checked .action-label,
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-					opacity: 1;
-				}
-
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
-					opacity: 0.6;
-				}
-
-				.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
-					border-left-color: ${focusBorderColor};
-				}
-			`);
+					.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+						border-left-color: ${focusBorderColor};
+					}
+				`);
 		}
 	}
 });

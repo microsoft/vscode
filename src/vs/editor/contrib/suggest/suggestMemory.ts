@@ -10,12 +10,30 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CompletionKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
 
 export abstract class Memory {
 
-	abstract memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void;
+	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
+		if (items.length === 0) {
+			return 0;
+		}
+		let topScore = items[0].score;
+		for (let i = 1; i < items.length; i++) {
+			const { score, suggestion } = items[i];
+			if (score !== topScore) {
+				// stop when leaving the group of top matches
+				break;
+			}
+			if (suggestion.preselect) {
+				// stop when seeing an auto-select-item
+				return i;
+			}
+		}
+		return 0;
+	}
 
-	abstract select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number;
+	abstract memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void;
 
 	abstract toJSON(): object;
 
@@ -28,10 +46,6 @@ export class NoMemory extends Memory {
 		// no-op
 	}
 
-	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
-		return 0;
-	}
-
 	toJSON() {
 		return undefined;
 	}
@@ -42,7 +56,7 @@ export class NoMemory extends Memory {
 }
 
 export interface MemItem {
-	type: string;
+	type: string | CompletionKind;
 	insertText: string;
 	touch: number;
 }
@@ -57,7 +71,7 @@ export class LRUMemory extends Memory {
 		const key = `${model.getLanguageIdentifier().language}/${label}`;
 		this._cache.set(key, {
 			touch: this._seq++,
-			type: item.suggestion.type,
+			type: item.suggestion.kind,
 			insertText: item.suggestion.insertText
 		});
 	}
@@ -67,26 +81,30 @@ export class LRUMemory extends Memory {
 		// that has been used in the past
 		let { word } = model.getWordUntilPosition(pos);
 		if (word.length !== 0) {
-			return 0;
+			return super.select(model, pos, items);
 		}
 
 		let lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
 		if (/\s$/.test(lineSuffix)) {
-			return 0;
+			return super.select(model, pos, items);
 		}
 
-		let res = 0;
+		let res = -1;
 		let seq = -1;
 		for (let i = 0; i < items.length; i++) {
 			const { suggestion } = items[i];
 			const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
 			const item = this._cache.get(key);
-			if (item && item.touch > seq && item.type === suggestion.type && item.insertText === suggestion.insertText) {
+			if (item && item.touch > seq && item.type === suggestion.kind && item.insertText === suggestion.insertText) {
 				seq = item.touch;
 				res = i;
 			}
 		}
-		return res;
+		if (res === -1) {
+			return super.select(model, pos, items);
+		} else {
+			return res;
+		}
 	}
 
 	toJSON(): object {
@@ -102,6 +120,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
+			value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -118,7 +137,7 @@ export class PrefixMemory extends Memory {
 		const { word } = model.getWordUntilPosition(pos);
 		const key = `${model.getLanguageIdentifier().language}/${word}`;
 		this._trie.set(key, {
-			type: item.suggestion.type,
+			type: item.suggestion.kind,
 			insertText: item.suggestion.insertText,
 			touch: this._seq++
 		});
@@ -127,7 +146,7 @@ export class PrefixMemory extends Memory {
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
 		let { word } = model.getWordUntilPosition(pos);
 		if (!word) {
-			return 0;
+			return super.select(model, pos, items);
 		}
 		let key = `${model.getLanguageIdentifier().language}/${word}`;
 		let item = this._trie.get(key);
@@ -136,13 +155,13 @@ export class PrefixMemory extends Memory {
 		}
 		if (item) {
 			for (let i = 0; i < items.length; i++) {
-				let { type, insertText } = items[i].suggestion;
-				if (type === item.type && insertText === item.insertText) {
+				let { kind, insertText } = items[i].suggestion;
+				if (kind === item.type && insertText === item.insertText) {
 					return i;
 				}
 			}
 		}
-		return 0;
+		return super.select(model, pos, items);
 	}
 
 	toJSON(): object {
@@ -165,6 +184,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
+				value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 				this._trie.set(key, value);
 			}
 		}

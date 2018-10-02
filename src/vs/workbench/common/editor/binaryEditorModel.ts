@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorModel } from 'vs/workbench/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { DataUri } from 'vs/workbench/common/resources';
@@ -44,39 +44,39 @@ export class BinaryEditorModel extends EditorModel {
 	/**
 	 * The name of the binary resource.
 	 */
-	public getName(): string {
+	getName(): string {
 		return this.name;
 	}
 
 	/**
 	 * The resource of the binary resource.
 	 */
-	public getResource(): URI {
+	getResource(): URI {
 		return this.resource;
 	}
 
 	/**
 	 * The size of the binary resource if known.
 	 */
-	public getSize(): number {
+	getSize(): number {
 		return this.size;
 	}
 
 	/**
 	 * The mime of the binary resource if known.
 	 */
-	public getMime(): string {
+	getMime(): string {
 		return this.mime;
 	}
 
 	/**
 	 * The etag of the binary resource if known.
 	 */
-	public getETag(): string {
+	getETag(): string {
 		return this.etag;
 	}
 
-	public load(): TPromise<EditorModel> {
+	load(): TPromise<EditorModel> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {

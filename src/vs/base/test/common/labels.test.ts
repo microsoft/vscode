@@ -112,7 +112,7 @@ suite('Labels', () => {
 		assert.deepEqual(labels.shorten(['', 'a', 'b', 'b/c', 'a/c']), ['./', 'a', 'b', 'b/c', 'a/c']);
 	});
 
-	test('template', function () {
+	test('template', () => {
 
 		// simple
 		assert.strictEqual(labels.template('Foo Bar'), 'Foo Bar');

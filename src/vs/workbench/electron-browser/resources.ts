@@ -5,22 +5,23 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { relative } from 'path';
 import { normalize } from 'vs/base/common/paths';
 
-export class ResourceGlobMatcher {
+export class ResourceGlobMatcher extends Disposable {
 
 	private static readonly NO_ROOT: string = null;
 
-	private readonly _onExpressionChange: Emitter<void>;
-	private toUnbind: IDisposable[];
+	private readonly _onExpressionChange: Emitter<void> = this._register(new Emitter<void>());
+	get onExpressionChange(): Event<void> { return this._onExpressionChange.event; }
+
 	private mapRootToParsedExpression: Map<string, ParsedExpression>;
 	private mapRootToExpressionConfig: Map<string, IExpression>;
 
@@ -30,30 +31,24 @@ export class ResourceGlobMatcher {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.toUnbind = [];
+		super();
 
 		this.mapRootToParsedExpression = new Map<string, ParsedExpression>();
 		this.mapRootToExpressionConfig = new Map<string, IExpression>();
-
-		this._onExpressionChange = new Emitter<void>();
-		this.toUnbind.push(this._onExpressionChange);
 
 		this.updateExcludes(false);
 
 		this.registerListeners();
 	}
 
-	public get onExpressionChange(): Event<void> {
-		return this._onExpressionChange.event;
-	}
-
 	private registerListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.shouldUpdate(e)) {
 				this.updateExcludes(true);
 			}
 		}));
-		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
+
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.updateExcludes(true)));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -98,7 +93,7 @@ export class ResourceGlobMatcher {
 		}
 	}
 
-	public matches(resource: URI): boolean {
+	matches(resource: URI): boolean {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression;
@@ -120,9 +115,5 @@ export class ResourceGlobMatcher {
 		}
 
 		return !!expressionForRoot(resourcePathToMatch);
-	}
-
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
 	}
 }

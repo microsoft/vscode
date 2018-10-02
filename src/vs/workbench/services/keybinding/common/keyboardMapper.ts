@@ -7,7 +7,7 @@
 
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCodeBinding } from 'vs/base/common/scanCode';
 
 export interface IKeyboardMapper {
 	dumpDebugInfo(): string;
@@ -21,7 +21,7 @@ export class CachedKeyboardMapper implements IKeyboardMapper {
 	private _actual: IKeyboardMapper;
 	private _cache: Map<string, ResolvedKeybinding[]>;
 
-	constructor(actual) {
+	constructor(actual: IKeyboardMapper) {
 		this._actual = actual;
 		this._cache = new Map<string, ResolvedKeybinding[]>();
 	}

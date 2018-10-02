@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { isThenable } from 'vs/base/common/async';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -23,7 +24,7 @@ export interface ShutdownEvent {
 	/**
 	 * Allows to veto the shutdown. The veto can be a long running operation.
 	 */
-	veto(value: boolean | TPromise<boolean>): void;
+	veto(value: boolean | Thenable<boolean>): void;
 
 	/**
 	 * The reason why Code is shutting down.
@@ -31,7 +32,7 @@ export interface ShutdownEvent {
 	reason: ShutdownReason;
 }
 
-export enum ShutdownReason {
+export const enum ShutdownReason {
 
 	/** Window is closed */
 	CLOSE = 1,
@@ -46,17 +47,32 @@ export enum ShutdownReason {
 	LOAD = 4
 }
 
-export enum StartupKind {
+export const enum StartupKind {
 	NewWindow = 1,
 	ReloadedWindow = 3,
 	ReopenedWindow = 4,
 }
+export function StartupKindToString(startupKind: StartupKind): string {
+	switch (startupKind) {
+		case StartupKind.NewWindow: return 'NewWindow';
+		case StartupKind.ReloadedWindow: return 'ReloadedWindow';
+		case StartupKind.ReopenedWindow: return 'ReopenedWindow';
+	}
+}
 
-export enum LifecyclePhase {
+export const enum LifecyclePhase {
 	Starting = 1,
 	Restoring = 2,
 	Running = 3,
 	Eventually = 4
+}
+export function LifecyclePhaseToString(phase: LifecyclePhase) {
+	switch (phase) {
+		case LifecyclePhase.Starting: return 'Starting';
+		case LifecyclePhase.Restoring: return 'Restoring';
+		case LifecyclePhase.Running: return 'Running';
+		case LifecyclePhase.Eventually: return 'Eventually';
+	}
 }
 
 /**
@@ -108,12 +124,12 @@ export const NullLifecycleService: ILifecycleService = {
 };
 
 // Shared veto handling across main and renderer
-export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
+export function handleVetos(vetos: (boolean | Thenable<boolean>)[], onError: (error: Error) => void): TPromise<boolean /* veto */> {
 	if (vetos.length === 0) {
 		return TPromise.as(false);
 	}
 
-	const promises: TPromise<void>[] = [];
+	const promises: Thenable<void>[] = [];
 	let lazyValue = false;
 
 	for (let valueOrPromise of vetos) {
@@ -123,7 +139,7 @@ export function handleVetos(vetos: (boolean | TPromise<boolean>)[], onError: (er
 			return TPromise.as(true);
 		}
 
-		if (TPromise.is(valueOrPromise)) {
+		if (isThenable(valueOrPromise)) {
 			promises.push(valueOrPromise.then(value => {
 				if (value) {
 					lazyValue = true; // veto, done

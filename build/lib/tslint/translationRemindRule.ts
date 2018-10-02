@@ -67,7 +67,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		});
 
 		if (!resourceDefined) {
-			this.addFailureAtNode(node, `Please add '${resource}' to ./builds/lib/i18n.resources.json file to use translations here.`);
+			this.addFailureAtNode(node, `Please add '${resource}' to ./build/lib/i18n.resources.json file to use translations here.`);
 		}
 	}
 }

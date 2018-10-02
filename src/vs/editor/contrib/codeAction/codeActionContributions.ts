@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { SourceAction, QuickFixController, QuickFixAction, CodeActionCommand, RefactorAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { CodeActionCommand, OrganizeImportsAction, QuickFixAction, QuickFixController, RefactorAction, SourceAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 
 
 registerEditorContribution(QuickFixController);
 registerEditorAction(QuickFixAction);
 registerEditorAction(RefactorAction);
 registerEditorAction(SourceAction);
+registerEditorAction(OrganizeImportsAction);
 registerEditorCommand(new CodeActionCommand());

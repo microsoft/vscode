@@ -16,7 +16,6 @@ import { LanguageConfiguration, IndentAction } from 'vs/editor/common/modes/lang
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { toThenable } from 'vs/base/common/async';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
 import { createTokenizationSupport } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -40,6 +39,11 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 	let result: ILanguageExtensionPoint[] = [];
 	result = result.concat(ModesRegistry.getLanguages());
 	return result;
+}
+
+export function getEncodedLanguageId(languageId: string): number {
+	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
+	return lid && lid.id;
 }
 
 /**
@@ -67,6 +71,31 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
 	return LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+}
+
+/**
+ * @internal
+ */
+export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
+
+	private readonly _actual: EncodedTokensProvider;
+
+	constructor(actual: EncodedTokensProvider) {
+		this._actual = actual;
+	}
+
+	public getInitialState(): modes.IState {
+		return this._actual.getInitialState();
+	}
+
+	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+		throw new Error('Not supported!');
+	}
+
+	public tokenize2(line: string, state: modes.IState): TokenizationResult2 {
+		let result = this._actual.tokenizeEncoded(line, state);
+		return new TokenizationResult2(result.tokens, result.endState);
+	}
 }
 
 /**
@@ -204,6 +233,38 @@ export interface ILineTokens {
 }
 
 /**
+ * The result of a line tokenization.
+ */
+export interface IEncodedLineTokens {
+	/**
+	 * The tokens on the line in a binary, encoded format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 * Meta data is in binary format:
+	 * - -------------------------------------------
+	 *     3322 2222 2222 1111 1111 1100 0000 0000
+	 *     1098 7654 3210 9876 5432 1098 7654 3210
+	 * - -------------------------------------------
+	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 * - -------------------------------------------
+	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
+	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
+	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+	 *  - f = foreground ColorId (9 bits)
+	 *  - b = background ColorId (9 bits)
+	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
+	 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+	 * id = 1 is for the default foreground color, id = 2 for the default background.
+	 */
+	tokens: Uint32Array;
+	/**
+	 * The tokenization end state.
+	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+	 */
+	endState: modes.IState;
+}
+
+/**
  * A "manual" provider of tokens.
  */
 export interface TokensProvider {
@@ -218,16 +279,39 @@ export interface TokensProvider {
 }
 
 /**
+ * A "manual" provider of tokens, returning tokens in a binary form.
+ */
+export interface EncodedTokensProvider {
+	/**
+	 * The initial state of a language. Will be the state passed in to tokenize the first line.
+	 */
+	getInitialState(): modes.IState;
+	/**
+	 * Tokenize a line given the state at the beginning of the line.
+	 */
+	tokenizeEncoded(line: string, state: modes.IState): IEncodedLineTokens;
+}
+
+function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
+	return provider['tokenizeEncoded'];
+}
+/**
  * Set the tokens provider for a language (manual implementation).
  */
-export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable {
+export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable {
 	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
 	if (!languageIdentifier) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	let adapter: modes.ITokenizationSupport;
+	if (isEncodedTokensProvider(provider)) {
+		adapter = new EncodedTokenizationSupport2Adapter(provider);
+	} else {
+		adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	}
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
+
 
 /**
  * Set the tokens provider for a language (monarch implementation).
@@ -267,7 +351,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Thenable<modes.Hover> => {
 			let word = model.getWordAtPosition(position);
 
-			return toThenable<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
+			return Promise.resolve<modes.Hover>(provider.provideHover(model, position, token)).then((value) => {
 				if (!value) {
 					return undefined;
 				}
@@ -372,12 +456,12 @@ export function registerLinkProvider(languageId: string, provider: modes.LinkPro
  */
 export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable {
 	let adapter = new SuggestAdapter(provider);
-	return modes.SuggestRegistry.register(languageId, {
+	return modes.CompletionProviderRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+		provideCompletionItems: (model: model.ITextModel, position: Position, context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> => {
 			return adapter.provideCompletionItems(model, position, context, token);
 		},
-		resolveCompletionItem: (model: model.ITextModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+		resolveCompletionItem: (model: model.ITextModel, position: Position, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> => {
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
 		}
 	});
@@ -391,12 +475,11 @@ export function registerColorProvider(languageId: string, provider: modes.Docume
 }
 
 /**
- * Register a folding provider
+ * Register a folding range provider
  */
-/*export function registerFoldingProvider(languageId: string, provider: modes.FoldingProvider): IDisposable {
-	return modes.FoldingProviderRegistry.register(languageId, provider);
-}*/
-
+export function registerFoldingRangeProvider(languageId: string, provider: modes.FoldingRangeProvider): IDisposable {
+	return modes.FoldingRangeProviderRegistry.register(languageId, provider);
+}
 
 /**
  * Contains additional diagnostic information about the context in which
@@ -576,7 +659,7 @@ export interface CompletionContext {
 	/**
 	 * How the completion was triggered.
 	 */
-	triggerKind: modes.SuggestTriggerKind;
+	triggerKind: modes.CompletionTriggerKind;
 
 	/**
 	 * Character that triggered the completion item provider.
@@ -613,32 +696,32 @@ export interface CompletionItemProvider {
 	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
 }
 
-interface ISuggestion2 extends modes.ISuggestion {
+interface ISuggestion2 extends modes.CompletionItem {
 	_actual: CompletionItem;
 }
-function convertKind(kind: CompletionItemKind): modes.SuggestionType {
+function convertKind(kind: CompletionItemKind): modes.CompletionKind {
 	switch (kind) {
-		case CompletionItemKind.Method: return 'method';
-		case CompletionItemKind.Function: return 'function';
-		case CompletionItemKind.Constructor: return 'constructor';
-		case CompletionItemKind.Field: return 'field';
-		case CompletionItemKind.Variable: return 'variable';
-		case CompletionItemKind.Class: return 'class';
-		case CompletionItemKind.Interface: return 'interface';
-		case CompletionItemKind.Module: return 'module';
-		case CompletionItemKind.Property: return 'property';
-		case CompletionItemKind.Unit: return 'unit';
-		case CompletionItemKind.Value: return 'value';
-		case CompletionItemKind.Enum: return 'enum';
-		case CompletionItemKind.Keyword: return 'keyword';
-		case CompletionItemKind.Snippet: return 'snippet';
-		case CompletionItemKind.Text: return 'text';
-		case CompletionItemKind.Color: return 'color';
-		case CompletionItemKind.File: return 'file';
-		case CompletionItemKind.Reference: return 'reference';
-		case CompletionItemKind.Folder: return 'folder';
+		case CompletionItemKind.Method: return modes.CompletionKind.Method;
+		case CompletionItemKind.Function: return modes.CompletionKind.Function;
+		case CompletionItemKind.Constructor: return modes.CompletionKind.Constructor;
+		case CompletionItemKind.Field: return modes.CompletionKind.Field;
+		case CompletionItemKind.Variable: return modes.CompletionKind.Variable;
+		case CompletionItemKind.Class: return modes.CompletionKind.Class;
+		case CompletionItemKind.Interface: return modes.CompletionKind.Interface;
+		case CompletionItemKind.Module: return modes.CompletionKind.Module;
+		case CompletionItemKind.Property: return modes.CompletionKind.Property;
+		case CompletionItemKind.Unit: return modes.CompletionKind.Unit;
+		case CompletionItemKind.Value: return modes.CompletionKind.Value;
+		case CompletionItemKind.Enum: return modes.CompletionKind.Enum;
+		case CompletionItemKind.Keyword: return modes.CompletionKind.Keyword;
+		case CompletionItemKind.Snippet: return modes.CompletionKind.Snippet;
+		case CompletionItemKind.Text: return modes.CompletionKind.Text;
+		case CompletionItemKind.Color: return modes.CompletionKind.Color;
+		case CompletionItemKind.File: return modes.CompletionKind.File;
+		case CompletionItemKind.Reference: return modes.CompletionKind.Reference;
+		case CompletionItemKind.Folder: return modes.CompletionKind.Folder;
 	}
-	return 'property';
+	return modes.CompletionKind.Property;
 }
 
 class SuggestAdapter {
@@ -654,13 +737,13 @@ class SuggestAdapter {
 			_actual: item,
 			label: item.label,
 			insertText: item.label,
-			type: convertKind(item.kind),
+			kind: convertKind(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
 			command: item.command,
 			sortText: item.sortText,
 			filterText: item.filterText,
-			snippetType: 'internal',
+			insertTextIsSnippet: false,
 			additionalTextEdits: item.additionalTextEdits,
 			commitCharacters: item.commitCharacters
 		};
@@ -676,27 +759,25 @@ class SuggestAdapter {
 
 			// insert the text of the edit and create a dedicated
 			// suggestion-container with overwrite[Before|After]
-			suggestion.overwriteBefore = position.column - editRange.startColumn;
-			suggestion.overwriteAfter = editRange.endColumn - position.column;
+			suggestion.range = editRange;
 		} else {
-			suggestion.overwriteBefore = position.column - wordStartPos.column;
-			suggestion.overwriteAfter = 0;
+			suggestion.range = { startLineNumber: position.lineNumber, startColumn: wordStartPos.column, endLineNumber: position.lineNumber, endColumn: position.column };
 		}
 		if (item.textEdit) {
 			suggestion.insertText = item.textEdit.text;
 		} else if (typeof item.insertText === 'object' && typeof item.insertText.value === 'string') {
 			suggestion.insertText = item.insertText.value;
-			suggestion.snippetType = 'textmate';
+			suggestion.insertTextIsSnippet = true;
 		} else if (typeof item.insertText === 'string') {
 			suggestion.insertText = item.insertText;
 		}
 		return suggestion;
 	}
 
-	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
+	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> {
 		const result = this._provider.provideCompletionItems(model, position, token, context);
-		return toThenable<CompletionItem[] | CompletionList>(result).then(value => {
-			const result: modes.ISuggestResult = {
+		return Promise.resolve<CompletionItem[] | CompletionList>(result).then(value => {
+			const result: modes.CompletionList = {
 				suggestions: []
 			};
 
@@ -736,7 +817,7 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(model: model.ITextModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model: model.ITextModel, position: Position, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
@@ -746,7 +827,7 @@ class SuggestAdapter {
 			return TPromise.as(suggestion);
 		}
 
-		return toThenable(this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
+		return Promise.resolve(this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
 			let wordStartPos = position;
 			const word = model.getWordUntilPosition(position);
 			if (word) {
@@ -765,6 +846,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		register: register,
 		getLanguages: getLanguages,
 		onLanguage: onLanguage,
+		getEncodedLanguageId: getEncodedLanguageId,
 
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
@@ -787,12 +869,15 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerOnTypeFormattingEditProvider: registerOnTypeFormattingEditProvider,
 		registerLinkProvider: registerLinkProvider,
 		registerColorProvider: registerColorProvider,
+		registerFoldingRangeProvider: registerFoldingRangeProvider,
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
-		SuggestTriggerKind: modes.SuggestTriggerKind
+		CompletionTriggerKind: modes.CompletionTriggerKind,
+		FoldingRangeKind: modes.FoldingRangeKind,
+		SignatureHelpTriggerReason: modes.SignatureHelpTriggerReason,
 	};
 }

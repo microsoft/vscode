@@ -8,7 +8,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
 import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
 
@@ -183,7 +183,8 @@ export class MarkerService implements IMarkerService {
 			code, severity,
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
-			relatedInformation
+			relatedInformation,
+			tags,
 		} = data;
 
 		if (!message) {
@@ -208,7 +209,8 @@ export class MarkerService implements IMarkerService {
 			startColumn,
 			endLineNumber,
 			endColumn,
-			relatedInformation
+			relatedInformation,
+			tags,
 		};
 	}
 

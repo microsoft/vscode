@@ -1,0 +1,121 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Tree</title>
+	<style>
+		#container {
+			width: 400;
+			height: 600;
+			border: 1px solid black;
+		}
+
+		.monaco-scrollable-element>.scrollbar>.slider {
+			background: rgba(100, 100, 100, .4);
+		}
+
+		.tl-contents {
+			flex: 1;
+		}
+	</style>
+</head>
+
+<body>
+	<input type="text" id="filter" />
+	<button id="collapseall">Collapse All</button>
+	<div id="container"></div>
+
+	<script src="/static/vs/loader.js"></script>
+	<script>
+		function perf(name, fn) {
+			performance.mark('before ' + name);
+			const start = performance.now();
+			fn();
+			console.log(name + ' took', performance.now() - start);
+			performance.mark('after ' + name);
+		}
+
+		require.config({ baseUrl: '/static' });
+
+		require(['vs/base/browser/ui/tree/tree', 'vs/base/browser/ui/tree/treeModel', 'vs/base/common/iterator'], ({ Tree }, { Visibility }, { iter }) => {
+			const delegate = {
+				getHeight() { return 22; },
+				getTemplateId() { return 'template'; }
+			};
+
+			const renderer = {
+				templateId: 'template',
+				renderTemplate(container) { return container; },
+				renderElement(element, index, container) {
+					container.textContent = element;
+				},
+				disposeTemplate() { }
+			};
+
+			const treeFilter = new class {
+				constructor() {
+					this.pattern = null;
+					let timeout;
+					filter.oninput = () => {
+						clearTimeout(timeout);
+						timeout = setTimeout(() => this.updatePattern(), 300);
+					};
+				}
+				updatePattern() {
+					if (!filter.value) {
+						this.pattern = null;
+					} else {
+						this.pattern = new RegExp(filter.value, 'i');
+					}
+
+					perf('refilter', () => tree.refilter());
+				}
+				filter(el) {
+					return (this.pattern ? this.pattern.test(el) : true) ? Visibility.Visible : Visibility.Recurse;
+				}
+			};
+
+			const tree = new Tree(container, delegate, [renderer], { filter: treeFilter });
+
+			function setModel(model) {
+				performance.mark('before splice');
+				const start = performance.now();
+				;
+				console.log('splice took', performance.now() - start);
+				performance.mark('after splice');
+			}
+
+			switch (location.search) {
+				case '?problems': {
+					const files = [];
+					for (let i = 0; i < 10000; i++) {
+						const errors = [];
+
+						for (let j = 1; j <= (i % 5) + 1; j++) {
+							errors.push({ element: `error #${j}` });
+						}
+
+						files.push({ element: `file #${i}`, children: errors });
+					}
+
+					perf('splice', () => tree.splice([0], 0, files));
+					break;
+				}
+				default:
+					const xhr = new XMLHttpRequest();
+					xhr.open('GET', '/api/ls?path=');
+					xhr.send();
+					xhr.onreadystatechange = function () {
+						if (this.readyState == 4 && this.status == 200) {
+							perf('splice', () => tree.splice([0], 0, [JSON.parse(this.responseText)]));
+							treeFilter.updatePattern();
+						}
+					};
+			}
+
+			collapseall.onclick = () => tree.collapseAll();
+		});
+	</script>
+</body>
+
+</html>

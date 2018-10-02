@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { parseDocument, validate, getNode } from './util';
+import { parseDocument, validate, getHtmlNode } from './util';
 import { HtmlNode } from 'EmmetNode';
 
 export function removeTag() {
@@ -38,7 +38,7 @@ export function removeTag() {
 
 function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selection: vscode.Selection, indentInSpaces: string): vscode.Range[] {
 
-	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+	let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start, true);
 	if (!nodeToUpdate) {
 		return [];
 	}

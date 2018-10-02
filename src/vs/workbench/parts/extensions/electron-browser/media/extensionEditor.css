@@ -14,14 +14,12 @@
 
 .extension-editor > .header {
 	display: flex;
-	height: 128px;
-	padding: 20px;
+	padding-top: 20px;
+	padding-bottom: 14px;
+	padding-left: 20px;
+	padding-right: 20px;
 	overflow: hidden;
 	font-size: 14px;
-}
-
-.extension-editor > .header.recommended {
-	height: 140px;
 }
 
 .extension-editor > .header > .icon {
@@ -31,9 +29,9 @@
 }
 
 .extension-editor > .header > .details {
-	flex: 1;
 	padding-left: 20px;
 	overflow: hidden;
+	user-select: text;
 }
 
 .extension-editor > .header > .details > .title {
@@ -77,6 +75,7 @@
 	margin-left: 10px;
 	padding: 0px 4px;
 	border-radius: 4px;
+	user-select: none;
 }
 
 .extension-editor > .header > .details > .subtitle {
@@ -122,17 +121,56 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
+	margin: 4px;
 	padding: 1px 6px;
 }
 
-.extension-editor > .header.recommended > .details > .recommendation {
+.extension-editor > .header > .details > .recommendation {
 	display: none;
 }
 
-.extension-editor > .header.recommended > .details > .recommendation {
+.extension-editor > .header.recommended > .details > .recommendation,
+.extension-editor > .header.recommendation-ignored > .details > .recommendation {
 	display: block;
-	margin-top: 10px;
+	float: left;
+	margin-top: 0;
 	font-size: 13px;
+	font-style: italic;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar,
+.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar {
+	float: left;
+	margin-top: 2px;
+	font-style: normal;
+}
+
+.extension-editor > .header > .details > .recommendation > .recommendation-text {
+	float:left;
+	margin-top: 5px;
+	margin-right: 4px;
+}
+.extension-editor > .header > .details > .recommendation > .monaco-action-bar .action-label {
+	margin-top: 4px;
+	margin-left: 4px;
+	padding-top: 0;
+	padding-bottom: 2px;
+}
+
+.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar .ignore {
+	display: none;
+}
+
+.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar .undo-ignore {
+	display: block;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .ignore {
+	display: block;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .undo-ignore {
+	display: none;
 }
 
 .extension-editor > .body {
@@ -245,6 +283,7 @@
 
 .extension-editor > .body > .content table th {
 	text-align: left;
+	word-break: keep-all;
 }
 
 .extension-editor > .body > .content table code:not(:empty) {
@@ -272,11 +311,11 @@
 	border-color: rgb(238, 238, 238);
 }
 
-.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency {
+.extension-editor .subcontent .monaco-tree-row .content .unknown-extension {
 	line-height: 62px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .content .unknown-dependency > .error-marker {
+.extension-editor .subcontent .monaco-tree-row .content .unknown-extension > .error-marker {
 	background-color: #BE1100;
 	padding: 2px 4px;
 	font-weight: bold;
@@ -284,45 +323,46 @@
 	color: #CCC;
 }
 
-.extension-editor .subcontent .monaco-tree-row .unknown-dependency > .message {
+.extension-editor .subcontent .monaco-tree-row .unknown-extension > .message {
 	padding-left: 10px;
 	font-weight: bold;
 	font-size: 14px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency {
+.extension-editor .subcontent .monaco-tree-row .extension {
 	display: flex;
 	align-items: center;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details {
+.extension-editor .subcontent .monaco-tree-row .extension > .details {
 	flex: 1;
 	overflow: hidden;
 	padding-left: 10px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header {
 	display: flex;
 	align-items: center;
 	height: 19px;
 	overflow: hidden;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .icon {
+.extension-editor .subcontent .monaco-tree-row .extension > .icon {
 	height: 40px;
 	width: 40px;
+	object-fit: contain;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header > .name {
 	font-weight: bold;
 	font-size: 16px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name:hover {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header > .name:hover {
 	text-decoration: underline;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .identifier {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .header > .identifier {
 	font-size: 90%;
 	opacity: 0.6;
 	margin-left: 10px;
@@ -331,14 +371,14 @@
 	border-radius: 4px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .footer {
 	display: flex;
 	height: 19px;
 	overflow: hidden;
 	padding-top: 5px;
 }
 
-.extension-editor .subcontent .monaco-tree-row .dependency > .details > .footer > .author {
+.extension-editor .subcontent .monaco-tree-row .extension > .details > .footer > .author {
 	font-size: 90%;
 	font-weight: 600;
 	opacity: 0.6;

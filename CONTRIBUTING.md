@@ -12,7 +12,7 @@ The active community will be eager to assist you. Your well-worded question will
 
 ## Providing Feedback
 
-Your comments and feedback are welcome, and the development team is available via handful of different channels.
+Your comments and feedback are welcome, and the development team is available via a handful of different channels.
 
 See the [Feedback Channels](https://github.com/Microsoft/vscode/wiki/Feedback-Channels) wiki page for details about how to share your thoughts.
 
@@ -46,7 +46,7 @@ File a single issue per problem and feature request. Do not enumerate multiple b
 
 Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
 
-The more information you can provide, the more likely someone will be successful reproducing the issue and finding a fix.
+The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
 
 Please include the following with each issue:
 
@@ -59,7 +59,7 @@ Please include the following with each issue:
 
 * What you expected to see, versus what you actually saw
 
-* Images, animations, or a link to a video showing the issue occuring
+* Images, animations, or a link to a video showing the issue occurring
 
 * A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
 
@@ -81,14 +81,14 @@ Don't feel bad if the developers can't reproduce the issue right away. They will
 
 ### Follow Your Issue
 
-Once submitted, your report will go into the [issue tracking](https://github.com/Microsoft/vscode/wiki/Issue-Tracking) work flow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
+Once submitted, your report will go into the [issue tracking](https://github.com/Microsoft/vscode/wiki/Issue-Tracking) workflow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
 
 ## Automated Issue Management
 
 We use a bot to help us manage issues. This bot currently:
 
-* Automatically closes any issue marked `needs-more-info` if there has been no response in past 7 days.
-* Automatically locks 45 days after they are closed.
+* Automatically closes any issue marked `needs-more-info` if there has been no response in the past 7 days.
+* Automatically locks issues 45 days after they are closed.
 
 If you believe the bot got something wrong, please open a new issue and let us know.
 

@@ -35,7 +35,6 @@ class WindowManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
-
 	// --- Zoom Factor
 	private _zoomFactor: number = 0;
 
@@ -45,7 +44,6 @@ class WindowManager {
 	public setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
 	}
-
 
 	// --- Pixel Ratio
 	public getPixelRatio(): number {
@@ -92,8 +90,6 @@ class WindowManager {
 	public getAccessibilitySupport(): Platform.AccessibilitySupport {
 		return this._accessibilitySupport;
 	}
-
-
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
@@ -129,9 +125,7 @@ export function setFullscreen(fullscreen: boolean): void {
 export function isFullscreen(): boolean {
 	return WindowManager.INSTANCE.isFullscreen();
 }
-export function onDidChangeFullscreen(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
-}
+export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
 export function setAccessibilitySupport(accessibilitySupport: Platform.AccessibilitySupport): void {
 	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
@@ -155,9 +149,21 @@ export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
 export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
+export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 
-export const isChromev56 = (
-	userAgent.indexOf('Chrome/56.') >= 0
-	// Edge likes to impersonate Chrome sometimes
-	&& userAgent.indexOf('Edge/') === -1
-);
+export function hasClipboardSupport() {
+	if (isIE) {
+		return false;
+	}
+
+	if (isEdge) {
+		let index = userAgent.indexOf('Edge/');
+		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
+
+		if (!version || (version >= 12 && version <= 16)) {
+			return false;
+		}
+	}
+
+	return true;
+}

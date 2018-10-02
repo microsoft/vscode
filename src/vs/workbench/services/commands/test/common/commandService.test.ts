@@ -43,6 +43,9 @@ class SimpleExtensionService implements IExtensionService {
 	startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
+	getInspectPort(): number {
+		return 0;
+	}
 	restartExtensionHost(): void {
 	}
 	startExtensionHost(): void {
@@ -63,7 +66,7 @@ suite('CommandService', function () {
 		commandRegistration.dispose();
 	});
 
-	test('activateOnCommand', function () {
+	test('activateOnCommand', () => {
 
 		let lastEvent: string;
 

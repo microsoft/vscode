@@ -13,11 +13,12 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -113,34 +114,19 @@ function toggleWordWrap(editor: ICodeEditor, state: IWordWrapState): IWordWrapSt
 	};
 }
 
-function applyWordWrapState(editor: ICodeEditor, state: IWordWrapState): void {
-	if (state.transientState) {
-		// toggle is on
-		editor.updateOptions({
-			wordWrap: state.transientState.forceWordWrap,
-			wordWrapMinified: state.transientState.forceWordWrapMinified
-		});
-		return;
-	}
-
-	// toggle is off
-	editor.updateOptions({
-		wordWrap: state.configuredWordWrap,
-		wordWrapMinified: state.configuredWordWrapMinified
-	});
-}
-
+const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
 class ToggleWordWrapAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.toggleWordWrap',
+			id: TOGGLE_WORD_WRAP_ID,
 			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
 			alias: 'View: Toggle Word Wrap',
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Alt | KeyCode.KEY_Z
+				primary: KeyMod.Alt | KeyCode.KEY_Z,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -167,9 +153,8 @@ class ToggleWordWrapAction extends EditorAction {
 		// Compute the new state
 		const newState = toggleWordWrap(editor, currentState);
 		// Write the new state
+		// (this will cause an event and the controller will apply the state)
 		writeTransientState(model, newState.transientState, codeEditorService);
-		// Apply the new state
-		applyWordWrapState(editor, newState);
 	}
 }
 
@@ -189,6 +174,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const isWordWrapMinified = this.contextKeyService.createKey(isWordWrapMinifiedKey, this._isWordWrapMinified(configuration));
 		const isDominatedByLongLines = this.contextKeyService.createKey(isDominatedByLongLinesKey, this._isDominatedByLongLines(configuration));
 		const inDiffEditor = this.contextKeyService.createKey(inDiffEditorKey, this._inDiffEditor(configuration));
+		let currentlyApplyingEditorConfig = false;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (!e.wrappingInfo) {
@@ -198,9 +184,21 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			isWordWrapMinified.set(this._isWordWrapMinified(configuration));
 			isDominatedByLongLines.set(this._isDominatedByLongLines(configuration));
 			inDiffEditor.set(this._inDiffEditor(configuration));
+			if (!currentlyApplyingEditorConfig) {
+				// I am not the cause of the word wrap getting changed
+				ensureWordWrapSettings();
+			}
 		}));
 
 		this._register(editor.onDidChangeModel((e) => {
+			ensureWordWrapSettings();
+		}));
+
+		this._register(codeEditorService.onDidChangeTransientModelProperty(() => {
+			ensureWordWrapSettings();
+		}));
+
+		const ensureWordWrapSettings = () => {
 			// Ensure correct word wrap settings
 			const newModel = this.editor.getModel();
 			if (!newModel) {
@@ -220,8 +218,30 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 			const desiredState = readWordWrapState(newModel, this.configurationService, this.codeEditorService);
 
 			// Apply the state
-			applyWordWrapState(editor, desiredState);
-		}));
+			try {
+				currentlyApplyingEditorConfig = true;
+				this._applyWordWrapState(desiredState);
+			} finally {
+				currentlyApplyingEditorConfig = false;
+			}
+		};
+	}
+
+	private _applyWordWrapState(state: IWordWrapState): void {
+		if (state.transientState) {
+			// toggle is on
+			this.editor.updateOptions({
+				wordWrap: state.transientState.forceWordWrap,
+				wordWrapMinified: state.transientState.forceWordWrapMinified
+			});
+			return;
+		}
+
+		// toggle is off
+		this.editor.updateOptions({
+			wordWrap: state.configuredWordWrap,
+			wordWrapMinified: state.configuredWordWrapMinified
+		});
 	}
 
 	private _isWordWrapMinified(config: InternalEditorOptions): boolean {
@@ -255,9 +275,9 @@ registerEditorAction(ToggleWordWrapAction);
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
-		id: 'editor.action.toggleWordWrap',
+		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
+		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')) }
 	},
 	group: 'navigation',
 	order: 1,
@@ -269,9 +289,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
-		id: 'editor.action.toggleWordWrap',
+		id: TOGGLE_WORD_WRAP_ID,
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
+		iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')) }
 	},
 	group: 'navigation',
 	order: 1,
@@ -280,4 +300,15 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		ContextKeyExpr.has(isDominatedByLongLinesKey),
 		ContextKeyExpr.not(isWordWrapMinifiedKey)
 	)
+});
+
+
+// View menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '5_editor',
+	command: {
+		id: TOGGLE_WORD_WRAP_ID,
+		title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap")
+	},
+	order: 1
 });

@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as path from 'path';
-
+import * as fs from 'fs';
+import { URL } from 'url';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode';
+import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
 
-const product = require('../../../product.json');
+const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
 
 const httpsRequired = localize('httpsRequired', "Images must use the HTTPS protocol.");
@@ -40,6 +40,7 @@ interface TokenAndPosition {
 interface PackageJsonInfo {
 	isExtension: boolean;
 	hasHttpsRepository: boolean;
+	repository: Uri;
 }
 
 export class ExtensionLinter {
@@ -250,9 +251,11 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository', 'url']);
+		const uri = repo && parseUri(repo.value);
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && parseUri(repo.value).scheme.toLowerCase() === 'https')
+			hasHttpsRepository: !!(repo && repo.type === 'string' && repo.value && uri && uri.scheme.toLowerCase() === 'https'),
+			repository: uri
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
@@ -264,13 +267,16 @@ export class ExtensionLinter {
 	}
 
 	private async loadPackageJson(folder: Uri) {
-		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
-		const exists = await fileExists(file.fsPath);
-		if (!exists) {
+		if (folder.scheme === 'git') { // #36236
 			return undefined;
 		}
-		const document = await workspace.openTextDocument(file);
-		return parseTree(document.getText());
+		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
+		try {
+			const document = await workspace.openTextDocument(file);
+			return parseTree(document.getText());
+		} catch (err) {
+			return undefined;
+		}
 	}
 
 	private packageJsonChanged(folder: Uri) {
@@ -285,20 +291,24 @@ export class ExtensionLinter {
 	}
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
-		const uri = parseUri(src);
+		const hasScheme = /^\w[\w\d+.-]*:/.test(src);
+		const uri = parseUri(src, info.repository ? info.repository.toString() : document.uri.toString());
+		if (!uri) {
+			return;
+		}
 		const scheme = uri.scheme.toLowerCase();
 
-		if (scheme && scheme !== 'https' && scheme !== 'data') {
+		if (hasScheme && scheme !== 'https' && scheme !== 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, httpsRequired, DiagnosticSeverity.Warning));
 		}
 
-		if (scheme === 'data') {
+		if (hasScheme && scheme === 'data') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!scheme && !info.hasHttpsRepository) {
+		if (!hasScheme && !info.hasHttpsRepository) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			let message = (() => {
 				switch (context) {
@@ -338,28 +348,15 @@ function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-function fileExists(path: string): Promise<boolean> {
-	return new Promise((resolve, reject) => {
-		fs.lstat(path, (err, stats) => {
-			if (!err) {
-				resolve(true);
-			} else if (err.code === 'ENOENT') {
-				resolve(false);
-			} else {
-				reject(err);
-			}
-		});
-	});
-}
-
-function parseUri(src: string) {
+function parseUri(src: string, base?: string, retry: boolean = true): Uri {
 	try {
-		return Uri.parse(src);
+		let url = new URL(src, base);
+		return Uri.parse(url.toString());
 	} catch (err) {
-		try {
-			return Uri.parse(encodeURI(src));
-		} catch (err) {
-			return Uri.parse('');
+		if (retry) {
+			return parseUri(encodeURI(src), base, false);
+		} else {
+			return null;
 		}
 	}
 }

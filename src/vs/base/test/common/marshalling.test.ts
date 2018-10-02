@@ -5,12 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 
 suite('Marshalling', () => {
 
-	test('RegExp', function () {
+	test('RegExp', () => {
 		let value = /foo/img;
 		let raw = stringify(value);
 		let clone = <RegExp>parse(raw);
@@ -21,7 +21,7 @@ suite('Marshalling', () => {
 		assert.equal(value.multiline, clone.multiline);
 	});
 
-	test('URI', function () {
+	test('URI', () => {
 		let value = URI.from({ scheme: 'file', authority: 'server', path: '/shares/c#files', query: 'q', fragment: 'f' });
 		let raw = stringify(value);
 		let clone = <URI>parse(raw);

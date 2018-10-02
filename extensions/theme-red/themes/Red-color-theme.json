@@ -15,7 +15,6 @@
 		// editor
 		"editor.background": "#390000",
 		"editorGroup.border": "#ff666633",
-		"editorGroup.background": "#1c0101",
 		"editorCursor.foreground": "#970000",
 		"editor.foreground": "#F8F8F8",
 		"editorWhitespace.foreground": "#c10000",

@@ -5,17 +5,14 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import URI from 'vs/base/common/uri';
-import { TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { URI } from 'vs/base/common/uri';
+import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import * as WorkbenchEditorService from 'vs/workbench/services/editor/common/editorService';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,6 +20,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 suite('Editor - Range decorations', () => {
 
@@ -35,15 +33,15 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
-		codeEditor = createTestCodeEditor(model);
-		mockEditorService(codeEditor.getModel().uri);
+		codeEditor = createTestCodeEditor({ model: model });
 
-		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditor', { getControl: () => { return codeEditor; } });
+		instantiationService.stub(IEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel().uri; } });
+		instantiationService.stub(IEditorService, 'activeTextEditorWidget', codeEditor);
 
 		testObject = instantiationService.createInstance(RangeHighlightDecorations);
 	});
@@ -134,7 +132,6 @@ suite('Editor - Range decorations', () => {
 	function prepareActiveEditor(resource: string): TextModel {
 		let model = aModel(URI.file(resource));
 		codeEditor.setModel(model);
-		mockEditorService(model.uri);
 		return model;
 	}
 
@@ -142,13 +139,6 @@ suite('Editor - Range decorations', () => {
 		let model = TextModel.createFromString(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
 		modelsToDispose.push(model);
 		return model;
-	}
-
-	function mockEditorService(editorInput: IEditorInput);
-	function mockEditorService(resource: URI);
-	function mockEditorService(arg: any) {
-		let editorInput: IEditorInput = arg instanceof URI ? instantiationService.createInstance(FileEditorInput, arg, void 0) : arg;
-		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput', editorInput);
 	}
 
 	function rangeHighlightDecorations(m: TextModel): IRange[] {

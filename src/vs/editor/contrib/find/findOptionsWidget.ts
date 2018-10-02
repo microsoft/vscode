@@ -53,38 +53,38 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
-			onChange: (viaKeyboard) => {
-				this._state.change({
-					matchCase: this.caseSensitive.checked
-				}, false);
-			},
 			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
+		this._register(this.caseSensitive.onChange(() => {
+			this._state.change({
+				matchCase: this.caseSensitive.checked
+			}, false);
+		}));
 
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
-			onChange: (viaKeyboard) => {
-				this._state.change({
-					wholeWord: this.wholeWords.checked
-				}, false);
-			},
 			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
+		this._register(this.wholeWords.onChange(() => {
+			this._state.change({
+				wholeWord: this.wholeWords.checked
+			}, false);
+		}));
 
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
-			onChange: (viaKeyboard) => {
-				this._state.change({
-					isRegex: this.regex.checked
-				}, false);
-			},
 			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.regex.domNode);
+		this._register(this.regex.onChange(() => {
+			this._state.change({
+				isRegex: this.regex.checked
+			}, false);
+		}));
 
 		this._editor.addOverlayWidget(this);
 

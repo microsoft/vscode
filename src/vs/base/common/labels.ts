@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import { nativeSep, normalize, basename as pathsBasename, join, sep } from 'vs/base/common/paths';
-import { endsWith, ltrim, equalsIgnoreCase, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { nativeSep, normalize, basename as pathsBasename, sep } from 'vs/base/common/paths';
+import { endsWith, ltrim, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI };
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string };
 	getWorkspace(): {
-		folders: { uri: URI }[];
+		folders: { uri: URI, name?: string }[];
 	};
 }
 
@@ -21,7 +22,10 @@ export interface IUserHomeProvider {
 	userHome: string;
 }
 
-export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFolderProvider, userHomeProvider?: IUserHomeProvider): string {
+/**
+ * @deprecated use LabelService instead
+ */
+export function getPathLabel(resource: URI | string, userHomeProvider: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
 	if (!resource) {
 		return null;
 	}
@@ -30,29 +34,29 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		resource = URI.file(resource);
 	}
 
-	// return early if the resource is neither file:// nor untitled://
-	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
-		return resource.with({ query: null, fragment: null }).toString(true);
-	}
-
 	// return early if we can resolve a relative path label from the root
 	const baseResource = rootProvider ? rootProvider.getWorkspaceFolder(resource) : null;
 	if (baseResource) {
 		const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
 
 		let pathLabel: string;
-		if (isLinux ? baseResource.uri.fsPath === resource.fsPath : equalsIgnoreCase(baseResource.uri.fsPath, resource.fsPath)) {
-			pathLabel = ''; // no label if pathes are identical
+		if (isEqual(baseResource.uri, resource, !isLinux)) {
+			pathLabel = ''; // no label if paths are identical
 		} else {
-			pathLabel = normalize(ltrim(resource.fsPath.substr(baseResource.uri.fsPath.length), nativeSep), true);
+			pathLabel = normalize(ltrim(resource.path.substr(baseResource.uri.path.length), sep), true);
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = pathsBasename(baseResource.uri.fsPath);
-			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
+			const rootName = (baseResource && baseResource.name) ? baseResource.name : pathsBasename(baseResource.uri.fsPath);
+			pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
 		}
 
 		return pathLabel;
+	}
+
+	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
+	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
+		return resource.with({ query: null, fragment: null }).toString(true);
 	}
 
 	// convert c:\something => C:\something
@@ -78,7 +82,7 @@ export function getBaseLabel(resource: URI | string): string {
 		resource = URI.file(resource);
 	}
 
-	const base = pathsBasename(resource.fsPath) || resource.fsPath /* can be empty string if '/' is passed in */;
+	const base = pathsBasename(resource.path) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
 	if (hasDriveLetter(base)) {

@@ -14,11 +14,16 @@ import * as nls from 'vscode-nls';
 import { getVisibleLine, MarkdownFileTopmostLineMonitor } from '../util/topmostLineMonitor';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContributions } from '../markdownExtensions';
+import { isMarkdownFile } from '../util/file';
+import { resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
 const localize = nls.loadMessageBundle();
 
 export class MarkdownPreview {
 
 	public static viewType = 'markdown.preview';
+
+	private _resource: vscode.Uri;
+	private _locked: boolean;
 
 	private readonly editor: vscode.WebviewPanel;
 	private throttleTimer: any;
@@ -29,7 +34,7 @@ export class MarkdownPreview {
 	private forceUpdate = false;
 	private isScrolling = false;
 	private _disposed: boolean = false;
-
+	private imageInfo: { id: string, width: number, height: number }[] = [];
 
 	public static async revive(
 		webview: vscode.WebviewPanel,
@@ -37,7 +42,8 @@ export class MarkdownPreview {
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor
+		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		contributions: MarkdownContributions,
 	): Promise<MarkdownPreview> {
 		const resource = vscode.Uri.parse(state.resource);
 		const locked = state.locked;
@@ -50,7 +56,10 @@ export class MarkdownPreview {
 			contentProvider,
 			previewConfigurations,
 			logger,
-			topmostLineMonitor);
+			topmostLineMonitor,
+			contributions);
+
+		preview.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, contributions);
 
 		if (!isNaN(line)) {
 			preview.line = line;
@@ -73,10 +82,8 @@ export class MarkdownPreview {
 			MarkdownPreview.viewType,
 			MarkdownPreview.getPreviewTitle(resource, locked),
 			previewColumn, {
-				enableScripts: true,
-				enableCommandUris: true,
 				enableFindWidget: true,
-				localResourceRoots: MarkdownPreview.getLocalResourceRoots(resource, contributions)
+				...MarkdownPreview.getWebviewOptions(resource, contributions)
 			});
 
 		return new MarkdownPreview(
@@ -86,18 +93,22 @@ export class MarkdownPreview {
 			contentProvider,
 			previewConfigurations,
 			logger,
-			topmostLineMonitor);
+			topmostLineMonitor,
+			contributions);
 	}
 
 	private constructor(
 		webview: vscode.WebviewPanel,
-		private _resource: vscode.Uri,
-		public locked: boolean,
-		private readonly contentProvider: MarkdownContentProvider,
-		private readonly previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor
+		resource: vscode.Uri,
+		locked: boolean,
+		private readonly _contentProvider: MarkdownContentProvider,
+		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
+		private readonly _logger: Logger,
+		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		private readonly _contributions: MarkdownContributions,
 	) {
+		this._resource = resource;
+		this._locked = locked;
 		this.editor = webview;
 
 		this.editor.onDidDispose(() => {
@@ -114,8 +125,8 @@ export class MarkdownPreview {
 			}
 
 			switch (e.type) {
-				case 'command':
-					vscode.commands.executeCommand(e.body.command, ...e.body.args);
+				case 'cacheImageSizes':
+					this.onCacheImageSizes(e.body);
 					break;
 
 				case 'revealLine':
@@ -126,6 +137,17 @@ export class MarkdownPreview {
 					this.onDidClickPreview(e.body.line);
 					break;
 
+				case 'clickLink':
+					this.onDidClickPreviewLink(e.body.path, e.body.fragement);
+					break;
+
+				case 'showPreviewSecuritySelector':
+					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.body.source);
+					break;
+
+				case 'previewStyleLoadError':
+					vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", e.body.unloadedStyles.join(', ')));
+					break;
 			}
 		}, null, this.disposables);
 
@@ -150,6 +172,12 @@ export class MarkdownPreview {
 				});
 			}
 		}, null, this.disposables);
+
+		vscode.window.onDidChangeActiveTextEditor(editor => {
+			if (editor && isMarkdownFile(editor.document) && !this._locked) {
+				this.update(editor.document.uri);
+			}
+		}, null, this.disposables);
 	}
 
 	private readonly _onDisposeEmitter = new vscode.EventEmitter<void>();
@@ -165,8 +193,9 @@ export class MarkdownPreview {
 	public get state() {
 		return {
 			resource: this.resource.toString(),
-			locked: this.locked,
-			line: this.line
+			locked: this._locked,
+			line: this.line,
+			imageInfo: this.imageInfo
 		};
 	}
 
@@ -218,21 +247,13 @@ export class MarkdownPreview {
 	}
 
 	public updateConfiguration() {
-		if (this.previewConfigurations.hasConfigurationChanged(this._resource)) {
+		if (this._previewConfigurations.hasConfigurationChanged(this._resource)) {
 			this.refresh();
 		}
 	}
 
 	public get position(): vscode.ViewColumn | undefined {
-		return this.editor.position;
-	}
-
-	public isPreviewOf(resource: vscode.Uri): boolean {
-		return this._resource.fsPath === resource.fsPath;
-	}
-
-	public isWebviewOf(webview: vscode.WebviewPanel): boolean {
-		return this.editor === webview;
+		return this.editor.viewColumn;
 	}
 
 	public matchesResource(
@@ -244,7 +265,7 @@ export class MarkdownPreview {
 			return false;
 		}
 
-		if (this.locked) {
+		if (this._locked) {
 			return otherLocked && this.isPreviewOf(otherResource);
 		} else {
 			return !otherLocked;
@@ -252,7 +273,7 @@ export class MarkdownPreview {
 	}
 
 	public matches(otherPreview: MarkdownPreview): boolean {
-		return this.matchesResource(otherPreview._resource, otherPreview.position, otherPreview.locked);
+		return this.matchesResource(otherPreview._resource, otherPreview.position, otherPreview._locked);
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn) {
@@ -260,8 +281,20 @@ export class MarkdownPreview {
 	}
 
 	public toggleLock() {
-		this.locked = !this.locked;
-		this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
+		this._locked = !this._locked;
+		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+	}
+
+	private get iconPath() {
+		const root = path.join(this._contributions.extensionPath, 'media');
+		return {
+			light: vscode.Uri.file(path.join(root, 'Preview.svg')),
+			dark: vscode.Uri.file(path.join(root, 'Preview_inverse.svg'))
+		};
+	}
+
+	private isPreviewOf(resource: vscode.Uri): boolean {
+		return this._resource.fsPath === resource.fsPath;
 	}
 
 	private static getPreviewTitle(resource: vscode.Uri, locked: boolean): string {
@@ -281,7 +314,7 @@ export class MarkdownPreview {
 		}
 
 		if (typeof topLine === 'number') {
-			this.logger.log('updateForView', { markdownFile: resource });
+			this._logger.log('updateForView', { markdownFile: resource });
 			this.line = topLine;
 			this.postMessage({
 				type: 'updateView',
@@ -313,11 +346,24 @@ export class MarkdownPreview {
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		const content = await this.contentProvider.provideTextDocumentContent(document, this.previewConfigurations, this.line);
+		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
 		if (this._resource === resource) {
-			this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this.locked);
+			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+			this.editor.iconPath = this.iconPath;
+			this.editor.webview.options = MarkdownPreview.getWebviewOptions(resource, this._contributions);
 			this.editor.webview.html = content;
 		}
+	}
+
+	private static getWebviewOptions(
+		resource: vscode.Uri,
+		contributions: MarkdownContributions
+	): vscode.WebviewOptions {
+		return {
+			enableScripts: true,
+			enableCommandUris: true,
+			localResourceRoots: MarkdownPreview.getLocalResourceRoots(resource, contributions)
+		};
 	}
 
 	private static getLocalResourceRoots(
@@ -365,6 +411,26 @@ export class MarkdownPreview {
 				return;
 			}
 		}
+
+		vscode.workspace.openTextDocument(this._resource).then(vscode.window.showTextDocument);
+	}
+
+	private async onDidClickPreviewLink(path: string, fragment: string | undefined) {
+		const config = vscode.workspace.getConfiguration('markdown', this.resource);
+		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
+		if (openLinks === 'inPreview') {
+			const markdownLink = await resolveLinkToMarkdownFile(path);
+			if (markdownLink) {
+				this.update(markdownLink);
+				return;
+			}
+		}
+
+		vscode.commands.executeCommand('_markdown.openDocumentLink', { path, fragment });
+	}
+
+	private async onCacheImageSizes(imageInfo: { id: string, width: number, height: number }[]) {
+		this.imageInfo = imageInfo;
 	}
 }
 

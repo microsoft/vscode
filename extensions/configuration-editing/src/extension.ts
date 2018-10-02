@@ -11,8 +11,13 @@ import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
-const decoration = vscode.window.createTextEditorDecorationType({
-	color: '#9e9e9e'
+const fadedDecoration = vscode.window.createTextEditorDecorationType({
+	light: {
+		color: '#757575'
+	},
+	dark: {
+		color: '#878787'
+	}
 });
 
 let pendingLaunchJsonDecoration: NodeJS.Timer;
@@ -26,6 +31,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
+
+	// launch.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
+
+	// task.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
@@ -59,7 +70,7 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 			lastEndOfSomething = offset + length;
 		},
 
-		onLiteralValue(value: any, offset: number, length: number): void {
+		onLiteralValue(_value: any, offset: number, length: number): void {
 			lastEndOfSomething = offset + length;
 		},
 
@@ -67,7 +78,7 @@ function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): v
 			lastEndOfSomething = offset + length;
 		},
 
-		onError(error: ParseErrorCode, offset: number, length: number): void {
+		onError(error: ParseErrorCode, _offset: number, _length: number): void {
 			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
 				const fixPosition = document.positionAt(lastEndOfSomething);
 
@@ -89,7 +100,7 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/keybindings.json' }, {
 
-		provideCompletionItems(document, position, token) {
+		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (location.path[1] === 'command') {
 
@@ -108,6 +119,30 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
+function registerVariableCompletions(pattern: string): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern }, {
+		provideCompletionItems(document, position, _token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
+				const indexOf$ = document.lineAt(position.line).text.indexOf('$');
+				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
+
+				return [{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") }, { label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
+				{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") }, { label: 'file', detail: localize('file', "The current opened file") }, { label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
+				{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") }, { label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
+				{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") }, { label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") }, { label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
+				{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }].map(variable => ({
+					label: '${' + variable.label + '}',
+					range: new vscode.Range(startPosition, position),
+					detail: variable.detail
+				}));
+			}
+
+			return [];
+		}
+	});
+}
+
 interface IExtensionsContent {
 	recommendations: string[];
 }
@@ -118,7 +153,7 @@ function registerExtensionsCompletions(): vscode.Disposable[] {
 
 function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
-		provideCompletionItems(document, position, token) {
+		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
@@ -132,7 +167,7 @@ function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable 
 
 function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ pattern: '**/*.code-workspace' }, {
-		provideCompletionItems(document, position, token) {
+		provideCompletionItems(document, position, _token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
@@ -198,24 +233,24 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): voi
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
 		},
-		onLiteralValue: (value, offset, length) => {
+		onLiteralValue: (_value, offset, length) => {
 			if (addPropertyAndValue) {
 				ranges.push(new vscode.Range(editor.document.positionAt(offset), editor.document.positionAt(offset + length)));
 			}
 		},
-		onArrayBegin: (offset: number, length: number) => {
+		onArrayBegin: (_offset: number, _length: number) => {
 			depthInArray++;
 		},
-		onArrayEnd: (offset: number, length: number) => {
+		onArrayEnd: (_offset: number, _length: number) => {
 			depthInArray--;
 		}
 	});
 
-	editor.setDecorations(decoration, ranges);
+	editor.setDecorations(fadedDecoration, ranges);
 }
 
 vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {
-	provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
+	provideDocumentSymbols(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		const result: vscode.SymbolInformation[] = [];
 		let name: string = '';
 		let lastProperty = '';
@@ -223,21 +258,21 @@ vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', lan
 		let depthInObjects = 0;
 
 		visit(document.getText(), {
-			onObjectProperty: (property, offset, length) => {
+			onObjectProperty: (property, _offset, _length) => {
 				lastProperty = property;
 			},
-			onLiteralValue: (value: any, offset: number, length: number) => {
+			onLiteralValue: (value: any, _offset: number, _length: number) => {
 				if (lastProperty === 'name') {
 					name = value;
 				}
 			},
-			onObjectBegin: (offset: number, length: number) => {
+			onObjectBegin: (offset: number, _length: number) => {
 				depthInObjects++;
 				if (depthInObjects === 2) {
 					startOffset = offset;
 				}
 			},
-			onObjectEnd: (offset: number, length: number) => {
+			onObjectEnd: (offset: number, _length: number) => {
 				if (name && depthInObjects === 2) {
 					result.push(new vscode.SymbolInformation(name, vscode.SymbolKind.Object, new vscode.Range(document.positionAt(startOffset), document.positionAt(offset))));
 				}

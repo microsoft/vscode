@@ -5,6 +5,7 @@
 		"editor.background": "#000000",
 		"editor.foreground": "#FFFFFF",
 		"editorIndentGuide.background": "#FFFFFF",
+		"editorIndentGuide.activeBackground": "#FFFFFF",
 		"sideBarTitle.foreground": "#FFFFFF"
 	},
 	"settings": [
@@ -159,12 +160,6 @@
 			"scope": "markup.changed",
 			"settings": {
 				"foreground": "#569cd6"
-			}
-		},
-		{
-			"scope": "meta.selector",
-			"settings": {
-				"foreground": "#d7ba7d"
 			}
 		},
 		{

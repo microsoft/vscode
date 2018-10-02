@@ -7,6 +7,8 @@
 
 import { exec } from 'child_process';
 
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+
 export interface ProcessItem {
 	name: string;
 	cmd: string;
@@ -58,7 +60,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const RENDERER_PROCESS_HINT = /--disable-blink-features=Auxclick/;
+			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
 			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
@@ -89,7 +91,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			let matches = TYPE.exec(cmd);
 			if (matches && matches.length === 2) {
 				if (matches[1] === 'renderer') {
-					if (!RENDERER_PROCESS_HINT.exec(cmd)) {
+					if (SHARED_PROCESS_HINT.exec(cmd)) {
 						return 'shared-process';
 					}
 
@@ -191,7 +193,41 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						}
 					}
 
-					resolve(rootItem);
+					if (process.platform === 'linux') {
+						// Flatten rootItem to get a list of all VSCode processes
+						let processes = [rootItem];
+						const pids = [];
+						while (processes.length) {
+							const process = processes.shift();
+							pids.push(process.pid);
+							if (process.children) {
+								processes = processes.concat(process.children);
+							}
+						}
+
+						// The cpu usage value reported on Linux is the average over the process lifetime,
+						// recalculate the usage over a one second interval
+						// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
+						let cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/cpuUsage.sh'));
+						cmd += ' ' + pids.join(' ');
+
+						exec(cmd, {}, (err, stdout, stderr) => {
+							if (err || stderr) {
+								reject(err || stderr.toString());
+							} else {
+								const cpuUsage = stdout.toString().split('\n');
+								for (let i = 0; i < pids.length; i++) {
+									const processInfo = map.get(pids[i]);
+									processInfo.load = parseFloat(cpuUsage[i]);
+								}
+
+								resolve(rootItem);
+							}
+						});
+					} else {
+						resolve(rootItem);
+					}
+
 				}
 			});
 		}

@@ -9,7 +9,6 @@ import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -21,10 +20,12 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import * as async from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -53,41 +54,49 @@ const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
 const decoration = {
 	meta: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	metaActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	alt: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	altCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	metaCommand: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
 	metaCommandActive: ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
@@ -149,8 +158,8 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private editor: ICodeEditor;
 	private enabled: boolean;
 	private listenersToRemove: IDisposable[];
-	private timeoutPromise: TPromise<void>;
-	private computePromise: TPromise<void>;
+	private timeout: async.TimeoutTimer;
+	private computePromise: async.CancelablePromise<Link[]>;
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
 	private notificationService: INotificationService;
@@ -201,7 +210,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.listenersToRemove.push(editor.onDidChangeModelLanguage((e) => this.onModelModeChanged()));
 		this.listenersToRemove.push(LinkProviderRegistry.onDidChange((e) => this.onModelModeChanged()));
 
-		this.timeoutPromise = null;
+		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
@@ -225,16 +234,10 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private onChange(): void {
-		if (!this.timeoutPromise) {
-			this.timeoutPromise = TPromise.timeout(LinkDetector.RECOMPUTE_TIME);
-			this.timeoutPromise.then(() => {
-				this.timeoutPromise = null;
-				this.beginCompute();
-			});
-		}
+		this.timeout.setIfNotSet(() => this.beginCompute(), LinkDetector.RECOMPUTE_TIME);
 	}
 
-	private beginCompute(): void {
+	private async beginCompute(): Promise<void> {
 		if (!this.editor.getModel() || !this.enabled) {
 			return;
 		}
@@ -243,10 +246,15 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this.computePromise = getLinks(this.editor.getModel()).then(links => {
+		this.computePromise = async.createCancelablePromise(token => getLinks(this.editor.getModel(), token));
+		try {
+			const links = await this.computePromise;
 			this.updateDecorations(links);
+		} catch (err) {
+			onUnexpectedError(err);
+		} finally {
 			this.computePromise = null;
-		});
+		}
 	}
 
 	private updateDecorations(links: Link[]): void {
@@ -281,7 +289,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.activate(changeAccessor, useMetaKey);
@@ -296,7 +304,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private cleanUpActiveLinkDecoration(): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.activeLinkDecorationId) {
-			var occurrence = this.currentOccurrences[this.activeLinkDecorationId];
+			const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.deactivate(changeAccessor, useMetaKey);
@@ -311,7 +319,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
-		var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+		const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 		if (!occurrence) {
 			return;
 		}
@@ -326,7 +334,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 		const { link } = occurrence;
 
-		link.resolve().then(uri => {
+		link.resolve(CancellationToken.None).then(uri => {
 			// open the uri
 			return this.openerService.open(uri, { openToSide });
 
@@ -339,20 +347,20 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			} else {
 				onUnexpectedError(err);
 			}
-		}).done(null, onUnexpectedError);
+		});
 	}
 
 	public getLinkOccurrence(position: Position): LinkOccurrence {
-		var decorations = this.editor.getModel().getDecorationsInRange({
+		const decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
 			endLineNumber: position.lineNumber,
 			endColumn: position.column
 		}, 0, true);
 
-		for (var i = 0; i < decorations.length; i++) {
-			var decoration = decorations[i];
-			var currentOccurrence = this.currentOccurrences[decoration.id];
+		for (let i = 0; i < decorations.length; i++) {
+			const decoration = decorations[i];
+			const currentOccurrence = this.currentOccurrences[decoration.id];
 			if (currentOccurrence) {
 				return currentOccurrence;
 			}
@@ -369,10 +377,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private stop(): void {
-		if (this.timeoutPromise) {
-			this.timeoutPromise.cancel();
-			this.timeoutPromise = null;
-		}
+		this.timeout.cancel();
 		if (this.computePromise) {
 			this.computePromise.cancel();
 			this.computePromise = null;
@@ -382,6 +387,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	public dispose(): void {
 		this.listenersToRemove = dispose(this.listenersToRemove);
 		this.stop();
+		this.timeout.dispose();
 	}
 }
 

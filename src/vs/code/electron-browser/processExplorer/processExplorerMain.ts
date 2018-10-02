@@ -7,16 +7,19 @@
 
 import 'vs/css!./media/processExplorer';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { remote, webFrame } from 'electron';
+import { webFrame, ipcRenderer, clipboard } from 'electron';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/node/product';
 import { localize } from 'vs/nls';
-import { ProcessExplorerData, ProcessExplorerStyles } from '../../../platform/issue/common/issue';
+import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
 
 let processList: any[];
+let mapPidToWindowTitle = new Map<number, string>();
 
 function getProcessList(rootProcess: ProcessItem) {
 	const processes: any[] = [];
@@ -33,8 +36,17 @@ function getProcessItem(processes: any[], item: ProcessItem, indent: number): vo
 
 	const MB = 1024 * 1024;
 
+	let name = item.name;
+	if (isRoot) {
+		name = `${product.applicationName} main`;
+	}
+
+	if (name === 'window') {
+		const windowTitle = mapPidToWindowTitle.get(item.pid);
+		name = windowTitle !== undefined ? `${name} (${mapPidToWindowTitle.get(item.pid)})` : name;
+	}
+
 	// Format name with indent
-	const name = isRoot ? `${product.applicationName} main` : item.name;
 	const formattedName = isRoot ? name : `${repeat('    ', indent)} ${name}`;
 	const memory = process.platform === 'win32' ? item.mem : (totalmem() * (item.mem / 100));
 	processes.push({
@@ -71,12 +83,16 @@ function updateProcessInfo(processList): void {
 	const highestMemoryProcess = getProcessIdWithHighestProperty(processList, 'memory');
 
 	let tableHtml = `
-		<tr>
-			<th class="cpu">${localize('cpu', "CPU %")}</th>
-			<th class="memory">${localize('memory', "Memory (MB)")}</th>
-			<th class="pid">${localize('pid', "pid")}</th>
-			<th>${localize('name', "Name")}</th>
-		</tr>`;
+		<thead>
+			<tr>
+				<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
+				<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
+				<th scope="col" class="pid">${localize('pid', "pid")}</th>
+				<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
+			</tr>
+		</thead>`;
+
+	tableHtml += `<tbody>`;
 
 	processList.forEach(p => {
 		const cpuClass = p.pid === highestCPUProcess ? 'highest' : '';
@@ -91,7 +107,9 @@ function updateProcessInfo(processList): void {
 			</tr>`;
 	});
 
-	target.innerHTML = `<table>${tableHtml}</table>`;
+	tableHtml += `</tbody>`;
+
+	target.innerHTML = tableHtml;
 }
 
 function applyStyles(styles: ProcessExplorerStyles): void {
@@ -127,45 +145,88 @@ function applyZoom(zoomLevel: number): void {
 function showContextMenu(e) {
 	e.preventDefault();
 
+	const items: IContextMenuItem[] = [];
+
 	const pid = parseInt(e.currentTarget.id);
 	if (pid && typeof pid === 'number') {
-		const menu = new remote.Menu();
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('killProcess', "Kill Process"),
 			click() {
 				process.kill(pid, 'SIGTERM');
 			}
-		})
-		);
+		});
 
-		menu.append(new remote.MenuItem({
+		items.push({
 			label: localize('forceKillProcess', "Force Kill Process"),
 			click() {
 				process.kill(pid, 'SIGKILL');
 			}
-		})
-		);
+		});
 
-		menu.popup({ window: remote.getCurrentWindow() });
+		items.push({
+			type: 'separator'
+		});
+
+		items.push({
+			label: localize('copy', "Copy"),
+			click() {
+				const row = document.getElementById(pid.toString());
+				if (row) {
+					clipboard.writeText(row.innerText);
+				}
+			}
+		});
+
+		items.push({
+			label: localize('copyAll', "Copy All"),
+			click() {
+				const processList = document.getElementById('process-list');
+				if (processList) {
+					clipboard.writeText(processList.innerText);
+				}
+			}
+		});
+	} else {
+		items.push({
+			label: localize('copyAll', "Copy All"),
+			click() {
+				const processList = document.getElementById('process-list');
+				if (processList) {
+					clipboard.writeText(processList.innerText);
+				}
+			}
+		});
 	}
+
+	popup(items);
 }
 
 export function startup(data: ProcessExplorerData): void {
 	applyStyles(data.styles);
 	applyZoom(data.zoomLevel);
 
-	setInterval(() => listProcesses(remote.process.pid).then(processes => {
-		processList = getProcessList(processes);
-		updateProcessInfo(processList);
+	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
+	ipcRenderer.on('vscode:windowsInfoResponse', (event, windows) => {
+		mapPidToWindowTitle = new Map<number, string>();
+		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+	});
 
-		const tableRows = document.getElementsByTagName('tr');
-		for (let i = 0; i < tableRows.length; i++) {
-			const tableRow = tableRows[i];
-			tableRow.addEventListener('click', (e) => {
-				showContextMenu(e);
-			});
-		}
-	}), 1200);
+	setInterval(() => {
+		ipcRenderer.send('windowsInfoRequest');
+
+		listProcesses(data.pid).then(processes => {
+			processList = getProcessList(processes);
+			updateProcessInfo(processList);
+
+			const tableRows = document.getElementsByTagName('tr');
+			for (let i = 0; i < tableRows.length; i++) {
+				const tableRow = tableRows[i];
+				tableRow.addEventListener('contextmenu', (e) => {
+					showContextMenu(e);
+				});
+			}
+		});
+	}, 1200);
 
 
 	document.onkeydown = (e: KeyboardEvent) => {

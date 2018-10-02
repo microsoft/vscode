@@ -14,8 +14,11 @@ img {
 }
 
 a {
-	color: #4080D0;
 	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
 }
 
 a:focus,
@@ -43,10 +46,6 @@ h1, h2, h3 {
 	font-weight: normal;
 }
 
-a:hover {
-	color: #4080D0;
-	text-decoration: underline;
-}
 
 table {
 	border-collapse: collapse;
@@ -65,13 +64,15 @@ table > tbody > tr > td {
 }
 
 table > tbody > tr + tr > td {
-	border-top: 1px solid;
+	border-top-width: 1px;
+	border-top-style: solid;
 }
 
 blockquote {
 	margin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
-	border-left: 5px solid;
+	border-left-width: 5px;
+	border-left-style: solid;
 }
 
 code {
@@ -97,25 +98,8 @@ code > div {
 
 /** Theming */
 
-.vscode-light {
-	color: rgb(30, 30, 30);
-}
 
-.vscode-dark {
-	color: #DDD;
-}
 
-.vscode-high-contrast {
-	color: white;
-}
-
-.vscode-light code {
-	color: #A31515;
-}
-
-.vscode-dark code {
-	color: #D7BA7D;
-}
 
 .vscode-light code > div {
 	background-color: rgba(220, 220, 220, 0.4);
@@ -151,15 +135,4 @@ code > div {
 .vscode-dark hr,
 .vscode-dark table > tbody > tr + tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
-}
-
-.vscode-light blockquote,
-.vscode-dark blockquote {
-	background: rgba(127, 127, 127, 0.1);
-	border-color: rgba(0, 122, 204, 0.5);
-}
-
-.vscode-high-contrast blockquote {
-	background: transparent;
-	border-color: #fff;
 }

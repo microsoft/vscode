@@ -6,11 +6,11 @@
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action, IAction } from 'vs/base/common/actions';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Action, IAction, IActionChangeEvent } from 'vs/base/common/actions';
+import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
@@ -22,13 +22,21 @@ import * as Tree from 'vs/base/parts/tree/browser/tree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { HistoryNavigator } from 'vs/base/common/history';
-import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { BaseActionItem, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { Marker } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { isEqual } from 'vs/base/common/resources';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -41,7 +49,6 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 		@IMarkersWorkbenchService markersWorkbenchService: IMarkersWorkbenchService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
-		this.enabled = markersWorkbenchService.markersModel.hasFilteredResources();
 	}
 }
 
@@ -68,102 +75,123 @@ export class CollapseAllAction extends TreeCollapseAction {
 	}
 }
 
-export class MarkersFilterAction extends Action {
-
-	public static readonly ID: string = 'workbench.actions.problems.filter';
-
-	constructor() {
-		super(MarkersFilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
-	}
-
+export interface IMarkersFilterActionChangeEvent extends IActionChangeEvent {
+	filterText?: boolean;
+	useFilesExclude?: boolean;
 }
 
-
-export interface IMarkersFilterActionItemOptions {
+export interface IMarkersFilterActionOptions {
 	filterText: string;
 	filterHistory: string[];
 	useFilesExclude: boolean;
 }
 
+export class MarkersFilterAction extends Action {
+
+	public static readonly ID: string = 'workbench.actions.problems.filter';
+
+	constructor(options: IMarkersFilterActionOptions) {
+		super(MarkersFilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
+		this._filterText = options.filterText;
+		this._useFilesExclude = options.useFilesExclude;
+		this.filterHistory = options.filterHistory;
+	}
+
+	private _filterText: string;
+	get filterText(): string {
+		return this._filterText;
+	}
+	set filterText(filterText: string) {
+		if (this._filterText !== filterText) {
+			this._filterText = filterText;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ filterText: true });
+		}
+	}
+
+	filterHistory: string[];
+
+	private _useFilesExclude: boolean;
+	get useFilesExclude(): boolean {
+		return this._useFilesExclude;
+	}
+	set useFilesExclude(filesExclude: boolean) {
+		if (this._useFilesExclude !== filesExclude) {
+			this._useFilesExclude = filesExclude;
+			this._onDidChange.fire(<IMarkersFilterActionChangeEvent>{ useFilesExclude: true });
+		}
+	}
+}
+
 export class MarkersFilterActionItem extends BaseActionItem {
-
-	private _toDispose: IDisposable[] = [];
-
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container: HTMLElement;
-	private filterInputBox: InputBox;
-	private filterHistory: HistoryNavigator<string>;
+	private filterInputBox: HistoryInputBox;
 	private controlsContainer: HTMLInputElement;
 	private filterBadge: HTMLInputElement;
-	private filesExcludeFilter: Checkbox;
+	private focusContextKey: IContextKey<boolean>;
 
 	constructor(
-		private itemOptions: IMarkersFilterActionItemOptions,
-		action: IAction,
+		readonly action: MarkersFilterAction,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(null, action);
+		this.focusContextKey = Constants.MarkerPanelFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(500);
-		this.filterHistory = new HistoryNavigator<string>(itemOptions.filterHistory || []);
+		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'markers-panel-action-filter');
-		this.createInput(this.container);
-		this.createControls(this.container);
+		DOM.addClass(this.container, 'markers-panel-action-filter-container');
+
+		const filterContainer = DOM.append(this.container, DOM.$('.markers-panel-action-filter'));
+		this.createInput(filterContainer);
+		this.createControls(filterContainer);
+
 		this.adjustInputBox();
 	}
 
-	clear(): void {
-		this.filterInputBox.value = '';
-	}
-
-	getFilterText(): string {
-		return this.filterInputBox ? this.filterInputBox.value : this.itemOptions.filterText;
-	}
-
-	getFilterHistory(): string[] {
-		return this.filterHistory.getHistory();
-	}
-
-	get useFilesExclude(): boolean {
-		return this.filesExcludeFilter ? this.filesExcludeFilter.checked : this.itemOptions.useFilesExclude;
-	}
-
-	set useFilesExclude(useFilesExclude: boolean) {
-		if (this.filesExcludeFilter) {
-			if (this.filesExcludeFilter.checked !== useFilesExclude) {
-				this.filesExcludeFilter.checked = useFilesExclude;
-				this._onDidChange.fire();
-			}
+	focus(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.focus();
 		}
 	}
 
 	toggleLayout(small: boolean) {
 		if (this.container) {
 			DOM.toggleClass(this.container, 'small', small);
-			DOM.toggleClass(this.filterBadge, 'small', small);
 		}
 	}
 
 	private createInput(container: HTMLElement): void {
-		this.filterInputBox = new InputBox(container, this.contextViewService, {
+		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
-			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL
-		});
+			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
+			history: this.action.filterHistory
+		}));
+		this.filterInputBox.inputElement.setAttribute('aria-labelledby', 'markers-panel-arialabel');
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
-		this.filterInputBox.value = this.itemOptions.filterText;
-		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange())));
+		this.filterInputBox.value = this.action.filterText;
+		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox))));
+		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.filterText) {
+				this.filterInputBox.value = this.action.filterText;
+			}
+		}));
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, 'keydown', (keyboardEvent) => this.onInputKeyDown(keyboardEvent, this.filterInputBox)));
 		this._register(DOM.addStandardDisposableListener(container, 'keydown', this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, 'keyup', this.handleKeyboardEvent));
+
+		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
+		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.focusContextKey.set(false)));
+		this._register(toDisposable(() => this.focusContextKey.reset()));
 	}
 
 	private createControls(container: HTMLElement): void {
@@ -189,25 +217,29 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
-		this.filesExcludeFilter = new Checkbox({
+		const filesExcludeFilter = this._register(new Checkbox({
 			actionClassName: 'markers-panel-filter-filesExclude',
-			title: this.itemOptions.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
-			isChecked: this.itemOptions.useFilesExclude,
-			onChange: () => {
-				this.filesExcludeFilter.domNode.title = this.filesExcludeFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
-				this._onDidChange.fire();
+			title: this.action.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
+			isChecked: this.action.useFilesExclude
+		}));
+		this._register(filesExcludeFilter.onChange(() => {
+			filesExcludeFilter.domNode.title = filesExcludeFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
+			this.action.useFilesExclude = filesExcludeFilter.checked;
+		}));
+		this._register(this.action.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+			if (event.useFilesExclude) {
+				filesExcludeFilter.checked = this.action.useFilesExclude;
 			}
-		});
-		this._register(attachCheckboxStyler(this.filesExcludeFilter, this.themeService));
-		container.appendChild(this.filesExcludeFilter.domNode);
+		}));
+
+		this._register(attachCheckboxStyler(filesExcludeFilter, this.themeService));
+		container.appendChild(filesExcludeFilter.domNode);
 	}
 
-	private onDidInputChange() {
-		const filterText = this.filterInputBox.value;
-		if (filterText && filterText !== this.filterHistory.current()) {
-			this.filterHistory.add(this.getFilterText());
-		}
-		this._onDidChange.fire();
+	private onDidInputChange(inputbox: HistoryInputBox) {
+		inputbox.addToHistory();
+		this.action.filterText = inputbox.value;
+		this.action.filterHistory = inputbox.getHistory();
 		this.reportFilteringUsed();
 	}
 
@@ -234,36 +266,11 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		}
 	}
 
-	private showNextFilter() {
-		let next = this.filterHistory.next();
-		if (next) {
-			this.filterInputBox.value = next;
-		}
-	}
-
-	private showPreviousFilter() {
-		let previous = this.filterHistory.previous();
-		if (this.filterInputBox.value) {
-			this.filterHistory.addIfNotPresent(this.filterInputBox.value);
-		}
-		if (previous) {
-			this.filterInputBox.value = previous;
-		}
-	}
-
-	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: InputBox) {
+	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Escape:
 				filterInputBox.value = '';
-				handled = true;
-				break;
-			case KeyCode.UpArrow:
-				this.showPreviousFilter();
-				handled = true;
-				break;
-			case KeyCode.DownArrow:
-				this.showNextFilter();
 				handled = true;
 				break;
 		}
@@ -287,9 +294,89 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		*/
 		this.telemetryService.publicLog('problems.filter', data);
 	}
+}
 
-	private _register<T extends IDisposable>(t: T): T {
-		this._toDispose.push(t);
-		return t;
+export class QuickFixAction extends Action {
+
+	public static readonly ID: string = 'workbench.actions.problems.quickfix';
+
+	private updated: boolean = false;
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		readonly marker: Marker,
+		@IBulkEditService private bulkEditService: IBulkEditService,
+		@ICommandService private commandService: ICommandService,
+		@IEditorService private editorService: IEditorService,
+		@IModelService modelService: IModelService
+	) {
+		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
+		if (modelService.getModel(this.marker.resourceMarkers.uri)) {
+			this.update();
+		} else {
+			modelService.onModelAdded(model => {
+				if (isEqual(model.uri, marker.resource)) {
+					this.update();
+				}
+			}, this, this.disposables);
+		}
+
 	}
+
+	private update(): void {
+		if (!this.updated) {
+			this.marker.resourceMarkers.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
+			this.updated = true;
+		}
+	}
+
+	async getQuickFixActions(): Promise<IAction[]> {
+		const codeActions = await this.marker.resourceMarkers.getFixes(this.marker);
+		return codeActions.map(codeAction => new Action(
+			codeAction.command ? codeAction.command.id : codeAction.title,
+			codeAction.title,
+			void 0,
+			true,
+			() => {
+				return this.openFileAtMarker(this.marker)
+					.then(() => applyCodeAction(codeAction, this.bulkEditService, this.commandService));
+			}));
+	}
+
+	public openFileAtMarker(element: Marker): TPromise<void> {
+		const { resource, selection } = { resource: element.resource, selection: element.range };
+		return this.editorService.openEditor({
+			resource,
+			options: {
+				selection,
+				preserveFocus: true,
+				pinned: false,
+				revealIfVisible: true
+			},
+		}, ACTIVE_GROUP).then(() => null);
+	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export class QuickFixActionItem extends ActionItem {
+
+	constructor(action: QuickFixAction,
+		@IContextMenuService private contextMenuService: IContextMenuService
+	) {
+		super(null, action, { icon: true, label: false });
+	}
+
+	public onClick(event: DOM.EventLike): void {
+		DOM.EventHelper.stop(event, true);
+		const elementPosition = DOM.getDomNodePagePosition(this.element);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: elementPosition.left + 10, y: elementPosition.top + elementPosition.height }),
+			getActions: () => TPromise.wrap((<QuickFixAction>this.getAction()).getQuickFixActions()),
+		});
+	}
+
 }

@@ -1,40 +1,40 @@
 [
 	{
 		"c": "// h1(name=maintainer.name)",
-		"t": "text.jade string.comment.buffered.block.jade",
+		"t": "text.pug string.comment.buffered.block.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.jade: #0000FF",
+			"light_plus": "string.comment.buffered.block.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.jade: #0000FF",
+			"light_vs": "string.comment.buffered.block.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "//   | Maintainer:",
-		"t": "text.jade string.comment.buffered.block.jade",
+		"t": "text.pug string.comment.buffered.block.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.jade: #0000FF",
+			"light_plus": "string.comment.buffered.block.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.jade: #0000FF",
+			"light_vs": "string.comment.buffered.block.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "//   = ' ' + maintainer.name",
-		"t": "text.jade string.comment.buffered.block.jade",
+		"t": "text.pug string.comment.buffered.block.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.jade: #0000FF",
+			"light_plus": "string.comment.buffered.block.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.jade: #0000FF",
+			"light_vs": "string.comment.buffered.block.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "table",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "tr",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "td",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "style",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -122,18 +122,18 @@
 	},
 	{
 		"c": "'width: '",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "+",
-		"t": "text.jade meta.tag.other attribute_value keyword.operator.arithmetic.js",
+		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "100",
-		"t": "text.jade meta.tag.other attribute_value constant.numeric.decimal.js",
+		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": "/",
-		"t": "text.jade meta.tag.other attribute_value keyword.operator.arithmetic.js",
+		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.jade meta.tag.other attribute_value constant.numeric.decimal.js",
+		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.jade meta.tag.other attribute_value keyword.operator.arithmetic.js",
+		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -210,18 +210,18 @@
 	},
 	{
 		"c": "'%'",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": "Twitter",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "td",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade source.js constant",
+		"t": "text.pug source.js constant",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js",
+		"t": "text.pug source.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": "maintainer",
-		"t": "text.jade source.js variable.other.object.js",
+		"t": "text.pug source.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.jade source.js punctuation.accessor.js",
+		"t": "text.pug source.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -331,7 +331,7 @@
 	},
 	{
 		"c": "twitter",
-		"t": "text.jade source.js variable.other.property.js",
+		"t": "text.pug source.js variable.other.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "tr",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "td",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "style",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -408,7 +408,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -419,18 +419,18 @@
 	},
 	{
 		"c": "'width: '",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "+",
-		"t": "text.jade meta.tag.other attribute_value keyword.operator.arithmetic.js",
+		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": "100",
-		"t": "text.jade meta.tag.other attribute_value constant.numeric.decimal.js",
+		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "/",
-		"t": "text.jade meta.tag.other attribute_value keyword.operator.arithmetic.js",
+		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.jade meta.tag.other attribute_value constant.numeric.decimal.js",
+		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.jade meta.tag.other attribute_value keyword.operator.arithmetic.js",
+		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -507,18 +507,18 @@
 	},
 	{
 		"c": "'%'",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -540,7 +540,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -551,7 +551,7 @@
 	},
 	{
 		"c": "Blog",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -562,7 +562,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -573,7 +573,7 @@
 	},
 	{
 		"c": "td",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -584,7 +584,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade source.js constant",
+		"t": "text.pug source.js constant",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -595,7 +595,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js",
+		"t": "text.pug source.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -606,7 +606,7 @@
 	},
 	{
 		"c": "maintainer",
-		"t": "text.jade source.js variable.other.object.js",
+		"t": "text.pug source.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -617,7 +617,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.jade source.js punctuation.accessor.js",
+		"t": "text.pug source.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -628,7 +628,7 @@
 	},
 	{
 		"c": "blog",
-		"t": "text.jade source.js variable.other.property.js",
+		"t": "text.pug source.js variable.other.property.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -639,7 +639,7 @@
 	},
 	{
 		"c": "- ",
-		"t": "text.jade source.js",
+		"t": "text.pug source.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -650,7 +650,7 @@
 	},
 	{
 		"c": "var",
-		"t": "text.jade source.js meta.var.expr.js storage.type.js",
+		"t": "text.pug source.js meta.var.expr.js storage.type.js",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -661,7 +661,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js meta.var.expr.js",
+		"t": "text.pug source.js meta.var.expr.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -672,7 +672,7 @@
 	},
 	{
 		"c": "user",
-		"t": "text.jade source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
+		"t": "text.pug source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js meta.var.expr.js meta.var-single-variable.expr.js",
+		"t": "text.pug source.js meta.var.expr.js meta.var-single-variable.expr.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -694,7 +694,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade source.js meta.var.expr.js keyword.operator.assignment.js",
+		"t": "text.pug source.js meta.var.expr.js keyword.operator.assignment.js",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js meta.var.expr.js",
+		"t": "text.pug source.js meta.var.expr.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -716,7 +716,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js punctuation.definition.block.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": "name",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": ":",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
 		"r": {
 			"dark_plus": "meta.object-literal.key: #9CDCFE",
 			"light_plus": "meta.object-literal.key: #001080",
@@ -760,7 +760,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -771,7 +771,7 @@
 	},
 	{
 		"c": "'",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js punctuation.definition.string.begin.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js punctuation.definition.string.begin.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -782,7 +782,7 @@
 	},
 	{
 		"c": "John",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -793,7 +793,7 @@
 	},
 	{
 		"c": "'",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js punctuation.definition.string.end.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js punctuation.definition.string.end.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -804,7 +804,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -815,7 +815,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.jade source.js meta.var.expr.js meta.objectliteral.js punctuation.definition.block.js",
+		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js punctuation.definition.block.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -826,7 +826,7 @@
 	},
 	{
 		"c": "if",
-		"t": "text.jade meta.control.flow.jade storage.type.function.jade",
+		"t": "text.pug meta.control.flow.pug storage.type.function.pug",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -837,7 +837,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade meta.control.flow.jade",
+		"t": "text.pug meta.control.flow.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -848,7 +848,7 @@
 	},
 	{
 		"c": "user",
-		"t": "text.jade meta.control.flow.jade variable.other.readwrite.js",
+		"t": "text.pug meta.control.flow.pug variable.other.readwrite.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -859,7 +859,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -870,7 +870,7 @@
 	},
 	{
 		"c": "div",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -881,7 +881,7 @@
 	},
 	{
 		"c": ".welcomebox",
-		"t": "text.jade entity.other.attribute-name.class.jade",
+		"t": "text.pug entity.other.attribute-name.class.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -892,18 +892,18 @@
 	},
 	{
 		"c": "    // Filtered inline output",
-		"t": "text.jade string.comment.buffered.block.jade",
+		"t": "text.pug string.comment.buffered.block.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.jade: #0000FF",
+			"light_plus": "string.comment.buffered.block.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.jade: #0000FF",
+			"light_vs": "string.comment.buffered.block.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -914,7 +914,7 @@
 	},
 	{
 		"c": "p",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -925,7 +925,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -936,7 +936,7 @@
 	},
 	{
 		"c": "      Welcome, ",
-		"t": "text.jade text.block.jade",
+		"t": "text.pug text.block.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -947,62 +947,62 @@
 	},
 	{
 		"c": "#{",
-		"t": "text.jade text.block.jade string.interpolated.jade",
+		"t": "text.pug text.block.pug string.interpolated.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.interpolated.jade: #0000FF",
+			"light_plus": "string.interpolated.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.jade: #0000FF",
+			"light_vs": "string.interpolated.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "user",
-		"t": "text.jade text.block.jade string.interpolated.jade variable.other.object.js",
+		"t": "text.pug text.block.pug string.interpolated.pug variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.jade: #0000FF",
+			"light_vs": "string.interpolated.pug: #0000FF",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "text.jade text.block.jade string.interpolated.jade punctuation.accessor.js",
+		"t": "text.pug text.block.pug string.interpolated.pug punctuation.accessor.js",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.interpolated.jade: #0000FF",
+			"light_plus": "string.interpolated.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.jade: #0000FF",
+			"light_vs": "string.interpolated.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "name",
-		"t": "text.jade text.block.jade string.interpolated.jade support.variable.property.dom.js",
+		"t": "text.pug text.block.pug string.interpolated.pug support.variable.property.dom.js",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.jade: #0000FF",
+			"light_vs": "string.interpolated.pug: #0000FF",
 			"hc_black": "support.variable: #9CDCFE"
 		}
 	},
 	{
 		"c": "}",
-		"t": "text.jade text.block.jade string.interpolated.jade",
+		"t": "text.pug text.block.pug string.interpolated.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.interpolated.jade: #0000FF",
+			"light_plus": "string.interpolated.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.jade: #0000FF",
+			"light_vs": "string.interpolated.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": "else",
-		"t": "text.jade meta.control.flow.jade storage.type.function.jade",
+		"t": "text.pug meta.control.flow.pug storage.type.function.pug",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1013,7 +1013,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1024,7 +1024,7 @@
 	},
 	{
 		"c": "div",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1035,7 +1035,7 @@
 	},
 	{
 		"c": ".loginbox",
-		"t": "text.jade entity.other.attribute-name.class.jade",
+		"t": "text.pug entity.other.attribute-name.class.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1057,7 +1057,7 @@
 	},
 	{
 		"c": "form",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1068,7 +1068,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1079,7 +1079,7 @@
 	},
 	{
 		"c": "name",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1090,7 +1090,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1101,18 +1101,18 @@
 	},
 	{
 		"c": "\"login\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.jade meta.tag.other",
+		"t": "text.pug meta.tag.other",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1123,7 +1123,7 @@
 	},
 	{
 		"c": "action",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1134,7 +1134,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1145,18 +1145,18 @@
 	},
 	{
 		"c": "\"/login\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.jade meta.tag.other",
+		"t": "text.pug meta.tag.other",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1167,7 +1167,7 @@
 	},
 	{
 		"c": "method",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1178,7 +1178,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1189,18 +1189,18 @@
 	},
 	{
 		"c": "\"post\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1211,7 +1211,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1222,7 +1222,7 @@
 	},
 	{
 		"c": "input",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1244,7 +1244,7 @@
 	},
 	{
 		"c": "type",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1255,7 +1255,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1266,18 +1266,18 @@
 	},
 	{
 		"c": "\"text\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.jade meta.tag.other",
+		"t": "text.pug meta.tag.other",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1288,7 +1288,7 @@
 	},
 	{
 		"c": "name",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1299,7 +1299,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1310,18 +1310,18 @@
 	},
 	{
 		"c": "\"user\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1332,7 +1332,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1343,7 +1343,7 @@
 	},
 	{
 		"c": "input",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1354,7 +1354,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1365,7 +1365,7 @@
 	},
 	{
 		"c": "type",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1376,7 +1376,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1387,18 +1387,18 @@
 	},
 	{
 		"c": "\"password\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.jade meta.tag.other",
+		"t": "text.pug meta.tag.other",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1409,7 +1409,7 @@
 	},
 	{
 		"c": "name",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1420,7 +1420,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1431,18 +1431,18 @@
 	},
 	{
 		"c": "\"pass\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1453,7 +1453,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1464,7 +1464,7 @@
 	},
 	{
 		"c": "input",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1475,7 +1475,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": "type",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1497,7 +1497,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1508,18 +1508,18 @@
 	},
 	{
 		"c": "\"submit\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.jade meta.tag.other",
+		"t": "text.pug meta.tag.other",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1530,7 +1530,7 @@
 	},
 	{
 		"c": "value",
-		"t": "text.jade meta.tag.other entity.other.attribute-name.tag.jade",
+		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
 		"r": {
 			"dark_plus": "entity.other.attribute-name: #9CDCFE",
 			"light_plus": "entity.other.attribute-name: #FF0000",
@@ -1541,7 +1541,7 @@
 	},
 	{
 		"c": "=",
-		"t": "text.jade meta.tag.other attribute_value",
+		"t": "text.pug meta.tag.other attribute_value",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1552,18 +1552,18 @@
 	},
 	{
 		"c": "\"login\"",
-		"t": "text.jade meta.tag.other attribute_value string.quoted.jade",
+		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.jade: #0000FF",
+			"light_plus": "string.quoted.pug: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.jade: #0000FF",
+			"light_vs": "string.quoted.pug: #0000FF",
 			"hc_black": "string: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.jade meta.tag.other constant.name.attribute.tag.jade",
+		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1574,7 +1574,7 @@
 	},
 	{
 		"c": "p",
-		"t": "text.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1585,7 +1585,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1596,7 +1596,7 @@
 	},
 	{
 		"c": "#[",
-		"t": "text.jade inline.jade entity.name.function.jade",
+		"t": "text.pug inline.pug entity.name.function.pug",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1607,7 +1607,7 @@
 	},
 	{
 		"c": "code",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1618,7 +1618,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade inline.jade",
+		"t": "text.pug inline.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1629,7 +1629,7 @@
 	},
 	{
 		"c": "samp",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1640,7 +1640,7 @@
 	},
 	{
 		"c": "]",
-		"t": "text.jade inline.jade entity.name.function.jade",
+		"t": "text.pug inline.pug entity.name.function.pug",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1651,7 +1651,7 @@
 	},
 	{
 		"c": " — Regular text. ",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1662,7 +1662,7 @@
 	},
 	{
 		"c": "#[",
-		"t": "text.jade inline.jade entity.name.function.jade",
+		"t": "text.pug inline.pug entity.name.function.pug",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1673,7 +1673,7 @@
 	},
 	{
 		"c": "samp",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1684,7 +1684,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade inline.jade",
+		"t": "text.pug inline.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": "This",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1706,7 +1706,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade inline.jade",
+		"t": "text.pug inline.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1717,7 +1717,7 @@
 	},
 	{
 		"c": "is",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1728,7 +1728,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade inline.jade",
+		"t": "text.pug inline.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1739,7 +1739,7 @@
 	},
 	{
 		"c": "sample",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1750,7 +1750,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.jade inline.jade",
+		"t": "text.pug inline.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1761,7 +1761,7 @@
 	},
 	{
 		"c": "text",
-		"t": "text.jade inline.jade tag.inline.jade meta.tag.other entity.name.tag.jade",
+		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1772,7 +1772,7 @@
 	},
 	{
 		"c": "]",
-		"t": "text.jade inline.jade entity.name.function.jade",
+		"t": "text.pug inline.pug entity.name.function.pug",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1783,7 +1783,7 @@
 	},
 	{
 		"c": " more text.",
-		"t": "text.jade",
+		"t": "text.pug",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

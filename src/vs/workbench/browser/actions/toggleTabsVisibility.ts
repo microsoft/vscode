@@ -15,8 +15,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export class ToggleTabsVisibilityAction extends Action {
 
-	public static readonly ID = 'workbench.action.toggleTabsVisibility';
-	public static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
+	static readonly ID = 'workbench.action.toggleTabsVisibility';
+	static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
 
 	private static readonly tabsVisibleKey = 'workbench.editor.showTabs';
 
@@ -28,7 +28,7 @@ export class ToggleTabsVisibilityAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	run(): TPromise<any> {
 		const visibility = this.configurationService.getValue<string>(ToggleTabsVisibilityAction.tabsVisibleKey);
 		const newVisibilityValue = !visibility;
 

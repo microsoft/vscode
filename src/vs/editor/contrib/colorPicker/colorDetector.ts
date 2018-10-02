@@ -6,7 +6,6 @@
 import { RGBA } from 'vs/base/common/color';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -17,6 +16,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const MAX_DECORATORS = 500;
 
@@ -28,8 +29,8 @@ export class ColorDetector implements IEditorContribution {
 
 	private _globalToDispose: IDisposable[] = [];
 	private _localToDispose: IDisposable[] = [];
-	private _computePromise: TPromise<void>;
-	private _timeoutPromise: TPromise<void>;
+	private _computePromise: CancelablePromise<IColorData[]>;
+	private _timeoutTimer: TimeoutTimer;
 
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
@@ -61,7 +62,7 @@ export class ColorDetector implements IEditorContribution {
 			}
 		}));
 
-		this._timeoutPromise = null;
+		this._timeoutTimer = null;
 		this._computePromise = null;
 		this._isEnabled = this.isEnabled();
 		this.onModelChanged();
@@ -115,29 +116,30 @@ export class ColorDetector implements IEditorContribution {
 		}
 
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
-			if (!this._timeoutPromise) {
-				this._timeoutPromise = TPromise.timeout(ColorDetector.RECOMPUTE_TIME);
-				this._timeoutPromise.then(() => {
-					this._timeoutPromise = null;
+			if (!this._timeoutTimer) {
+				this._timeoutTimer = new TimeoutTimer();
+				this._timeoutTimer.cancelAndSet(() => {
+					this._timeoutTimer = null;
 					this.beginCompute();
-				});
+				}, ColorDetector.RECOMPUTE_TIME);
 			}
 		}));
 		this.beginCompute();
 	}
 
 	private beginCompute(): void {
-		this._computePromise = getColors(this._editor.getModel()).then(colorInfos => {
+		this._computePromise = createCancelablePromise(token => getColors(this._editor.getModel(), token));
+		this._computePromise.then((colorInfos) => {
 			this.updateDecorations(colorInfos);
 			this.updateColorDecorators(colorInfos);
 			this._computePromise = null;
-		});
+		}, onUnexpectedError);
 	}
 
 	private stop(): void {
-		if (this._timeoutPromise) {
-			this._timeoutPromise.cancel();
-			this._timeoutPromise = null;
+		if (this._timeoutTimer) {
+			this._timeoutTimer.cancel();
+			this._timeoutTimer = null;
 		}
 		if (this._computePromise) {
 			this._computePromise.cancel();

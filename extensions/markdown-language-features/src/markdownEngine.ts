@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import { Slug } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import * as crypto from 'crypto';
 import { MarkdownContributions } from './markdownExtensions';
+import { Slugifier } from './slugify';
+import { getUriForLinkWithKnownExternalScheme } from './util/links';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -19,7 +21,8 @@ export class MarkdownEngine {
 	private currentDocument?: vscode.Uri;
 
 	public constructor(
-		private readonly extensionPreviewResourceProvider: MarkdownContributions
+		private readonly extensionPreviewResourceProvider: MarkdownContributions,
+		private readonly slugifier: Slugifier,
 	) { }
 
 	private usePlugin(factory: (md: any) => any): void {
@@ -43,22 +46,25 @@ export class MarkdownEngine {
 					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
-							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
 						} catch (error) { }
 					}
-					return `<pre class="hljs"><code><div>${this.md!.utils.escapeHtml(str)}</div></code></pre>`;
+					return `<code><div>${this.md!.utils.escapeHtml(str)}</div></code>`;
 				}
 			}).use(mdnh, {
-				slugify: (header: string) => Slug.fromHeading(header).value
+				slugify: (header: string) => this.slugifier.fromHeading(header).value
 			});
 
 			for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
 				this.usePlugin(await plugin);
 			}
 
-			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
+			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);
 			}
+
+			this.addImageStabilizer(this.md);
+			this.addFencedRenderer(this.md);
 
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
@@ -104,6 +110,7 @@ export class MarkdownEngine {
 		return engine.parse(text, {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
+				token.map[1] += offset;
 			}
 			return token;
 		});
@@ -126,12 +133,55 @@ export class MarkdownEngine {
 		};
 	}
 
+	private addImageStabilizer(md: any): void {
+		const original = md.renderer.rules.image;
+		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: any, self: any) => {
+			const token = tokens[idx];
+			token.attrJoin('class', 'loading');
+
+			const src = token.attrGet('src');
+			if (src) {
+				const hash = crypto.createHash('sha256');
+				hash.update(src);
+				const imgHash = hash.digest('hex');
+				token.attrSet('id', `image-hash-${imgHash}`);
+			}
+
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options, env, self);
+			}
+		};
+	}
+
+	private addFencedRenderer(md: any): void {
+		const original = md.renderer.rules['fenced'];
+		md.renderer.rules['fenced'] = (tokens: any, idx: number, options: any, env: any, self: any) => {
+			const token = tokens[idx];
+			if (token.map && token.map.length) {
+				token.attrJoin('class', 'hljs');
+			}
+
+			return original(tokens, idx, options, env, self);
+		};
+	}
+
 	private addLinkNormalizer(md: any): void {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
-				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path) {
+				const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
+				if (externalSchemeUri) {
+					return normalizeLink(externalSchemeUri.toString());
+				}
+
+
+				// Assume it must be an relative or absolute file path
+				// Use a fake scheme to avoid parse warnings
+				let uri = vscode.Uri.parse(`vscode-resource:${link}`);
+
+				if (uri.path) {
 					// Assume it must be a file
 					const fragment = uri.fragment;
 					if (uri.path[0] === '/') {
@@ -145,14 +195,12 @@ export class MarkdownEngine {
 
 					if (fragment) {
 						uri = uri.with({
-							fragment: Slug.fromHeading(fragment).value
+							fragment: this.slugifier.fromHeading(fragment).value
 						});
 					}
 					return normalizeLink(uri.with({ scheme: 'vscode-resource' }).toString(true));
-				} else if (!uri.scheme && !uri.path && uri.fragment) {
-					return normalizeLink(uri.with({
-						fragment: Slug.fromHeading(uri.fragment).value
-					}).toString(true));
+				} else if (!uri.path && uri.fragment) {
+					return `#${this.slugifier.fromHeading(uri.fragment).value}`;
 				}
 			} catch (e) {
 				// noop

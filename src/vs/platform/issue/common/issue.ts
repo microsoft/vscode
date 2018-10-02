@@ -11,6 +11,8 @@ import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensio
 
 export const IIssueService = createDecorator<IIssueService>('issueService');
 
+// Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
+// should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
 export interface WindowStyles {
 	backgroundColor: string;
 	color: string;
@@ -20,7 +22,7 @@ export interface WindowData {
 	zoomLevel: number;
 }
 
-export enum IssueType {
+export const enum IssueType {
 	Bug,
 	PerformanceIssue,
 	FeatureRequest,
@@ -29,6 +31,7 @@ export enum IssueType {
 
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor: string;
+	textLinkActiveForeground: string;
 	inputBackground: string;
 	inputForeground: string;
 	inputBorder: string;
@@ -71,6 +74,7 @@ export interface ProcessExplorerStyles extends WindowStyles {
 }
 
 export interface ProcessExplorerData extends WindowData {
+	pid: number;
 	styles: ProcessExplorerStyles;
 }
 

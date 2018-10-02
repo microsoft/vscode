@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Workbench } from './areas/workbench/workbench';
 import * as fs from 'fs';
-import * as cp from 'child_process';
+import * as path from 'path';
+import { Workbench } from './areas/workbench/workbench';
 import { Code, spawn, SpawnOptions } from './vscode/code';
+import { Logger } from './logger';
 
-export enum Quality {
+export const enum Quality {
 	Dev,
 	Insiders,
 	Stable
@@ -17,18 +18,18 @@ export enum Quality {
 export interface ApplicationOptions extends SpawnOptions {
 	quality: Quality;
 	workspacePath: string;
-	workspaceFilePath: string;
 	waitTime: number;
-	verbose: boolean;
+	screenshotsPath: string | null;
 }
 
 export class Application {
 
 	private _code: Code | undefined;
 	private _workbench: Workbench;
-	private keybindings: any[];
 
-	constructor(private options: ApplicationOptions) { }
+	constructor(private options: ApplicationOptions) {
+		this._workspacePathOrFolder = options.workspacePath;
+	}
 
 	get quality(): Quality {
 		return this.options.quality;
@@ -42,8 +43,13 @@ export class Application {
 		return this._workbench;
 	}
 
-	get workspacePath(): string {
-		return this.options.workspacePath;
+	get logger(): Logger {
+		return this.options.logger;
+	}
+
+	private _workspacePathOrFolder: string;
+	get workspacePathOrFolder(): string {
+		return this._workspacePathOrFolder;
 	}
 
 	get extensionsPath(): string {
@@ -54,14 +60,10 @@ export class Application {
 		return this.options.userDataDir;
 	}
 
-	get workspaceFilePath(): string {
-		return this.options.workspaceFilePath;
-	}
-
 	async start(): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
-		await this.code.waitForActiveElement(`.editor-container[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+		await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
@@ -70,10 +72,9 @@ export class Application {
 		await this._start(options.workspaceOrFolder, options.extraArgs);
 	}
 
-	private async _start(workspaceOrFolder = this.options.workspacePath, extraArgs: string[] = []): Promise<any> {
-		await this.retrieveKeybindings();
-		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
-		await this.startApplication(workspaceOrFolder, extraArgs);
+	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
+		this._workspacePathOrFolder = workspaceOrFolder;
+		await this.startApplication(extraArgs);
 		await this.checkWindowReady();
 	}
 
@@ -93,17 +94,31 @@ export class Application {
 		}
 	}
 
-	private async startApplication(workspaceOrFolder: string, extraArgs: string[] = []): Promise<any> {
+	async captureScreenshot(name: string): Promise<void> {
+		if (this.options.screenshotsPath) {
+			const raw = await this.code.capturePage();
+			const buffer = Buffer.from(raw, 'base64');
+			const screenshotPath = path.join(this.options.screenshotsPath, `${name}.png`);
+			if (this.options.log) {
+				this.logger.log('*** Screenshot recorded:', screenshotPath);
+			}
+			fs.writeFileSync(screenshotPath, buffer);
+		}
+	}
+
+	private async startApplication(extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
 			codePath: this.options.codePath,
-			workspacePath: workspaceOrFolder,
+			workspacePath: this.workspacePathOrFolder,
 			userDataDir: this.options.userDataDir,
 			extensionsPath: this.options.extensionsPath,
+			logger: this.options.logger,
 			verbose: this.options.verbose,
-			extraArgs
+			log: this.options.log,
+			extraArgs,
 		});
 
-		this._workbench = new Workbench(this._code, this.keybindings, this.userDataPath);
+		this._workbench = new Workbench(this._code, this.userDataPath);
 	}
 
 	private async checkWindowReady(): Promise<any> {
@@ -118,21 +133,5 @@ export class Application {
 		// wait a bit, since focus might be stolen off widgets
 		// as soon as they open (eg quick open)
 		await new Promise(c => setTimeout(c, 500));
-	}
-
-	private retrieveKeybindings(): Promise<void> {
-		return new Promise((c, e) => {
-			fs.readFile(process.env.VSCODE_KEYBINDINGS_PATH as string, 'utf8', (err, data) => {
-				if (err) {
-					throw err;
-				}
-				try {
-					this.keybindings = JSON.parse(data);
-					c();
-				} catch (e) {
-					throw new Error(`Error parsing keybindings JSON: ${e}`);
-				}
-			});
-		});
 	}
 }

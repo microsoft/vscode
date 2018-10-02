@@ -3,29 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeAction } from 'vs/editor/common/modes';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IFileService } from 'vs/platform/files/common/files';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { CodeActionModel, CodeActionsComputeEvent, HAS_REFACTOR_PROVIDER, HAS_SOURCE_ACTION_PROVIDER } from './codeActionModel';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { CodeActionModel, CodeActionsComputeEvent, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionKind } from './codeActionTrigger';
 import { CodeActionContextMenu } from './codeActionWidget';
 import { LightBulbWidget } from './lightBulbWidget';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
+
+function contextKeyForSupportedActions(kind: CodeActionKind) {
+	return ContextKeyExpr.regex(
+		SUPPORTED_CODE_ACTIONS.keys()[0],
+		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
+}
 
 export class QuickFixController implements IEditorContribution {
 
@@ -41,17 +48,19 @@ export class QuickFixController implements IEditorContribution {
 	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
 
+	private _activeRequest: CancelablePromise<CodeAction[]> | undefined;
+
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IProgressService progressService: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@optional(IFileService) private _fileService: IFileService
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		this._editor = editor;
-		this._model = new CodeActionModel(this._editor, markerService, contextKeyService);
+		this._model = new CodeActionModel(this._editor, markerService, contextKeyService, progressService);
 		this._codeActionContextMenu = new CodeActionContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
@@ -71,7 +80,16 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onCodeActionsEvent(e: CodeActionsComputeEvent): void {
-		if (e && e.trigger.filter && e.trigger.filter.kind) {
+		if (this._activeRequest) {
+			this._activeRequest.cancel();
+			this._activeRequest = undefined;
+		}
+
+		if (e && e.actions) {
+			this._activeRequest = e.actions;
+		}
+
+		if (e && e.actions && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu
 			e.actions.then(fixes => {
@@ -80,7 +98,7 @@ export class QuickFixController implements IEditorContribution {
 				} else {
 					this._codeActionContextMenu.show(e.actions, e.position);
 				}
-			});
+			}).catch(onUnexpectedError);
 			return;
 		}
 
@@ -105,10 +123,12 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _handleLightBulbSelect(coords: { x: number, y: number }): void {
-		this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
+		if (this._lightBulbWidget.model && this._lightBulbWidget.model.actions) {
+			this._codeActionContextMenu.show(this._lightBulbWidget.model.actions, coords);
+		}
 	}
 
-	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): TPromise<CodeAction[] | undefined> {
+	public triggerFromEditorSelection(filter?: CodeActionFilter, autoApply?: CodeActionAutoApply): Thenable<CodeAction[] | undefined> {
 		return this._model.trigger({ type: 'manual', filter, autoApply });
 	}
 
@@ -123,14 +143,22 @@ export class QuickFixController implements IEditorContribution {
 		this._lightBulbWidget.title = title;
 	}
 
-	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
-		if (action.edit) {
-			await BulkEdit.perform(action.edit.edits, this._textModelService, this._fileService, this._editor);
-		}
+	private _onApplyCodeAction(action: CodeAction): Promise<void> {
+		return applyCodeAction(action, this._bulkEditService, this._commandService, this._editor);
+	}
+}
 
-		if (action.command) {
-			await this._commandService.executeCommand(action.command.id, ...action.command.arguments);
-		}
+export async function applyCodeAction(
+	action: CodeAction,
+	bulkEditService: IBulkEditService,
+	commandService: ICommandService,
+	editor?: ICodeEditor,
+): Promise<void> {
+	if (action.edit) {
+		await bulkEditService.apply(action.edit, { editor });
+	}
+	if (action.command) {
+		await commandService.executeCommand(action.command.id, ...action.command.arguments);
 	}
 }
 
@@ -165,12 +193,13 @@ export class QuickFixAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT
+				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"));
 	}
 }
@@ -223,7 +252,7 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArg: any) {
 		const args = CodeActionCommandArgs.fromUser(userArg);
 		return showCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), { kind: args.kind, includeSourceActions: true }, args.apply);
 	}
@@ -242,17 +271,23 @@ export class RefactorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+				},
+				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
 				group: '1_modification',
 				order: 2,
-				when: ContextKeyExpr.and(EditorContextKeys.writable, HAS_REFACTOR_PROVIDER),
+				when: ContextKeyExpr.and(
+					EditorContextKeys.writable,
+					contextKeyForSupportedActions(CodeActionKind.Refactor)),
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
 			{ kind: CodeActionKind.Refactor },
@@ -274,16 +309,45 @@ export class SourceAction extends EditorAction {
 			menuOpts: {
 				group: '1_modification',
 				order: 2.1,
-				when: ContextKeyExpr.and(EditorContextKeys.writable, HAS_SOURCE_ACTION_PROVIDER),
-
+				when: ContextKeyExpr.and(
+					EditorContextKeys.writable,
+					contextKeyForSupportedActions(CodeActionKind.Source)),
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return showCodeActionsForEditorSelection(editor,
 			nls.localize('editor.action.source.noneMessage', "No source actions available"),
 			{ kind: CodeActionKind.Source, includeSourceActions: true },
 			CodeActionAutoApply.Never);
+	}
+}
+
+export class OrganizeImportsAction extends EditorAction {
+
+	static readonly Id = 'editor.action.organizeImports';
+
+	constructor() {
+		super({
+			id: OrganizeImportsAction.Id,
+			label: nls.localize('organizeImports.label', "Organize Imports"),
+			alias: 'Organize Imports',
+			precondition: ContextKeyExpr.and(
+				EditorContextKeys.writable,
+				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		return showCodeActionsForEditorSelection(editor,
+			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
+			{ kind: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
+			CodeActionAutoApply.IfSingle);
 	}
 }

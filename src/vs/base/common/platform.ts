@@ -46,6 +46,8 @@ if (typeof process === 'object' && typeof process.nextTick === 'function' && typ
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
+	_locale = LANGUAGE_DEFAULT;
+	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
@@ -69,11 +71,19 @@ if (typeof process === 'object' && typeof process.nextTick === 'function' && typ
 	_language = _locale;
 }
 
-export enum Platform {
+export const enum Platform {
 	Web,
 	Mac,
 	Linux,
 	Windows
+}
+export function PlatformToString(platform: Platform) {
+	switch (platform) {
+		case Platform.Web: return 'Web';
+		case Platform.Mac: return 'Mac';
+		case Platform.Linux: return 'Linux';
+		case Platform.Windows: return 'Windows';
+	}
 }
 
 let _platform: Platform = Platform.Web;

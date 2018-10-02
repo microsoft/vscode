@@ -116,7 +116,7 @@ class Token {
 }
 
 function newNode(token: Token): Node {
-	var node = new Node();
+	let node = new Node();
 	node.start = token.range.getStartPosition();
 	node.end = token.range.getEndPosition();
 	return node;
@@ -174,7 +174,7 @@ class ModelRawTokenScanner {
 			this._model.forceTokenization(this._lineNumber);
 			this._lineTokens = this._model.getLineTokens(this._lineNumber);
 			this._tokenIndex = 0;
-			if (this._lineTokens.getCount() === 0) {
+			if (this._lineTokens.getLineContent().length === 0) {
 				// Skip empty lines
 				this._lineTokens = null;
 			}
@@ -295,7 +295,7 @@ class TokenTreeBuilder {
 	}
 
 	public build(): Node {
-		var node = new NodeList();
+		let node = new NodeList();
 		while (node.append(this._line() || this._any())) {
 			// accept all
 		}
@@ -303,11 +303,11 @@ class TokenTreeBuilder {
 	}
 
 	private _accept(condt: (info: Token) => boolean): boolean {
-		var token = this._stack.pop() || this._scanner.next();
+		let token = this._stack.pop() || this._scanner.next();
 		if (!token) {
 			return false;
 		}
-		var accepted = condt(token);
+		let accepted = condt(token);
 		if (!accepted) {
 			this._stack.push(token);
 			this._currentToken = null;
@@ -319,7 +319,7 @@ class TokenTreeBuilder {
 	}
 
 	private _peek(condt: (info: Token) => boolean): boolean {
-		var ret = false;
+		let ret = false;
 		this._accept(info => {
 			ret = condt(info);
 			return false;
@@ -328,8 +328,8 @@ class TokenTreeBuilder {
 	}
 
 	private _line(): Node {
-		var node = new NodeList(),
-			lineNumber: number;
+		let node = new NodeList();
+		let lineNumber: number;
 
 		// capture current linenumber
 		this._peek(info => {
@@ -361,8 +361,8 @@ class TokenTreeBuilder {
 
 	private _block(): Node {
 
-		var bracketType: string,
-			accepted: boolean;
+		let bracketType: string;
+		let accepted: boolean;
 
 		accepted = this._accept(token => {
 			bracketType = token.bracketType;
@@ -372,7 +372,7 @@ class TokenTreeBuilder {
 			return null;
 		}
 
-		var bracket = new Block();
+		let bracket = new Block();
 		bracket.open = newNode(this._currentToken);
 		while (bracket.elements.append(this._line())) {
 			// inside brackets
@@ -380,7 +380,7 @@ class TokenTreeBuilder {
 
 		if (!this._accept(token => token.bracket === TokenTreeBracket.Close && token.bracketType === bracketType)) {
 			// missing closing bracket -> return just a node list
-			var nodelist = new NodeList();
+			let nodelist = new NodeList();
 			nodelist.append(bracket.open);
 			nodelist.append(bracket.elements);
 			return nodelist;
@@ -405,7 +405,7 @@ class TokenTreeBuilder {
  *	block = "open_bracket" { line } "close_bracket"
  */
 export function build(model: ITextModel): Node {
-	var node = new TokenTreeBuilder(model).build();
+	let node = new TokenTreeBuilder(model).build();
 	return node;
 }
 
@@ -418,17 +418,17 @@ export function find(node: Node, position: Position): Node {
 		return null;
 	}
 
-	var result: Node;
+	let result: Node;
 
 	if (node instanceof NodeList) {
 		if (node.hasChildren) {
-			for (var i = 0, len = node.children.length; i < len && !result; i++) {
+			for (let i = 0, len = node.children.length; i < len && !result; i++) {
 				result = find(node.children[i], position);
 			}
 		}
 
 	} else if (node instanceof Block) {
-		result = find(node.open, position) || find(node.elements, position) || find(node.close, position);
+		result = find(node.elements, position) || find(node.open, position) || find(node.close, position);
 	}
 
 	return result || node;

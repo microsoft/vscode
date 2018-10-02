@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import URI from 'vs/base/common/uri';
-import { $ } from 'vs/base/browser/builder';
+import { URI } from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -13,21 +12,20 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
@@ -318,7 +316,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 	}
 
 	public render(container: HTMLElement): void {
-		this.builder = $(container);
+		this.element = container;
 
 		this.container = container;
 		this.labelElement = DOM.$('.action-title');
@@ -356,11 +354,11 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		}
 	}
 
-	protected _updateEnabled(): void {
+	protected updateEnabled(): void {
 		this.update();
 	}
 
-	protected _updateChecked(): void {
+	protected updateChecked(): void {
 		this.update();
 	}
 
@@ -409,7 +407,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
 			getActions: () => TPromise.as(this.getDropdownMenuActions()),
-			getActionItem: (action) => null,
+			getActionItem: () => null,
 			onHide: () => {
 				this.anchorElement.blur();
 			}
@@ -420,7 +418,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		const actions: IAction[] = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
-			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
 				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
@@ -562,6 +559,8 @@ export class SettingsTargetsWidget extends Widget {
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
 	showResultCount?: boolean;
+	ariaLive?: string;
+	ariaLabelledBy?: string;
 }
 
 export class SearchWidget extends Widget {
@@ -570,7 +569,7 @@ export class SearchWidget extends Widget {
 
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
-	private inputBox: InputBox;
+	inputBox: InputBox;
 	private controlsDiv: HTMLElement;
 
 	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
@@ -609,7 +608,10 @@ export class SearchWidget extends Widget {
 			}));
 		}
 
-		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
+		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');
+		if (this.options.ariaLabelledBy) {
+			this.inputBox.inputElement.setAttribute('aria-labelledBy', this.options.ariaLabelledBy);
+		}
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 
@@ -634,7 +636,8 @@ export class SearchWidget extends Widget {
 	}
 
 	public showMessage(message: string, count: number): void {
-		if (this.countElement) {
+		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
+		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
 			DOM.toggleClass(this.countElement, 'no-results', count === 0);
@@ -698,62 +701,6 @@ export class SearchWidget extends Widget {
 			this.options.focusKey.set(false);
 		}
 		super.dispose();
-	}
-}
-
-export class FloatingClickWidget extends Widget implements IOverlayWidget {
-
-	private _domNode: HTMLElement;
-
-	private readonly _onClick: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onClick: Event<void> = this._onClick.event;
-
-	constructor(
-		private editor: ICodeEditor,
-		private label: string,
-		keyBindingAction: string,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private themeService: IThemeService
-	) {
-		super();
-
-		if (keyBindingAction) {
-			let keybinding = keybindingService.lookupKeybinding(keyBindingAction);
-			if (keybinding) {
-				this.label += ' (' + keybinding.getLabel() + ')';
-			}
-		}
-	}
-
-	public render() {
-		this._domNode = DOM.$('.floating-click-widget');
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : null;
-			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : null;
-		}));
-
-		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
-		this.onclick(this._domNode, e => this._onClick.fire());
-		this.editor.addOverlayWidget(this);
-	}
-
-	public dispose(): void {
-		this.editor.removeOverlayWidget(this);
-		super.dispose();
-	}
-
-	public getId(): string {
-		return 'editor.overlayWidget.floatingClickWidget';
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-		};
 	}
 }
 

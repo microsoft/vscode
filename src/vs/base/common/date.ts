@@ -5,21 +5,15 @@
 
 'use strict';
 
-function pad(number: number): string {
-	if (number < 10) {
-		return '0' + number;
-	}
-
-	return String(number);
-}
+import { pad } from './strings';
 
 export function toLocalISOString(date: Date): string {
 	return date.getFullYear() +
-		'-' + pad(date.getMonth() + 1) +
-		'-' + pad(date.getDate()) +
-		'T' + pad(date.getHours()) +
-		':' + pad(date.getMinutes()) +
-		':' + pad(date.getSeconds()) +
+		'-' + pad(date.getMonth() + 1, 2) +
+		'-' + pad(date.getDate(), 2) +
+		'T' + pad(date.getHours(), 2) +
+		':' + pad(date.getMinutes(), 2) +
+		':' + pad(date.getSeconds(), 2) +
 		'.' + (date.getMilliseconds() / 1000).toFixed(3).slice(2, 5) +
 		'Z';
 }

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate, getEmmetMode, getEmmetConfiguration } from './util';
+import { getHtmlNode, parseDocument, validate, getEmmetMode, getEmmetConfiguration } from './util';
 
 export function splitJoinTag() {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -20,7 +20,7 @@ export function splitJoinTag() {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+			let nodeToUpdate = getHtmlNode(editor.document, rootNode, selection.start, true);
 			if (nodeToUpdate) {
 				let textEdit = getRangesToReplace(editor.document, nodeToUpdate);
 				editBuilder.replace(textEdit.range, textEdit.newText);

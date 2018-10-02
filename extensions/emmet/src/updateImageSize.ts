@@ -73,13 +73,13 @@ function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<Te
 function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<TextEdit[] | undefined> {
 	const getPropertyInsiderStyleTag = (editor: TextEditor): Property | null => {
 		const rootNode = parseDocument(editor.document);
-		const currentNode = <HtmlNode>getNode(rootNode, position);
+		const currentNode = <HtmlNode>getNode(rootNode, position, true);
 		if (currentNode && currentNode.name === 'style'
 			&& currentNode.open.end.isBefore(position)
 			&& currentNode.close.start.isAfter(position)) {
 			let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new Range(currentNode.open.end, currentNode.close.start));
 			let rootNode = parseStylesheet(buffer);
-			const node = getNode(rootNode, position);
+			const node = getNode(rootNode, position, true);
 			return (node && node.type === 'property') ? <Property>node : null;
 		}
 		return null;

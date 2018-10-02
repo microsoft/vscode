@@ -38,9 +38,7 @@ export interface IJSONContributionRegistry {
 	getSchemaContributions(): ISchemaContributions;
 }
 
-export interface IJSONContributionRegistryEvent {
 
-}
 
 function normalizeId(id: string) {
 	if (id.length > 0 && id.charAt(id.length - 1) === '#') {

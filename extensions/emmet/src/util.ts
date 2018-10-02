@@ -47,6 +47,8 @@ export const LANGUAGE_MODES: any = {
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
+export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template', 'text/ng-template'];
+
 const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
 
 // Explicitly map languages that have built-in grammar in VS Code to their parent language
@@ -54,6 +56,7 @@ const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', '
 // For other languages, users will have to use `emmet.includeLanguages` or
 // language specific extensions can provide emmet completion support
 export const MAPPED_MODES: Object = {
+	'handlebars': 'html',
 	'php': 'html'
 };
 
@@ -282,7 +285,7 @@ function findClosingCommentAfterPosition(document: vscode.TextDocument, position
 /**
  * Returns node corresponding to given position in the given root node
  */
-export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false) {
+export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean) {
 	if (!root) {
 		return null;
 	}
@@ -305,6 +308,24 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 	}
 
 	return foundNode;
+}
+
+export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean): HtmlNode | undefined {
+	let currentNode = <HtmlNode>getNode(root, position, includeNodeBoundary);
+	if (!currentNode) { return; }
+
+	if (isTemplateScript(currentNode) && currentNode.close &&
+		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
+
+		let buffer = new DocumentStreamReader(document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
+
+		try {
+			let scriptInnerNodes = parse(buffer);
+			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, includeNodeBoundary) || currentNode;
+		} catch (e) { }
+	}
+
+	return currentNode;
 }
 
 /**
@@ -511,7 +532,7 @@ export function getCssPropertyFromRule(rule: Rule, name: string): Property | und
  */
 export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null | undefined {
 	const rootNode = parseDocument(editor.document);
-	const node = getNode(rootNode, position);
+	const node = getNode(rootNode, position, true);
 
 	if (isStyleSheet(editor.document.languageId)) {
 		return node && node.type === 'property' ? <Property>node : null;
@@ -524,7 +545,48 @@ export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: 
 		&& htmlNode.close.start.isAfter(position)) {
 		let buffer = new DocumentStreamReader(editor.document, htmlNode.start, new vscode.Range(htmlNode.start, htmlNode.end));
 		let rootNode = parseStylesheet(buffer);
-		const node = getNode(rootNode, position);
+		const node = getNode(rootNode, position, true);
 		return (node && node.type === 'property') ? <Property>node : null;
 	}
+}
+
+
+export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNode: Node | null, position: vscode.Position): Node | undefined {
+	if (!currentNode) {
+		return;
+	}
+	const currentHtmlNode = <HtmlNode>currentNode;
+	if (currentHtmlNode && currentHtmlNode.close) {
+		const innerRange = getInnerRange(currentHtmlNode);
+		if (innerRange && innerRange.contains(position)) {
+			if (currentHtmlNode.name === 'style'
+				&& currentHtmlNode.open.end.isBefore(position)
+				&& currentHtmlNode.close.start.isAfter(position)
+
+			) {
+				let buffer = new DocumentStreamReader(document, currentHtmlNode.open.end, new vscode.Range(currentHtmlNode.open.end, currentHtmlNode.close.start));
+				return parseStylesheet(buffer);
+			}
+		}
+	}
+}
+
+export function isStyleAttribute(currentNode: Node | null, position: vscode.Position): boolean {
+	if (!currentNode) {
+		return false;
+	}
+	const currentHtmlNode = <HtmlNode>currentNode;
+	const index = (currentHtmlNode.attributes || []).findIndex(x => x.name.toString() === 'style');
+	if (index === -1) {
+		return false;
+	}
+	const styleAttribute = currentHtmlNode.attributes[index];
+	return position.isAfterOrEqual(styleAttribute.value.start) && position.isBeforeOrEqual(styleAttribute.value.end);
+}
+
+export function isTemplateScript(currentNode: HtmlNode): boolean {
+	return currentNode.name === 'script' &&
+		(currentNode.attributes &&
+			currentNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
 }

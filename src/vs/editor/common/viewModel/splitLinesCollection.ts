@@ -12,9 +12,8 @@ import { ViewLineData, ICoordinatesConverter, IOverviewRulerDecorations } from '
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ThemeColor, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference } from 'vs/editor/common/model';
+import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IModelDecoration, ITextModel, IModelDeltaDecoration, EndOfLinePreference, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -82,6 +81,7 @@ export interface IViewModelLinesCollection {
 
 	getViewLineCount(): number;
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
+	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
@@ -142,6 +142,12 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 }
 
+const enum IndentGuideRepeatOption {
+	BlockNone = 0,
+	BlockSubsequent = 1,
+	BlockAll = 2
+}
+
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
 	private model: ITextModel;
@@ -184,6 +190,10 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		if (modelVersion !== this._validModelVersionId) {
 			// This is pretty bad, it means we lost track of the model...
 			throw new Error(`ViewModel is out of sync with Model!`);
+		}
+		if (this.lines.length !== this.model.getLineCount()) {
+			// This is pretty bad, it means we lost track of the model...
+			this._constructLines(false);
 		}
 	}
 
@@ -504,6 +514,26 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
 	}
 
+	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
+		this._ensureValidState();
+		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+		minLineNumber = this._toValidViewLineNumber(minLineNumber);
+		maxLineNumber = this._toValidViewLineNumber(maxLineNumber);
+
+		const modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, this.getViewLineMinColumn(viewLineNumber));
+		const modelMinPosition = this.convertViewPositionToModelPosition(minLineNumber, this.getViewLineMinColumn(minLineNumber));
+		const modelMaxPosition = this.convertViewPositionToModelPosition(maxLineNumber, this.getViewLineMinColumn(maxLineNumber));
+		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber, modelMinPosition.lineNumber, modelMaxPosition.lineNumber);
+
+		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
+		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, this.model.getLineMaxColumn(result.endLineNumber));
+		return {
+			startLineNumber: viewStartPosition.lineNumber,
+			endLineNumber: viewEndPosition.lineNumber,
+			indent: result.indent
+		};
+	}
+
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
 		this._ensureValidState();
 		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
@@ -514,6 +544,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		let result: number[] = [];
 		let resultRepeatCount: number[] = [];
+		let resultRepeatOption: IndentGuideRepeatOption[] = [];
 		const modelStartLineIndex = modelStart.lineNumber - 1;
 		const modelEndLineIndex = modelEnd.lineNumber - 1;
 
@@ -521,17 +552,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
 			const line = this.lines[modelLineIndex];
 			if (line.isVisible()) {
-				let count = 0;
-				if (modelLineIndex === modelStartLineIndex) {
-					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelStart.column);
-					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
-					count = viewLineEndIndex - viewLineStartIndex + 1;
-				} else {
-					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, 1);
-					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
-					count = viewLineEndIndex - viewLineStartIndex + 1;
+				let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelLineIndex === modelStartLineIndex ? modelStart.column : 1);
+				let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
+				let count = viewLineEndIndex - viewLineStartIndex + 1;
+				let option = IndentGuideRepeatOption.BlockNone;
+				if (count > 1 && line.getViewLineMinColumn(this.model, modelLineIndex + 1, viewLineEndIndex) === 1) {
+					// wrapped lines should block indent guides
+					option = (viewLineStartIndex === 0 ? IndentGuideRepeatOption.BlockSubsequent : IndentGuideRepeatOption.BlockAll);
 				}
 				resultRepeatCount.push(count);
+				resultRepeatOption.push(option);
 				// merge into previous request
 				if (reqStart === null) {
 					reqStart = new Position(modelLineIndex + 1, 0);
@@ -556,7 +586,19 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = result.length; i < len; i++) {
 			let value = result[i];
 			let count = Math.min(viewLineCount - currIndex, resultRepeatCount[i]);
+			let option = resultRepeatOption[i];
+			let blockAtIndex: number;
+			if (option === IndentGuideRepeatOption.BlockAll) {
+				blockAtIndex = 0;
+			} else if (option === IndentGuideRepeatOption.BlockSubsequent) {
+				blockAtIndex = 1;
+			} else {
+				blockAtIndex = count;
+			}
 			for (let j = 0; j < count; j++) {
+				if (j === blockAtIndex) {
+					value = 0;
+				}
 				viewIndents[currIndex++] = value;
 			}
 		}
@@ -750,11 +792,11 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts.position;
+			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
 				continue;
 			}
-			const color = resolveColor(opts, theme);
+			const color = opts.getColor(theme);
 			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
 			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
 
@@ -769,7 +811,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, modelStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
+			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
+			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
 		}
 
 		let result: IModelDecoration[] = [];
@@ -799,7 +842,35 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			reqStart = null;
 		}
 
-		return result;
+		result.sort((a, b) => {
+			const res = Range.compareRangesUsingStarts(a.range, b.range);
+			if (res === 0) {
+				if (a.id < b.id) {
+					return -1;
+				}
+				if (a.id > b.id) {
+					return 1;
+				}
+				return 0;
+			}
+			return res;
+		});
+
+		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
+		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
+		let prevDecId: string = null;
+		for (let i = 0, len = result.length; i < len; i++) {
+			const dec = result[i];
+			const decId = dec.id;
+			if (prevDecId === decId) {
+				// skip
+				continue;
+			}
+			prevDecId = decId;
+			finalResult[finalResultLen++] = dec;
+		}
+
+		return finalResult;
 	}
 }
 
@@ -845,6 +916,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
+			false,
 			1,
 			lineContent.length + 1,
 			lineTokens.inflate()
@@ -1048,6 +1120,8 @@ export class SplitLine implements ISplitLine {
 		let minColumn = (outputLineIndex > 0 ? this.wrappedIndentLength + 1 : 1);
 		let maxColumn = lineContent.length + 1;
 
+		let continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
+
 		let deltaStartIndex = 0;
 		if (outputLineIndex > 0) {
 			deltaStartIndex = this.wrappedIndentLength;
@@ -1056,6 +1130,7 @@ export class SplitLine implements ISplitLine {
 
 		return new ViewLineData(
 			lineContent,
+			continuesWithWrappedLine,
 			minColumn,
 			maxColumn,
 			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
@@ -1241,6 +1316,14 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
 	}
 
+	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
+		return {
+			startLineNumber: viewLineNumber,
+			endLineNumber: viewLineNumber,
+			indent: 0
+		};
+	}
+
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
 		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
 		let result = new Array<number>(viewLineCount);
@@ -1271,6 +1354,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
+			false,
 			1,
 			lineContent.length + 1,
 			lineTokens.inflate()
@@ -1300,11 +1384,11 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const decoration = decorations[i];
 			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts.position;
+			const lane = opts ? opts.position : 0;
 			if (lane === 0) {
 				continue;
 			}
-			const color = resolveColor(opts, theme);
+			const color = opts.getColor(theme);
 			const viewStartLineNumber = decoration.range.startLineNumber;
 			const viewEndLineNumber = decoration.range.endLineNumber;
 
@@ -1345,25 +1429,4 @@ class OverviewRulerDecorations {
 			this.result[color] = [lane, startLineNumber, endLineNumber];
 		}
 	}
-}
-
-
-function resolveColor(opts: ModelDecorationOverviewRulerOptions, theme: ITheme): string {
-	if (!opts._resolvedColor) {
-		const themeType = theme.type;
-		const color = (themeType === 'dark' ? opts.darkColor : themeType === 'light' ? opts.color : opts.hcColor);
-		opts._resolvedColor = resolveRulerColor(color, theme);
-	}
-	return opts._resolvedColor;
-}
-
-function resolveRulerColor(color: string | ThemeColor, theme: ITheme): string {
-	if (typeof color === 'string') {
-		return color;
-	}
-	let c = color ? theme.getColor(color.id) : null;
-	if (!c) {
-		c = Color.transparent;
-	}
-	return c.toString();
 }

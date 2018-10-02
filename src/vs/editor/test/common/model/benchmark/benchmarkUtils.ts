@@ -9,9 +9,9 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 export function doBenchmark<T>(id: string, ts: T[], fn: (t: T) => void) {
 	let columns: string[] = [id];
 	for (let i = 0; i < ts.length; i++) {
-		var start = process.hrtime();
+		let start = process.hrtime();
 		fn(ts[i]);
-		var diff = process.hrtime(start);
+		let diff = process.hrtime(start);
 		columns.push(`${(diff[0] * 1000 + diff[1] / 1000000).toFixed(3)} ms`);
 	}
 	console.log('|' + columns.join('\t|') + '|');
@@ -61,9 +61,9 @@ export class BenchmarkSuite {
 					let factory = benchmark.buildBuffer(builder);
 					let buffer = factory.create(DefaultEndOfLine.LF);
 					benchmark.preCycle(buffer);
-					var start = process.hrtime();
+					let start = process.hrtime();
 					benchmark.fn(buffer);
-					var diff = process.hrtime(start);
+					let diff = process.hrtime(start);
 					timeDiffTotal += (diff[0] * 1000 * 1000 + diff[1] / 1000);
 				}
 				columns.push(`${(timeDiffTotal / 1000 / this.iterations).toFixed(3)} ms`);

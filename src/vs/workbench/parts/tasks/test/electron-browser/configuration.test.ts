@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
@@ -85,7 +85,7 @@ class PresentationBuilder {
 	public result: Tasks.PresentationOptions;
 
 	constructor(public parent: CommandConfigurationBuilder) {
-		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared };
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true };
 	}
 
 	public echo(value: boolean): PresentationBuilder {
@@ -105,6 +105,11 @@ class PresentationBuilder {
 
 	public instance(value: Tasks.PanelKind): PresentationBuilder {
 		this.result.panel = value;
+		return this;
+	}
+
+	public showReuseMessage(value: boolean): PresentationBuilder {
+		this.result.showReuseMessage = value;
 		return this;
 	}
 
@@ -188,7 +193,8 @@ class CustomTaskBuilder {
 			command: this.commandBuilder.result,
 			isBackground: false,
 			promptOnClose: true,
-			problemMatchers: []
+			problemMatchers: [],
+			hasDefinedMatchers: false
 		};
 	}
 
@@ -350,7 +356,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, external, reporter);
+	let result = parse(workspaceFolder, Platform.platform, external, reporter);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -361,7 +367,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, external, reporter);
+	let result = parse(workspaceFolder, Platform.platform, external, reporter);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}
@@ -1578,6 +1584,56 @@ suite('Tasks version 2.0.0', () => {
 			runtime(Tasks.RuntimeType.Shell).
 			presentation().echo(true);
 		testConfiguration(external, builder);
+	});
+	test('Arg overwrite', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			tasks: [
+				{
+					label: 'echo',
+					type: 'shell',
+					command: 'echo',
+					args: [
+						'global'
+					],
+					windows: {
+						args: [
+							'windows'
+						]
+					},
+					linux: {
+						args: [
+							'linux'
+						]
+					},
+					osx: {
+						args: [
+							'osx'
+						]
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		if (Platform.isWindows) {
+			builder.task('echo', 'echo').
+				command().suppressTaskName(true).args(['windows']).
+				runtime(Tasks.RuntimeType.Shell).
+				presentation().echo(true);
+			testConfiguration(external, builder);
+		} else if (Platform.isLinux) {
+			builder.task('echo', 'echo').
+				command().suppressTaskName(true).args(['linux']).
+				runtime(Tasks.RuntimeType.Shell).
+				presentation().echo(true);
+			testConfiguration(external, builder);
+		} else if (Platform.isMacintosh) {
+			builder.task('echo', 'echo').
+				command().suppressTaskName(true).args(['osx']).
+				runtime(Tasks.RuntimeType.Shell).
+				presentation().echo(true);
+			testConfiguration(external, builder);
+		}
 	});
 });
 

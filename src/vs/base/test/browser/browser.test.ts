@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 
 suite('Browsers', () => {
-	test('all', function () {
+	test('all', () => {
 		assert(!(isWindows && isMacintosh));
 	});
 });

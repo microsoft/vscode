@@ -7,7 +7,8 @@
 			"es2015"
 		],
 		"strict": true,
-		"noUnusedLocals": true
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
 	},
 	"include": [
 		"src/**/*"

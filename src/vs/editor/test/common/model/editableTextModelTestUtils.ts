@@ -12,12 +12,12 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { EndOfLinePreference, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
-	var originalStr = original.join('\n');
-	var expectedStr = expected.join('\n');
+	let originalStr = original.join('\n');
+	let expectedStr = expected.join('\n');
 
 	assertSyncedModels(originalStr, (model, assertMirrorModels) => {
 		// Apply edits & collect inverse edits
-		var inverseEdits = model.applyEdits(edits);
+		let inverseEdits = model.applyEdits(edits);
 
 		// Assert edits produced expected result
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
@@ -25,7 +25,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		assertMirrorModels();
 
 		// Apply the inverse edits
-		var inverseInverseEdits = model.applyEdits(inverseEdits);
+		let inverseInverseEdits = model.applyEdits(inverseEdits);
 
 		// Assert the inverse edits brought back model to original state
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), originalStr);
@@ -89,7 +89,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: (model: TextModel) => void = null): void {
-	var model = new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	let model = new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 
@@ -98,8 +98,8 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 		assertLineMapping(model, 'model');
 	}
 
-	var mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
-	var mirrorModel2PrevVersionId = model.getVersionId();
+	let mirrorModel2 = new MirrorTextModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+	let mirrorModel2PrevVersionId = model.getVersionId();
 
 	model.onDidChangeContent((e: IModelContentChangedEvent) => {
 		let versionId = e.versionId;
@@ -110,7 +110,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 		mirrorModel2.onEvents(e);
 	});
 
-	var assertMirrorModels = () => {
+	let assertMirrorModels = () => {
 		assertLineMapping(model, 'model');
 		assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
 		assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');

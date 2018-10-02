@@ -7,13 +7,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as pfs from 'vs/base/node/pfs';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
@@ -222,7 +222,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
-		return this.modeService.getOrCreateModeByFilenameOrFirstLine(fileName).then(mode => {
+		return this.modeService.getOrCreateModeByFilepathOrFirstLine(fileName).then(mode => {
 			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
 				let lines = content.split(/\r\n|\r|\n/);
 
@@ -249,8 +249,8 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 	};
 
 	if (!resource) {
-		let editorService = accessor.get(IWorkbenchEditorService);
-		let file = toResource(editorService.getActiveEditorInput(), { filter: 'file' });
+		let editorService = accessor.get(IEditorService);
+		let file = toResource(editorService.activeEditor, { filter: 'file' });
 		if (file) {
 			process(file).then(result => {
 				console.log(result);

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ShallowCancelThenPromise } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorWorkerClient } from 'vs/editor/common/services/editorWorkerServiceImpl';
@@ -68,7 +67,7 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 
 	private _getForeignProxy(): TPromise<T> {
 		if (!this._foreignProxy) {
-			this._foreignProxy = new ShallowCancelThenPromise(this._getProxy().then((proxy) => {
+			this._foreignProxy = this._getProxy().then((proxy) => {
 				return proxy.loadForeignModule(this._foreignModuleId, this._foreignModuleCreateData).then((foreignMethods) => {
 					this._foreignModuleId = null;
 					this._foreignModuleCreateData = null;
@@ -86,12 +85,12 @@ class MonacoWebWorkerImpl<T> extends EditorWorkerClient implements MonacoWebWork
 
 					let foreignProxy = {} as T;
 					for (let i = 0; i < foreignMethods.length; i++) {
-						foreignProxy[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
+						(<any>foreignProxy)[foreignMethods[i]] = createProxyMethod(foreignMethods[i], proxyMethodRequest);
 					}
 
 					return foreignProxy;
 				});
-			}));
+			});
 		}
 		return this._foreignProxy;
 	}

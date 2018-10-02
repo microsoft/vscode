@@ -5,25 +5,37 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { always } from 'vs/base/common/async';
 
-export default class Cache<T> {
+export interface CacheResult<T> {
+	promise: Thenable<T>;
+	dispose(): void;
+}
 
-	private promise: TPromise<T> = null;
-	constructor(private task: () => TPromise<T>) { }
+export class Cache<T> {
 
-	get(): TPromise<T> {
-		if (this.promise) {
-			return this.promise;
+	private result: CacheResult<T> = null;
+	constructor(private task: (ct: CancellationToken) => Thenable<T>) { }
+
+	get(): CacheResult<T> {
+		if (this.result) {
+			return this.result;
 		}
 
-		const promise = this.task();
+		const cts = new CancellationTokenSource();
+		const promise = this.task(cts.token);
+		always(promise, () => cts.dispose());
 
-		this.promise = new TPromise<T>((c, e) => promise.done(c, e), () => {
-			this.promise = null;
-			promise.cancel();
-		});
+		this.result = {
+			promise,
+			dispose: () => {
+				this.result = null;
+				cts.cancel();
+				cts.dispose();
+			}
+		};
 
-		return this.promise;
+		return this.result;
 	}
 }

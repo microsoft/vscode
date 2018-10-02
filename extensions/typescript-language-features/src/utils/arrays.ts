@@ -15,3 +15,7 @@ export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => bool
 
 	return true;
 }
+
+export function flatten<T>(arr: T[][]): T[] {
+	return [].concat.apply([], arr);
+}

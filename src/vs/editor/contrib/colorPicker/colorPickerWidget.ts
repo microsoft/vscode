@@ -57,7 +57,7 @@ export class ColorPickerHeader extends Disposable {
 	}
 
 	private onDidChangePresentation(): void {
-		this.pickedColorNode.textContent = this.model.presentation.label;
+		this.pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
 	}
 }
 

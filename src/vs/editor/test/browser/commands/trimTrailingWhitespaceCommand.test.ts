@@ -35,15 +35,15 @@ export function createSingleEditOp(text: string, positionLineNumber: number, pos
 
 function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		var op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
-		var actual = getEditOperation(model, op);
+		let op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
+		let actual = getEditOperation(model, op);
 		assert.deepEqual(actual, expected);
 	});
 }
 
 function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		var actual = trimTrailingWhitespace(model, cursors);
+		let actual = trimTrailingWhitespace(model, cursors);
 		assert.deepEqual(actual, expected);
 	});
 }

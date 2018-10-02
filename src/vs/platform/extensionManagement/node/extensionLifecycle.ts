@@ -10,9 +10,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { fork, ChildProcess } from 'child_process';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { join } from 'vs/base/common/paths';
+import { posix } from 'path';
 import { Limiter } from 'vs/base/common/async';
 import { fromNodeEventEmitter, anyEvent, mapEvent, debounceEvent } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 
 export class ExtensionsLifecycle extends Disposable {
 
@@ -36,13 +37,13 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private parseUninstallScript(extension: ILocalExtension): { uninstallHook: string, args: string[] } {
-		if (extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts']['vscode:uninstall'] === 'string') {
+		if (extension.location.scheme === Schemas.file && extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts']['vscode:uninstall'] === 'string') {
 			const uninstallScript = (<string>extension.manifest['scripts']['vscode:uninstall']).split(' ');
 			if (uninstallScript.length < 2 || uninstallScript[0] !== 'node' || !uninstallScript[1]) {
 				this.logService.warn(extension.identifier.id, 'Uninstall script should be a node script');
 				return null;
 			}
-			return { uninstallHook: join(extension.path, uninstallScript[1]), args: uninstallScript.slice(2) || [] };
+			return { uninstallHook: posix.join(extension.location.fsPath, uninstallScript[1]), args: uninstallScript.slice(2) || [] };
 		}
 		return null;
 	}

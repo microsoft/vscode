@@ -5,7 +5,7 @@
 'use strict';
 
 import { Event } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel, ITextModelCreationOptions, ITextBufferFactory } from 'vs/editor/common/model';
@@ -39,6 +39,6 @@ export interface IModelService {
 
 export function shouldSynchronizeModel(model: ITextModel): boolean {
 	return (
-		!model.isTooLargeForHavingARichMode() && !model.isForSimpleWidget
+		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
 	);
 }

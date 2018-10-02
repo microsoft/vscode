@@ -4,23 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 import * as languageModeIds from './languageModeIds';
 
+export const enum DiagnosticLanguage {
+	JavaScript,
+	TypeScript
+}
+
+export const allDiagnosticLangauges = [DiagnosticLanguage.JavaScript, DiagnosticLanguage.TypeScript];
+
 export interface LanguageDescription {
-	id: string;
-	diagnosticSource: string;
-	modeIds: string[];
-	configFile?: string;
-	isExternal?: boolean;
+	readonly id: string;
+	readonly diagnosticOwner: string;
+	readonly diagnosticSource: string;
+	readonly diagnosticLanguage: DiagnosticLanguage;
+	readonly modeIds: string[];
+	readonly configFile?: string;
+	readonly isExternal?: boolean;
 }
 
 export const standardLanguageDescriptions: LanguageDescription[] = [
 	{
 		id: 'typescript',
+		diagnosticOwner: 'typescript',
 		diagnosticSource: 'ts',
+		diagnosticLanguage: DiagnosticLanguage.TypeScript,
 		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
 		configFile: 'tsconfig.json'
 	}, {
 		id: 'javascript',
-		diagnosticSource: 'js',
+		diagnosticOwner: 'typescript',
+		diagnosticSource: 'ts',
+		diagnosticLanguage: DiagnosticLanguage.JavaScript,
 		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
 		configFile: 'jsconfig.json'
 	}

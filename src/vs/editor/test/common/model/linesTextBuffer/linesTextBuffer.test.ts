@@ -31,7 +31,7 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 	}
 
 	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
-		var actual = PieceTreeTextBuffer._getInverseEditRanges(ops);
+		let actual = PieceTreeTextBuffer._getInverseEditRanges(ops);
 		assert.deepEqual(actual, expected);
 	}
 

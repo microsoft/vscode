@@ -30,22 +30,22 @@ export function setup() {
 			const app = this.app as Application;
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
@@ -75,7 +75,7 @@ export function setup() {
 			await app.workbench.quickopen.waitForQuickOpenOpened();
 
 			await app.workbench.quickopen.submit(':15');
-			await app.workbench.editor.waitForHighlightingLine(15);
+			await app.workbench.editor.waitForHighlightingLine('app.js', 15);
 		});
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
@@ -84,8 +84,8 @@ export function setup() {
 			await app.workbench.quickopen.openFile('app.js');
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
-			await app.workbench.quickopen.waitForQuickOpenOpened();
-			await app.workbench.quickopen.selectQuickOpenElement(1);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.selectQuickInputElement(1);
 
 			await app.workbench.statusbar.waitForEOL('CRLF');
 		});

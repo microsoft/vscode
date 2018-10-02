@@ -43,19 +43,25 @@ th {
 	border-bottom: 1px solid #cccccc;
 	padding: .5rem;
 	border-top: 1px solid #cccccc;
-	text-align: center;
+	cursor: default;
 }
 td {
 	padding: .25rem;
 	vertical-align: top;
+	cursor: default;
 }
 
 .centered {
 	text-align: center;
 }
 
+.nameLabel{
+	text-align: left;
+}
+
 .data {
 	white-space: pre;
+	padding-left: .5rem;
 }
 
 tbody > tr:hover {

@@ -10,18 +10,13 @@ import { EditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 class MyEditorInput extends EditorInput {
-	public getTypeId(): string {
-		return '';
-	}
-
-	public resolve(refresh?: boolean): any {
-		return null;
-	}
+	getTypeId(): string { return ''; }
+	resolve(): any { return null; }
 }
 
-suite('Workbench - EditorInput', () => {
+suite('Workbench editor input', () => {
 
-	test('EditorInput', function () {
+	test('EditorInput', () => {
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
@@ -40,7 +35,7 @@ suite('Workbench - EditorInput', () => {
 		assert.equal(counter, 1);
 	});
 
-	test('DiffEditorInput', function () {
+	test('DiffEditorInput', () => {
 		let counter = 0;
 		let input = new MyEditorInput();
 		input.onDispose(() => {

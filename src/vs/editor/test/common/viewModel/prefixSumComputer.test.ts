@@ -13,7 +13,7 @@ suite('Editor ViewModel - PrefixSumComputer', () => {
 	test('PrefixSumComputer', () => {
 		let indexOfResult: PrefixSumIndexOfResult;
 
-		var psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
+		let psc = new PrefixSumComputer(toUint32Array([1, 1, 2, 1, 3]));
 		assert.equal(psc.getTotalValue(), 8);
 		assert.equal(psc.getAccumulatedValue(-1), 0);
 		assert.equal(psc.getAccumulatedValue(0), 1);

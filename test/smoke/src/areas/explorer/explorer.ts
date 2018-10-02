@@ -5,7 +5,6 @@
 
 import { Viewlet } from '../workbench/viewlet';
 import { Editors } from '../editor/editors';
-import { Commands } from '../workbench/workbench';
 import { Code } from '../../vscode/code';
 
 export class Explorer extends Viewlet {
@@ -13,12 +12,16 @@ export class Explorer extends Viewlet {
 	private static readonly EXPLORER_VIEWLET = 'div[id="workbench.view.explorer"]';
 	private static readonly OPEN_EDITORS_VIEW = `${Explorer.EXPLORER_VIEWLET} .split-view-view:nth-child(1) .title`;
 
-	constructor(code: Code, private commands: Commands, private editors: Editors) {
+	constructor(code: Code, private editors: Editors) {
 		super(code);
 	}
 
-	openExplorerView(): Promise<any> {
-		return this.commands.runCommand('workbench.view.explorer');
+	async openExplorerView(): Promise<any> {
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+shift+e');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+shift+e');
+		}
 	}
 
 	async waitForOpenEditorsViewTitle(fn: (title: string) => boolean): Promise<void> {

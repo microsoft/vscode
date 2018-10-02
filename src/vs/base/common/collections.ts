@@ -47,6 +47,15 @@ export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): numb
 	return count;
 }
 
+export function first<T>(from: IStringDictionary<T> | INumberDictionary<T>): T {
+	for (let key in from) {
+		if (hasOwnProperty.call(from, key)) {
+			return from[key];
+		}
+	}
+	return undefined;
+}
+
 /**
  * Iterates over each entry in the provided set. The iterator allows
  * to remove elements and will stop when the callback returns {{false}}.

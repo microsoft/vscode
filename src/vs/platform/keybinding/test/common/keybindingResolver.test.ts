@@ -192,7 +192,7 @@ suite('KeybindingResolver', () => {
 		]);
 	});
 
-	test('contextIsEntirelyIncluded', function () {
+	test('contextIsEntirelyIncluded', () => {
 		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
 			let tmpA = new ContextKeyAndExpr(a).normalize();
 			let tmpB = new ContextKeyAndExpr(b).normalize();

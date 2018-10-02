@@ -5,7 +5,7 @@
 'use strict';
 
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -23,5 +23,9 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 
 		// TODO@Joao: force this class to dispose the underlying model
 		this.createdEditorModel = true;
+	}
+
+	isReadonly(): boolean {
+		return true;
 	}
 }

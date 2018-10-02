@@ -53,8 +53,8 @@
 }
 
 .monaco-action-bar .action-label {
-	font-size: 12px;
-	margin-right: 0.3em;
+	font-size: 11px;
+	margin-right: 4px;
 }
 
 .monaco-action-bar .action-label.octicon {
@@ -104,5 +104,7 @@
 	flex: 1;
 	max-width: 170px;
 	min-width: 60px;
-	margin-right: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }

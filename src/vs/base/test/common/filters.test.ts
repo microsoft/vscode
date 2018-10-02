@@ -20,7 +20,7 @@ function filterNotOk(filter: IFilter, word: string, suggestion: string) {
 }
 
 suite('Filters', () => {
-	test('or', function () {
+	test('or', () => {
 		let filter: IFilter;
 		let counters: number[];
 		let newFilter = function (i: number, r: boolean): IFilter {
@@ -72,7 +72,7 @@ suite('Filters', () => {
 		filterNotOk(matchesPrefix, 'T', '4'); // see https://github.com/Microsoft/vscode/issues/22401
 	});
 
-	test('CamelCaseFilter', function () {
+	test('CamelCaseFilter', () => {
 		filterNotOk(matchesCamelCase, '', '');
 		filterOk(matchesCamelCase, '', 'anything', []);
 		filterOk(matchesCamelCase, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
@@ -150,13 +150,13 @@ suite('Filters', () => {
 		assert(matchesCamelCase('debug console', 'Open: Debug Console'));
 	});
 
-	test('matchesContiguousSubString', function () {
+	test('matchesContiguousSubString', () => {
 		filterOk(matchesContiguousSubString, 'cela', 'cancelAnimationFrame()', [
 			{ start: 3, end: 7 }
 		]);
 	});
 
-	test('matchesSubString', function () {
+	test('matchesSubString', () => {
 		filterOk(matchesSubString, 'cmm', 'cancelAnimationFrame()', [
 			{ start: 0, end: 1 },
 			{ start: 9, end: 10 },
@@ -176,7 +176,7 @@ suite('Filters', () => {
 		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 	});
 
-	test('WordFilter', function () {
+	test('WordFilter', () => {
 		filterOk(matchesWords, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
 		filterOk(matchesWords, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
 		filterNotOk(matchesWords, 'alpha', 'alp');
@@ -256,7 +256,7 @@ suite('Filters', () => {
 		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
 	});
 
-	test('fuzzyScore', function () {
+	test('fuzzyScore', () => {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
 		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
@@ -298,7 +298,7 @@ suite('Filters', () => {
 		assertMatches('ob', 'foobar', undefined, fuzzyScore);
 		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
 		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
-		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
+		assertMatches('Three', 'HTMLHRElement', undefined, fuzzyScore);
 		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
 		assertMatches('fo', 'barfoo', undefined, fuzzyScore);
 		assertMatches('fo', 'bar_foo', 'bar_^f^oo', fuzzyScore);
@@ -307,6 +307,14 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
+	});
+
+	test('fuzzyScore (first match can be weak)', function () {
+		let fuzzyScoreWeak = (pattern, word) => fuzzyScore(pattern, word, undefined, true);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScoreWeak);
+		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScoreWeak);
+		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScoreWeak);
+		assertTopScore(fuzzyScoreWeak, 'tor', 2, 'constructor', 'Thor', 'cTor');
 	});
 
 	test('fuzzyScore, many matches', function () {
@@ -431,7 +439,7 @@ suite('Filters', () => {
 		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
 	});
 
-	test('fuzzyScoreGraceful', function () {
+	test('fuzzyScoreGraceful', () => {
 
 		assertMatches('rlut', 'result', undefined, fuzzyScore);
 		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);

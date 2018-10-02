@@ -6,4 +6,6 @@
 'use strict';
 
 import './startupProfiler';
+import './startupTimings';
+import './startupTimingsAppender';
 import './stats';

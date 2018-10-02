@@ -206,13 +206,17 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		// Sort operations ascending
 		operations.sort(PieceTreeTextBuffer._sortOpsAscending);
 
+		let hasTouchingRanges = false;
 		for (let i = 0, count = operations.length - 1; i < count; i++) {
 			let rangeEnd = operations[i].range.getEndPosition();
 			let nextRangeStart = operations[i + 1].range.getStartPosition();
 
-			if (nextRangeStart.isBefore(rangeEnd)) {
-				// overlapping ranges
-				throw new Error('Overlapping ranges are not allowed!');
+			if (nextRangeStart.isBeforeOrEqual(rangeEnd)) {
+				if (nextRangeStart.isBefore(rangeEnd)) {
+					// overlapping ranges
+					throw new Error('Overlapping ranges are not allowed!');
+				}
+				hasTouchingRanges = true;
 			}
 		}
 
@@ -256,7 +260,11 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				forceMoveMarkers: op.forceMoveMarkers
 			};
 		}
-		reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
+
+		// Can only sort reverse operations when the order is not significant
+		if (!hasTouchingRanges) {
+			reverseOperations.sort((a, b) => a.sortIndex - b.sortIndex);
+		}
 
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;

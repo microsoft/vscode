@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
@@ -16,6 +16,16 @@ interface Entry<T> {
 	provider: T;
 	_score: number;
 	_time: number;
+}
+
+function isExclusive(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	} else if (Array.isArray(selector)) {
+		return selector.every(isExclusive);
+	} else {
+		return selector.exclusive;
+	}
 }
 
 export default class LanguageFeatureRegistry<T> {
@@ -44,19 +54,17 @@ export default class LanguageFeatureRegistry<T> {
 		this._lastCandidate = undefined;
 		this._onDidChange.fire(this._entries.length);
 
-		return {
-			dispose: () => {
-				if (entry) {
-					let idx = this._entries.indexOf(entry);
-					if (idx >= 0) {
-						this._entries.splice(idx, 1);
-						this._lastCandidate = undefined;
-						this._onDidChange.fire(this._entries.length);
-						entry = undefined;
-					}
+		return toDisposable(() => {
+			if (entry) {
+				let idx = this._entries.indexOf(entry);
+				if (idx >= 0) {
+					this._entries.splice(idx, 1);
+					this._lastCandidate = undefined;
+					this._onDidChange.fire(this._entries.length);
+					entry = undefined;
 				}
 			}
-		};
+		});
 	}
 
 	has(model: ITextModel): boolean {
@@ -142,6 +150,16 @@ export default class LanguageFeatureRegistry<T> {
 
 		for (let entry of this._entries) {
 			entry._score = score(entry.selector, model.uri, model.getLanguageIdentifier().language, shouldSynchronizeModel(model));
+
+			if (isExclusive(entry.selector) && entry._score > 0) {
+				// support for one exclusive selector that overwrites
+				// any other selector
+				for (let entry of this._entries) {
+					entry._score = 0;
+				}
+				entry._score = 1000;
+				break;
+			}
 		}
 
 		// needs sorting

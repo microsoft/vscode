@@ -6,12 +6,12 @@
 'use strict';
 
 import 'vs/css!./panelview';
-import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, addClass, removeClass, toggleClass, trackFocus } from 'vs/base/browser/dom';
+import { $, append, addClass, removeClass, toggleClass, trackFocus, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
@@ -27,38 +27,45 @@ export interface IPanelStyles {
 	dropBackground?: Color;
 	headerForeground?: Color;
 	headerBackground?: Color;
-	headerHighContrastBorder?: Color;
+	headerBorder?: Color;
 }
 
+/**
+ * A Panel is a structured SplitView view.
+ *
+ * WARNING: You must call `render()` after you contruct it.
+ * It can't be done automatically at the end of the ctor
+ * because of the order of property initialization in TypeScript.
+ * Subclasses wouldn't be able to set own properties
+ * before the `render()` call, thus forbiding their use.
+ */
 export abstract class Panel implements IView {
 
 	private static readonly HEADER_SIZE = 22;
 
+	readonly element: HTMLElement;
+
 	protected _expanded: boolean;
+	protected disposables: IDisposable[] = [];
+
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private ariaHeaderLabel: string;
-	private styles: IPanelStyles | undefined = undefined;
+	private styles: IPanelStyles = {};
 
-	private el: HTMLElement;
 	private header: HTMLElement;
-	protected disposables: IDisposable[] = [];
 
 	private _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
-
-	get element(): HTMLElement {
-		return this.el;
-	}
 
 	get draggableElement(): HTMLElement {
 		return this.header;
 	}
 
 	get dropTargetElement(): HTMLElement {
-		return this.el;
+		return this.element;
 	}
 
 	private _dropBackground: Color | undefined;
@@ -109,6 +116,8 @@ export abstract class Panel implements IView {
 		this.ariaHeaderLabel = options.ariaHeaderLabel || '';
 		this._minimumBodySize = typeof options.minimumBodySize === 'number' ? options.minimumBodySize : 120;
 		this._maximumBodySize = typeof options.maximumBodySize === 'number' ? options.maximumBodySize : Number.POSITIVE_INFINITY;
+
+		this.element = $('.panel');
 	}
 
 	isExpanded(): boolean {
@@ -139,11 +148,9 @@ export abstract class Panel implements IView {
 		this._onDidChange.fire();
 	}
 
-	render(container: HTMLElement): void {
-		this.el = append(container, $('.panel'));
-
+	render(): void {
 		this.header = $('.panel-header');
-		append(this.el, this.header);
+		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');
 		this.header.setAttribute('role', 'toolbar');
 		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
@@ -177,7 +184,7 @@ export abstract class Panel implements IView {
 		// onHeaderKeyDown.filter(e => e.keyCode === KeyCode.DownArrow)
 		// 	.event(focusNext, this, this.disposables);
 
-		const body = append(this.el, $('.panel-body'));
+		const body = append(this.element, $('.panel-body'));
 		this.renderBody(body);
 	}
 
@@ -211,7 +218,7 @@ export abstract class Panel implements IView {
 
 		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : null;
 		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : null;
-		this.header.style.borderTop = this.styles.headerHighContrastBorder ? `1px solid ${this.styles.headerHighContrastBorder}` : null;
+		this.header.style.borderTop = this.styles.headerBorder ? `1px solid ${this.styles.headerBorder}` : null;
 		this._dropBackground = this.styles.dropBackground;
 	}
 
@@ -221,6 +228,8 @@ export abstract class Panel implements IView {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+
+		this._onDidChange.dispose();
 	}
 }
 
@@ -228,27 +237,33 @@ interface IDndContext {
 	draggable: PanelDraggable | null;
 }
 
-class PanelDraggable implements IDisposable {
+class PanelDraggable extends Disposable {
 
 	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
-	// see https://github.com/Microsoft/vscode/issues/14470
-	private dragOverCounter = 0;
-	private disposables: IDisposable[] = [];
+	private dragOverCounter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 
-	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
+	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
 	readonly onDidDrop = this._onDidDrop.event;
 
-	constructor(private panel: Panel, private context: IDndContext) {
+	constructor(private panel: Panel, private dnd: IPanelDndController, private context: IDndContext) {
+		super();
+
 		panel.draggableElement.draggable = true;
-		domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'dragleave')(this.onDragLeave, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'dragend')(this.onDragEnd, this, this.disposables);
-		domEvent(panel.dropTargetElement, 'drop')(this.onDrop, this, this.disposables);
+		this._register(domEvent(panel.draggableElement, 'dragstart')(this.onDragStart, this));
+		this._register(domEvent(panel.dropTargetElement, 'dragenter')(this.onDragEnter, this));
+		this._register(domEvent(panel.dropTargetElement, 'dragleave')(this.onDragLeave, this));
+		this._register(domEvent(panel.dropTargetElement, 'dragend')(this.onDragEnd, this));
+		this._register(domEvent(panel.dropTargetElement, 'drop')(this.onDrop, this));
 	}
 
 	private onDragStart(e: DragEvent): void {
+		if (!this.dnd.canDrag(this.panel)) {
+			e.preventDefault();
+			e.stopPropagation();
+			return;
+		}
+
 		e.dataTransfer.effectAllowed = 'move';
 
 		const dragImage = append(document.body, $('.monaco-panel-drag-image', {}, this.panel.draggableElement.textContent));
@@ -263,12 +278,20 @@ class PanelDraggable implements IDisposable {
 			return;
 		}
 
+		if (!this.dnd.canDrop(this.context.draggable.panel, this.panel)) {
+			return;
+		}
+
 		this.dragOverCounter++;
 		this.render();
 	}
 
 	private onDragLeave(e: DragEvent): void {
 		if (!this.context.draggable || this.context.draggable === this) {
+			return;
+		}
+
+		if (!this.dnd.canDrop(this.context.draggable.panel, this.panel)) {
 			return;
 		}
 
@@ -297,7 +320,7 @@ class PanelDraggable implements IDisposable {
 		this.dragOverCounter = 0;
 		this.render();
 
-		if (this.context.draggable !== this) {
+		if (this.dnd.canDrop(this.context.draggable.panel, this.panel) && this.context.draggable !== this) {
 			this._onDidDrop.fire({ from: this.context.draggable.panel, to: this.panel });
 		}
 
@@ -313,14 +336,26 @@ class PanelDraggable implements IDisposable {
 
 		this.panel.dropTargetElement.style.backgroundColor = backgroundColor;
 	}
+}
 
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
+export interface IPanelDndController {
+	canDrag(panel: Panel): boolean;
+	canDrop(panel: Panel, overPanel: Panel): boolean;
+}
+
+export class DefaultPanelDndController implements IPanelDndController {
+
+	canDrag(panel: Panel): boolean {
+		return true;
+	}
+
+	canDrop(panel: Panel, overPanel: Panel): boolean {
+		return true;
 	}
 }
 
-export class IPanelViewOptions {
-	dnd?: boolean;
+export interface IPanelViewOptions {
+	dnd?: IPanelDndController;
 }
 
 interface IPanelItem {
@@ -328,37 +363,46 @@ interface IPanelItem {
 	disposable: IDisposable;
 }
 
-export class PanelView implements IDisposable {
+export class PanelView extends Disposable {
 
-	private dnd: boolean;
+	private dnd: IPanelDndController | null;
 	private dndContext: IDndContext = { draggable: null };
 	private el: HTMLElement;
 	private panelItems: IPanelItem[] = [];
 	private splitview: SplitView;
 	private animationTimer: number | null = null;
 
-	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
+	private _onDidDrop = this._register(new Emitter<{ from: Panel, to: Panel }>());
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
-	readonly onDidSashChange: Event<void>;
+	readonly onDidSashChange: Event<number>;
 
 	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
-		this.dnd = !!options.dnd;
+		super();
+
+		this.dnd = options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
-		this.splitview = new SplitView(this.el);
+		this.splitview = this._register(new SplitView(this.el));
 		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
 		const disposables: IDisposable[] = [];
-		panel.onDidChange(this.setupAnimation, this, disposables);
+		disposables.push(
+			// fix https://github.com/Microsoft/vscode/issues/37129 by delaying the listener
+			// for changes to animate them. lots of views cause a onDidChange during their
+			// initial creation and this causes the view to animate even though it shows
+			// for the first time. animation should only be used to indicate new elements
+			// are added or existing ones removed in a view that is already showing
+			scheduleAtNextAnimationFrame(() => panel.onDidChange(this.setupAnimation, this, disposables))
+		);
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };
 		this.panelItems.splice(index, 0, panelItem);
 		this.splitview.addView(panel, size, index);
 
 		if (this.dnd) {
-			const draggable = new PanelDraggable(panel, this.dndContext);
+			const draggable = new PanelDraggable(panel, this.dnd, this.dndContext);
 			disposables.push(draggable);
 			draggable.onDidDrop(this._onDidDrop.fire, this._onDidDrop, disposables);
 		}
@@ -428,7 +472,8 @@ export class PanelView implements IDisposable {
 	}
 
 	dispose(): void {
+		super.dispose();
+
 		this.panelItems.forEach(i => i.disposable.dispose());
-		this.splitview.dispose();
 	}
 }
