@@ -38,6 +38,12 @@
             comment: "This issue is caused by an extension, please file it with the repository (or contact) the extension has linked in its overview in VS Code or the [marketplace](https://aka.ms/vscodemarketplace) for VS Code. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
         },
         {
+            type: 'label',
+            name: '*as-designed',
+            action: 'close',
+            comment: "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
             type: 'comment',
             name: 'duplicate',
             action: 'updateLabels',
