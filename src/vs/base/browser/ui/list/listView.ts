@@ -204,7 +204,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!this.didRequestScrollableElementUpdate) {
 			DOM.scheduleAtNextAnimationFrame(() => {
-				console.log(this.scrollHeight);
 				this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 				this.didRequestScrollableElementUpdate = false;
 			});
