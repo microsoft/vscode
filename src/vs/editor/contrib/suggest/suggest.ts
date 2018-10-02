@@ -99,15 +99,7 @@ export function provideSuggestionItems(
 							}
 
 							// fill in lower-case text
-							if (!suggestion._labelLow) {
-								suggestion._labelLow = suggestion.label.toLowerCase();
-							}
-							if (suggestion.sortText && !suggestion._sortTextLow) {
-								suggestion._sortTextLow = suggestion.sortText.toLowerCase();
-							}
-							if (suggestion.filterText && !suggestion._filterTextLow) {
-								suggestion._filterTextLow = suggestion.filterText.toLowerCase();
-							}
+							ensureLowerCaseVariants(suggestion);
 
 							allSuggestions.push({
 								position,
@@ -146,6 +138,18 @@ export function provideSuggestionItems(
 	// });
 
 	return result;
+}
+
+export function ensureLowerCaseVariants(suggestion: CompletionItem) {
+	if (!suggestion._labelLow) {
+		suggestion._labelLow = suggestion.label.toLowerCase();
+	}
+	if (suggestion.sortText && !suggestion._sortTextLow) {
+		suggestion._sortTextLow = suggestion.sortText.toLowerCase();
+	}
+	if (suggestion.filterText && !suggestion._filterTextLow) {
+		suggestion._filterTextLow = suggestion.filterText.toLowerCase();
+	}
 }
 
 function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {

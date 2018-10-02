@@ -237,11 +237,11 @@ suite('CompletionModel', function () {
 
 		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item1.suggestion.filterText = '  groups';
-		item1.suggestion.sortText = '00002';
+		item1.suggestion._sortTextLow = '00002';
 
 		const item2 = createSuggestItem('source', 0, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item2.suggestion.filterText = 'source';
-		item2.suggestion.sortText = '00001';
+		item2.suggestion._sortTextLow = '00001';
 
 		const items = [item1, item2].sort(getSuggestionComparator('inline'));
 

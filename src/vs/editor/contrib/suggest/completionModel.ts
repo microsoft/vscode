@@ -8,7 +8,7 @@
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
-import { ISuggestionItem } from './suggest';
+import { ISuggestionItem, ensureLowerCaseVariants } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
@@ -168,6 +168,9 @@ export class CompletionModel {
 
 			const item = source[i];
 			const { suggestion, container } = item;
+
+			// make sure _labelLow, _filterTextLow, _sortTextLow exist
+			ensureLowerCaseVariants(suggestion);
 
 			// collect those supports that signaled having
 			// an incomplete result
