@@ -579,7 +579,13 @@ export class DebugService implements IDebugService {
 								}
 							}
 
-							(needsToSubstitute ? this.substituteVariables(launch, unresolved) : TPromise.as(session.configuration)).then(resolved => {
+							let configPromise = TPromise.as(session.configuration);
+							if (needsToSubstitute) {
+								configPromise = this.configurationManager.resolveConfigurationByProviders(launch.workspace && launch.workspace.uri, unresolved.type, unresolved)
+									.then(resolved => this.substituteVariables(launch, resolved));
+							}
+
+							configPromise.then(resolved => {
 								session.setConfiguration({ resolved, unresolved });
 								session.configuration.__restart = restartData;
 
