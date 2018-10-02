@@ -205,6 +205,7 @@ class SuggestionDetails {
 	private disposables: IDisposable[];
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
+	private _isFocused: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -239,10 +240,22 @@ class SuggestionDetails {
 			.on(this.configureFont, this, this.disposables);
 
 		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
+
+		this._isFocused = false;
+		this.el.onmouseenter = () => this._isFocused = true;
+		this.el.onmouseleave = () => {
+			this._isFocused = false;
+			this.editor.focus();
+		};
+
 	}
 
 	get element() {
 		return this.el;
+	}
+
+	get isFocused() {
+		return this._isFocused;
 	}
 
 	render(item: ICompletionItem): void {
@@ -343,6 +356,8 @@ class SuggestionDetails {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.renderDisposeable = dispose(this.renderDisposeable);
+		this.element.onmouseenter = null;
+		this.element.onmouseleave = null;
 	}
 }
 
@@ -405,7 +420,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	private expandSuggestionDocs: boolean = false;
 
 	private firstFocusInCurrentList: boolean = false;
-	private _isFocused: boolean;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -461,14 +475,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.onDidChangeCursorSelection(() => this.onCursorSelectionChanged())
 		];
-		this.element.onmouseenter = () => this._isFocused = true;
-		this.element.onmouseleave = () => {
-			this._isFocused = false;
-			// no hide widget on mouse leave if details is hidden
-			if (this.details.element.style.display !== 'none') {
-				this.hideWidget();
-			}
-		};
 
 		this.suggestWidgetVisible = SuggestContext.Visible.bindTo(contextKeyService);
 		this.suggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(contextKeyService);
@@ -940,15 +946,13 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	}
 
 	hideWidget(): void {
-		if (!this._isFocused) {
-			clearTimeout(this.loadingTimeout);
-			this.setState(State.Hidden);
-			this.onDidHideEmitter.fire(this);
-		}
+		clearTimeout(this.loadingTimeout);
+		this.setState(State.Hidden);
+		this.onDidHideEmitter.fire(this);
 	}
 
-	unfocusWidget() {
-		this._isFocused = false;
+	isDetailsFocused(): boolean {
+		return this.details.isFocused;
 	}
 
 	getPosition(): IContentWidgetPosition {
@@ -1077,8 +1081,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
 		this.focusedItem = null;
-		this.element.onmouseenter = null;
-		this.element.onmouseleave = null;
 		this.element = null;
 		this.messageElement = null;
 		this.listElement = null;
