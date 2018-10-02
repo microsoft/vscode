@@ -64,6 +64,7 @@ const ModulesToLookFor = [
 	'aws-amplify',
 	'azure',
 	'azure-storage',
+	'firebase',
 	'@google-cloud/common',
 	'heroku-cli'
 ];
@@ -268,6 +269,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -484,6 +486,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							} else if ('aws-sdk' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.npm.aws-sdk'] = true;
+								}
+							} else if ('firebase' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.npm.firebase'] = true;
 								}
 							} else if ('tns-core-modules' === module) {
 								if (packageJsonContents['dependencies'][module]) {
