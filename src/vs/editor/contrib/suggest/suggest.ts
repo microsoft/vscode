@@ -5,7 +5,6 @@
 
 import { first } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -94,8 +93,20 @@ export function provideSuggestionItems(
 					for (let suggestion of container.suggestions) {
 						if (acceptSuggestion(suggestion)) {
 
+							// fill in default range when missing
 							if (!suggestion.range) {
 								suggestion.range = defaultRange;
+							}
+
+							// fill in lower-case text
+							if (!suggestion._labelLow) {
+								suggestion._labelLow = suggestion.label.toLowerCase();
+							}
+							if (suggestion.sortText && !suggestion._sortTextLow) {
+								suggestion._sortTextLow = suggestion.sortText.toLowerCase();
+							}
+							if (suggestion.filterText && !suggestion._filterTextLow) {
+								suggestion._filterTextLow = suggestion.filterText.toLowerCase();
 							}
 
 							allSuggestions.push({
@@ -156,28 +167,32 @@ function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: Comple
 }
 function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
-	let ret = 0;
-
 	// check with 'sortText'
 	if (typeof a.suggestion.sortText === 'string' && typeof b.suggestion.sortText === 'string') {
-		ret = compareIgnoreCase(a.suggestion.sortText, b.suggestion.sortText);
-	}
-
-	// check with 'label'
-	if (ret === 0) {
-		ret = compareIgnoreCase(a.suggestion.label, b.suggestion.label);
-	}
-
-	// check with 'type' and lower snippets
-	if (ret === 0 && a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === CompletionItemKind.Snippet) {
-			ret = 1;
-		} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
-			ret = -1;
+		if (a.suggestion._sortTextLow < b.suggestion._sortTextLow) {
+			return -1;
+		} else if (a.suggestion._sortTextLow > b.suggestion._sortTextLow) {
+			return 1;
 		}
 	}
 
-	return ret;
+	// check with 'label'
+	if (a.suggestion.label < b.suggestion.label) {
+		return -1;
+	} else if (a.suggestion.label > b.suggestion.label) {
+		return 1;
+	}
+
+	// check with 'type' and lower snippets
+	if (a.suggestion.kind !== b.suggestion.kind) {
+		if (a.suggestion.kind === CompletionItemKind.Snippet) {
+			return 1;
+		} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
+			return -1;
+		}
+	}
+
+	return 0;
 }
 
 function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {

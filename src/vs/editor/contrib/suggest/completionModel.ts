@@ -21,7 +21,6 @@ export interface ICompletionItem extends ISuggestionItem {
 	word?: string;
 }
 
-
 /* __GDPR__FRAGMENT__
 	"ICompletionStats" : {
 		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -221,16 +220,16 @@ export class CompletionModel {
 					// if it matches we check with the label to compute highlights
 					// and if that doesn't yield a result we have no highlights,
 					// despite having the match
-					let match = scoreFn(word, wordLow, wordPos, suggestion.filterText, suggestion.filterText.toLowerCase(), 0, false);
+					let match = scoreFn(word, wordLow, wordPos, suggestion.filterText, suggestion._filterTextLow, 0, false);
 					if (!match) {
 						continue;
 					}
 					item.score = match[0];
-					item.matches = (fuzzyScore(word, wordLow, 0, suggestion.label, suggestion.label.toLowerCase(), 0, true) || anyScore(word, suggestion.label))[1];
+					item.matches = (fuzzyScore(word, wordLow, 0, suggestion.label, suggestion._labelLow, 0, true) || anyScore(word, suggestion.label))[1];
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, suggestion.label, suggestion.label.toLowerCase(), 0, false);
+					let match = scoreFn(word, wordLow, wordPos, suggestion.label, suggestion._labelLow, 0, false);
 					if (match) {
 						item.score = match[0];
 						item.matches = match[1];

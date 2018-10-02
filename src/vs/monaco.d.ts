@@ -4757,8 +4757,6 @@ declare namespace monaco.languages {
 		 * A command that should be run upon acceptance of this item.
 		 */
 		command?: Command;
-		noWhitespaceAdjust?: boolean;
-		noAutoAccept?: boolean;
 	}
 
 	export interface CompletionList {

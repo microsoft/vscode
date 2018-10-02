@@ -675,7 +675,11 @@ class SuggestAdapter {
 			insertText: undefined,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			commitCharacters: item.commitCharacters,
+			// help with perf
+			_labelLow: item.label.toLowerCase(),
+			_filterTextLow: item.filterText && item.filterText.toLowerCase(),
+			_sortTextLow: item.sortText && item.sortText.toLowerCase()
 		};
 
 		// 'insertText'-logic
