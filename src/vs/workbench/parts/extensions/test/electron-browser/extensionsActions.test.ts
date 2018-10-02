@@ -401,12 +401,18 @@ suite('ExtensionsActions Test', () => {
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
-		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		return workbenchService.queryLocal()
 			.then(extensions => {
 				testObject.extension = extensions[0];
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' })));
-				return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
-					.then(extensions => assert.ok(testObject.enabled));
+				return new Promise<void>(c => {
+					workbenchService.onChange(() => {
+						assert.ok(testObject.enabled);
+						c();
+					});
+					instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+				});
 			});
 	});
 
@@ -943,9 +949,14 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
 		return workbenchService.queryLocal()
 			.then(() => {
-				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
-				return workbenchService.queryGallery()
-					.then(() => assert.ok(testObject.enabled));
+				return new Promise<void>(c => {
+					instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
+					workbenchService.onChange(() => {
+						assert.ok(testObject.enabled);
+						c();
+					});
+					workbenchService.queryGallery();
+				});
 			});
 	});
 
@@ -957,12 +968,17 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', local);
 		return workbenchService.queryLocal()
 			.then(() => {
-				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
-				return workbenchService.queryGallery()
-					.then(() => {
-						installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
+				return new Promise<void>(c => {
+					instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
+					workbenchService.onChange(() => {
 						assert.ok(testObject.enabled);
+						c();
 					});
+					workbenchService.queryGallery()
+						.then(() => {
+							installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
+						});
+				});
 			});
 	});
 
