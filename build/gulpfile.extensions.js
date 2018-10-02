@@ -6,6 +6,7 @@
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
+<<<<<<< HEAD
 const gulp = require('gulp');
 const path = require('path');
 const tsb = require('gulp-tsb');
@@ -71,6 +72,48 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	function createPipeline(build, emitError) {
 		const reporter = createReporter();
+=======
+var gulp = require('gulp'),
+	path = require('path'),
+	tsb = require('gulp-tsb'),
+	es = require('event-stream'),
+	filter = require('gulp-filter'),
+	rimraf = require('rimraf'),
+	util = require('./lib/util'),
+	watcher = require('./lib/watch'),
+	createReporter = require('./lib/reporter'),
+	glob = require('glob'),
+	sourcemaps = require('gulp-sourcemaps'),
+	nlsDev = require('vscode-nls-dev'),
+	extensionsPath = path.join(path.dirname(__dirname), 'extensions'),
+compilations = glob.sync('**/tsconfig.json', {
+	cwd: extensionsPath,
+	ignore: ['**/out/**', '**/node_modules/**']
+}),
+languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'],
+tasks = compilations.map(function(tsconfigFile) {
+	var absolutePath = path.join(extensionsPath, tsconfigFile);
+	var relativeDirname = path.dirname(tsconfigFile);
+	var tsOptions = require(absolutePath).compilerOptions;
+	tsOptions.verbose = false;
+	tsOptions.sourceMap = true;
+	var name = relativeDirname.replace(/\//g, '-');
+
+	// Tasks
+	var clean = 'clean-extension:' + name,
+	compile = 'compile-extension:' + name,
+	watch = 'watch-extension:' + name,
+	cleanBuild = 'clean-extension-build:' + name,
+	compileBuild = 'compile-extension-build:' + name,
+	watchBuild = 'watch-extension-build:' + name,
+	root = path.join('extensions', relativeDirname),
+	srcBase = path.join(root, 'src'),
+	src = path.join(srcBase, '**'),
+	out = path.join(root, 'out'),
+	i18n = path.join(__dirname, '..', 'i18n');
+	function createPipeline(build) {
+		var reporter = createReporter();
+>>>>>>> commit
 
 		tsOptions.inlineSources = !!build;
 		tsOptions.base = path.dirname(absolutePath);
