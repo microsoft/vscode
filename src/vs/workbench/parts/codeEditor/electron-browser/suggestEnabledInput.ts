@@ -247,15 +247,15 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 // Override styles in selections.ts
 registerThemingParticipant((theme, collector) => {
-	let workbenchSelectionColor = theme.getColor(selectionBackground);
+	const workbenchSelectionColor = theme.getColor(selectionBackground);
 	if (workbenchSelectionColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor}; }`);
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor.transparent(.4)}; }`);
 	}
 
 	// Override inactive selection bg
 	const inputBackgroundColor = theme.getColor(inputBackground);
 	if (inputBackground) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor}; }`);
+		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(.4)}; }`);
 	}
 
 	// Override selected fg
