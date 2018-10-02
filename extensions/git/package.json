@@ -539,6 +539,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.fetchPrune",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.fetchAll",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
