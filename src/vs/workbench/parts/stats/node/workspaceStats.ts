@@ -61,6 +61,7 @@ const ModulesToLookFor = [
 	'tns-core-modules',
 	// Other interesting packages
 	'aws-sdk',
+	'aws-amplify',
 	'azure',
 	'azure-storage',
 	'@google-cloud/common',
@@ -263,6 +264,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.vue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.aws-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -474,6 +476,14 @@ export class WorkspaceStats implements IWorkbenchContribution {
 							if ('react-native' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.reactNative'] = true;
+								}
+							} else if ('aws-amplify' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.npm.aws-amplify-sdk'] = true;
+								}
+							} else if ('aws-sdk' === module) {
+								if (packageJsonContents['dependencies'][module]) {
+									tags['workspace.npm.aws-sdk'] = true;
 								}
 							} else if ('tns-core-modules' === module) {
 								if (packageJsonContents['dependencies'][module]) {
