@@ -27,6 +27,7 @@ function getTypeScriptCompilerOptions(src) {
         options.sourceMap = false;
     }
     options.rootDir = rootDir;
+    options.baseUrl = rootDir;
     options.sourceRoot = util.toFileUri(rootDir);
     options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 'CRLF' : 'LF';
     return options;
