@@ -233,7 +233,7 @@ suite('CompletionModel', function () {
 		assert.equal(model.items.length, 1);
 	});
 
-	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+	test.skip('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 
 		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item1.suggestion.filterText = '  groups';
