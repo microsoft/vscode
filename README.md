@@ -7,7 +7,7 @@
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
-provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
+provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools. VS Code even allows you to collaborate with other developers by simpily providing an access code for other developers to log in, allowing for quick and easy debugging and collaboration.
 
 VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
