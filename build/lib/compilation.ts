@@ -72,9 +72,13 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	};
 }
 
-const libDtsGlob = 'node_modules/typescript/lib/*.d.ts';
-const atTypesDts = 'node_modules/@types/**/*.d.ts';
-const excludedTypesFilter = util.filter(data => !/node_modules(\/|\\)@types(\/|\\)(node|webpack|uglify-js)(\/|\\)/.test(data.path));
+const typesDts = [
+	'node_modules/typescript/lib/*.d.ts',
+	'node_modules/@types/**/*.d.ts',
+	'!node_modules/@types/node/**/*',
+	'!node_modules/@types/webpack/**/*',
+	'!node_modules/@types/uglify-js/**/*',
+];
 
 export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
 
@@ -83,8 +87,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 
 		const srcPipe = es.merge(
 			gulp.src(`${src}/**`, { base: `${src}` }),
-			gulp.src(libDtsGlob),
-			gulp.src(atTypesDts).pipe(excludedTypesFilter),
+			gulp.src(typesDts),
 		);
 
 		// Do not write .d.ts files to disk, as they are not needed there.
@@ -106,8 +109,7 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 
 		const src = es.merge(
 			gulp.src('src/**', { base: 'src' }),
-			gulp.src(libDtsGlob),
-			gulp.src(atTypesDts).pipe(excludedTypesFilter),
+			gulp.src(typesDts),
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 
