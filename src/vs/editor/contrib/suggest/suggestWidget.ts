@@ -202,6 +202,7 @@ class SuggestionDetails {
 	private disposables: IDisposable[];
 	private renderDisposeable: IDisposable;
 	private borderWidth: number = 1;
+	private _isFocused: boolean;
 
 	constructor(
 		container: HTMLElement,
@@ -236,10 +237,22 @@ class SuggestionDetails {
 			.on(this.configureFont, this, this.disposables);
 
 		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
+
+		this._isFocused = false;
+		this.el.onmouseenter = () => this._isFocused = true;
+		this.el.onmouseleave = () => {
+			this._isFocused = false;
+			this.editor.focus();
+		};
+
 	}
 
 	get element() {
 		return this.el;
+	}
+
+	get isFocused() {
+		return this._isFocused;
 	}
 
 	render(item: ICompletionItem): void {
@@ -273,6 +286,7 @@ class SuggestionDetails {
 		}
 
 		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + (this.borderWidth * 2) + 'px';
+		this.el.style.userSelect = 'text';
 
 		this.close.onmousedown = e => {
 			e.preventDefault();
@@ -344,6 +358,8 @@ class SuggestionDetails {
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		this.renderDisposeable = dispose(this.renderDisposeable);
+		this.element.onmouseenter = null;
+		this.element.onmouseleave = null;
 	}
 }
 
@@ -382,7 +398,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	private suggestWidgetMultipleSuggestions: IContextKey<boolean>;
 	private suggestionSupportsAutoAccept: IContextKey<boolean>;
 
-	private readonly editorBlurTimeout = new TimeoutTimer();
 	private readonly showTimeout = new TimeoutTimer();
 	private toDispose: IDisposable[];
 
@@ -952,6 +967,10 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 		this.onDidHideEmitter.fire(this);
 	}
 
+	isDetailsFocused(): boolean {
+		return this.details.isFocused;
+	}
+
 	getPosition(): IContentWidgetPosition {
 		if (this.state === State.Hidden) {
 			return null;
@@ -1091,7 +1110,6 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 			this.loadingTimeout = null;
 		}
 
-		this.editorBlurTimeout.dispose();
 		this.showTimeout.dispose();
 	}
 }
