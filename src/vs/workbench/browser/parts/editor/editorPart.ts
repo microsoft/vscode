@@ -833,15 +833,15 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				// Ensure last active group has focus
 				this._activeGroup.focus();
 			} catch (error) {
-				this.handleGridRestoreError(error);
+				this.handleGridRestoreError(error, uiState);
 			}
 		}
 	}
 
-	private handleGridRestoreError(error: Error): void {
+	private handleGridRestoreError(error: Error, state: IEditorPartUIState): void {
 
 		// Log error
-		onUnexpectedError(error);
+		onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(state)})`));
 
 		// Clear any state we have from the failing restore
 		if (this.gridWidget) {
