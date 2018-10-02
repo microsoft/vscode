@@ -56,6 +56,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 					color: new ThemeColor('gitDecoration.ignoredResourceForeground')
 				};
 			}
+			return undefined;
 		});
 	}
 
