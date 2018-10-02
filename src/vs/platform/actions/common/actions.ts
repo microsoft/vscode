@@ -11,7 +11,7 @@ import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiati
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
@@ -237,7 +237,6 @@ export class MenuItemAction extends ExecuteCommandAction {
 	readonly alt: MenuItemAction;
 
 	private _options: IMenuActionOptions;
-	private _contextListener: IDisposable;
 
 	constructor(
 		item: ICommandAction,
@@ -253,19 +252,6 @@ export class MenuItemAction extends ExecuteCommandAction {
 
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
-
-		if (item.precondition) {
-			const preconditionKeysSet = new Set<string>();
-			for (let key of item.precondition.keys()) {
-				preconditionKeysSet.add(key);
-			}
-
-			this._contextListener = contextKeyService.onDidChangeContext(event => {
-				if (event.affectsSome(preconditionKeysSet)) {
-					this._setEnabled(contextKeyService.contextMatchesRules(item.precondition));
-				}
-			});
-		}
 	}
 
 	run(...args: any[]): TPromise<any> {
@@ -280,12 +266,6 @@ export class MenuItemAction extends ExecuteCommandAction {
 		}
 
 		return super.run(...runArgs);
-	}
-
-	dispose(): void {
-		this._contextListener = dispose(this._contextListener);
-
-		super.dispose();
 	}
 }
 
