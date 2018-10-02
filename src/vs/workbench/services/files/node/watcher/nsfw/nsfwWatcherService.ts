@@ -215,6 +215,21 @@ export class NsfwWatcherService implements IWatcherService {
 		return TPromise.join(promises).then(() => void 0);
 	}
 
+	public setVerboseLogging(enabled: boolean): TPromise<void> {
+		this._verboseLogging = enabled;
+		return TPromise.as(null);
+	}
+
+	public stop(): TPromise<void> {
+		for (let path in this._pathWatchers) {
+			let watcher = this._pathWatchers[path];
+			watcher.ready.then(watcher => watcher.stop());
+			delete this._pathWatchers[path];
+		}
+		this._pathWatchers = Object.create(null);
+		return TPromise.as(void 0);
+	}
+
 	/**
 	 * Normalizes a set of root paths by removing any root paths that are
 	 * sub-paths of other roots.
