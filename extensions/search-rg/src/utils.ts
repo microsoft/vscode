@@ -6,6 +6,8 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+export type Maybe<T> = T | null | undefined;
+
 export function fixDriveC(_path: string): string {
 	const root = path.parse(_path).root;
 	return root.toLowerCase() === 'c:/' ?

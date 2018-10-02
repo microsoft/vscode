@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
-import * as vscode from 'vscode';
-import * as path from 'path';
-import { createTextSearchResult } from '../utils';
+// TODO./
+// import * as assert from 'assert';
+// import * as vscode from 'vscode';
+// import * as path from 'path';
+// import { createTextSearchResult } from '../utils';
 
-function createOneLineRange(lineNumber: number, startCol: number, endCol: number): vscode.Range {
-	return new vscode.Range(lineNumber, startCol, lineNumber, endCol);
-}
+// function createOneLineRange(lineNumber: number, startCol: number, endCol: number): vscode.Range {
+// 	return new vscode.Range(lineNumber, startCol, lineNumber, endCol);
+// }
 
-const uri = vscode.Uri.file('/foo/bar');
+// const uri = vscode.Uri.file('/foo/bar');
 
 suite('search-rg', () => {
 

@@ -9,30 +9,13 @@ import * as path from 'path';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
 import { rgPath } from './ripgrep';
-import { anchorGlob, createTextSearchResult } from './utils';
+import { anchorGlob, createTextSearchResult, Maybe } from './utils';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {
-	private isDone = false;
-	private rgProc: cp.ChildProcess;
-
-	private ripgrepParser: RipgrepParser;
-
 	constructor(private outputChannel: vscode.OutputChannel) { }
-
-	cancel() {
-		this.isDone = true;
-
-		if (this.rgProc) {
-			this.rgProc.kill();
-		}
-
-		if (this.ripgrepParser) {
-			this.ripgrepParser.cancel();
-		}
-	}
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
@@ -43,7 +26,7 @@ export class RipgrepTextSearchEngine {
 		})}`);
 
 		return new Promise((resolve, reject) => {
-			token.onCancellationRequested(() => this.cancel());
+			token.onCancellationRequested(() => cancel());
 
 			const rgArgs = getRgArgs(query, options);
 
@@ -54,51 +37,64 @@ export class RipgrepTextSearchEngine {
 				.join(' ');
 			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}`);
 
-			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
-			this.rgProc.on('error', e => {
+			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
+			rgProc.on('error', e => {
 				console.error(e);
 				this.outputChannel.append('Error: ' + (e && e.message));
 				reject(e);
 			});
 
 			let gotResult = false;
-			this.ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
-			this.ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
+			const ripgrepParser = new RipgrepParser(options.maxResults, cwd, options.previewOptions);
+			ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
 				gotResult = true;
 				progress.report(match);
 			});
 
+			let isDone = false;
+			const cancel = () => {
+				isDone = true;
+
+				if (rgProc) {
+					rgProc.kill();
+				}
+
+				if (ripgrepParser) {
+					ripgrepParser.cancel();
+				}
+			};
+
 			let limitHit = false;
-			this.ripgrepParser.on('hitLimit', () => {
+			ripgrepParser.on('hitLimit', () => {
 				limitHit = true;
-				this.cancel();
+				cancel();
 			});
 
-			this.rgProc.stdout.on('data', data => {
-				this.ripgrepParser.handleData(data);
+			rgProc.stdout.on('data', data => {
+				ripgrepParser.handleData(data);
 			});
 
 			let gotData = false;
-			this.rgProc.stdout.once('data', () => gotData = true);
+			rgProc.stdout.once('data', () => gotData = true);
 
 			let stderr = '';
-			this.rgProc.stderr.on('data', data => {
+			rgProc.stderr.on('data', data => {
 				const message = data.toString();
 				this.outputChannel.append(message);
 				stderr += message;
 			});
 
-			this.rgProc.on('close', code => {
+			rgProc.on('close', () => {
 				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
 				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
 				this.outputChannel.appendLine('');
-				if (this.isDone) {
+				if (isDone) {
 					resolve({ limitHit });
 				} else {
 					// Trigger last result
-					this.ripgrepParser.flush();
-					this.rgProc = null;
-					let displayMsg: string;
+					ripgrepParser.flush();
+					rgProc = null;
+					let displayMsg: Maybe<string>;
 					if (stderr && !gotData && (displayMsg = rgErrorMsgForDisplay(stderr))) {
 						reject(new Error(displayMsg));
 					} else {
@@ -115,7 +111,7 @@ export class RipgrepTextSearchEngine {
  * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
  * "failed" when a fatal error was produced.
  */
-export function rgErrorMsgForDisplay(msg: string): string | undefined {
+export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 	const firstLine = msg.split('\n')[0].trim();
 
 	if (firstLine.startsWith('Error parsing regex')) {
@@ -150,9 +146,9 @@ export class RipgrepParser extends EventEmitter {
 	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
 	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
-	private currentFile: string;
-	private remainder: string;
-	private isDone: boolean;
+	private currentFile = '';
+	private remainder = '';
+	private isDone = false;
 	private stringDecoder: NodeStringDecoder;
 
 	private numResults = 0;
@@ -182,7 +178,7 @@ export class RipgrepParser extends EventEmitter {
 			decodedData;
 
 		const dataLines: string[] = dataStr.split(/\r\n|\n/);
-		this.remainder = dataLines[dataLines.length - 1] ? dataLines.pop() : null;
+		this.remainder = dataLines[dataLines.length - 1] ? <string>dataLines.pop() : '';
 
 		for (let l = 0; l < dataLines.length; l++) {
 			const outputLine = dataLines[l].trim();
@@ -190,7 +186,7 @@ export class RipgrepParser extends EventEmitter {
 				break;
 			}
 
-			let r: RegExpMatchArray;
+			let r: Maybe<RegExpMatchArray>;
 			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
 				const lineNum = parseInt(r[1]) - 1;
 				let matchText = r[2];
@@ -202,7 +198,7 @@ export class RipgrepParser extends EventEmitter {
 				}
 
 				// Line is a result - add to collected results for the current file path
-				this.handleMatchLine(outputLine, lineNum, matchText);
+				this.handleMatchLine(lineNum, matchText);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
 				this.currentFile = r[1];
 			} else {
@@ -211,7 +207,7 @@ export class RipgrepParser extends EventEmitter {
 		}
 	}
 
-	private handleMatchLine(outputLine: string, lineNum: number, lineText: string): void {
+	private handleMatchLine(lineNum: number, lineText: string): void {
 		if (lineNum === 0) {
 			lineText = stripUTF8BOM(lineText);
 		}
@@ -332,9 +328,9 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		query.pattern = '\\-\\-';
 	}
 
-	let searchPatternAfterDoubleDashes: string;
+	let searchPatternAfterDoubleDashes: Maybe<string>;
 	if (query.isWordMatch) {
-		const regexp = createRegExp(query.pattern, query.isRegExp, { wholeWord: query.isWordMatch });
+		const regexp = createRegExp(query.pattern, !!query.isRegExp, { wholeWord: query.isWordMatch });
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
@@ -407,10 +403,8 @@ function escapeRegExpCharacters(value: string): string {
 
 const UTF8_BOM = 65279;
 
-const UTF8_BOM_CHARACTER = String.fromCharCode(UTF8_BOM);
-
 function startsWithUTF8BOM(str: string): boolean {
-	return (str && str.length > 0 && str.charCodeAt(0) === UTF8_BOM);
+	return !!(str && str.length > 0 && str.charCodeAt(0) === UTF8_BOM);
 }
 
 function stripUTF8BOM(str: string): string {

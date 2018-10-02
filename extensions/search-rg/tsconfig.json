@@ -1,13 +1,8 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"target": "es5",
-		"module": "commonjs",
-		"lib": [
-			"es6",
-			"es2015.promise"
-		],
 		"outDir": "./out",
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
 	},
 	"include": [
 		"src/**/*"
