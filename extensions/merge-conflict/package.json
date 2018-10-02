@@ -113,7 +113,7 @@
         "merge-conflict.autoNavigateNextConflict.enabled": {
           "type": "boolean",
           "description": "%config.autoNavigateNextConflictEnabled%",
-          "default": true
+          "default": false
         }
       }
     }
