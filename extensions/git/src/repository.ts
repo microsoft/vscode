@@ -908,6 +908,11 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
+	async fetchPrune(): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
+	}
+
+	@throttle
 	async fetchAll(): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
 	}
