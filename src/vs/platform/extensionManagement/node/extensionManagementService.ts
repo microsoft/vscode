@@ -83,7 +83,7 @@ function parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; met
 export function validateLocalExtension(zipPath: string): Promise<IExtensionManifest> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
-		.then(({ manifest }) => Promise.resolve(manifest));
+		.then(({ manifest }) => manifest);
 }
 
 function readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
@@ -162,7 +162,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	zip(extension: ILocalExtension): Promise<URI> {
 		this.logService.trace('ExtensionManagementService#zip', extension.identifier.id);
-		return Promise.resolve(this.collectFiles(extension))
+		return this.collectFiles(extension)
 			.then(files => zip(path.join(tmpdir(), generateUuid()), files))
 			.then(path => URI.file(path));
 	}
@@ -200,7 +200,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	install(vsix: URI, type: LocalExtensionType = LocalExtensionType.User): Promise<IExtensionIdentifier> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
-		return Promise.resolve(createCancelablePromise(token => {
+		return createCancelablePromise(token => {
 			return this.downloadVsix(vsix)
 				.then(downloadLocation => {
 					const zipPath = path.resolve(downloadLocation.fsPath);
@@ -234,7 +234,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 									e => Promise.reject(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name))));
 						});
 				});
-		}));
+		});
 	}
 
 	private downloadVsix(vsix: URI): Promise<URI> {
@@ -342,7 +342,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 		}
 
-		return Promise.resolve(cancellablePromise);
+		return cancellablePromise;
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
