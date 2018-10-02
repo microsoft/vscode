@@ -66,7 +66,7 @@ export interface IFolderQuery<U extends UriComponents=uri> {
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
-	disregardGlobalIgnoreFiles: boolean;
+	disregardGlobalIgnoreFiles?: boolean;
 }
 
 export interface ICommonQueryOptions<U> {

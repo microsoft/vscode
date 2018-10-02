@@ -302,7 +302,7 @@ declare module 'vscode' {
 		 * Whether global files that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
-		useGlobalIgnoreFiles: boolean;
+		useGlobalIgnoreFiles?: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.

@@ -17,7 +17,7 @@ export interface IFolderSearch {
 	includePattern?: IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
-	disregardGlobalIgnoreFiles: boolean;
+	disregardGlobalIgnoreFiles?: boolean;
 }
 
 export interface IRawSearch {
