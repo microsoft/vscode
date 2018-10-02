@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
@@ -23,7 +22,6 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import * as model from 'vs/editor/common/model';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Register information about a new language.
@@ -454,17 +452,8 @@ export function registerLinkProvider(languageId: string, provider: modes.LinkPro
 /**
  * Register a completion item provider (use by e.g. suggestions).
  */
-export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable {
-	let adapter = new SuggestAdapter(provider);
-	return modes.CompletionProviderRegistry.register(languageId, {
-		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: model.ITextModel, position: Position, context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> => {
-			return adapter.provideCompletionItems(model, position, context, token);
-		},
-		resolveCompletionItem: (model: model.ITextModel, position: Position, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> => {
-			return adapter.resolveCompletionItem(model, position, suggestion, token);
-		}
-	});
+export function registerCompletionItemProvider(languageId: string, provider: modes.CompletionItemProvider): IDisposable {
+	return modes.CompletionProviderRegistry.register(languageId, provider);
 }
 
 /**
@@ -512,333 +501,6 @@ export interface CodeActionProvider {
 }
 
 /**
- * Completion item kinds.
- */
-export enum CompletionItemKind {
-	Text,
-	Method,
-	Function,
-	Constructor,
-	Field,
-	Variable,
-	Class,
-	Interface,
-	Module,
-	Property,
-	Unit,
-	Value,
-	Enum,
-	Keyword,
-	Snippet,
-	Color,
-	File,
-	Reference,
-	Folder
-}
-
-/**
- * A snippet string is a template which allows to insert text
- * and to control the editor cursor when insertion happens.
- *
- * A snippet can define tab stops and placeholders with `$1`, `$2`
- * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
- * the end of the snippet. Variables are defined with `$name` and
- * `${name:default value}`. The full snippet syntax is documented
- * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
- */
-export interface SnippetString {
-
-	/**
-	 * The snippet string.
-	 */
-	value: string;
-}
-
-/**
- * A completion item represents a text snippet that is
- * proposed to complete text that is being typed.
- */
-export interface CompletionItem {
-	/**
-	 * The label of this completion item. By default
-	 * this is also the text that is inserted when selecting
-	 * this completion.
-	 */
-	label: string;
-	/**
-	 * The kind of this completion item. Based on the kind
-	 * an icon is chosen by the editor.
-	 */
-	kind: CompletionItemKind;
-	/**
-	 * A human-readable string with additional information
-	 * about this item, like type or symbol information.
-	 */
-	detail?: string;
-	/**
-	 * A human-readable string that represents a doc-comment.
-	 */
-	documentation?: string | IMarkdownString;
-	/**
-	 * A command that should be run upon acceptance of this item.
-	 */
-	command?: modes.Command;
-	/**
-	 * A string that should be used when comparing this item
-	 * with other items. When `falsy` the [label](#CompletionItem.label)
-	 * is used.
-	 */
-	sortText?: string;
-	/**
-	 * A string that should be used when filtering a set of
-	 * completion items. When `falsy` the [label](#CompletionItem.label)
-	 * is used.
-	 */
-	filterText?: string;
-	/**
-	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion. When `falsy` the [label](#CompletionItem.label)
-	 * is used.
-	 */
-	insertText?: string | SnippetString;
-	/**
-	 * A range of text that should be replaced by this completion item.
-	 *
-	 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-	 * current position.
-	 *
-	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
-	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
-	 */
-	range?: Range;
-	/**
-	 * An optional set of characters that when pressed while this completion is active will accept it first and
-	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-	 * characters will be ignored.
-	 */
-	commitCharacters?: string[];
-	/**
-	 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
-	 *
-	 * ~~An [edit](#TextEdit) which is applied to a document when selecting
-	 * this completion. When an edit is provided the value of
-	 * [insertText](#CompletionItem.insertText) is ignored.~~
-	 *
-	 * ~~The [range](#Range) of the edit must be single-line and on the same
-	 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
-	 */
-	textEdit?: model.ISingleEditOperation;
-	/**
-	 * An optional array of additional text edits that are applied when
-	 * selecting this completion. Edits must not overlap with the main edit
-	 * nor with themselves.
-	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
-}
-/**
- * Represents a collection of [completion items](#CompletionItem) to be presented
- * in the editor.
- */
-export interface CompletionList {
-	/**
-	 * This list it not complete. Further typing should result in recomputing
-	 * this list.
-	 */
-	isIncomplete?: boolean;
-	/**
-	 * The completion items.
-	 */
-	items: CompletionItem[];
-}
-
-/**
- * Contains additional information about the context in which
- * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
- */
-export interface CompletionContext {
-	/**
-	 * How the completion was triggered.
-	 */
-	triggerKind: modes.CompletionTriggerKind;
-
-	/**
-	 * Character that triggered the completion item provider.
-	 *
-	 * `undefined` if provider was not triggered by a character.
-	 */
-	triggerCharacter?: string;
-}
-
-/**
- * The completion item provider interface defines the contract between extensions and
- * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
- *
- * When computing *complete* completion items is expensive, providers can optionally implement
- * the `resolveCompletionItem`-function. In that case it is enough to return completion
- * items with a [label](#CompletionItem.label) from the
- * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
- * when a completion item is shown in the UI and gains focus this provider is asked to resolve
- * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
- */
-export interface CompletionItemProvider {
-	triggerCharacters?: string[];
-	/**
-	 * Provide completion items for the given position and document.
-	 */
-	provideCompletionItems(document: model.ITextModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-
-	/**
-	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
-	 * or [details](#CompletionItem.detail).
-	 *
-	 * The editor will only resolve a completion item once.
-	 */
-	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
-}
-
-interface ISuggestion2 extends modes.CompletionItem {
-	_actual: CompletionItem;
-}
-function convertKind(kind: CompletionItemKind): modes.CompletionKind {
-	switch (kind) {
-		case CompletionItemKind.Method: return modes.CompletionKind.Method;
-		case CompletionItemKind.Function: return modes.CompletionKind.Function;
-		case CompletionItemKind.Constructor: return modes.CompletionKind.Constructor;
-		case CompletionItemKind.Field: return modes.CompletionKind.Field;
-		case CompletionItemKind.Variable: return modes.CompletionKind.Variable;
-		case CompletionItemKind.Class: return modes.CompletionKind.Class;
-		case CompletionItemKind.Interface: return modes.CompletionKind.Interface;
-		case CompletionItemKind.Module: return modes.CompletionKind.Module;
-		case CompletionItemKind.Property: return modes.CompletionKind.Property;
-		case CompletionItemKind.Unit: return modes.CompletionKind.Unit;
-		case CompletionItemKind.Value: return modes.CompletionKind.Value;
-		case CompletionItemKind.Enum: return modes.CompletionKind.Enum;
-		case CompletionItemKind.Keyword: return modes.CompletionKind.Keyword;
-		case CompletionItemKind.Snippet: return modes.CompletionKind.Snippet;
-		case CompletionItemKind.Text: return modes.CompletionKind.Text;
-		case CompletionItemKind.Color: return modes.CompletionKind.Color;
-		case CompletionItemKind.File: return modes.CompletionKind.File;
-		case CompletionItemKind.Reference: return modes.CompletionKind.Reference;
-		case CompletionItemKind.Folder: return modes.CompletionKind.Folder;
-	}
-	return modes.CompletionKind.Property;
-}
-
-class SuggestAdapter {
-
-	private _provider: CompletionItemProvider;
-
-	constructor(provider: CompletionItemProvider) {
-		this._provider = provider;
-	}
-
-	private static from(item: CompletionItem, position: Position, wordStartPos: Position): ISuggestion2 {
-		let suggestion: ISuggestion2 = {
-			_actual: item,
-			label: item.label,
-			insertText: item.label,
-			kind: convertKind(item.kind),
-			detail: item.detail,
-			documentation: item.documentation,
-			command: item.command,
-			sortText: item.sortText,
-			filterText: item.filterText,
-			insertTextIsSnippet: false,
-			additionalTextEdits: item.additionalTextEdits,
-			commitCharacters: item.commitCharacters
-		};
-		let editRange = item.textEdit ? item.textEdit.range : item.range;
-		if (editRange) {
-			let isSingleLine = (editRange.startLineNumber === editRange.endLineNumber);
-
-			// invalid text edit
-			if (!isSingleLine || editRange.startLineNumber !== position.lineNumber) {
-				console.warn('INVALID range, must be single line and on the same line');
-				return null;
-			}
-
-			// insert the text of the edit and create a dedicated
-			// suggestion-container with overwrite[Before|After]
-			suggestion.range = editRange;
-		} else {
-			suggestion.range = { startLineNumber: position.lineNumber, startColumn: wordStartPos.column, endLineNumber: position.lineNumber, endColumn: position.column };
-		}
-		if (item.textEdit) {
-			suggestion.insertText = item.textEdit.text;
-		} else if (typeof item.insertText === 'object' && typeof item.insertText.value === 'string') {
-			suggestion.insertText = item.insertText.value;
-			suggestion.insertTextIsSnippet = true;
-		} else if (typeof item.insertText === 'string') {
-			suggestion.insertText = item.insertText;
-		}
-		return suggestion;
-	}
-
-	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> {
-		const result = this._provider.provideCompletionItems(model, position, token, context);
-		return Promise.resolve<CompletionItem[] | CompletionList>(result).then(value => {
-			const result: modes.CompletionList = {
-				suggestions: []
-			};
-
-			// default text edit start
-			let wordStartPos = position;
-			const word = model.getWordUntilPosition(position);
-			if (word) {
-				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
-			}
-
-			let list: CompletionList;
-			if (Array.isArray(value)) {
-				list = {
-					items: value,
-					isIncomplete: false
-				};
-			} else if (typeof value === 'object' && Array.isArray(value.items)) {
-				list = value;
-				result.incomplete = list.isIncomplete;
-			} else if (!value) {
-				// undefined and null are valid results
-				return undefined;
-			} else {
-				// warn about everything else
-				console.warn('INVALID result from completion provider. expected CompletionItem-array or CompletionList but got:', value);
-			}
-
-			for (let i = 0; i < list.items.length; i++) {
-				const item = list.items[i];
-				const suggestion = SuggestAdapter.from(item, position, wordStartPos);
-				if (suggestion) {
-					result.suggestions.push(suggestion);
-				}
-			}
-
-			return result;
-		});
-	}
-
-	resolveCompletionItem(model: model.ITextModel, position: Position, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
-		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return TPromise.as(suggestion);
-		}
-
-		let item = (<ISuggestion2>suggestion)._actual;
-		if (!item) {
-			return TPromise.as(suggestion);
-		}
-
-		return Promise.resolve(this._provider.resolveCompletionItem(item, token)).then(resolvedItem => {
-			let wordStartPos = position;
-			const word = model.getWordUntilPosition(position);
-			if (word) {
-				wordStartPos = new Position(wordStartPos.lineNumber, word.startColumn);
-			}
-			return SuggestAdapter.from(resolvedItem, position, wordStartPos);
-		});
-	}
-}
-
-/**
  * @internal
  */
 export function createMonacoLanguagesAPI(): typeof monaco.languages {
@@ -873,7 +535,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
-		CompletionItemKind: CompletionItemKind,
+		CompletionItemKind: modes.CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
 		CompletionTriggerKind: modes.CompletionTriggerKind,

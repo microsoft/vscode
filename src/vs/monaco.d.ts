@@ -4378,189 +4378,6 @@ declare namespace monaco.languages {
 	}
 
 	/**
-	 * Completion item kinds.
-	 */
-	export enum CompletionItemKind {
-		Text = 0,
-		Method = 1,
-		Function = 2,
-		Constructor = 3,
-		Field = 4,
-		Variable = 5,
-		Class = 6,
-		Interface = 7,
-		Module = 8,
-		Property = 9,
-		Unit = 10,
-		Value = 11,
-		Enum = 12,
-		Keyword = 13,
-		Snippet = 14,
-		Color = 15,
-		File = 16,
-		Reference = 17,
-		Folder = 18
-	}
-
-	/**
-	 * A snippet string is a template which allows to insert text
-	 * and to control the editor cursor when insertion happens.
-	 *
-	 * A snippet can define tab stops and placeholders with `$1`, `$2`
-	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
-	 * the end of the snippet. Variables are defined with `$name` and
-	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](http://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
-	 */
-	export interface SnippetString {
-		/**
-		 * The snippet string.
-		 */
-		value: string;
-	}
-
-	/**
-	 * A completion item represents a text snippet that is
-	 * proposed to complete text that is being typed.
-	 */
-	export interface CompletionItem {
-		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
-		 */
-		label: string;
-		/**
-		 * The kind of this completion item. Based on the kind
-		 * an icon is chosen by the editor.
-		 */
-		kind: CompletionItemKind;
-		/**
-		 * A human-readable string with additional information
-		 * about this item, like type or symbol information.
-		 */
-		detail?: string;
-		/**
-		 * A human-readable string that represents a doc-comment.
-		 */
-		documentation?: string | IMarkdownString;
-		/**
-		 * A command that should be run upon acceptance of this item.
-		 */
-		command?: Command;
-		/**
-		 * A string that should be used when comparing this item
-		 * with other items. When `falsy` the [label](#CompletionItem.label)
-		 * is used.
-		 */
-		sortText?: string;
-		/**
-		 * A string that should be used when filtering a set of
-		 * completion items. When `falsy` the [label](#CompletionItem.label)
-		 * is used.
-		 */
-		filterText?: string;
-		/**
-		 * A string or snippet that should be inserted in a document when selecting
-		 * this completion. When `falsy` the [label](#CompletionItem.label)
-		 * is used.
-		 */
-		insertText?: string | SnippetString;
-		/**
-		 * A range of text that should be replaced by this completion item.
-		 *
-		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position.
-		 *
-		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
-		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
-		 */
-		range?: Range;
-		/**
-		 * An optional set of characters that when pressed while this completion is active will accept it first and
-		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-		 * characters will be ignored.
-		 */
-		commitCharacters?: string[];
-		/**
-		 * @deprecated **Deprecated** in favor of `CompletionItem.insertText` and `CompletionItem.range`.
-		 *
-		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
-		 * this completion. When an edit is provided the value of
-		 * [insertText](#CompletionItem.insertText) is ignored.~~
-		 *
-		 * ~~The [range](#Range) of the edit must be single-line and on the same
-		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
-		 */
-		textEdit?: editor.ISingleEditOperation;
-		/**
-		 * An optional array of additional text edits that are applied when
-		 * selecting this completion. Edits must not overlap with the main edit
-		 * nor with themselves.
-		 */
-		additionalTextEdits?: editor.ISingleEditOperation[];
-	}
-
-	/**
-	 * Represents a collection of [completion items](#CompletionItem) to be presented
-	 * in the editor.
-	 */
-	export interface CompletionList {
-		/**
-		 * This list it not complete. Further typing should result in recomputing
-		 * this list.
-		 */
-		isIncomplete?: boolean;
-		/**
-		 * The completion items.
-		 */
-		items: CompletionItem[];
-	}
-
-	/**
-	 * Contains additional information about the context in which
-	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
-	 */
-	export interface CompletionContext {
-		/**
-		 * How the completion was triggered.
-		 */
-		triggerKind: CompletionTriggerKind;
-		/**
-		 * Character that triggered the completion item provider.
-		 *
-		 * `undefined` if provider was not triggered by a character.
-		 */
-		triggerCharacter?: string;
-	}
-
-	/**
-	 * The completion item provider interface defines the contract between extensions and
-	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
-	 *
-	 * When computing *complete* completion items is expensive, providers can optionally implement
-	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
-	 * items with a [label](#CompletionItem.label) from the
-	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
-	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
-	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
-	 */
-	export interface CompletionItemProvider {
-		triggerCharacters?: string[];
-		/**
-		 * Provide completion items for the given position and document.
-		 */
-		provideCompletionItems(document: editor.ITextModel, position: Position, token: CancellationToken, context: CompletionContext): CompletionItem[] | Thenable<CompletionItem[]> | CompletionList | Thenable<CompletionList>;
-		/**
-		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
-		 * or [details](#CompletionItem.detail).
-		 *
-		 * The editor will only resolve a completion item once.
-		 */
-		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
-	}
-
-	/**
 	 * Describes how comments for a language work.
 	 */
 	export interface CommentRule {
@@ -4832,6 +4649,119 @@ declare namespace monaco.languages {
 		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 	}
 
+	export enum CompletionItemKind {
+		Method = 0,
+		Function = 1,
+		Constructor = 2,
+		Field = 3,
+		Variable = 4,
+		Class = 5,
+		Struct = 6,
+		Interface = 7,
+		Module = 8,
+		Property = 9,
+		Event = 10,
+		Operator = 11,
+		Unit = 12,
+		Value = 13,
+		Constant = 14,
+		Enum = 15,
+		EnumMember = 16,
+		Keyword = 17,
+		Snippet = 18,
+		Text = 19,
+		Color = 20,
+		File = 21,
+		Reference = 22,
+		Customcolor = 23,
+		Folder = 24,
+		TypeParameter = 25
+	}
+
+	/**
+	 * A completion item represents a text snippet that is
+	 * proposed to complete text that is being typed.
+	 */
+	export interface CompletionItem {
+		/**
+		 * The label of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
+		 */
+		label: string;
+		/**
+		 * The kind of this completion item. Based on the kind
+		 * an icon is chosen by the editor.
+		 */
+		kind: CompletionItemKind;
+		/**
+		 * A human-readable string with additional information
+		 * about this item, like type or symbol information.
+		 */
+		detail?: string;
+		/**
+		 * A human-readable string that represents a doc-comment.
+		 */
+		documentation?: string | IMarkdownString;
+		/**
+		 * A string that should be used when comparing this item
+		 * with other items. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		sortText?: string;
+		/**
+		 * A string that should be used when filtering a set of
+		 * completion items. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		filterText?: string;
+		preselect?: boolean;
+		/**
+		 * A string or snippet that should be inserted in a document when selecting
+		 * this completion. When `falsy` the [label](#CompletionItem.label)
+		 * is used.
+		 */
+		insertText: string;
+		/**
+		 * The insert test is a snippet
+		 */
+		insertTextIsSnippet?: boolean;
+		/**
+		 * A range of text that should be replaced by this completion item.
+		 *
+		 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+		 * current position.
+		 *
+		 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+		 */
+		range?: IRange;
+		/**
+		 * An optional set of characters that when pressed while this completion is active will accept it first and
+		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+		 * characters will be ignored.
+		 */
+		commitCharacters?: string[];
+		/**
+		 * An optional array of additional text edits that are applied when
+		 * selecting this completion. Edits must not overlap with the main edit
+		 * nor with themselves.
+		 */
+		additionalTextEdits?: editor.ISingleEditOperation[];
+		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		command?: Command;
+		noWhitespaceAdjust?: boolean;
+		noAutoAccept?: boolean;
+	}
+
+	export interface CompletionList {
+		suggestions: CompletionItem[];
+		incomplete?: boolean;
+		dispose?(): void;
+	}
+
 	/**
 	 * How a suggest provider was triggered.
 	 */
@@ -4839,6 +4769,49 @@ declare namespace monaco.languages {
 		Invoke = 0,
 		TriggerCharacter = 1,
 		TriggerForIncompleteCompletions = 2
+	}
+
+	/**
+	 * Contains additional information about the context in which
+	 * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+	 */
+	export interface CompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		triggerKind: CompletionTriggerKind;
+		/**
+		 * Character that triggered the completion item provider.
+		 *
+		 * `undefined` if provider was not triggered by a character.
+		 */
+		triggerCharacter?: string;
+	}
+
+	/**
+	 * The completion item provider interface defines the contract between extensions and
+	 * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
+	 *
+	 * When computing *complete* completion items is expensive, providers can optionally implement
+	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
+	 * items with a [label](#CompletionItem.label) from the
+	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
+	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 */
+	export interface CompletionItemProvider {
+		triggerCharacters?: string[];
+		/**
+		 * Provide completion items for the given position and document.
+		 */
+		provideCompletionItems(model: editor.ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList>;
+		/**
+		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+		 * or [details](#CompletionItem.detail).
+		 *
+		 * The editor will only resolve a completion item once.
+		 */
+		resolveCompletionItem?(model: editor.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 	}
 
 	export interface CodeAction {

@@ -255,10 +255,7 @@ export interface HoverProvider {
 	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 }
 
-/**
- * @internal
- */
-export const enum CompletionKind {
+export enum CompletionItemKind {
 	Method,
 	Function,
 	Constructor,
@@ -292,34 +289,34 @@ export const enum CompletionKind {
  */
 export let completionKindToCssClass = (function () {
 	let data = Object.create(null);
-	data[CompletionKind.Method] = 'method';
-	data[CompletionKind.Function] = 'function';
-	data[CompletionKind.Constructor] = 'constructor';
-	data[CompletionKind.Field] = 'field';
-	data[CompletionKind.Variable] = 'variable';
-	data[CompletionKind.Class] = 'class';
-	data[CompletionKind.Struct] = 'struct';
-	data[CompletionKind.Interface] = 'interface';
-	data[CompletionKind.Module] = 'module';
-	data[CompletionKind.Property] = 'property';
-	data[CompletionKind.Event] = 'event';
-	data[CompletionKind.Operator] = 'operator';
-	data[CompletionKind.Unit] = 'unit';
-	data[CompletionKind.Value] = 'value';
-	data[CompletionKind.Constant] = 'constant';
-	data[CompletionKind.Enum] = 'enum';
-	data[CompletionKind.EnumMember] = 'enum-member';
-	data[CompletionKind.Keyword] = 'keyword';
-	data[CompletionKind.Snippet] = 'snippet';
-	data[CompletionKind.Text] = 'text';
-	data[CompletionKind.Color] = 'color';
-	data[CompletionKind.File] = 'file';
-	data[CompletionKind.Reference] = 'reference';
-	data[CompletionKind.Customcolor] = 'customcolor';
-	data[CompletionKind.Folder] = 'folder';
-	data[CompletionKind.TypeParameter] = 'type-parameter';
+	data[CompletionItemKind.Method] = 'method';
+	data[CompletionItemKind.Function] = 'function';
+	data[CompletionItemKind.Constructor] = 'constructor';
+	data[CompletionItemKind.Field] = 'field';
+	data[CompletionItemKind.Variable] = 'variable';
+	data[CompletionItemKind.Class] = 'class';
+	data[CompletionItemKind.Struct] = 'struct';
+	data[CompletionItemKind.Interface] = 'interface';
+	data[CompletionItemKind.Module] = 'module';
+	data[CompletionItemKind.Property] = 'property';
+	data[CompletionItemKind.Event] = 'event';
+	data[CompletionItemKind.Operator] = 'operator';
+	data[CompletionItemKind.Unit] = 'unit';
+	data[CompletionItemKind.Value] = 'value';
+	data[CompletionItemKind.Constant] = 'constant';
+	data[CompletionItemKind.Enum] = 'enum';
+	data[CompletionItemKind.EnumMember] = 'enum-member';
+	data[CompletionItemKind.Keyword] = 'keyword';
+	data[CompletionItemKind.Snippet] = 'snippet';
+	data[CompletionItemKind.Text] = 'text';
+	data[CompletionItemKind.Color] = 'color';
+	data[CompletionItemKind.File] = 'file';
+	data[CompletionItemKind.Reference] = 'reference';
+	data[CompletionItemKind.Customcolor] = 'customcolor';
+	data[CompletionItemKind.Folder] = 'folder';
+	data[CompletionItemKind.TypeParameter] = 'type-parameter';
 
-	return function (kind: CompletionKind) {
+	return function (kind: CompletionItemKind) {
 		return data[kind] || 'property';
 	};
 })();
@@ -329,32 +326,32 @@ export let completionKindToCssClass = (function () {
  */
 export let completionKindFromLegacyString = (function () {
 	let data = Object.create(null);
-	data['method'] = CompletionKind.Method;
-	data['function'] = CompletionKind.Function;
-	data['constructor'] = CompletionKind.Constructor;
-	data['field'] = CompletionKind.Field;
-	data['variable'] = CompletionKind.Variable;
-	data['class'] = CompletionKind.Class;
-	data['struct'] = CompletionKind.Struct;
-	data['interface'] = CompletionKind.Interface;
-	data['module'] = CompletionKind.Module;
-	data['property'] = CompletionKind.Property;
-	data['event'] = CompletionKind.Event;
-	data['operator'] = CompletionKind.Operator;
-	data['unit'] = CompletionKind.Unit;
-	data['value'] = CompletionKind.Value;
-	data['constant'] = CompletionKind.Constant;
-	data['enum'] = CompletionKind.Enum;
-	data['enum-member'] = CompletionKind.EnumMember;
-	data['keyword'] = CompletionKind.Keyword;
-	data['snippet'] = CompletionKind.Snippet;
-	data['text'] = CompletionKind.Text;
-	data['color'] = CompletionKind.Color;
-	data['file'] = CompletionKind.File;
-	data['reference'] = CompletionKind.Reference;
-	data['customcolor'] = CompletionKind.Customcolor;
-	data['folder'] = CompletionKind.Folder;
-	data['type-parameter'] = CompletionKind.TypeParameter;
+	data['method'] = CompletionItemKind.Method;
+	data['function'] = CompletionItemKind.Function;
+	data['constructor'] = CompletionItemKind.Constructor;
+	data['field'] = CompletionItemKind.Field;
+	data['variable'] = CompletionItemKind.Variable;
+	data['class'] = CompletionItemKind.Class;
+	data['struct'] = CompletionItemKind.Struct;
+	data['interface'] = CompletionItemKind.Interface;
+	data['module'] = CompletionItemKind.Module;
+	data['property'] = CompletionItemKind.Property;
+	data['event'] = CompletionItemKind.Event;
+	data['operator'] = CompletionItemKind.Operator;
+	data['unit'] = CompletionItemKind.Unit;
+	data['value'] = CompletionItemKind.Value;
+	data['constant'] = CompletionItemKind.Constant;
+	data['enum'] = CompletionItemKind.Enum;
+	data['enum-member'] = CompletionItemKind.EnumMember;
+	data['keyword'] = CompletionItemKind.Keyword;
+	data['snippet'] = CompletionItemKind.Snippet;
+	data['text'] = CompletionItemKind.Text;
+	data['color'] = CompletionItemKind.Color;
+	data['file'] = CompletionItemKind.File;
+	data['reference'] = CompletionItemKind.Reference;
+	data['customcolor'] = CompletionItemKind.Customcolor;
+	data['folder'] = CompletionItemKind.Folder;
+	data['type-parameter'] = CompletionItemKind.TypeParameter;
 
 	return function (value: string) {
 		return data[value] || 'property';
@@ -362,29 +359,83 @@ export let completionKindFromLegacyString = (function () {
 })();
 
 /**
- * @internal
+ * A completion item represents a text snippet that is
+ * proposed to complete text that is being typed.
  */
 export interface CompletionItem {
+	/**
+	 * The label of this completion item. By default
+	 * this is also the text that is inserted when selecting
+	 * this completion.
+	 */
 	label: string;
-	kind: CompletionKind;
+	/**
+	 * The kind of this completion item. Based on the kind
+	 * an icon is chosen by the editor.
+	 */
+	kind: CompletionItemKind;
+	/**
+	 * A human-readable string with additional information
+	 * about this item, like type or symbol information.
+	 */
 	detail?: string;
+	/**
+	 * A human-readable string that represents a doc-comment.
+	 */
 	documentation?: string | IMarkdownString;
+	/**
+	 * A string that should be used when comparing this item
+	 * with other items. When `falsy` the [label](#CompletionItem.label)
+	 * is used.
+	 */
 	sortText?: string;
+	/**
+	 * A string that should be used when filtering a set of
+	 * completion items. When `falsy` the [label](#CompletionItem.label)
+	 * is used.
+	 */
 	filterText?: string;
 	preselect?: boolean;
+	/**
+	 * A string or snippet that should be inserted in a document when selecting
+	 * this completion. When `falsy` the [label](#CompletionItem.label)
+	 * is used.
+	 */
 	insertText: string;
+	/**
+	 * The insert test is a snippet
+	 */
 	insertTextIsSnippet?: boolean;
-	noWhitespaceAdjust?: boolean;
+	/**
+	 * A range of text that should be replaced by this completion item.
+	 *
+	 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+	 * current position.
+	 *
+	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
+	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+	 */
 	range?: IRange;
-	noAutoAccept?: boolean;
+	/**
+	 * An optional set of characters that when pressed while this completion is active will accept it first and
+	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
+	 * characters will be ignored.
+	 */
 	commitCharacters?: string[];
+	/**
+	 * An optional array of additional text edits that are applied when
+	 * selecting this completion. Edits must not overlap with the main edit
+	 * nor with themselves.
+	 */
 	additionalTextEdits?: model.ISingleEditOperation[];
+	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
 	command?: Command;
+	noWhitespaceAdjust?: boolean;
+	noAutoAccept?: boolean;
 }
 
-/**
- * @internal
- */
 export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
@@ -399,24 +450,47 @@ export enum CompletionTriggerKind {
 	TriggerCharacter = 1,
 	TriggerForIncompleteCompletions = 2
 }
-
 /**
- * @internal
+ * Contains additional information about the context in which
+ * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
  */
 export interface CompletionContext {
+	/**
+	 * How the completion was triggered.
+	 */
 	triggerKind: CompletionTriggerKind;
+	/**
+	 * Character that triggered the completion item provider.
+	 *
+	 * `undefined` if provider was not triggered by a character.
+	 */
 	triggerCharacter?: string;
 }
-
 /**
- * @internal
+ * The completion item provider interface defines the contract between extensions and
+ * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
+ *
+ * When computing *complete* completion items is expensive, providers can optionally implement
+ * the `resolveCompletionItem`-function. In that case it is enough to return completion
+ * items with a [label](#CompletionItem.label) from the
+ * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+ * when a completion item is shown in the UI and gains focus this provider is asked to resolve
+ * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
  */
 export interface CompletionItemProvider {
 
 	triggerCharacters?: string[];
-
+	/**
+	 * Provide completion items for the given position and document.
+	 */
 	provideCompletionItems(model: model.ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList>;
 
+	/**
+	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
+	 * or [details](#CompletionItem.detail).
+	 *
+	 * The editor will only resolve a completion item once.
+	 */
 	resolveCompletionItem?(model: model.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 

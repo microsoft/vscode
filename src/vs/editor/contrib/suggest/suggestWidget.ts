@@ -34,7 +34,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CompletionKind, completionKindToCssClass } from 'vs/editor/common/modes';
+import { CompletionItemKind, completionKindToCssClass } from 'vs/editor/common/modes';
 
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
@@ -141,7 +141,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.icon.className = 'icon ' + completionKindToCssClass(suggestion.kind);
 		data.colorspan.style.backgroundColor = '';
 
-		if (suggestion.kind === CompletionKind.Color) {
+		if (suggestion.kind === CompletionItemKind.Color) {
 			let color = matchesColor(suggestion.label) || typeof suggestion.documentation === 'string' && matchesColor(suggestion.documentation);
 			if (color) {
 				data.icon.className = 'icon customcolor';
@@ -502,7 +502,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 	}
 
 	private _getSuggestionAriaAlertLabel(item: ICompletionItem): string {
-		const isSnippet = item.suggestion.kind === CompletionKind.Snippet;
+		const isSnippet = item.suggestion.kind === CompletionItemKind.Snippet;
 
 		if (!canExpandCompletionItem(item)) {
 			return isSnippet ? nls.localize('ariaCurrentSnippetSuggestion', "{0}, snippet suggestion", item.suggestion.label)

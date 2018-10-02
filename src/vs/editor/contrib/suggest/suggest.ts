@@ -11,7 +11,7 @@ import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { CompletionList, CompletionItemProvider, CompletionItem, CompletionProviderRegistry, CompletionContext, CompletionTriggerKind, CompletionKind } from 'vs/editor/common/modes';
+import { CompletionList, CompletionItemProvider, CompletionItem, CompletionProviderRegistry, CompletionContext, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -149,7 +149,7 @@ function createSuggestionResolver(provider: CompletionItemProvider, suggestion: 
 
 function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: CompletionItem) => boolean {
 	if (snippetConfig === 'none') {
-		return suggestion => suggestion.kind !== CompletionKind.Snippet;
+		return suggestion => suggestion.kind !== CompletionItemKind.Snippet;
 	} else {
 		return () => true;
 	}
@@ -170,9 +170,9 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
 	// check with 'type' and lower snippets
 	if (ret === 0 && a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === CompletionKind.Snippet) {
+		if (a.suggestion.kind === CompletionItemKind.Snippet) {
 			ret = 1;
-		} else if (b.suggestion.kind === CompletionKind.Snippet) {
+		} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
 			ret = -1;
 		}
 	}
@@ -182,9 +182,9 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
 function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	if (a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === CompletionKind.Snippet) {
+		if (a.suggestion.kind === CompletionItemKind.Snippet) {
 			return -1;
-		} else if (b.suggestion.kind === CompletionKind.Snippet) {
+		} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
 			return 1;
 		}
 	}
@@ -193,9 +193,9 @@ function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
 function snippetDownComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	if (a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === CompletionKind.Snippet) {
+		if (a.suggestion.kind === CompletionItemKind.Snippet) {
 			return 1;
-		} else if (b.suggestion.kind === CompletionKind.Snippet) {
+		} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
 			return -1;
 		}
 	}

@@ -7,7 +7,7 @@
 
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
-import { CompletionList, CompletionItemProvider, CompletionKind } from 'vs/editor/common/modes';
+import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
@@ -224,8 +224,8 @@ export class CompletionModel {
 			// update stats
 			this._stats.suggestionCount++;
 			switch (suggestion.kind) {
-				case CompletionKind.Snippet: this._stats.snippetCount++; break;
-				case CompletionKind.Text: this._stats.textCount++; break;
+				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;
+				case CompletionItemKind.Text: this._stats.textCount++; break;
 			}
 		}
 
@@ -253,9 +253,9 @@ export class CompletionModel {
 
 	private static _compareCompletionItemsSnippetsDown(a: ICompletionItem, b: ICompletionItem): number {
 		if (a.suggestion.kind !== b.suggestion.kind) {
-			if (a.suggestion.kind === CompletionKind.Snippet) {
+			if (a.suggestion.kind === CompletionItemKind.Snippet) {
 				return 1;
-			} else if (b.suggestion.kind === CompletionKind.Snippet) {
+			} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
 				return -1;
 			}
 		}
@@ -264,9 +264,9 @@ export class CompletionModel {
 
 	private static _compareCompletionItemsSnippetsUp(a: ICompletionItem, b: ICompletionItem): number {
 		if (a.suggestion.kind !== b.suggestion.kind) {
-			if (a.suggestion.kind === CompletionKind.Snippet) {
+			if (a.suggestion.kind === CompletionItemKind.Snippet) {
 				return -1;
-			} else if (b.suggestion.kind === CompletionKind.Snippet) {
+			} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
 				return 1;
 			}
 		}

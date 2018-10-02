@@ -14,7 +14,7 @@ import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionList, CompletionItemProvider, LanguageId, CompletionContext, CompletionKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionList, CompletionItemProvider, LanguageId, CompletionContext, CompletionItemKind } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
@@ -349,7 +349,7 @@ export class SnippetSuggestion implements CompletionItem {
 	range: IRange;
 	sortText: string;
 	noAutoAccept: boolean;
-	kind: CompletionKind;
+	kind: CompletionItemKind;
 	insertTextIsSnippet: true;
 
 	constructor(
@@ -362,7 +362,7 @@ export class SnippetSuggestion implements CompletionItem {
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
-		this.kind = CompletionKind.Snippet;
+		this.kind = CompletionItemKind.Snippet;
 		this.insertTextIsSnippet = true;
 	}
 

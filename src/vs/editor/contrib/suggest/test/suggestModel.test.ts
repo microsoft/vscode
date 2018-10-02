@@ -15,7 +15,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, CompletionList, CompletionItemProvider, LanguageIdentifier, MetadataConsts, CompletionProviderRegistry, CompletionTriggerKind, TokenizationRegistry, CompletionKind } from 'vs/editor/common/modes';
+import { IState, CompletionList, CompletionItemProvider, LanguageIdentifier, MetadataConsts, CompletionProviderRegistry, CompletionTriggerKind, TokenizationRegistry, CompletionItemKind } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -157,7 +157,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				incomplete: false,
 				suggestions: [{
 					label: doc.getWordUntilPosition(pos).word,
-					kind: CompletionKind.Property,
+					kind: CompletionItemKind.Property,
 					insertText: 'foofoo'
 				}]
 			};
@@ -305,7 +305,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'My Table',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'My Table'
 					}]
 				};
@@ -354,7 +354,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'foo.bar',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'foo.bar',
 						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
@@ -369,7 +369,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: false,
 					suggestions: [{
 						label: 'boom',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'boom',
 						range: Range.fromPositions(
 							pos.delta(0, doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : -1),
@@ -466,7 +466,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'foo',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'foo',
 						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
@@ -503,7 +503,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'foo;',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'foo',
 						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
@@ -550,7 +550,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					suggestions: [
 						{
 							label: 'foo.bar',
-							kind: CompletionKind.Property,
+							kind: CompletionItemKind.Property,
 							insertText: 'foo.bar',
 							range: Range.fromPositions(pos.with(undefined, 1), pos)
 						}
@@ -579,12 +579,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'abc',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'abc',
 						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}, {
 						label: 'äbc',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'äbc',
 						range: Range.fromPositions(pos.with(undefined, 1), pos)
 					}]
@@ -651,7 +651,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					incomplete: true,
 					suggestions: [{
 						label: 'bar',
-						kind: CompletionKind.Property,
+						kind: CompletionItemKind.Property,
 						insertText: 'bar',
 						range: Range.fromPositions(pos.delta(0, -2), pos),
 						additionalTextEdits: [{
@@ -723,7 +723,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: true,
-					suggestions: [{ kind: CompletionKind.Folder, label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
+					suggestions: [{ kind: CompletionItemKind.Folder, label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
 					dispose() { disposeA += 1; }
 				};
 			}
@@ -732,7 +732,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			provideCompletionItems(doc, pos) {
 				return {
 					incomplete: false,
-					suggestions: [{ kind: CompletionKind.Folder, label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
+					suggestions: [{ kind: CompletionItemKind.Folder, label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
 					dispose() { disposeB += 1; }
 				};
 			},

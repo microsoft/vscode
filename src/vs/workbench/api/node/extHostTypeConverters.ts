@@ -479,64 +479,64 @@ export namespace CompletionContext {
 
 export const CompletionItemKind = {
 
-	from(kind: types.CompletionItemKind): modes.CompletionKind {
+	from(kind: types.CompletionItemKind): modes.CompletionItemKind {
 		switch (kind) {
-			case types.CompletionItemKind.Method: return modes.CompletionKind.Method;
-			case types.CompletionItemKind.Function: return modes.CompletionKind.Function;
-			case types.CompletionItemKind.Constructor: return modes.CompletionKind.Constructor;
-			case types.CompletionItemKind.Field: return modes.CompletionKind.Field;
-			case types.CompletionItemKind.Variable: return modes.CompletionKind.Variable;
-			case types.CompletionItemKind.Class: return modes.CompletionKind.Class;
-			case types.CompletionItemKind.Interface: return modes.CompletionKind.Interface;
-			case types.CompletionItemKind.Struct: return modes.CompletionKind.Struct;
-			case types.CompletionItemKind.Module: return modes.CompletionKind.Module;
-			case types.CompletionItemKind.Property: return modes.CompletionKind.Property;
-			case types.CompletionItemKind.Unit: return modes.CompletionKind.Unit;
-			case types.CompletionItemKind.Value: return modes.CompletionKind.Value;
-			case types.CompletionItemKind.Constant: return modes.CompletionKind.Constant;
-			case types.CompletionItemKind.Enum: return modes.CompletionKind.Enum;
-			case types.CompletionItemKind.EnumMember: return modes.CompletionKind.EnumMember;
-			case types.CompletionItemKind.Keyword: return modes.CompletionKind.Keyword;
-			case types.CompletionItemKind.Snippet: return modes.CompletionKind.Snippet;
-			case types.CompletionItemKind.Text: return modes.CompletionKind.Text;
-			case types.CompletionItemKind.Color: return modes.CompletionKind.Color;
-			case types.CompletionItemKind.File: return modes.CompletionKind.File;
-			case types.CompletionItemKind.Reference: return modes.CompletionKind.Reference;
-			case types.CompletionItemKind.Folder: return modes.CompletionKind.Folder;
-			case types.CompletionItemKind.Event: return modes.CompletionKind.Event;
-			case types.CompletionItemKind.Operator: return modes.CompletionKind.Operator;
-			case types.CompletionItemKind.TypeParameter: return modes.CompletionKind.TypeParameter;
+			case types.CompletionItemKind.Method: return modes.CompletionItemKind.Method;
+			case types.CompletionItemKind.Function: return modes.CompletionItemKind.Function;
+			case types.CompletionItemKind.Constructor: return modes.CompletionItemKind.Constructor;
+			case types.CompletionItemKind.Field: return modes.CompletionItemKind.Field;
+			case types.CompletionItemKind.Variable: return modes.CompletionItemKind.Variable;
+			case types.CompletionItemKind.Class: return modes.CompletionItemKind.Class;
+			case types.CompletionItemKind.Interface: return modes.CompletionItemKind.Interface;
+			case types.CompletionItemKind.Struct: return modes.CompletionItemKind.Struct;
+			case types.CompletionItemKind.Module: return modes.CompletionItemKind.Module;
+			case types.CompletionItemKind.Property: return modes.CompletionItemKind.Property;
+			case types.CompletionItemKind.Unit: return modes.CompletionItemKind.Unit;
+			case types.CompletionItemKind.Value: return modes.CompletionItemKind.Value;
+			case types.CompletionItemKind.Constant: return modes.CompletionItemKind.Constant;
+			case types.CompletionItemKind.Enum: return modes.CompletionItemKind.Enum;
+			case types.CompletionItemKind.EnumMember: return modes.CompletionItemKind.EnumMember;
+			case types.CompletionItemKind.Keyword: return modes.CompletionItemKind.Keyword;
+			case types.CompletionItemKind.Snippet: return modes.CompletionItemKind.Snippet;
+			case types.CompletionItemKind.Text: return modes.CompletionItemKind.Text;
+			case types.CompletionItemKind.Color: return modes.CompletionItemKind.Color;
+			case types.CompletionItemKind.File: return modes.CompletionItemKind.File;
+			case types.CompletionItemKind.Reference: return modes.CompletionItemKind.Reference;
+			case types.CompletionItemKind.Folder: return modes.CompletionItemKind.Folder;
+			case types.CompletionItemKind.Event: return modes.CompletionItemKind.Event;
+			case types.CompletionItemKind.Operator: return modes.CompletionItemKind.Operator;
+			case types.CompletionItemKind.TypeParameter: return modes.CompletionItemKind.TypeParameter;
 		}
-		return modes.CompletionKind.Property;
+		return modes.CompletionItemKind.Property;
 	},
 
-	to(kind: modes.CompletionKind): types.CompletionItemKind {
+	to(kind: modes.CompletionItemKind): types.CompletionItemKind {
 		switch (kind) {
-			case modes.CompletionKind.Method: return types.CompletionItemKind.Method;
-			case modes.CompletionKind.Function: return types.CompletionItemKind.Function;
-			case modes.CompletionKind.Constructor: return types.CompletionItemKind.Constructor;
-			case modes.CompletionKind.Field: return types.CompletionItemKind.Field;
-			case modes.CompletionKind.Variable: return types.CompletionItemKind.Variable;
-			case modes.CompletionKind.Class: return types.CompletionItemKind.Class;
-			case modes.CompletionKind.Interface: return types.CompletionItemKind.Interface;
-			case modes.CompletionKind.Struct: return types.CompletionItemKind.Struct;
-			case modes.CompletionKind.Module: return types.CompletionItemKind.Module;
-			case modes.CompletionKind.Property: return types.CompletionItemKind.Property;
-			case modes.CompletionKind.Unit: return types.CompletionItemKind.Unit;
-			case modes.CompletionKind.Value: return types.CompletionItemKind.Value;
-			case modes.CompletionKind.Constant: return types.CompletionItemKind.Constant;
-			case modes.CompletionKind.Enum: return types.CompletionItemKind.Enum;
-			case modes.CompletionKind.EnumMember: return types.CompletionItemKind.EnumMember;
-			case modes.CompletionKind.Keyword: return types.CompletionItemKind.Keyword;
-			case modes.CompletionKind.Snippet: return types.CompletionItemKind.Snippet;
-			case modes.CompletionKind.Text: return types.CompletionItemKind.Text;
-			case modes.CompletionKind.Color: return types.CompletionItemKind.Color;
-			case modes.CompletionKind.File: return types.CompletionItemKind.File;
-			case modes.CompletionKind.Reference: return types.CompletionItemKind.Reference;
-			case modes.CompletionKind.Folder: return types.CompletionItemKind.Folder;
-			case modes.CompletionKind.Event: return types.CompletionItemKind.Event;
-			case modes.CompletionKind.Operator: return types.CompletionItemKind.Operator;
-			case modes.CompletionKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
+			case modes.CompletionItemKind.Method: return types.CompletionItemKind.Method;
+			case modes.CompletionItemKind.Function: return types.CompletionItemKind.Function;
+			case modes.CompletionItemKind.Constructor: return types.CompletionItemKind.Constructor;
+			case modes.CompletionItemKind.Field: return types.CompletionItemKind.Field;
+			case modes.CompletionItemKind.Variable: return types.CompletionItemKind.Variable;
+			case modes.CompletionItemKind.Class: return types.CompletionItemKind.Class;
+			case modes.CompletionItemKind.Interface: return types.CompletionItemKind.Interface;
+			case modes.CompletionItemKind.Struct: return types.CompletionItemKind.Struct;
+			case modes.CompletionItemKind.Module: return types.CompletionItemKind.Module;
+			case modes.CompletionItemKind.Property: return types.CompletionItemKind.Property;
+			case modes.CompletionItemKind.Unit: return types.CompletionItemKind.Unit;
+			case modes.CompletionItemKind.Value: return types.CompletionItemKind.Value;
+			case modes.CompletionItemKind.Constant: return types.CompletionItemKind.Constant;
+			case modes.CompletionItemKind.Enum: return types.CompletionItemKind.Enum;
+			case modes.CompletionItemKind.EnumMember: return types.CompletionItemKind.EnumMember;
+			case modes.CompletionItemKind.Keyword: return types.CompletionItemKind.Keyword;
+			case modes.CompletionItemKind.Snippet: return types.CompletionItemKind.Snippet;
+			case modes.CompletionItemKind.Text: return types.CompletionItemKind.Text;
+			case modes.CompletionItemKind.Color: return types.CompletionItemKind.Color;
+			case modes.CompletionItemKind.File: return types.CompletionItemKind.File;
+			case modes.CompletionItemKind.Reference: return types.CompletionItemKind.Reference;
+			case modes.CompletionItemKind.Folder: return types.CompletionItemKind.Folder;
+			case modes.CompletionItemKind.Event: return types.CompletionItemKind.Event;
+			case modes.CompletionItemKind.Operator: return types.CompletionItemKind.Operator;
+			case modes.CompletionItemKind.TypeParameter: return types.CompletionItemKind.TypeParameter;
 		}
 		return types.CompletionItemKind.Property;
 	}

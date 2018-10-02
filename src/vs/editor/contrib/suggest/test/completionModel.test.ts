@@ -6,12 +6,12 @@
 
 import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/core/position';
-import { CompletionList, CompletionItemProvider, CompletionItem, CompletionKind } from 'vs/editor/common/modes';
+import { CompletionList, CompletionItemProvider, CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
+export function createSuggestItem(label: string, overwriteBefore: number, kind = CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
 	return new class implements ISuggestionItem {
 
@@ -161,9 +161,9 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: top, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('Snippet1', 1, CompletionKind.Snippet),
-			createSuggestItem('tnippet2', 1, CompletionKind.Snippet),
-			createSuggestItem('semver', 1, CompletionKind.Property),
+			createSuggestItem('Snippet1', 1, CompletionItemKind.Snippet),
+			createSuggestItem('tnippet2', 1, CompletionItemKind.Snippet),
+			createSuggestItem('semver', 1, CompletionItemKind.Property),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
@@ -180,9 +180,9 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: bottom, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, CompletionKind.Snippet),
-			createSuggestItem('tnippet2', 1, CompletionKind.Snippet),
-			createSuggestItem('Semver', 1, CompletionKind.Property),
+			createSuggestItem('snippet1', 1, CompletionItemKind.Snippet),
+			createSuggestItem('tnippet2', 1, CompletionItemKind.Snippet),
+			createSuggestItem('Semver', 1, CompletionItemKind.Property),
 		], 1, {
 				leadingLineContent: 's',
 				characterCountDelta: 0
@@ -198,8 +198,8 @@ suite('CompletionModel', function () {
 	test('keep snippet sorting with prefix: inline, #25495', function () {
 
 		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, CompletionKind.Snippet),
-			createSuggestItem('tnippet2', 1, CompletionKind.Snippet),
+			createSuggestItem('snippet1', 1, CompletionItemKind.Snippet),
+			createSuggestItem('tnippet2', 1, CompletionItemKind.Snippet),
 			createSuggestItem('Semver', 1),
 		], 1, {
 				leadingLineContent: 's',
@@ -235,11 +235,11 @@ suite('CompletionModel', function () {
 
 	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
 
-		const item1 = createSuggestItem('<- groups', 2, CompletionKind.Property, false, { lineNumber: 1, column: 3 });
+		const item1 = createSuggestItem('<- groups', 2, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item1.suggestion.filterText = '  groups';
 		item1.suggestion.sortText = '00002';
 
-		const item2 = createSuggestItem('source', 0, CompletionKind.Property, false, { lineNumber: 1, column: 3 });
+		const item2 = createSuggestItem('source', 0, CompletionItemKind.Property, false, { lineNumber: 1, column: 3 });
 		item2.suggestion.filterText = 'source';
 		item2.suggestion.sortText = '00001';
 

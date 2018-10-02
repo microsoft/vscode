@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -169,7 +169,7 @@ export class SnippetController2 implements IEditorContribution {
 				// let after = choice.options.slice(i);
 
 				return <CompletionItem>{
-					kind: CompletionKind.Value,
+					kind: CompletionItemKind.Value,
 					label: option.value,
 					insertText: option.value,
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,

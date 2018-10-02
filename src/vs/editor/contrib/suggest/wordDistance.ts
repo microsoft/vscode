@@ -11,7 +11,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as tokenTree from 'vs/editor/contrib/smartSelect/tokenTree';
-import { CompletionItem, CompletionKind } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 
 
 export abstract class WordDistance {
@@ -58,7 +58,7 @@ export abstract class WordDistance {
 					if (!wordRanges || !position.equals(editor.getPosition())) {
 						return 0;
 					}
-					if (suggestion.kind === CompletionKind.Keyword) {
+					if (suggestion.kind === CompletionItemKind.Keyword) {
 						return 2 << 20;
 					}
 					let word = suggestion.label;

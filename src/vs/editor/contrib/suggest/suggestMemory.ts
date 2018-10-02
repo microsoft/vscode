@@ -10,7 +10,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { CompletionKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
 
 export abstract class Memory {
 
@@ -56,7 +56,7 @@ export class NoMemory extends Memory {
 }
 
 export interface MemItem {
-	type: string | CompletionKind;
+	type: string | CompletionItemKind;
 	insertText: string;
 	touch: number;
 }
