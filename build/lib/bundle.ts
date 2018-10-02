@@ -64,7 +64,7 @@ interface INodeSet {
 }
 
 export interface IFile {
-	path: string;
+	path: string | null;
 	contents: string;
 }
 
@@ -97,7 +97,7 @@ export interface ILoaderConfig {
 /**
  * Bundle `entryPoints` given config `config`.
  */
-export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult) => void): void {
+export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult | null) => void): void {
 	let entryPointsMap: IEntryPointMap = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		entryPointsMap[module.name] = module;
@@ -202,8 +202,8 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 			modulesGraph,
 			moduleToBundle,
 			includedModules,
-			info.prepend,
-			info.append,
+			info.prepend || [],
+			info.append || [],
 			info.dest
 		);
 
@@ -244,8 +244,8 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 			dep = dep.trim();
 			dep = dep.replace(/^"|"$/g, '');
 			dep = dep.replace(/^'|'$/g, '');
-			let prefix: string = null;
-			let _path: string = null;
+			let prefix: string | null = null;
+			let _path: string | null = null;
 			let pieces = dep.split('!');
 			if (pieces.length > 1) {
 				prefix = pieces[0] + '!';
@@ -343,7 +343,7 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	];
 
 	destFiles.forEach((destFile) => {
-		let SEEN_BOILERPLATE = [];
+		let SEEN_BOILERPLATE: boolean[] = [];
 		destFile.sources.forEach((source) => {
 			let lines = source.contents.split(/\r\n|\n|\r/);
 			let newLines: string[] = [];
@@ -353,7 +353,7 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 				let line = lines[i];
 				if (IS_REMOVING_BOILERPLATE) {
 					newLines.push('');
-					if (END_BOILERPLATE.test(line)) {
+					if (END_BOILERPLATE!.test(line)) {
 						IS_REMOVING_BOILERPLATE = false;
 					}
 				} else {
@@ -398,7 +398,7 @@ function emitEntryPoint(
 	includedModules: string[],
 	prepend: string[],
 	append: string[],
-	dest: string
+	dest: string | undefined
 ): IEmitEntryPointResult {
 	if (!dest) {
 		dest = entryPoint + '.js';
@@ -574,7 +574,7 @@ function visit(rootNodes: string[], graph: IGraph): INodeSet {
 
 	while (queue.length > 0) {
 		let el = queue.shift();
-		let myEdges = graph[el] || [];
+		let myEdges = graph[el!] || [];
 		myEdges.forEach((toNode) => {
 			if (!result[toNode]) {
 				result[toNode] = true;
@@ -623,7 +623,7 @@ function topologicalSort(graph: IGraph): string[] {
 		// Ensure the exact same order all the time with the same inputs
 		S.sort();
 
-		let n: string = S.shift();
+		let n: string = S.shift()!;
 		L.push(n);
 
 		let myInverseEdges = inverseEdges[n] || [];
