@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
 import Severity from 'vs/base/common/severity';
 import * as UUID from 'vs/base/common/uuid';
@@ -1584,6 +1584,56 @@ suite('Tasks version 2.0.0', () => {
 			runtime(Tasks.RuntimeType.Shell).
 			presentation().echo(true);
 		testConfiguration(external, builder);
+	});
+	test('Arg overwrite', () => {
+		let external: ExternalTaskRunnerConfiguration = {
+			version: '2.0.0',
+			tasks: [
+				{
+					label: 'echo',
+					type: 'shell',
+					command: 'echo',
+					args: [
+						'global'
+					],
+					windows: {
+						args: [
+							'windows'
+						]
+					},
+					linux: {
+						args: [
+							'linux'
+						]
+					},
+					osx: {
+						args: [
+							'osx'
+						]
+					}
+				}
+			]
+		};
+		let builder = new ConfiguationBuilder();
+		if (Platform.isWindows) {
+			builder.task('echo', 'echo').
+				command().suppressTaskName(true).args(['windows']).
+				runtime(Tasks.RuntimeType.Shell).
+				presentation().echo(true);
+			testConfiguration(external, builder);
+		} else if (Platform.isLinux) {
+			builder.task('echo', 'echo').
+				command().suppressTaskName(true).args(['linux']).
+				runtime(Tasks.RuntimeType.Shell).
+				presentation().echo(true);
+			testConfiguration(external, builder);
+		} else if (Platform.isMacintosh) {
+			builder.task('echo', 'echo').
+				command().suppressTaskName(true).args(['osx']).
+				runtime(Tasks.RuntimeType.Shell).
+				presentation().echo(true);
+			testConfiguration(external, builder);
+		}
 	});
 });
 

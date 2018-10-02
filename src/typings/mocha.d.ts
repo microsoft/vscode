@@ -176,7 +176,7 @@ declare namespace Mocha {
 
 	interface ITestDefinition {
 		(expectation: string, callback?: (this: ITestCallbackContext, done: MochaDone) => any): ITest;
-		only(expectation: string, callback?: (this: ITestCallbackContext, done: MochaDone) => any): ITest;
+		// only(expectation: string, callback?: (this: ITestCallbackContext, done: MochaDone) => any): ITest;
 		skip(expectation: string, callback?: (this: ITestCallbackContext, done: MochaDone) => any): void;
 		timeout(ms: number): void;
 		state: "failed" | "passed";

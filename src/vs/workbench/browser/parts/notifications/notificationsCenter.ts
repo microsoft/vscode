@@ -106,9 +106,9 @@ export class NotificationsCenter extends Themable {
 
 	private updateTitle(): void {
 		if (this.model.notifications.length === 0) {
-			this.notificationsCenterTitle.innerText = localize('notificationsEmpty', "No new notifications");
+			this.notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
 		} else {
-			this.notificationsCenterTitle.innerText = localize('notifications', "Notifications");
+			this.notificationsCenterTitle.textContent = localize('notifications', "Notifications");
 		}
 	}
 

@@ -60,7 +60,7 @@
 }
 
 /* TODO: actions should be part of the panel, but they aren't yet */
-.monaco-panel-view .panel > .panel-header > .actions .action-label {
+.monaco-panel-view .panel > .panel-header > .actions .action-label.icon {
 	width: 28px;
 	height: 22px;
 	background-size: 16px;

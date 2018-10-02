@@ -26,7 +26,7 @@ export class CopyValueAction extends Action {
 		if (this.value instanceof Variable) {
 			const frameId = this.debugService.getViewModel().focusedStackFrame.frameId;
 			const session = this.debugService.getViewModel().focusedSession;
-			return session.raw.evaluate({ expression: this.value.evaluateName, frameId }).then(result => {
+			return session.evaluate(this.value.evaluateName, frameId).then(result => {
 				clipboard.writeText(result.body.result);
 			}, err => clipboard.writeText(this.value.value));
 		}

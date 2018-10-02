@@ -29,7 +29,7 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);

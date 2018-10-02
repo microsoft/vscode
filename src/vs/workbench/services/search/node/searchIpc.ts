@@ -5,13 +5,12 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IRawSearchService, IRawSearch, ISerializedSearchComplete, ISerializedSearchProgressItem, ITelemetryEvent } from './search';
 import { Event } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IChannel } from 'vs/base/parts/ipc/node/ipc';
+import { IRawSearch, IRawSearchService, ISerializedSearchComplete, ISerializedSearchProgressItem } from './search';
 
 export interface ISearchChannel extends IChannel {
-	listen(event: 'telemetry'): Event<ITelemetryEvent>;
 	listen(event: 'fileSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	listen(event: 'textSearch', search: IRawSearch): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
 	call(command: 'clearCache', cacheKey: string): TPromise<void>;
@@ -24,7 +23,6 @@ export class SearchChannel implements ISearchChannel {
 
 	listen<T>(event: string, arg?: any): Event<any> {
 		switch (event) {
-			case 'telemetry': return this.service.onTelemetry;
 			case 'fileSearch': return this.service.fileSearch(arg);
 			case 'textSearch': return this.service.textSearch(arg);
 		}
@@ -40,8 +38,6 @@ export class SearchChannel implements ISearchChannel {
 }
 
 export class SearchChannelClient implements IRawSearchService {
-
-	get onTelemetry(): Event<ITelemetryEvent> { return this.channel.listen('telemetry'); }
 
 	constructor(private channel: ISearchChannel) { }
 

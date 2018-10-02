@@ -58,6 +58,10 @@ const enum Constants {
 	StickinessMaskInverse = 0b11001111,
 	StickinessOffset = 4,
 
+	CollapseOnReplaceEditMask = 0b01000000,
+	CollapseOnReplaceEditMaskInverse = 0b10111111,
+	CollapseOnReplaceEditOffset = 6,
+
 	/**
 	 * Due to how deletion works (in order to avoid always walking the right subtree of the deleted node),
 	 * the deltas for nodes can grow and shrink dramatically. It has been observed, in practice, that unless
@@ -121,6 +125,14 @@ function _setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickine
 		(node.metadata & Constants.StickinessMaskInverse) | (stickiness << Constants.StickinessOffset)
 	);
 }
+function getCollapseOnReplaceEdit(node: IntervalNode): boolean {
+	return ((node.metadata & Constants.CollapseOnReplaceEditMask) >>> Constants.CollapseOnReplaceEditOffset) === 1;
+}
+function setCollapseOnReplaceEdit(node: IntervalNode, value: boolean): void {
+	node.metadata = (
+		(node.metadata & Constants.CollapseOnReplaceEditMaskInverse) | ((value ? 1 : 0) << Constants.CollapseOnReplaceEditOffset)
+	);
+}
 export function setNodeStickiness(node: IntervalNode, stickiness: ActualTrackedRangeStickiness): void {
 	_setNodeStickiness(node, <number>stickiness);
 }
@@ -170,6 +182,7 @@ export class IntervalNode implements IModelDecoration {
 		setNodeIsForValidation(this, false);
 		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		setNodeIsInOverviewRuler(this, false);
+		setCollapseOnReplaceEdit(this, false);
 
 		this.cachedVersionId = 0;
 		this.cachedAbsoluteStart = start;
@@ -198,7 +211,8 @@ export class IntervalNode implements IModelDecoration {
 			|| className === ClassName.EditorInfoDecoration
 		));
 		_setNodeStickiness(this, <number>this.options.stickiness);
-		setNodeIsInOverviewRuler(this, this.options.overviewRuler.color ? true : false);
+		setNodeIsInOverviewRuler(this, (this.options.overviewRuler && this.options.overviewRuler.color) ? true : false);
+		setCollapseOnReplaceEdit(this, this.options.collapseOnReplaceEdit);
 	}
 
 	public setCachedOffsets(absoluteStart: number, absoluteEnd: number, cachedVersionId: number): void {
@@ -416,6 +430,15 @@ export function nodeAcceptEdit(node: IntervalNode, start: number, end: number, t
 
 	const nodeEnd = node.end;
 	let endDone = false;
+
+	if (start <= nodeStart && nodeEnd <= end && getCollapseOnReplaceEdit(node)) {
+		// This edit encompasses the entire decoration range
+		// and the decoration has asked to become collapsed
+		node.start = start;
+		startDone = true;
+		node.end = start;
+		endDone = true;
+	}
 
 	{
 		const moveSemantics = forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined);

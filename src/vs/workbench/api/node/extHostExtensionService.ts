@@ -12,16 +12,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { createApiFactory, initializeExtensionApi, checkProposedApiEnabled } from 'vs/workbench/api/node/extHost.api.impl';
+import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IMainContext } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent, ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -29,7 +29,7 @@ class ExtensionMemento implements IExtensionMemento {
 	private readonly _shared: boolean;
 	private readonly _storage: ExtHostStorage;
 
-	private readonly _init: TPromise<ExtensionMemento>;
+	private readonly _init: Thenable<ExtensionMemento>;
 	private _value: { [n: string]: any; };
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
@@ -43,7 +43,7 @@ class ExtensionMemento implements IExtensionMemento {
 		});
 	}
 
-	get whenReady(): TPromise<ExtensionMemento> {
+	get whenReady(): Thenable<ExtensionMemento> {
 		return this._init;
 	}
 
@@ -94,7 +94,7 @@ class ExtensionStoragePath {
 		}
 
 		const storageName = this._workspace.id;
-		const storagePath = join(this._environment.appSettingsHome, 'workspaceStorage', storageName);
+		const storagePath = join(this._environment.appSettingsHome.fsPath, 'workspaceStorage', storageName);
 
 		const exists = await dirExists(storagePath);
 
@@ -243,7 +243,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(value, ext));
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
 			});
 			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}
@@ -308,7 +308,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
-		let event = getTelemetryActivationEvent(extensionDescription);
+		let event = getTelemetryActivationEvent(extensionDescription, reason);
 		/* __GDPR__
 			"activatePlugin" : {
 				"${include}": [
@@ -361,14 +361,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.value(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				get logger() {
-					checkProposedApiEnabled(extensionDescription);
-					return that._extHostLogService.getExtLogger(extensionDescription.id);
-				},
-				get logDirectory() {
-					checkProposedApiEnabled(extensionDescription);
-					return that._extHostLogService.getLogDirectory(extensionDescription.id);
-				}
+				logPath: that._extHostLogService.getLogDirectory(extensionDescription.id)
 			});
 		});
 	}
@@ -409,7 +402,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// -- called by main thread
 
-	public $activateByEvent(activationEvent: string): TPromise<void> {
+	public $activateByEvent(activationEvent: string): Thenable<void> {
 		return this.activateByEvent(activationEvent, false);
 	}
 }
@@ -428,14 +421,19 @@ function loadCommonJSModule<T>(logService: ILogService, modulePath: string, acti
 	return TPromise.as(r);
 }
 
-function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): any {
+	const reasonStr = reason instanceof ExtensionActivatedByEvent ? reason.activationEvent :
+		reason instanceof ExtensionActivatedByAPI ? 'api' :
+			'';
+
 	/* __GDPR__FRAGMENT__
 		"TelemetryActivationEvent" : {
 			"id": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+			"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	*/
 	let event = {
@@ -443,7 +441,8 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		name: extensionDescription.name,
 		publisherDisplayName: extensionDescription.publisher,
 		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
-		isBuiltin: extensionDescription.isBuiltin
+		isBuiltin: extensionDescription.isBuiltin,
+		reason: reasonStr
 	};
 
 	return event;

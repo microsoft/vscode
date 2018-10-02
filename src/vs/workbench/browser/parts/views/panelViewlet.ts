@@ -7,9 +7,9 @@ import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, filterEvent } from 'vs/base/common/event';
-import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
@@ -33,7 +33,7 @@ export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
 	headerForeground?: ColorIdentifier;
 	headerBackground?: ColorIdentifier;
-	headerHighContrastBorder?: ColorIdentifier;
+	headerBorder?: ColorIdentifier;
 }
 
 export interface IViewletPanelOptions extends IPanelOptions {
@@ -323,7 +323,7 @@ export class PanelViewlet extends Viewlet {
 		const panelStyler = attachStyler<IPanelColors>(this.themeService, {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
-			headerHighContrastBorder: index === 0 ? null : contrastBorder,
+			headerBorder: index === 0 ? null : SIDE_BAR_SECTION_HEADER_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
 		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);

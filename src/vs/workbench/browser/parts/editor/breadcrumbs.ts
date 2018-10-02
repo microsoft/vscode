@@ -6,15 +6,16 @@
 'use strict';
 
 import { BreadcrumbsWidget } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import * as glob from 'vs/base/common/glob';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 
 export const IBreadcrumbsService = createDecorator<IBreadcrumbsService>('IEditorBreadcrumbsService');
 
@@ -57,8 +58,10 @@ registerSingleton(IBreadcrumbsService, BreadcrumbsService);
 export abstract class BreadcrumbsConfig<T> {
 
 	name: string;
-	value: T;
-	onDidChange: Event<T>;
+	onDidChange: Event<void>;
+
+	abstract getValue(overrides?: IConfigurationOverrides): T;
+	abstract updateValue(value: T, overrides?: IConfigurationOverrides): Thenable<void>;
 	abstract dispose(): void;
 
 	private constructor() {
@@ -69,30 +72,30 @@ export abstract class BreadcrumbsConfig<T> {
 	static UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
+	static FilterOnType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.filterOnType');
+
+	static FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
 			bindTo(service) {
-				let value: T = service.getValue(name);
-				let onDidChange = new Emitter<T>();
+				let onDidChange = new Emitter<void>();
 
 				let listener = service.onDidChangeConfiguration(e => {
 					if (e.affectsConfiguration(name)) {
-						value = service.getValue(name);
-						onDidChange.fire(value);
+						onDidChange.fire(undefined);
 					}
 				});
 
-				return {
-					name,
-					get value() {
-						return value;
-					},
-					set value(newValue: T) {
-						service.updateValue(name, newValue);
-						value = newValue;
-					},
-					onDidChange: onDidChange.event,
+				return new class implements BreadcrumbsConfig<T>{
+					readonly name = name;
+					readonly onDidChange = onDidChange.event;
+					getValue(overrides?: IConfigurationOverrides): T {
+						return service.getValue(name, overrides);
+					}
+					updateValue(newValue: T, overrides?: IConfigurationOverrides): Thenable<void> {
+						return service.updateValue(name, newValue, overrides);
+					}
 					dispose(): void {
 						listener.dispose();
 						onDidChange.dispose();
@@ -141,6 +144,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('symbolpath.last', "Only show the current symbol in the breadcrumbs view."),
 			]
 		},
+		// 'breadcrumbs.filterOnType': {
+		// 	description: localize('filterOnType', "Controls whether the breadcrumb picker filters or highlights when typing."),
+		// 	type: 'boolean',
+		// 	default: false
+		// },
 	}
 });
 

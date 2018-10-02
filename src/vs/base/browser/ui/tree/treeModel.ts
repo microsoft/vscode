@@ -17,9 +17,9 @@ export interface ITreeElement<T> {
 }
 
 export interface ITreeNode<T> {
-	readonly parent: IMutableTreeNode<T> | undefined;
+	readonly parent: ITreeNode<T> | undefined;
 	readonly element: T;
-	readonly children: IMutableTreeNode<T>[];
+	readonly children: ITreeNode<T>[];
 	readonly depth: number;
 	readonly collapsible: boolean;
 	readonly collapsed: boolean;
@@ -27,6 +27,8 @@ export interface ITreeNode<T> {
 }
 
 interface IMutableTreeNode<T> extends ITreeNode<T> {
+	readonly parent: IMutableTreeNode<T> | undefined;
+	readonly children: IMutableTreeNode<T>[];
 	collapsed: boolean;
 	visibleCount: number;
 }
@@ -39,13 +41,35 @@ function getVisibleCount<T>(nodes: IMutableTreeNode<T>[]): number {
 	return nodes.reduce(visibleCountReducer, 0);
 }
 
-function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[] = []): ITreeNode<T>[] {
-	for (const node of nodes) {
+/**
+ * Recursively updates the visibleCount of a subtree, while collecting
+ * all the visible nodes in an array.
+ */
+function updateVisibleCount<T>(node: IMutableTreeNode<T>): ITreeNode<T>[] {
+	const previousVisibleCount = node.visibleCount;
+	const result: ITreeNode<T>[] = [];
+
+	function _updateVisibleCount(node: IMutableTreeNode<T>): number {
 		result.push(node);
+		node.visibleCount = 1;
 
 		if (!node.collapsed) {
-			getVisibleNodes(node.children, result);
+			for (const child of node.children) {
+				node.visibleCount += _updateVisibleCount(child);
+			}
 		}
+
+		return node.visibleCount;
+	}
+
+	_updateVisibleCount(node);
+
+	const visibleCountDiff = result.length - previousVisibleCount;
+	node = node.parent;
+
+	while (node) {
+		node.visibleCount += visibleCountDiff;
+		node = node.parent;
 	}
 
 	return result;
@@ -55,7 +79,7 @@ function getTreeElementIterator<T>(elements: Iterator<ITreeElement<T>> | ITreeEl
 	if (!elements) {
 		return Iterator.empty();
 	} else if (Array.isArray(elements)) {
-		return Iterator.iterate(elements);
+		return Iterator.fromArray(elements);
 	} else {
 		return elements;
 	}
@@ -64,7 +88,7 @@ function getTreeElementIterator<T>(elements: Iterator<ITreeElement<T>> | ITreeEl
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
 	const { element, collapsible, collapsed } = treeElement;
-	const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, visibleCount: 0 };
+	const node = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, visibleCount: 1 };
 
 	if (visible) {
 		treeListElements.push(node);
@@ -73,14 +97,17 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTree
 	const children = getTreeElementIterator(treeElement.children);
 	node.children = Iterator.collect(Iterator.map(children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
 	node.collapsible = node.collapsible || node.children.length > 0;
-	node.visibleCount = 1 + getVisibleCount(node.children);
+
+	if (!collapsed) {
+		node.visibleCount += getVisibleCount(node.children);
+	}
 
 	return node;
 }
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T>): ITreeElement<T> {
 	const { element, collapsed } = node;
-	const children = Iterator.map(Iterator.iterate(node.children), treeNodeToElement);
+	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
 
 	return { element, children, collapsed };
 }
@@ -132,7 +159,7 @@ export class TreeModel<T> {
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
 		}
 
-		return Iterator.map(Iterator.iterate(deletedNodes), treeNodeToElement);
+		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
 	}
 
 	getListIndex(location: number[]): number {
@@ -140,16 +167,16 @@ export class TreeModel<T> {
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): boolean {
-		return this._setCollapsed(location, collapsed);
+		const { node, listIndex, visible } = this.findNode(location);
+		return this._setCollapsed(node, listIndex, visible, collapsed);
 	}
 
 	toggleCollapsed(location: number[]): void {
-		this._setCollapsed(location);
+		const { node, listIndex, visible } = this.findNode(location);
+		this._setCollapsed(node, listIndex, visible);
 	}
 
-	private _setCollapsed(location: number[], collapsed?: boolean | undefined): boolean {
-		const { node, listIndex, visible } = this.findNode(location);
-
+	private _setCollapsed(node: IMutableTreeNode<T>, listIndex: number, visible: boolean, collapsed?: boolean | undefined): boolean {
 		if (!node.collapsible) {
 			return false;
 		}
@@ -165,31 +192,31 @@ export class TreeModel<T> {
 		node.collapsed = collapsed;
 
 		if (visible) {
+			const previousVisibleCount = node.visibleCount;
+			const toInsert = updateVisibleCount(node);
+
+			this.list.splice(listIndex + 1, previousVisibleCount - 1, toInsert.slice(1));
 			this._onDidChangeCollapseState.fire(node);
-
-			let visibleCountDiff: number;
-
-			if (collapsed) {
-				const deleteCount = getVisibleCount(node.children);
-
-				this.list.splice(listIndex + 1, deleteCount, []);
-				visibleCountDiff = -deleteCount;
-			} else {
-				const toInsert = getVisibleNodes(node.children);
-
-				this.list.splice(listIndex + 1, 0, toInsert);
-				visibleCountDiff = toInsert.length;
-			}
-
-			let mutableNode = node;
-
-			while (mutableNode) {
-				mutableNode.visibleCount += visibleCountDiff;
-				mutableNode = mutableNode.parent;
-			}
 		}
 
 		return true;
+	}
+
+	// TODO@joao cleanup
+	setCollapsedAll(collapsed: boolean): void {
+		if (collapsed) {
+			const queue = [...this.root.children]; // TODO@joao use a linked list
+			let listIndex = 0;
+
+			while (queue.length > 0) {
+				const node = queue.shift();
+				const visible = listIndex < this.root.children.length;
+				this._setCollapsed(node, listIndex, visible, collapsed);
+
+				queue.push(...node.children);
+				listIndex++;
+			}
+		}
 	}
 
 	isCollapsed(location: number[]): boolean {

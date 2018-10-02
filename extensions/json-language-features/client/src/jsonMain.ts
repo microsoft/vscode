@@ -5,6 +5,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
@@ -62,8 +63,9 @@ export function activate(context: ExtensionContext) {
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	// The server is implemented in node
-	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
+	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
+	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=' + (9000 + Math.round(Math.random() * 10000))] };
 
@@ -232,7 +234,9 @@ function getSettings(): Settings {
 	if (folders) {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
+
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+
 			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
@@ -259,7 +263,7 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
-	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
 			name: extensionPackage.name,
@@ -268,4 +272,14 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | undefined {
 		};
 	}
 	return void 0;
+}
+
+function readJSONFile(location: string) {
+	try {
+		return JSON.parse(fs.readFileSync(location).toString());
+	} catch (e) {
+		console.log(`Problems reading ${location}: ${e}`);
+		return {};
+	}
+
 }

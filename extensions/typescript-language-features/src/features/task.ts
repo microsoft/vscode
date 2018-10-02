@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -107,29 +104,25 @@ class TscTaskProvider implements vscode.TaskProvider {
 			return [];
 		}
 
-		try {
-			const res: Proto.ProjectInfoResponse = await this.client.value.execute(
-				'projectInfo',
-				{ file, needFileNameList: false },
-				token);
-
-			if (!res || !res.body) {
-				return [];
-			}
-
-			const { configFileName } = res.body;
-			if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
-				const normalizedConfigPath = path.normalize(configFileName);
-				const uri = vscode.Uri.file(normalizedConfigPath);
-				const folder = vscode.workspace.getWorkspaceFolder(uri);
-				return [{
-					path: normalizedConfigPath,
-					workspaceFolder: folder
-				}];
-			}
-		} catch (e) {
-			// noop
+		const response = await this.client.value.execute(
+			'projectInfo',
+			{ file, needFileNameList: false },
+			token);
+		if (response.type !== 'response' || !response.body) {
+			return [];
 		}
+
+		const { configFileName } = response.body;
+		if (configFileName && !isImplicitProjectConfigFile(configFileName)) {
+			const normalizedConfigPath = path.normalize(configFileName);
+			const uri = vscode.Uri.file(normalizedConfigPath);
+			const folder = vscode.workspace.getWorkspaceFolder(uri);
+			return [{
+				path: normalizedConfigPath,
+				workspaceFolder: folder
+			}];
+		}
+
 		return [];
 	}
 
@@ -178,6 +171,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
 		const command = await TscTaskProvider.getCommand(project);
+		const args = await this.getBuildShellArgs(project);
 		const label = this.getLabelForTasks(project);
 
 		const tasks: vscode.Task[] = [];
@@ -189,7 +183,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildTscLabel', 'build - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['-p', project.path]),
+				new vscode.ShellExecution(command, args),
 				'$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			buildTask.isBackground = false;
@@ -203,7 +197,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 				project.workspaceFolder || vscode.TaskScope.Workspace,
 				localize('buildAndWatchTscLabel', 'watch - {0}', label),
 				'tsc',
-				new vscode.ShellExecution(command, ['--watch', '-p', project.path]),
+				new vscode.ShellExecution(command, ['--watch', ...args]),
 				'$tsc-watch');
 			watchTask.group = vscode.TaskGroup.Build;
 			watchTask.isBackground = true;
@@ -211,6 +205,27 @@ class TscTaskProvider implements vscode.TaskProvider {
 		}
 
 		return tasks;
+	}
+
+	private getBuildShellArgs(project: TSConfig): Promise<Array<string>> {
+		const defaultArgs = ['-p', project.path];
+		return new Promise<Array<string>>((resolve) => {
+			fs.readFile(project.path, (error, result) => {
+				if (error) {
+					return resolve(defaultArgs);
+				}
+
+				try {
+					const tsconfig = JSON.parse(result.toString());
+					if (tsconfig.references) {
+						return resolve(['-b', project.path]);
+					}
+				} catch {
+					// noop
+				}
+				return resolve(defaultArgs);
+			});
+		});
 	}
 
 	private getLabelForTasks(project: TSConfig): string {

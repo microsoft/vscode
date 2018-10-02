@@ -5,13 +5,14 @@
 
 'use strict';
 
+import { tmpdir } from 'os';
+import { posix } from 'path';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import * as errors from 'vs/base/common/errors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
@@ -19,7 +20,10 @@ import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { InEditorZenModeContext, NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
-import { ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { URI } from 'vs/base/common/uri';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { generateUuid } from 'vs/base/common/uuid';
 
 // --- List Commands
 
@@ -59,7 +63,7 @@ export function registerCommands(): void {
 			const tree = focused;
 
 			tree.focusNext(count, { origin: 'keyboard' });
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus());
 		}
 	}
 
@@ -161,7 +165,7 @@ export function registerCommands(): void {
 			const tree = focused;
 
 			tree.focusPrevious(count, { origin: 'keyboard' });
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus());
 		}
 	}
 
@@ -236,7 +240,7 @@ export function registerCommands(): void {
 					}
 
 					return void 0;
-				}).done(null, errors.onUnexpectedError);
+				});
 			}
 		}
 	});
@@ -262,7 +266,7 @@ export function registerCommands(): void {
 					}
 
 					return void 0;
-				}).done(null, errors.onUnexpectedError);
+				});
 			}
 		}
 	});
@@ -291,7 +295,7 @@ export function registerCommands(): void {
 				const tree = focused;
 
 				tree.focusPreviousPage({ origin: 'keyboard' });
-				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+				tree.reveal(tree.getFocus());
 			}
 		}
 	});
@@ -320,7 +324,7 @@ export function registerCommands(): void {
 				const tree = focused;
 
 				tree.focusNextPage({ origin: 'keyboard' });
-				tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+				tree.reveal(tree.getFocus());
 			}
 		}
 	});
@@ -360,7 +364,7 @@ export function registerCommands(): void {
 			const tree = focused;
 
 			tree.focusFirst({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : void 0);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus());
 		}
 	}
 
@@ -399,7 +403,7 @@ export function registerCommands(): void {
 			const tree = focused;
 
 			tree.focusLast({ origin: 'keyboard' }, options && options.fromFocused ? tree.getFocus() : void 0);
-			tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
+			tree.reveal(tree.getFocus());
 		}
 	}
 
@@ -550,9 +554,16 @@ export function registerCommands(): void {
 		win: { primary: void 0 }
 	});
 
-	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: string | ISingleFolderWorkspaceIdentifier) {
+	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | string) {
 		const windowsService = accessor.get(IWindowsService);
 
 		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);
+	});
+
+	CommandsRegistry.registerCommand('_workbench.downloadResource', function (accessor: ServicesAccessor, resource: URI) {
+		const downloadService = accessor.get(IDownloadService);
+		const location = posix.join(tmpdir(), generateUuid());
+
+		return downloadService.download(resource, location).then(() => URI.file(location));
 	});
 }

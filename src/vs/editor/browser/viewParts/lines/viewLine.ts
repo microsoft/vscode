@@ -74,6 +74,7 @@ export class ViewLineOptions {
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
+	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: boolean;
@@ -87,6 +88,7 @@ export class ViewLineOptions {
 			config.editor.fontInfo.isMonospace
 			&& !config.editor.viewInfo.disableMonospaceOptimizations
 		);
+		this.canUseHalfwidthRightwardsArrow = config.editor.fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = config.editor.lineHeight;
 		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
 		this.fontLigatures = config.editor.viewInfo.fontLigatures;
@@ -99,6 +101,7 @@ export class ViewLineOptions {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
+			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
@@ -190,6 +193,7 @@ export class ViewLine implements IVisibleLine {
 
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
+			options.canUseHalfwidthRightwardsArrow,
 			lineData.content,
 			lineData.continuesWithWrappedLine,
 			lineData.isBasicASCII,
@@ -572,20 +576,16 @@ class WebKitRenderedViewLine extends RenderedViewLine {
 
 		// WebKit is buggy and returns an expanded range (to contain words in some cases)
 		// The last client rect is enlarged (I think)
-
-		// This is an attempt to patch things up
-		// Find position of previous column
-		let beforeEndPixelOffset = this._readPixelOffset(endColumn - 1, context);
-		// Find position of last column
-		let endPixelOffset = this._readPixelOffset(endColumn, context);
-
-		if (beforeEndPixelOffset !== -1 && endPixelOffset !== -1) {
-			let isLTR = (beforeEndPixelOffset <= endPixelOffset);
-			let lastRange = output[output.length - 1];
-
-			if (isLTR && lastRange.left < endPixelOffset) {
-				// Trim down the width of the last visible range to not go after the last column's position
-				lastRange.width = endPixelOffset - lastRange.left;
+		if (!this.input.containsRTL) {
+			// This is an attempt to patch things up
+			// Find position of last column
+			let endPixelOffset = this._readPixelOffset(endColumn, context);
+			if (endPixelOffset !== -1) {
+				let lastRange = output[output.length - 1];
+				if (lastRange.left < endPixelOffset) {
+					// Trim down the width of the last visible range to not go after the last column's position
+					lastRange.width = endPixelOffset - lastRange.left;
+				}
 			}
 		}
 

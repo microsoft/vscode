@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { marked } from 'vs/base/common/marked/marked';
+import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdown, renderText, renderFormattedText } from 'vs/base/browser/htmlContentRenderer';
 
 suite('HtmlContent', () => {

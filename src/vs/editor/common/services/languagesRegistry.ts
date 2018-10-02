@@ -13,7 +13,7 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -292,11 +292,11 @@ export class LanguagesRegistry {
 		return [];
 	}
 
-	public getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?: string): string[] {
-		if (!filename && !firstLine) {
+	public getModeIdsFromFilenameOrFirstLine(filepath: string, firstLine?: string): string[] {
+		if (!filepath && !firstLine) {
 			return [];
 		}
-		let mimeTypes = mime.guessMimeTypes(filename, firstLine);
+		let mimeTypes = mime.guessMimeTypes(filepath, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 

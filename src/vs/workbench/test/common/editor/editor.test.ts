@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';

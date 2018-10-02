@@ -21,7 +21,7 @@ function fork(id: string): cp.ChildProcess {
 		})
 	};
 
-	return cp.fork(getPathFromAmdModule(require, 'bootstrap'), ['--type=processTests'], opts);
+	return cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=processTests'], opts);
 }
 
 suite('Processes', () => {

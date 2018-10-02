@@ -19,8 +19,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 1', () => {
 		let mode = new Mode();
+		let support = TokenizationRegistry.get(mode.getId());
 
-		let actual = tokenizeToString('.abc..def...gh', mode.getId());
+		let actual = tokenizeToString('.abc..def...gh', support);
 		let expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
@@ -38,8 +39,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 	test('TextToHtmlTokenizer 2', () => {
 		let mode = new Mode();
+		let support = TokenizationRegistry.get(mode.getId());
 
-		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', mode.getId());
+		let actual = tokenizeToString('.abc..def...gh\n.abc..def...gh', support);
 		let expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },

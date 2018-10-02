@@ -538,7 +538,7 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	function loadCompleteTree(treeId, element?: string): TPromise<void> {
+	function loadCompleteTree(treeId, element?: string) {
 		return testObject.$getChildren(treeId, element)
 			.then(elements => elements.map(e => loadCompleteTree(treeId, e.handle)))
 			.then(() => null);

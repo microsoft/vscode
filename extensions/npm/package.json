@@ -17,14 +17,14 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
-    "jsonc-parser": "^1.0.0",
+    "jsonc-parser": "^2.0.2",
     "minimatch": "^3.0.4",
-    "request-light": "^0.2.2",
-    "vscode-nls": "^3.2.4"
+    "request-light": "^0.2.4",
+    "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "7.0.43"
+    "@types/node": "^8.10.25"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -235,7 +235,9 @@
           "description": "%config.npm.fetchOnlinePackageInfo%",
           "default": true,
           "scope": "window",
-          "tags": ["usesOnlineServices"]
+          "tags": [
+            "usesOnlineServices"
+          ]
         }
       }
     },

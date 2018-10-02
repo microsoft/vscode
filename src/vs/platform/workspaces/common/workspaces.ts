@@ -7,17 +7,10 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { isParent } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
-import { basename, dirname, join } from 'vs/base/common/paths';
-import { isLinux } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import URI from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { URI } from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -113,34 +106,6 @@ export interface IWorkspacesService {
 	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
-export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, uriDisplayService: IUriDisplayService, options?: { verbose: boolean }): string {
-
-	// Workspace: Single Folder
-	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		// Folder on disk
-		if (workspace.scheme === Schemas.file) {
-			return options && options.verbose ? uriDisplayService.getLabel(workspace) : getBaseLabel(workspace);
-		}
-
-		// Remote folder
-		return options && options.verbose ? uriDisplayService.getLabel(workspace) : `${getBaseLabel(workspace)} (${workspace.scheme})`;
-	}
-
-	// Workspace: Untitled
-	if (isParent(workspace.configPath, environmentService.workspacesHome, !isLinux /* ignore case */)) {
-		return localize('untitledWorkspace', "Untitled (Workspace)");
-	}
-
-	// Workspace: Saved
-	const filename = basename(workspace.configPath);
-	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-	if (options && options.verbose) {
-		return localize('workspaceNameVerbose', "{0} (Workspace)", uriDisplayService.getLabel(URI.file(join(dirname(workspace.configPath), workspaceName))));
-	}
-
-	return localize('workspaceName', "{0} (Workspace)", workspaceName);
-}
-
 export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
 	return obj instanceof URI;
 }
@@ -149,4 +114,19 @@ export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
 	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && typeof workspaceIdentifier.configPath === 'string';
+}
+
+export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+	if (workspace.configuration) {
+		return {
+			configPath: workspace.configuration.fsPath,
+			id: workspace.id
+		};
+	}
+	if (workspace.folders.length === 1) {
+		return workspace.folders[0].uri;
+	}
+
+	// Empty workspace
+	return undefined;
 }

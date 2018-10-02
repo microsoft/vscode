@@ -63,6 +63,13 @@ export interface LanguageConfiguration {
 	surroundingPairs?: IAutoClosingPair[];
 
 	/**
+	 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
+	 *
+	 * This is typically the set of characters which can not start an expression, such as whitespace, closing brackets, non-unary operators, etc.
+	 */
+	autoCloseBefore?: string;
+
+	/**
 	 * The language's folding rules.
 	 */
 	folding?: FoldingRules;
@@ -139,6 +146,10 @@ export interface OnEnterRule {
 	 * This rule will only execute if the text after the cursor matches this regular expression.
 	 */
 	afterText?: RegExp;
+	/**
+	 * This rule will only execute if the text above the this line matches this regular expression.
+	 */
+	oneLineAboveText?: RegExp;
 	/**
 	 * The action to execute.
 	 */

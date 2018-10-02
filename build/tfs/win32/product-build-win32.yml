@@ -5,7 +5,7 @@ steps:
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
-    versionSpec: "1.3.2"
+    versionSpec: "1.9.4"
 
 - powershell: |
     . build/tfs/win32/exec.ps1
@@ -26,7 +26,7 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(VSCODE_MIXIN_PASSWORD)"
     exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-min" }
-    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-copy-inno-updater" }
+    exec { npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
   name: build
 
 - powershell: |

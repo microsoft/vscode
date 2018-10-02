@@ -23,13 +23,14 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 namespace Timer {
 	export interface ITimerEvent {
@@ -87,7 +88,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 		function measure() {
 			const handler = descriptor.instantiate(instantiationService);
 			handler.onOpen();
-			return handler.getResults('a').then(result => {
+			return handler.getResults('a', CancellationToken.None).then(result => {
 				const uncachedEvent = popEvent();
 				assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 				assert.strictEqual(uncachedEvent.data.files.fromCache, true, 'files.fromCache');
@@ -96,7 +97,7 @@ suite.skip('QuickOpen performance (integration)', () => {
 				}
 				return uncachedEvent;
 			}).then(uncachedEvent => {
-				return handler.getResults('ab').then(result => {
+				return handler.getResults('ab', CancellationToken.None).then(result => {
 					const cachedEvent = popEvent();
 					assert.strictEqual(uncachedEvent.data.symbols.fromCache, false, 'symbols.fromCache');
 					assert.ok(cachedEvent.data.files.fromCache, 'filesFromCache');

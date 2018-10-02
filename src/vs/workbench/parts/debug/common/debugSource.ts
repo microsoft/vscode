@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
@@ -35,11 +35,16 @@ export class Source {
 	public available: boolean;
 
 	constructor(public raw: DebugProtocol.Source, sessionId: string) {
+		let path: string;
 		if (!raw) {
 			this.raw = { name: UNKNOWN_SOURCE_LABEL };
+			this.available = false;
+			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
+		} else {
+			path = this.raw.path || this.raw.name;
+			this.available = true;
 		}
-		this.available = this.raw.name !== UNKNOWN_SOURCE_LABEL;
-		const path = this.raw.path || this.raw.name;
+
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {

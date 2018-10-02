@@ -204,6 +204,9 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 		args.push('--follow');
 	}
 
+	args.push('--no-config');
+	args.push('--no-ignore-global');
+
 	// Folder to search
 	args.push('--');
 

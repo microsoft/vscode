@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
@@ -37,7 +37,7 @@ export interface ISaveParticipant {
 /**
  * States the text text file editor model can be in.
  */
-export enum ModelState {
+export const enum ModelState {
 	SAVED,
 	DIRTY,
 	PENDING_SAVE,
@@ -60,7 +60,7 @@ export enum ModelState {
 	ERROR
 }
 
-export enum StateChange {
+export const enum StateChange {
 	DIRTY,
 	SAVING,
 	SAVE_ERROR,
@@ -108,7 +108,7 @@ export interface IAutoSaveConfiguration {
 	autoSaveApplicationChange: boolean;
 }
 
-export enum AutoSaveMode {
+export const enum AutoSaveMode {
 	OFF,
 	AFTER_SHORT_DELAY,
 	AFTER_LONG_DELAY,
@@ -116,14 +116,14 @@ export enum AutoSaveMode {
 	ON_WINDOW_CHANGE
 }
 
-export enum SaveReason {
+export const enum SaveReason {
 	EXPLICIT = 1,
 	AUTO = 2,
 	FOCUS_CHANGE = 3,
 	WINDOW_CHANGE = 4
 }
 
-export enum LoadReason {
+export const enum LoadReason {
 	EDITOR = 1,
 	REFERENCE = 2,
 	OTHER = 3
@@ -254,8 +254,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isResolved(): boolean;
 
-	isReadonly(): boolean;
-
 	isDisposed(): boolean;
 }
 
@@ -263,7 +261,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 export interface IWillMoveEvent {
 	oldResource: URI;
 	newResource: URI;
-	waitUntil(p: TPromise<any>): void;
+	waitUntil(p: Thenable<any>): void;
 }
 
 export interface ITextFileService extends IDisposable {

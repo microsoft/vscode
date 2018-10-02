@@ -7,7 +7,6 @@
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ErrorCallback, TPromise, ValueCallback } from 'vs/base/common/winjs.base';
-import { ShallowCancelThenPromise } from 'vs/base/common/async';
 import { isWeb } from 'vs/base/common/platform';
 
 const INITIALIZE = '$initialize';
@@ -94,8 +93,6 @@ class SimpleWorkerProtocol {
 		let result = new TPromise<any>((c, e) => {
 			reply.c = c;
 			reply.e = e;
-		}, () => {
-			// Cancel not supported
 		});
 		this._pendingReplies[req] = reply;
 
@@ -235,7 +232,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 		this._lazyProxy = new TPromise<T>((c, e) => {
 			lazyProxyFulfill = c;
 			lazyProxyReject = e;
-		}, () => { /* no cancel */ });
+		});
 
 		// Send initialize message
 		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
@@ -268,8 +265,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 	}
 
 	public getProxyObject(): TPromise<T> {
-		// Do not allow chaining promises to cancel the proxy creation
-		return new ShallowCancelThenPromise(this._lazyProxy);
+		return this._lazyProxy;
 	}
 
 	private _request(method: string, args: any[]): TPromise<any> {
@@ -277,8 +273,6 @@ export class SimpleWorkerClient<T> extends Disposable {
 			this._onModuleLoaded.then(() => {
 				this._protocol.sendMessage(method, args).then(c, e);
 			}, e);
-		}, () => {
-			// Cancel intentionally not supported
 		});
 	}
 

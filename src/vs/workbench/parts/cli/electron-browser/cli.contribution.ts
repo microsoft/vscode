@@ -108,7 +108,7 @@ class InstallAction extends Action {
 
 						nfcall(cp.exec, command, {})
 							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
-							.done(c, e);
+							.then(c, e);
 						break;
 					case 1 /* Cancel */:
 						e(new Error(nls.localize('aborted', "Aborted")));
@@ -175,7 +175,7 @@ class UninstallAction extends Action {
 
 						nfcall(cp.exec, command, {})
 							.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", this.target))))
-							.done(c, e);
+							.then(c, e);
 						break;
 					case 1 /* Cancel */:
 						e(new Error(nls.localize('aborted', "Aborted")));

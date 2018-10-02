@@ -11,12 +11,27 @@ const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
 const _doubleSlashStart = /^\/\//;
 
+let _throwOnMissingSchema: boolean = true;
+
+/**
+ * @internal
+ */
+export function setUriThrowOnMissingScheme(value: boolean): boolean {
+	const old = _throwOnMissingSchema;
+	_throwOnMissingSchema = value;
+	return old;
+}
+
 function _validateUri(ret: URI): void {
 
-	// // scheme, must be set
-	// if (!ret.scheme) {
-	// 	throw new Error('[UriError]: Scheme is missing.');
-	// }
+	// scheme, must be set
+	if (!ret.scheme) {
+		if (_throwOnMissingSchema) {
+			throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		} else {
+			console.warn(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+		}
+	}
 
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
 	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
@@ -81,7 +96,7 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  *       / \ /                        \
  *       urn:example:animal:ferret:nose
  */
-export default class URI implements UriComponents {
+export class URI implements UriComponents {
 
 	static isUri(thing: any): thing is URI {
 		if (thing instanceof URI) {
@@ -186,6 +201,9 @@ export default class URI implements UriComponents {
 	 * with URIs that represent files on disk (`file` scheme).
 	 */
 	get fsPath(): string {
+		// if (this.scheme !== 'file') {
+		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
+		// }
 		return _makeFsPath(this);
 	}
 
@@ -271,7 +289,6 @@ export default class URI implements UriComponents {
 	good.scheme === 'file';
 	good.path === '/coding/c#/project1';
 	good.fragment === '';
-
 	const bad = URI.parse('file://' + '/coding/c#/project1');
 	bad.scheme === 'file';
 	bad.path === '/coding/c'; // path is now broken

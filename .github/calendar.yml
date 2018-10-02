@@ -25,5 +25,7 @@
   '2018-06-25 18:00, US/Pacific':    'endgame',
   '2018-07-05 12:00, US/Pacific':    'development', # 1.25.0 released
   '2018-07-30 18:00, US/Pacific':    'endgame',
-  # '2018-08-08 12:00, US/Pacific':    'development', # 1.26.0 released
+  '2018-08-13 12:00, US/Pacific':    'development', # 1.26.0 released
+  '2018-08-27 18:00, US/Pacific':    'endgame',
+#  '2018-09-05 12:00, US/Pacific':    'development', # 1.27.0 released
 }

@@ -5,8 +5,8 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
+import { URI } from 'vs/base/common/uri';
+import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -34,12 +34,13 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { nativeSep } from 'vs/base/common/paths';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 // Viewlet Action
-export class OpenExplorerViewletAction extends ToggleViewletAction {
+export class OpenExplorerViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
 	public static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
 
@@ -47,20 +48,27 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IPartService partService: IPartService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, partService);
 	}
 }
 
-class FileUriDisplayContribution implements IWorkbenchContribution {
+class FileUriLabelContribution implements IWorkbenchContribution {
 
-	constructor(@IUriDisplayService uriDisplayService: IUriDisplayService) {
-		uriDisplayService.registerFormater(Schemas.file, {
-			label: '${path}',
-			separator: nativeSep,
-			tildify: !platform.isWindows,
-			normalizeDriveLetter: platform.isWindows
+	constructor(@ILabelService labelService: ILabelService) {
+		labelService.registerFormatter(Schemas.file, {
+			uri: {
+				label: '${authority}${path}',
+				separator: nativeSep,
+				tildify: !platform.isWindows,
+				normalizeDriveLetter: platform.isWindows,
+				authorityPrefix: nativeSep + nativeSep
+			},
+			workspace: {
+				suffix: ''
+			}
 		});
 	}
 }
@@ -152,7 +160,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding }, { forceFileInput: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding, forceFile: true }) as FileEditorInput;
 		});
 	}
 }
@@ -172,7 +180,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
 
 // Register uri display for file uris
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriDisplayContribution, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
 
 // Configuration
@@ -242,6 +250,11 @@ configurationRegistry.registerConfiguration({
 			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
 			'description': nls.localize('eol', "The default end of line character."),
 			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.enableTrash': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('useTrash', "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.")
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',

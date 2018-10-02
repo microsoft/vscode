@@ -36,13 +36,14 @@ const htmlContents = `
 		span.hello
 	</script>
 	<script type="text/javascript">
-		span.hello
+		span.bye
 	</script>
 </body>
 `;
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
+	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
 	teardown(() => {
 		// close all editors
 		return closeAllEditors;
@@ -337,7 +338,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		});
 	});
 
-	test('Expand html when inside script tag with html type (HTML)', () => {
+	test('Expand html in completion list when inside script tag with html type (HTML)', () => {
 		const abbreviation = 'span.hello';
 		const expandedText = '<span class="hello"></span>';
 
@@ -380,6 +381,52 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
 			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
+		});
+	});
+
+	test('Expand html when inside script tag with javascript type if js is mapped to html (HTML)', () => {
+		return workspace.getConfiguration('emmet').update('includeLanguages', {"javascript": "html"}, ConfigurationTarget.Global).then(() => {
+			return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+				editor.selection = new Selection(24, 10, 24, 10);
+				let expandPromise = expandEmmetAbbreviation(null);
+				if (!expandPromise) {
+					return Promise.resolve();
+				}
+				return expandPromise.then(() => {
+					assert.equal(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
+				});
+			}).then(() => {
+				return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+			});
+		});
+	});
+
+	test('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', () => {
+		const abbreviation = 'span.bye';
+		const expandedText = '<span class="bye"></span>';
+		return workspace.getConfiguration('emmet').update('includeLanguages', {"javascript": "html"}, ConfigurationTarget.Global).then(() => {
+			return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+				editor.selection = new Selection(24, 10, 24, 10);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				if (!completionPromise) {
+					assert.equal(1, 2, `Problem with expanding span.bye`);
+					return Promise.resolve();
+				}
+
+				return completionPromise.then((completionList: CompletionList) => {
+					if (!completionList.items || !completionList.items.length) {
+						assert.equal(1, 2, `Problem with expanding span.bye`);
+						return Promise.resolve();
+					}
+					const emmetCompletionItem = completionList.items[0];
+					assert.equal(emmetCompletionItem.label, abbreviation, `Label of completion item (${emmetCompletionItem.label}) doesnt match.`);
+					assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+					return Promise.resolve();
+				});
+			}).then(() => {
+				return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+			});
 		});
 	});
 

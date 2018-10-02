@@ -158,7 +158,13 @@ export abstract class Marker {
 		const newChildren = parent.children.slice(0);
 		newChildren.splice(idx, 1, ...others);
 		parent._children = newChildren;
-		others.forEach(node => node.parent = parent);
+
+		(function _fixParent(children: Marker[], parent: Marker) {
+			for (const child of children) {
+				child.parent = parent;
+				_fixParent(child.children, child);
+			}
+		})(others, parent);
 	}
 
 	get children(): Marker[] {
@@ -314,19 +320,31 @@ export class Transform extends Marker {
 
 	resolve(value: string): string {
 		const _this = this;
-		return value.replace(this.regexp, function () {
-			let ret = '';
-			for (const marker of _this._children) {
-				if (marker instanceof FormatString) {
-					let value = arguments.length - 2 > marker.index ? <string>arguments[marker.index] : '';
-					value = marker.resolve(value);
-					ret += value;
-				} else {
-					ret += marker.toString();
-				}
-			}
-			return ret;
+		let didMatch = false;
+		let ret = value.replace(this.regexp, function () {
+			didMatch = true;
+			return _this._replace(Array.prototype.slice.call(arguments, 0, -2));
 		});
+		// when the regex didn't match and when the transform has
+		// else branches, then run those
+		if (!didMatch && this._children.some(child => child instanceof FormatString && Boolean(child.elseValue))) {
+			ret = this._replace([]);
+		}
+		return ret;
+	}
+
+	private _replace(groups: string[]): string {
+		let ret = '';
+		for (const marker of this._children) {
+			if (marker instanceof FormatString) {
+				let value = groups[marker.index] || '';
+				value = marker.resolve(value);
+				ret += value;
+			} else {
+				ret += marker.toString();
+			}
+		}
+		return ret;
 	}
 
 	toString(): string {
@@ -334,7 +352,7 @@ export class Transform extends Marker {
 	}
 
 	toTextmateString(): string {
-		return `/${Text.escape(this.regexp.source)}/${this.children.map(c => c.toTextmateString())}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
+		return `/${this.regexp.source}/${this.children.map(c => c.toTextmateString())}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
 	}
 
 	clone(): Transform {
@@ -784,9 +802,10 @@ export class SnippetParser {
 			}
 			let value: string;
 			if (value = this._accept(TokenType.Backslash, true)) {
-				// \, or \|
+				// \, \|, or \\
 				value = this._accept(TokenType.Comma, true)
 					|| this._accept(TokenType.Pipe, true)
+					|| this._accept(TokenType.Backslash, true)
 					|| value;
 			} else {
 				value = this._accept(undefined, true);

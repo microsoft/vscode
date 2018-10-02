@@ -5,6 +5,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
@@ -33,8 +34,9 @@ export function activate(context: ExtensionContext) {
 	let packageInfo = getPackageInfo(context);
 	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
-	// The server is implemented in node
-	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
+	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
+	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+
 	// The debug options for the server
 	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
 
@@ -157,7 +159,7 @@ export function activate(context: ExtensionContext) {
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
-	let extensionPackage = require(context.asAbsolutePath('./package.json'));
+	let extensionPackage = readJSONFile(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
 			name: extensionPackage.name,
@@ -166,6 +168,16 @@ function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 		};
 	}
 	return null;
+}
+
+
+function readJSONFile(location: string) {
+	try {
+		return JSON.parse(fs.readFileSync(location).toString());
+	} catch (e) {
+		console.log(`Problems reading ${location}: ${e}`);
+		return {};
+	}
 }
 
 export function deactivate(): Promise<any> {

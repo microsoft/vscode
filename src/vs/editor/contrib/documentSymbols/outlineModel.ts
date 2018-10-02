@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DocumentSymbolProviderRegistry, DocumentSymbolProvider, DocumentSymbol } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { first, size, forEach } from 'vs/base/common/collections';
-import { isFalsyOrEmpty, binarySearch, coalesce } from 'vs/base/common/arrays';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { LRUCache } from 'vs/base/common/map';
+import { binarySearch, coalesce, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { first, forEach, size } from 'vs/base/common/collections';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
+import { LRUCache } from 'vs/base/common/map';
+import { commonPrefixLength } from 'vs/base/common/strings';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 
@@ -150,13 +150,13 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		return this._getItemEnclosingPosition(position, this.children);
+		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
 
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.range, position)) {
+			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;
@@ -393,11 +393,17 @@ export class OutlineModel extends TreeElement {
 		return true;
 	}
 
+	private _matches: [string, OutlineElement];
+
 	updateMatches(pattern: string): OutlineElement {
+		if (this._matches && this._matches[0] === pattern) {
+			return this._matches[1];
+		}
 		let topMatch: OutlineElement;
 		for (const key in this._groups) {
 			topMatch = this._groups[key].updateMatches(pattern, topMatch);
 		}
+		this._matches = [pattern, topMatch];
 		return topMatch;
 	}
 

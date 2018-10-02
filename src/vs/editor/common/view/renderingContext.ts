@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[];
-	visibleRangesForRange2(range: Range): HorizontalRange[];
+	visibleRangeForPosition(position: Position): HorizontalRange;
 }
 
 export abstract class RestrictedRenderingContext {
@@ -79,13 +79,7 @@ export class RenderingContext extends RestrictedRenderingContext {
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalRange {
-		const visibleRanges = this._viewLines.visibleRangesForRange2(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column)
-		);
-		if (!visibleRanges) {
-			return null;
-		}
-		return visibleRanges[0];
+		return this._viewLines.visibleRangeForPosition(position);
 	}
 }
 

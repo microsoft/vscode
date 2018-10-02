@@ -60,6 +60,7 @@ class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T>> {
 
 interface ITreeListTemplateData<T> {
 	twistie: HTMLElement;
+	count: HTMLElement;
 	templateData: T;
 }
 
@@ -89,9 +90,10 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		const el = append(container, $('.monaco-tl-row'));
 		const twistie = append(el, $('.tl-twistie'));
 		const contents = append(el, $('.tl-contents'));
+		const count = append(el, $('.tl-count'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { twistie, templateData };
+		return { twistie, count, templateData };
 	}
 
 	renderElement(node: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
@@ -99,6 +101,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
 		renderTwistie(node, templateData.twistie);
+		templateData.count.textContent = `${node.visibleCount}`;
 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
@@ -119,6 +122,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 		}
 
 		renderTwistie(node, templateData.twistie);
+		templateData.count.textContent = `${node.visibleCount}`;
 	}
 
 	dispose(): void {

@@ -5,10 +5,9 @@
 
 import * as vscode from 'vscode';
 import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
@@ -42,15 +41,17 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		});
 	}
 
-	$handleExternalUri(handle: number, uri: UriComponents): TPromise<void> {
+	$handleExternalUri(handle: number, uri: UriComponents): Thenable<void> {
 		const handler = this.handlers.get(handle);
 
 		if (!handler) {
 			return TPromise.as(null);
 		}
-
-		asWinJsPromise(_ => handler.handleUri(URI.revive(uri)))
-			.done(null, onUnexpectedError);
+		try {
+			handler.handleUri(URI.revive(uri));
+		} catch (err) {
+			onUnexpectedError(err);
+		}
 
 		return TPromise.as(null);
 	}

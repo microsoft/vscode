@@ -486,12 +486,13 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, canceled by another picker', function () {
 
+		const source = new CancellationTokenSource();
+
 		const result = window.showQuickPick(['eins', 'zwei', 'drei'], { ignoreFocusOut: true }).then(result => {
+			source.cancel();
 			assert.equal(result, undefined);
 		});
 
-		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
 
 		return result;
@@ -504,8 +505,8 @@ suite('window namespace tests', () => {
 		});
 
 		const source = new CancellationTokenSource();
-		source.cancel();
 		window.showInputBox(undefined, source.token);
+		source.cancel();
 
 		return result;
 	});
@@ -584,16 +585,6 @@ suite('window namespace tests', () => {
 	});
 
 	suite('Terminal', () => {
-		test('createTerminal, Terminal.name', () => {
-			const terminal = window.createTerminal('foo');
-			assert.equal(terminal.name, 'foo');
-
-			assert.throws(() => {
-				(<any>terminal).name = 'bar';
-			}, 'Terminal.name should be readonly');
-			terminal.dispose();
-		});
-
 		test('sendText immediately after createTerminal should not throw', () => {
 			const terminal = window.createTerminal();
 			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));

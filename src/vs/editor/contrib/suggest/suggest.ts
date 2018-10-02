@@ -7,11 +7,11 @@ import { first2 } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind, SuggestionKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -111,7 +111,15 @@ export function provideSuggestionItems(
 		}));
 	});
 
-	const result = first2(factory, () => hasResult).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+	const result = first2(factory, () => {
+		// stop on result or cancellation
+		return hasResult || token.isCancellationRequested;
+	}).then(() => {
+		if (token.isCancellationRequested) {
+			return Promise.reject(canceled());
+		}
+		return allSuggestions.sort(getSuggestionComparator(snippetConfig));
+	});
 
 	// result.then(items => {
 	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
@@ -144,7 +152,7 @@ function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISugges
 
 function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: ISuggestion) => boolean {
 	if (snippetConfig === 'none') {
-		return suggestion => suggestion.type !== 'snippet';
+		return suggestion => suggestion.kind !== SuggestionKind.Snippet;
 	} else {
 		return () => true;
 	}
@@ -164,10 +172,10 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	}
 
 	// check with 'type' and lower snippets
-	if (ret === 0 && a.suggestion.type !== b.suggestion.type) {
-		if (a.suggestion.type === 'snippet') {
+	if (ret === 0 && a.suggestion.kind !== b.suggestion.kind) {
+		if (a.suggestion.kind === SuggestionKind.Snippet) {
 			ret = 1;
-		} else if (b.suggestion.type === 'snippet') {
+		} else if (b.suggestion.kind === SuggestionKind.Snippet) {
 			ret = -1;
 		}
 	}
@@ -176,10 +184,10 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 }
 
 function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
-	if (a.suggestion.type !== b.suggestion.type) {
-		if (a.suggestion.type === 'snippet') {
+	if (a.suggestion.kind !== b.suggestion.kind) {
+		if (a.suggestion.kind === SuggestionKind.Snippet) {
 			return -1;
-		} else if (b.suggestion.type === 'snippet') {
+		} else if (b.suggestion.kind === SuggestionKind.Snippet) {
 			return 1;
 		}
 	}
@@ -187,10 +195,10 @@ function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 }
 
 function snippetDownComparator(a: ISuggestionItem, b: ISuggestionItem): number {
-	if (a.suggestion.type !== b.suggestion.type) {
-		if (a.suggestion.type === 'snippet') {
+	if (a.suggestion.kind !== b.suggestion.kind) {
+		if (a.suggestion.kind === SuggestionKind.Snippet) {
 			return 1;
-		} else if (b.suggestion.type === 'snippet') {
+		} else if (b.suggestion.kind === SuggestionKind.Snippet) {
 			return -1;
 		}
 	}

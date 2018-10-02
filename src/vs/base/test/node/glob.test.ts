@@ -999,4 +999,16 @@ suite('Glob', () => {
 	test('pattern with "base" does not explode - #36081', function () {
 		assert.ok(glob.match({ 'base': true }, 'base'));
 	});
+
+	test('relative pattern - #57475', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'styles/style.css', pathToRelative: (from, to) => path.relative(from, to) };
+			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\styles\\style.css');
+			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'styles/style.css', pathToRelative: (from, to) => path.relative(from, to) };
+			assertGlobMatch(p, '/DNXConsoleApp/foo/styles/style.css');
+			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+		}
+	});
 });

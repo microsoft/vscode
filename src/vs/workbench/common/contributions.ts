@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry } from 'vs/platform/registry/common/platform';
+
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 // --- Workbench Contribution Registry
 
@@ -39,7 +40,8 @@ export interface IWorkbenchContributionsRegistry {
 	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void;
 }
 
-export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+
+class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
 	private instantiationService: IInstantiationService;
 	private lifecycleService: ILifecycleService;
 
@@ -91,9 +93,11 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
 		const toBeInstantiated = this.toBeInstantiated.get(phase);
 		if (toBeInstantiated) {
-			while (toBeInstantiated.length > 0) {
-				instantiationService.createInstance(toBeInstantiated.shift());
+			// instantiate everything synchronously and blocking
+			for (const ctor of toBeInstantiated) {
+				instantiationService.createInstance(ctor);
 			}
+			this.toBeInstantiated.delete(phase);
 		}
 	}
 }

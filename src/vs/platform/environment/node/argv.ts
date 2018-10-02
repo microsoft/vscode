@@ -19,6 +19,7 @@ const options: minimist.Opts = {
 		'user-data-dir',
 		'extensions-dir',
 		'folder-uri',
+		'file-uri',
 		'extensionDevelopmentPath',
 		'extensionTestsPath',
 		'install-extension',
@@ -33,7 +34,10 @@ const options: minimist.Opts = {
 		'export-default-configuration',
 		'install-source',
 		'upload-logs',
-		'driver'
+		'driver',
+		'trace-category-filter',
+		'trace-options',
+		'_'
 	],
 	boolean: [
 		'help',
@@ -66,7 +70,8 @@ const options: minimist.Opts = {
 		'status',
 		'file-write',
 		'file-chmod',
-		'driver-verbose'
+		'driver-verbose',
+		'trace'
 	],
 	alias: {
 		add: 'a',
@@ -145,7 +150,6 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 const optionsHelp: { [name: string]: string; } = {
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
-	'--folder-uri <uri>': localize('folder uri', "Opens a window with given folder uri(s)"),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'-n, --new-window': localize('newWindow', "Force to open a new window."),
@@ -161,8 +165,8 @@ const extensionsHelp: { [name: string]: string; } = {
 	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
-	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
 	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
+	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts."),
 	'--enable-proposed-api (<extension-id>)': localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.")
 };
 
@@ -233,4 +237,31 @@ ${formatOptions(extensionsHelp, columns)}
 
 ${ localize('troubleshooting', "Troubleshooting")}:
 ${formatOptions(troubleshootingHelp, columns)}`;
+}
+
+/**
+ * Converts an argument into an array
+ * @param arg a argument value. Can be undefined, an entry or an array
+ */
+export function asArray(arg: string | string[] | undefined): string[] {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return arg;
+		}
+		return [arg];
+	}
+	return [];
+}
+
+/**
+ * Returns whether an argument is present.
+ */
+export function hasArgs(arg: string | string[] | undefined): boolean {
+	if (arg) {
+		if (Array.isArray(arg)) {
+			return !!arg.length;
+		}
+		return true;
+	}
+	return false;
 }

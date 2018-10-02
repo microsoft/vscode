@@ -9,13 +9,12 @@ import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/
 import { extname, basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -35,7 +34,6 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IUriDisplayService } from 'vs/platform/uriDisplay/common/uriDisplay';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -166,8 +164,7 @@ export class ResourcesDropHandler {
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEditorService private editorService: IEditorService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IUriDisplayService private uriDisplayService: IUriDisplayService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 	}
 
@@ -178,7 +175,7 @@ export class ResourcesDropHandler {
 		}
 
 		// Make the window active to handle the drop properly within
-		return this.windowService.focusWindow().then(() => {
+		this.windowService.focusWindow().then(() => {
 
 			// Check for special things being dropped
 			return this.doHandleDrop(untitledOrFileResources).then(isWorkspaceOpening => {
@@ -189,7 +186,7 @@ export class ResourcesDropHandler {
 				// Add external ones to recently open list unless dropped resource is a workspace
 				const filesToAddToHistory = untitledOrFileResources.filter(d => d.isExternal && d.resource.scheme === Schemas.file).map(d => d.resource);
 				if (filesToAddToHistory.length) {
-					this.windowsService.addRecentlyOpened(filesToAddToHistory.map(resource => this.uriDisplayService.getLabel(resource)));
+					this.windowsService.addRecentlyOpened(filesToAddToHistory);
 				}
 
 				const editors: IResourceEditor[] = untitledOrFileResources.map(untitledOrFileResource => ({
@@ -209,7 +206,7 @@ export class ResourcesDropHandler {
 					afterDrop(targetGroup);
 				});
 			});
-		}).done(null, onUnexpectedError);
+		});
 	}
 
 	private doHandleDrop(untitledOrFileResources: (IDraggedResource | IDraggedEditor)[]): TPromise<boolean> {

@@ -11,7 +11,7 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/node/extHostTextEditor';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
-import URI from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostTextEditor', () => {
@@ -46,7 +46,7 @@ suite('ExtHostTextEditor', () => {
 		let editor = new ExtHostTextEditor(new class extends mock<MainThreadTextEditorsShape>() {
 			$tryApplyEdits(): TPromise<boolean> {
 				applyCount += 1;
-				return TPromise.wrap(true);
+				return Promise.resolve(true);
 			}
 		}, 'edt1', doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
 
@@ -73,7 +73,7 @@ suite('ExtHostTextEditorOptions', () => {
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			},
 			$tryShowTextDocument: undefined,
 			$registerTextEditorDecorationType: undefined,

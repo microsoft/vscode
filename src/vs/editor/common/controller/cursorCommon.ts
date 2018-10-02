@@ -15,7 +15,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IConfigurationChangedEvent, EditorAutoClosingStrategy, EditorAutoSurroundStrategy } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
@@ -66,6 +66,10 @@ export interface CharacterMap {
 	[char: string]: string;
 }
 
+const autoCloseAlways = _ => true;
+const autoCloseNever = _ => false;
+const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
+
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
@@ -78,12 +82,16 @@ export class CursorConfiguration {
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
 	public readonly emptySelectionClipboard: boolean;
+	public readonly copyWithSyntaxHighlighting: boolean;
 	public readonly multiCursorMergeOverlapping: boolean;
-	public readonly autoClosingBrackets: boolean;
+	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
+	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
 	public readonly surroundingPairs: CharacterMap;
+	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; };
@@ -95,6 +103,8 @@ export class CursorConfiguration {
 			|| e.emptySelectionClipboard
 			|| e.multiCursorMergeOverlapping
 			|| e.autoClosingBrackets
+			|| e.autoClosingQuotes
+			|| e.autoSurround
 			|| e.useTabStops
 			|| e.lineHeight
 			|| e.readOnly
@@ -120,14 +130,22 @@ export class CursorConfiguration {
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
 		this.emptySelectionClipboard = c.emptySelectionClipboard;
+		this.copyWithSyntaxHighlighting = c.copyWithSyntaxHighlighting;
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
+		this.autoClosingQuotes = c.autoClosingQuotes;
+		this.autoSurround = c.autoSurround;
 		this.autoIndent = c.autoIndent;
 
 		this.autoClosingPairsOpen = {};
 		this.autoClosingPairsClose = {};
 		this.surroundingPairs = {};
 		this._electricChars = null;
+
+		this.shouldAutoCloseBefore = {
+			quote: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingQuotes),
+			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
+		};
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
@@ -177,6 +195,29 @@ export class CursorConfiguration {
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
+		}
+	}
+
+	private static _getShouldAutoClose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
+		switch (autoCloseConfig) {
+			case 'beforeWhitespace':
+				return autoCloseBeforeWhitespace;
+			case 'languageDefined':
+				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageIdentifier);
+			case 'always':
+				return autoCloseAlways;
+			case 'never':
+				return autoCloseNever;
+		}
+	}
+
+	private static _getLanguageDefinedShouldAutoClose(languageIdentifier: LanguageIdentifier): (ch: string) => boolean {
+		try {
+			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
+			return c => autoCloseBeforeSet.indexOf(c) !== -1;
+		} catch (e) {
+			onUnexpectedError(e);
+			return autoCloseNever;
 		}
 	}
 
@@ -536,4 +577,8 @@ export class CursorColumns {
 	public static prevTabStop(column: number, tabSize: number): number {
 		return column - 1 - (column - 1) % tabSize;
 	}
+}
+
+export function isQuote(ch: string): boolean {
+	return (ch === '\'' || ch === '"' || ch === '`');
 }

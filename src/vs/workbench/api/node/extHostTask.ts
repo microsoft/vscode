@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Objects from 'vs/base/common/objects';
-import { asWinJsPromise } from 'vs/base/common/async';
+import { asThenable } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -27,6 +27,7 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDeb
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /*
 namespace ProblemPattern {
@@ -803,7 +804,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return result;
 	}
 
-	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
+	public terminateTask(execution: vscode.TaskExecution): Thenable<void> {
 		if (!(execution instanceof TaskExecutionImpl)) {
 			throw new Error('No valid task execution provided');
 		}
@@ -860,12 +861,12 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): TPromise<tasks.TaskSet> {
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSet> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<tasks.TaskSet>(new Error('no handler found'));
 		}
-		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
+		return asThenable(() => handler.provider.provideTasks(CancellationToken.None)).then(value => {
 			let sanitized: vscode.Task[] = [];
 			for (let task of value) {
 				if (task.definition && validTypes[task.definition.type] === true) {
