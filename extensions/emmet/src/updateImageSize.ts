@@ -5,8 +5,6 @@
 
 // Based on @sergeche's work on the emmet plugin for atom
 
-'use strict';
-
 import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
