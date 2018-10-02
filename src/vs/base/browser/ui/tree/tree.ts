@@ -178,8 +178,8 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		this.model.setCollapsedAll(true);
 	}
 
-	refilter(location?: number[]): void {
-		this.model.refilter(location);
+	refilter(): void {
+		this.model.refilter();
 	}
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {

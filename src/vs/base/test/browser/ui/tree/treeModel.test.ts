@@ -366,41 +366,6 @@ suite('TreeModel2', function () {
 		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
 	});
 
-	test('collapse & expand should refilter', function () {
-		const list = [] as ITreeNode<number>[];
-		let shouldFilter = false;
-		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): Visibility {
-				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
-			}
-		};
-
-		const model = new TreeModel<number>(toSpliceable(list), { filter });
-
-		model.splice([0], 0, Iterator.fromArray([
-			{
-				element: 0, children: [
-					{ element: 1 },
-					{ element: 2 },
-					{ element: 3 },
-					{ element: 4 },
-					{ element: 5 },
-					{ element: 6 },
-					{ element: 7 }
-				]
-			},
-		]));
-
-		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
-
-		model.setCollapsed([0], true);
-		assert.deepEqual(toArray(list), [0]);
-
-		shouldFilter = true;
-		model.setCollapsed([0], false);
-		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
-	});
-
 	test('refilter', function () {
 		const list = [] as ITreeNode<number>[];
 		let shouldFilter = false;
@@ -484,6 +449,95 @@ suite('TreeModel2', function () {
 
 		model.setCollapsed([0], false);
 		assert.deepEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
+	});
+
+	test('recursive filter with collapse', function () {
+		const list = [] as ITreeNode<string>[];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): Visibility {
+				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			}
+		};
+
+		const model = new TreeModel<string>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 'vscode', children: [
+					{ element: '.build' },
+					{ element: 'git' },
+					{
+						element: 'github', children: [
+							{ element: 'calendar.yml' },
+							{ element: 'endgame' },
+							{ element: 'build.js' },
+						]
+					},
+					{
+						element: 'build', children: [
+							{ element: 'lib' },
+							{ element: 'gulpfile.js' }
+						]
+					}
+				]
+			},
+		]));
+
+		assert.deepEqual(list.length, 10);
+
+		query = /gulp/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
+
+		model.setCollapsed([0, 3], true);
+		assert.deepEqual(toArray(list), ['vscode', 'build']);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), ['vscode']);
+	});
+
+	test('recursive filter while collapsed', function () {
+		const list = [] as ITreeNode<string>[];
+		let query = new RegExp('');
+		const filter = new class implements ITreeFilter<string> {
+			filter(element: string): Visibility {
+				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			}
+		};
+
+		const model = new TreeModel<string>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 'vscode', collapsed: true, children: [
+					{ element: '.build' },
+					{ element: 'git' },
+					{
+						element: 'github', children: [
+							{ element: 'calendar.yml' },
+							{ element: 'endgame' },
+							{ element: 'build.js' },
+						]
+					},
+					{
+						element: 'build', children: [
+							{ element: 'lib' },
+							{ element: 'gulpfile.js' }
+						]
+					}
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		query = /gulp/;
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
 	});
 
 	suite('getNodeLocation', function () {
