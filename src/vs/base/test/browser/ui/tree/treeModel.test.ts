@@ -466,5 +466,35 @@ suite('TreeModel2', function () {
 			assert.deepEqual(TreeModel.getNodeLocation(list[4]), [1]);
 			assert.deepEqual(TreeModel.getNodeLocation(list[5]), [2]);
 		});
+
+		test('with filter', function () {
+			const list = [] as ITreeNode<number>[];
+			const filter = new class implements ITreeFilter<number> {
+				filter(element: number): Visibility {
+					return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+				}
+			};
+
+			const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+			model.splice([0], 0, Iterator.fromArray([
+				{
+					element: 0, children: [
+						{ element: 1 },
+						{ element: 2 },
+						{ element: 3 },
+						{ element: 4 },
+						{ element: 5 },
+						{ element: 6 },
+						{ element: 7 }
+					]
+				}
+			]));
+
+			assert.deepEqual(TreeModel.getNodeLocation(list[0]), [0]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[1]), [0, 1]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[2]), [0, 3]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[3]), [0, 5]);
+		});
 	});
 });
