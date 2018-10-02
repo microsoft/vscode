@@ -589,7 +589,11 @@ export class DebugService implements IDebugService {
 								}
 							}
 
-							const substitutionThenable: Thenable<IConfig> = needsToSubstitute ? this.substituteVariables(launch, unresolved) : Promise.resolve(session.configuration);
+							let substitutionThenable: Thenable<IConfig> = Promise.resolve(session.configuration);
+							if (needsToSubstitute) {
+								substitutionThenable = this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved)
+									.then(resolved => this.substituteVariables(launch, resolved));
+							}
 							substitutionThenable.then(resolved => {
 								session.setConfiguration({ resolved, unresolved });
 								session.configuration.__restart = restartData;
