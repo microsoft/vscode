@@ -39,7 +39,7 @@ export function deactivate(): void {
 }
 
 
-function toggleAutoAttachSetting(context: vscode.ExtensionContext) {
+function toggleAutoAttachSetting() {
 
 	const conf = vscode.workspace.getConfiguration(DEBUG_SETTINGS);
 	if (conf) {
