@@ -538,6 +538,16 @@ suite('TreeModel2', function () {
 
 		model.setCollapsed([0], false);
 		assert.deepEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		query = new RegExp('');
+		model.refilter();
+		assert.deepEqual(toArray(list), ['vscode']);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(list.length, 10);
 	});
 
 	suite('getNodeLocation', function () {

@@ -309,7 +309,7 @@ export class TreeModel<T, TFilterData = void> {
 		node.revealedCount = node === this.root ? 0 : 1;
 
 		let hasVisibleDescendants = false;
-		if (typeof node.visible === 'undefined' || !node.collapsed) {
+		if (node.visible !== false || !node.collapsed) {
 			for (const child of node.children) {
 				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, result, revealed && !node.collapsed) || hasVisibleDescendants;
 			}
