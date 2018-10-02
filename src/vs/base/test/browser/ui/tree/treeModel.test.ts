@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeNode } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeFilter, Visibility } from 'vs/base/browser/ui/tree/treeModel';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator } from 'vs/base/common/iterator';
 
@@ -330,5 +330,114 @@ suite('TreeModel2', function () {
 		model.setCollapsed([1], true);
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(toArray(list), [1, 11, 2]);
+	});
+
+	test('simple filter', function () {
+		const list = [] as ITreeNode<number>[];
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number): Visibility {
+				return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			}
+		]));
+
+		assert.deepEqual(list.length, 4);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+	});
+
+	test('collapse & expand should refilter', function () {
+		const list = [] as ITreeNode<number>[];
+		let shouldFilter = false;
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number): Visibility {
+				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		model.setCollapsed([0], true);
+		assert.deepEqual(toArray(list), [0]);
+
+		shouldFilter = true;
+		model.setCollapsed([0], false);
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+	});
+
+	test('refilter', function () {
+		const list = [] as ITreeNode<number>[];
+		let shouldFilter = false;
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number): Visibility {
+				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 },
+					{ element: 3 },
+					{ element: 4 },
+					{ element: 5 },
+					{ element: 6 },
+					{ element: 7 }
+				]
+			},
+		]));
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+
+		shouldFilter = true;
+		model.refilter();
+		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
+
+		shouldFilter = false;
+		model.refilter();
+
+		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
 	});
 });
