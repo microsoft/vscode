@@ -21,15 +21,16 @@ perfSuite('Performance - fuzzyMatch', function () {
 
 	console.log(`Matching ${data.length} items against ${patterns.length} patterns (${data.length * patterns.length} operations) `);
 
-	function perfTest(name: string, match: (pattern: string, word: string) => any) {
+	function perfTest(name: string, match: filters.FuzzyScorer) {
 		test(name, () => {
 
 			const t1 = Date.now();
 			let count = 0;
 			for (const pattern of patterns) {
+				const patternLow = pattern.toLowerCase();
 				for (const item of data) {
 					count += 1;
-					match(pattern, item);
+					match(pattern, patternLow, 0, item, item.toLowerCase(), 0, false);
 				}
 			}
 			const d = Date.now() - t1;
@@ -37,8 +38,8 @@ perfSuite('Performance - fuzzyMatch', function () {
 		});
 	}
 
-	perfTest('matchesFuzzy', filters.matchesFuzzy);
-	perfTest('fuzzyContiguousFilter', filters.fuzzyContiguousFilter);
+	// perfTest('matchesFuzzy', filters.matchesFuzzy);
+	// perfTest('fuzzyContiguousFilter', filters.fuzzyContiguousFilter);
 	perfTest('fuzzyScore', filters.fuzzyScore);
 	perfTest('fuzzyScoreGraceful', filters.fuzzyScoreGraceful);
 	perfTest('fuzzyScoreGracefulAggressive', filters.fuzzyScoreGracefulAggressive);

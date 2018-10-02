@@ -5,12 +5,13 @@
 
 'use strict';
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { CharCode } from 'vs/base/common/charCode';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -151,6 +152,7 @@ export class CompletionModel {
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
+		let wordLow = '';
 
 		// incrementally filter less
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
@@ -159,7 +161,7 @@ export class CompletionModel {
 		// picks a score function based on the number of
 		// items that we have to score/filter and based on the
 		// user-configuration
-		const scoreFn = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
+		const scoreFn: FuzzyScorer = (!this._options.filterGraceful || source.length > 2000) ? fuzzyScore : fuzzyScoreGracefulAggressive;
 
 		for (let i = 0; i < source.length; i++) {
 
@@ -179,6 +181,7 @@ export class CompletionModel {
 			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
+				wordLow = word.toLowerCase();
 			}
 
 			// remember the word against which this item was
@@ -194,26 +197,46 @@ export class CompletionModel {
 				item.score = -100;
 				item.matches = undefined;
 
-			} else if (typeof suggestion.filterText === 'string') {
-				// when there is a `filterText` it must match the `word`.
-				// if it matches we check with the label to compute highlights
-				// and if that doesn't yield a result we have no highlights,
-				// despite having the match
-				let match = scoreFn(word, suggestion.filterText, overwriteBefore);
-				if (!match) {
-					continue;
-				}
-				item.score = match[0];
-				item.matches = (fuzzyScore(word, suggestion.label) || anyScore(word, suggestion.label))[1];
-
 			} else {
-				// by default match `word` against the `label`
-				let match = scoreFn(word, suggestion.label, overwriteBefore);
-				if (match) {
+				// skip word characters that are whitespace until
+				// we have hit the replace range (overwriteBefore)
+				let wordPos = 0;
+				while (wordPos < overwriteBefore) {
+					const ch = word.charCodeAt(wordPos);
+					if (ch === CharCode.Space || ch === CharCode.Tab) {
+						wordPos += 1;
+					} else {
+						break;
+					}
+				}
+
+				if (wordPos >= wordLen) {
+					// the wordPos at which scoring starts is the whole word
+					// and therefore the same rules as not having a word apply
+					item.score = -100;
+					item.matches = [];
+
+				} else if (typeof suggestion.filterText === 'string') {
+					// when there is a `filterText` it must match the `word`.
+					// if it matches we check with the label to compute highlights
+					// and if that doesn't yield a result we have no highlights,
+					// despite having the match
+					let match = scoreFn(word, wordLow, wordPos, suggestion.filterText, suggestion.filterText.toLowerCase(), 0, false);
+					if (!match) {
+						continue;
+					}
 					item.score = match[0];
-					item.matches = match[1];
+					item.matches = (fuzzyScore(word, wordLow, 0, suggestion.label, suggestion.label.toLowerCase(), 0, true) || anyScore(word, suggestion.label))[1];
+
 				} else {
-					continue;
+					// by default match `word` against the `label`
+					let match = scoreFn(word, wordLow, wordPos, suggestion.label, suggestion.label.toLowerCase(), 0, false);
+					if (match) {
+						item.score = match[0];
+						item.matches = match[1];
+					} else {
+						continue;
+					}
 				}
 			}
 

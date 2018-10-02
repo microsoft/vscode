@@ -321,7 +321,7 @@ export class FileHighlighter implements IHighlighter {
 		return IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString();
 	}
 	getHighlights(tree: ITree, element: IFileStat | IWorkspaceFolder, pattern: string): FuzzyScore {
-		return fuzzyScore(pattern, element.name, undefined, true);
+		return fuzzyScore(pattern, pattern.toLowerCase(), 0, element.name, element.name.toLowerCase(), 0, true);
 	}
 }
 
