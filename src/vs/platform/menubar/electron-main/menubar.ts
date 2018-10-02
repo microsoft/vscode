@@ -43,7 +43,7 @@ export class Menubar {
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
-	private fallbackMenuHandlers: { [id: string]: { needsClick: boolean; click?: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Electron.Event) => void; } } = {};
+	private fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Electron.Event) => void } = {};
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -73,49 +73,45 @@ export class Menubar {
 
 	private addFallbackHandlers(): void {
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = { needsClick: true, click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) };
-		this.fallbackMenuHandlers['workbench.action.newWindow'] = { needsClick: true, click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) };
-		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = { needsClick: true, click: (menuItem, win, event) => this.windowsMainService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) };
-		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = { needsClick: true, click: (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) };
+		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = () => this.windowsMainService.openNewWindow(OpenContext.MENU);
+		this.fallbackMenuHandlers['workbench.action.newWindow'] = () => this.windowsMainService.openNewWindow(OpenContext.MENU);
+		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.windowsMainService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
+		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 
 		// Recent Menu Items
-		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = { needsClick: true, click: () => this.historyMainService.clearRecentlyOpened() };
+		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.historyMainService.clearRecentlyOpened();
 
 		// Help Menu Items
 		if (product.twitterUrl) {
-			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = { needsClick: true, click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') };
+			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(product.twitterUrl, 'openTwitterUrl');
 		}
 
 		if (product.requestFeatureUrl) {
-			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = { needsClick: true, click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') };
+			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl');
 		}
 
 		if (product.reportIssueUrl) {
-			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = { needsClick: true, click: () => this.openUrl(product.reportIssueUrl, 'openReportIssues') };
+			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = () => this.openUrl(product.reportIssueUrl, 'openReportIssues');
 		}
 
 		if (product.licenseUrl) {
-			this.addFallbackHandlers['workbench.action.openLicenseUrl'] = {
-				needsClick: true, click: () => {
-					if (language) {
-						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-						this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
-					} else {
-						this.openUrl(product.licenseUrl, 'openLicenseUrl');
-					}
+			this.addFallbackHandlers['workbench.action.openLicenseUrl'] = () => {
+				if (language) {
+					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+					this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
+				} else {
+					this.openUrl(product.licenseUrl, 'openLicenseUrl');
 				}
 			};
 		}
 
 		if (product.privacyStatementUrl) {
-			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = {
-				needsClick: true, click: () => {
-					if (language) {
-						const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-						this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
-					} else {
-						this.openUrl(product.privacyStatementUrl, 'openPrivacyStatement');
-					}
+			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
+				if (language) {
+					const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+					this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
+				} else {
+					this.openUrl(product.privacyStatementUrl, 'openPrivacyStatement');
 				}
 			};
 		}
@@ -421,11 +417,7 @@ export class Menubar {
 					if (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) {
 						// In the fallback scenario, we are either disabled or using a fallback handler
 						if (this.fallbackMenuHandlers[item.id]) {
-							if (this.fallbackMenuHandlers[item.id].needsClick) {
-								menu.append(new MenuItem(this.likeAction(item.id, { label: this.mnemonicLabel(item.label), click: this.fallbackMenuHandlers[item.id].click })));
-							} else {
-								menu.append(this.createMenuItem(item.label, item.id, true, item.checked));
-							}
+							menu.append(new MenuItem(this.likeAction(item.id, { label: this.mnemonicLabel(item.label), click: this.fallbackMenuHandlers[item.id] })));
 						} else {
 							menu.append(this.createMenuItem(item.label, item.id, false, item.checked));
 						}
