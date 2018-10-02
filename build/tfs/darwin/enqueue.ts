@@ -20,7 +20,7 @@ interface Asset {
 function queueSigningRequest(quality: string, commit: string): Promise<void> {
 	const retryOperations = new azure.ExponentialRetryPolicyFilter();
 	const queueSvc = azure
-		.createQueueService(process.env['AZURE_STORAGE_ACCOUNT_2'], process.env['AZURE_STORAGE_ACCESS_KEY_2'])
+		.createQueueService(process.env['AZURE_STORAGE_ACCOUNT_2']!, process.env['AZURE_STORAGE_ACCESS_KEY_2']!)
 		.withFilter(retryOperations);
 
 	queueSvc.messageEncoder = new azure.QueueMessageEncoder.TextBase64QueueMessageEncoder();
@@ -31,7 +31,7 @@ function queueSigningRequest(quality: string, commit: string): Promise<void> {
 }
 
 function isBuildSigned(quality: string, commit: string): Promise<boolean> {
-	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT'], { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
+	const client = new DocumentClient(process.env['AZURE_DOCUMENTDB_ENDPOINT']!, { masterKey: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const collection = 'dbs/builds/colls/' + quality;
 	const updateQuery = {
 		query: 'SELECT TOP 1 * FROM c WHERE c.id = @id',
