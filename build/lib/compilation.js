@@ -63,10 +63,12 @@ function createCompile(src, build, emitError) {
     };
 }
 var libDtsGlob = 'node_modules/typescript/lib/*.d.ts';
+var atTypesDts = 'node_modules/@types/**/*.d.ts';
+var excludedTypesFilter = util.filter(function (data) { return !/node_modules(\/|\\)@types(\/|\\)(node|webpack|uglify-js)(\/|\\)/.test(data.path); });
 function compileTask(src, out, build) {
     return function () {
         var compile = createCompile(src, build, true);
-        var srcPipe = es.merge(gulp.src(src + "/**", { base: "" + src }), gulp.src(libDtsGlob));
+        var srcPipe = es.merge(gulp.src(src + "/**", { base: "" + src }), gulp.src(libDtsGlob), gulp.src(atTypesDts).pipe(excludedTypesFilter));
         // Do not write .d.ts files to disk, as they are not needed there.
         var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });
         return srcPipe
@@ -81,7 +83,7 @@ exports.compileTask = compileTask;
 function watchTask(out, build) {
     return function () {
         var compile = createCompile('src', build);
-        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(libDtsGlob));
+        var src = es.merge(gulp.src('src/**', { base: 'src' }), gulp.src(libDtsGlob), gulp.src(atTypesDts).pipe(excludedTypesFilter));
         var watchSrc = watch('src/**', { base: 'src' });
         // Do not write .d.ts files to disk, as they are not needed there.
         var dtsFilter = util.filter(function (data) { return !/\.d\.ts$/.test(data.path); });

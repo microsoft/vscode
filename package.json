@@ -56,10 +56,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@types/keytar": "4.0.1",
-    "@types/minimist": "1.2.0",
     "@types/mocha": "2.2.39",
-    "@types/sinon": "1.16.34",
     "@types/webpack": "^4.4.10",
     "asar": "^0.14.0",
     "chromium-pickle-js": "^0.2.0",
