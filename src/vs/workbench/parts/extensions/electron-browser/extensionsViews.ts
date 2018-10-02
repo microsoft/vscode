@@ -379,6 +379,7 @@ export class ExtensionsListView extends ViewletPanel {
 			for (let i = 0; i < this.searchExperiments.length; i++) {
 				if (text.toLowerCase() === this.searchExperiments[i].action.properties['searchText'] && Array.isArray(this.searchExperiments[i].action.properties['preferredResults'])) {
 					preferredResults = this.searchExperiments[i].action.properties['preferredResults'];
+					options.source += `-experiment-${this.searchExperiments[i].id}`;
 					break;
 				}
 			}
