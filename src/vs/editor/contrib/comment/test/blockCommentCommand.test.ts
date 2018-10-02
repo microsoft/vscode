@@ -59,7 +59,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 		);
 	});
 
-	test('bug9511', function () {
+	test('bug9511', () => {
 		testBlockCommentCommand(
 			[
 				'first',

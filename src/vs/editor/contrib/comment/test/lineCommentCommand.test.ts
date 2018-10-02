@@ -84,7 +84,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		});
 	}
 
-	test('_analyzeLines', function () {
+	test('_analyzeLines', () => {
 		let r: IPreflightData;
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
@@ -149,7 +149,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		assert.equal(r.lines[3].commentStrLength, 3);
 	});
 
-	test('_normalizeInsertionPoint', function () {
+	test('_normalizeInsertionPoint', () => {
 
 		const runTest = (mixedArr: any[], tabSize: number, expected: number[], testName: string) => {
 			const model = createSimpleModel(mixedArr.filter((item, idx) => idx % 2 === 0));

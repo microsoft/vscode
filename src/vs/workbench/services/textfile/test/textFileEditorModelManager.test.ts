@@ -100,7 +100,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('loadOrCreate', function () {
+	test('loadOrCreate', () => {
 		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
@@ -145,7 +145,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model3.dispose();
 	});
 
-	test('events', function () {
+	test('events', () => {
 		TextFileEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = 0;
 		TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 0;
 

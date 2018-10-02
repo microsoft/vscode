@@ -88,7 +88,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(null))
 			.then(update => {
-				if (update) {
+				// TODO: TS 3.1 upgrade. Why are we checking against void?
+				if (update as any) {
 					// Update found, no need to check more
 					return TPromise.as(null);
 				}

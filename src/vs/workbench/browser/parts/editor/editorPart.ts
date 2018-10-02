@@ -33,6 +33,7 @@ import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { IView, orthogonal } from 'vs/base/browser/ui/grid/gridview';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -821,16 +822,36 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private doCreateGridControlWithPreviousState(): void {
 		const uiState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
 		if (uiState && uiState.serializedGrid) {
+			try {
 
-			// MRU
-			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+				// MRU
+				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
-			// Grid Widget
-			this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
+				// Grid Widget
+				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
 
-			// Ensure last active group has focus
-			this._activeGroup.focus();
+				// Ensure last active group has focus
+				this._activeGroup.focus();
+			} catch (error) {
+				this.handleGridRestoreError(error);
+			}
 		}
+	}
+
+	private handleGridRestoreError(error: Error): void {
+
+		// Log error
+		onUnexpectedError(error);
+
+		// Clear any state we have from the failing restore
+		if (this.gridWidget) {
+			this.doSetGridWidget();
+		}
+
+		this.groupViews.forEach(group => group.dispose());
+		this.groupViews.clear();
+		this._activeGroup = void 0;
+		this.mostRecentActiveGroups = [];
 	}
 
 	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {

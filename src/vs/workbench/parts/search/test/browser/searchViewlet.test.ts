@@ -62,7 +62,7 @@ suite('Search - Viewlet', () => {
 		assert(!ds.hasChildren(null, lineMatch));
 	});
 
-	test('Sorter', function () {
+	test('Sorter', () => {
 		let fileMatch1 = aFileMatch('C:\\foo');
 		let fileMatch2 = aFileMatch('C:\\with\\path');
 		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');

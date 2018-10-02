@@ -47,7 +47,7 @@ suite('SnippetController2', function () {
 		model.dispose();
 	});
 
-	test('creation', function () {
+	test('creation', () => {
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		assertContextKeys(contextKeys, false, false, false);
 		ctrl.dispose();

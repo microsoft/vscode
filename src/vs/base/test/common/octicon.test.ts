@@ -22,7 +22,7 @@ function filterOk(filter: IOcticonFilter, word: string, target: { text: string, 
 }
 
 suite('Octicon', () => {
-	test('matchesFuzzzyOcticonAware', function () {
+	test('matchesFuzzzyOcticonAware', () => {
 
 		// Camel Case
 

@@ -16,7 +16,7 @@ import { testFile } from 'vs/base/test/node/utils';
 
 suite('Config', () => {
 
-	test('defaults', function () {
+	test('defaults', () => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'config', id);

@@ -228,6 +228,9 @@ suite('DecorationsService', function () {
 				}
 			}
 		});
+		// TODO: TS 3.1 upgrade. Why do we need 'resolve' if it is never actually resolved?
+		// tslint:disable-next-line:no-unused-expression
+		resolve as any;
 
 		let data1 = service.getDecoration(URI.parse('a:b/'), true);
 		assert.ok(!data1);

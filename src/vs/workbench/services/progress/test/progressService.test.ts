@@ -244,7 +244,7 @@ suite('Progress Service', () => {
 
 	});
 
-	test('WorkbenchProgressService', function () {
+	test('WorkbenchProgressService', () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();

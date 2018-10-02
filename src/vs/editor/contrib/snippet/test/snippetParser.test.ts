@@ -529,7 +529,7 @@ suite('SnippetParser', () => {
 		assert.ok(first.parent === snippet.children[0]);
 	});
 
-	test('TextmateSnippet#enclosingPlaceholders', function () {
+	test('TextmateSnippet#enclosingPlaceholders', () => {
 		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
 		let [first, second] = snippet.placeholders;
 

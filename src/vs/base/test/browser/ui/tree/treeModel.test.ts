@@ -22,14 +22,14 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 
 suite('TreeModel2', function () {
 
-	test('ctor', function () {
+	test('ctor', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 	});
 
-	test('insert', function () {
+	test('insert', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -116,7 +116,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('delete', function () {
+	test('delete', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -228,7 +228,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list.length, 3);
 	});
 
-	test('collapse', function () {
+	test('collapse', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
@@ -259,7 +259,7 @@ suite('TreeModel2', function () {
 		assert.deepEqual(list[2].depth, 1);
 	});
 
-	test('expand', function () {
+	test('expand', () => {
 		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 

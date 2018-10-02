@@ -96,7 +96,7 @@ suite('Workbench parts', () => {
 		document.body.removeChild(fixture);
 	});
 
-	test('Creation', function () {
+	test('Creation', () => {
 		let b = document.createElement('div');
 		document.getElementById(fixtureId).appendChild(b);
 		hide(b);

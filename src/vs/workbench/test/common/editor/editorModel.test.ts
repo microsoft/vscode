@@ -40,7 +40,7 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', function () {
+	test('EditorModel', () => {
 		let counter = 0;
 
 		let m = new MyEditorModel();
@@ -58,7 +58,7 @@ suite('Workbench editor model', () => {
 		});
 	});
 
-	test('BaseTextEditorModel', function () {
+	test('BaseTextEditorModel', () => {
 		let modelService = stubModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);

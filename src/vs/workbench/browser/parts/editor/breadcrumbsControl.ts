@@ -357,7 +357,7 @@ export class BreadcrumbsControl {
 				return combinedDisposable([selectListener, focusListener, picker]);
 			},
 			getAnchor: () => {
-				let maxInnerWidth = window.innerWidth - 8 /*a little less the the full widget*/;
+				let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
 				let maxHeight = Math.min(window.innerHeight * .7, 300);
 
 				let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));

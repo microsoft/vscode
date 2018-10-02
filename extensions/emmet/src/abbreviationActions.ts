@@ -216,7 +216,7 @@ function doWrapping(individualLines: boolean, args: any) {
 		}
 		return '';
 	}
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
+	const abbreviationPromise: Thenable<string | undefined> = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation', validateInput: inputChanged });
 	return abbreviationPromise.then(inputAbbreviation => {
 		return makeChanges(inputAbbreviation, true);
 	});
@@ -637,7 +637,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 }
 
-function getSyntaxFromArgs(args: Object): string | undefined {
+function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
 	const language: string = args['language'];
 	const parentMode: string = args['parentMode'];

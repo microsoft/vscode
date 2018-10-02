@@ -11,7 +11,7 @@ import { normalize } from 'path';
 
 suite('Console', () => {
 
-	test('getFirstFrame', function () {
+	test('getFirstFrame', () => {
 		let stack = 'at vscode.commands.registerCommand (/Users/someone/Desktop/test-ts/out/src/extension.js:18:17)';
 		let frame = getFirstFrame(stack);
 

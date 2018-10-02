@@ -20,7 +20,7 @@ function filterNotOk(filter: IFilter, word: string, suggestion: string) {
 }
 
 suite('Filters', () => {
-	test('or', function () {
+	test('or', () => {
 		let filter: IFilter;
 		let counters: number[];
 		let newFilter = function (i: number, r: boolean): IFilter {
@@ -72,7 +72,7 @@ suite('Filters', () => {
 		filterNotOk(matchesPrefix, 'T', '4'); // see https://github.com/Microsoft/vscode/issues/22401
 	});
 
-	test('CamelCaseFilter', function () {
+	test('CamelCaseFilter', () => {
 		filterNotOk(matchesCamelCase, '', '');
 		filterOk(matchesCamelCase, '', 'anything', []);
 		filterOk(matchesCamelCase, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
@@ -150,13 +150,13 @@ suite('Filters', () => {
 		assert(matchesCamelCase('debug console', 'Open: Debug Console'));
 	});
 
-	test('matchesContiguousSubString', function () {
+	test('matchesContiguousSubString', () => {
 		filterOk(matchesContiguousSubString, 'cela', 'cancelAnimationFrame()', [
 			{ start: 3, end: 7 }
 		]);
 	});
 
-	test('matchesSubString', function () {
+	test('matchesSubString', () => {
 		filterOk(matchesSubString, 'cmm', 'cancelAnimationFrame()', [
 			{ start: 0, end: 1 },
 			{ start: 9, end: 10 },
@@ -176,7 +176,7 @@ suite('Filters', () => {
 		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 	});
 
-	test('WordFilter', function () {
+	test('WordFilter', () => {
 		filterOk(matchesWords, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
 		filterOk(matchesWords, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
 		filterNotOk(matchesWords, 'alpha', 'alp');
@@ -256,7 +256,7 @@ suite('Filters', () => {
 		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
 	});
 
-	test('fuzzyScore', function () {
+	test('fuzzyScore', () => {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
 		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
@@ -439,7 +439,7 @@ suite('Filters', () => {
 		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
 	});
 
-	test('fuzzyScoreGraceful', function () {
+	test('fuzzyScoreGraceful', () => {
 
 		assertMatches('rlut', 'result', undefined, fuzzyScore);
 		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);

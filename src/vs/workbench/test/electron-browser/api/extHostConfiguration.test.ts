@@ -65,7 +65,7 @@ suite('ExtHostConfiguration', function () {
 		assert.equal(extHostConfig.getConfiguration('search').has('exclude.**/node_modules'), true);
 	});
 
-	test('has/get', function () {
+	test('has/get', () => {
 
 		const all = createExtHostConfiguration({
 			'farboo': {

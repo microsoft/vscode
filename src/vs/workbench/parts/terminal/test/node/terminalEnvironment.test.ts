@@ -172,7 +172,7 @@ suite('Workbench - TerminalEnvironment', () => {
 		});
 	});
 
-	test('preparePathForTerminal', function () {
+	test('preparePathForTerminal', () => {
 		if (platform.isWindows) {
 			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo'), 'C:\\foo');
 			assert.equal(terminalEnvironment.preparePathForTerminal('C:\\foo bar'), '"C:\\foo bar"');

@@ -95,7 +95,7 @@ suite('languages namespace tests', () => {
 		let uri = vscode.Uri.parse('ttt:path.far');
 
 		let r1 = vscode.languages.registerCodeActionsProvider({ pattern: '*.far', scheme: 'ttt' }, {
-			provideCodeActions(document, range, ctx): vscode.Command[] {
+			provideCodeActions(_document, _range, ctx): vscode.Command[] {
 
 				assert.equal(ctx.diagnostics.length, 2);
 				let [first, second] = ctx.diagnostics;
@@ -119,9 +119,9 @@ suite('languages namespace tests', () => {
 		let r4 = vscode.languages.createDiagnosticCollection();
 		r4.set(uri, [diag2]);
 
-		return vscode.workspace.openTextDocument(uri).then(doc => {
+		return vscode.workspace.openTextDocument(uri).then(_doc => {
 			return vscode.commands.executeCommand('vscode.executeCodeActionProvider', uri, new vscode.Range(0, 0, 0, 10));
-		}).then(commands => {
+		}).then(_commands => {
 			assert.ok(ran);
 			vscode.Disposable.from(r1, r2, r3, r4).dispose();
 		});
@@ -134,7 +134,7 @@ suite('languages namespace tests', () => {
 		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 
 		let r1 = vscode.languages.registerCompletionItemProvider(jsonDocumentFilter, {
-			provideCompletionItems: (document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.CompletionItem[] => {
+			provideCompletionItems: (_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancellationToken): vscode.CompletionItem[] => {
 				let proposal = new vscode.CompletionItem('foo');
 				proposal.kind = vscode.CompletionItemKind.Property;
 				ran = true;
@@ -142,7 +142,7 @@ suite('languages namespace tests', () => {
 			}
 		});
 
-		return vscode.workspace.openTextDocument(uri).then(doc => {
+		return vscode.workspace.openTextDocument(uri).then(_doc => {
 			return vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
 		}).then((result: vscode.CompletionList | undefined) => {
 			r1.dispose();

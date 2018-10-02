@@ -16,7 +16,7 @@ suite('window namespace tests', () => {
 
 	test('editor, active text editor', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			return window.showTextDocument(doc).then((editor) => {
+			return window.showTextDocument(doc).then((_editor) => {
 				const active = window.activeTextEditor;
 				assert.ok(active);
 				assert.ok(pathEquals(active!.document.uri.fsPath, doc.uri.fsPath));
@@ -26,7 +26,7 @@ suite('window namespace tests', () => {
 
 	test('editor, opened via resource', () => {
 		const uri = Uri.file(join(workspace.rootPath || '', './far.js'));
-		return window.showTextDocument(uri).then((editor) => {
+		return window.showTextDocument(uri).then((_editor) => {
 			const active = window.activeTextEditor;
 			assert.ok(active);
 			assert.ok(pathEquals(active!.document.uri.fsPath, uri.fsPath));
@@ -57,26 +57,26 @@ suite('window namespace tests', () => {
 	test('editor, onDidChangeVisibleTextEditors', () => {
 
 		let eventCounter = 0;
-		let reg = window.onDidChangeVisibleTextEditors(editor => {
+		let reg = window.onDidChangeVisibleTextEditors(_editor => {
 			eventCounter += 1;
 		});
 
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.One).then(editor => {
+			return window.showTextDocument(doc, ViewColumn.One).then(_editor => {
 				assert.equal(eventCounter, 1);
 				return doc;
 			});
 		}).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.Two).then(editor => {
+			return window.showTextDocument(doc, ViewColumn.Two).then(_editor => {
 				assert.equal(eventCounter, 2);
 				return doc;
 			});
 		}).then(doc => {
-			return window.showTextDocument(doc, ViewColumn.Three).then(editor => {
+			return window.showTextDocument(doc, ViewColumn.Three).then(_editor => {
 				assert.equal(eventCounter, 3);
 				return doc;
 			});
-		}).then(doc => {
+		}).then(_doc => {
 			reg.dispose();
 		});
 	});
@@ -460,8 +460,8 @@ suite('window namespace tests', () => {
 			{ label: 'zwei', picked: true },
 			{ label: 'drei', picked: true }
 		], {
-			canPickMany: true
-		});
+				canPickMany: true
+			});
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
 	});
@@ -527,7 +527,7 @@ suite('window namespace tests', () => {
 
 	test('showQuickPick, never resolve promise and cancel - #22453', function () {
 
-		const result = window.showQuickPick(new Promise<string[]>(resolve => { }));
+		const result = window.showQuickPick(new Promise<string[]>(_resolve => { }));
 
 		const a = result.then(value => {
 			assert.equal(value, undefined);
@@ -540,9 +540,9 @@ suite('window namespace tests', () => {
 		const p = window.showWorkspaceFolderPick(undefined);
 
 		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
-			return p.then(workspace => {
+			return p.then(_workspace => {
 				assert.ok(true);
-			}, error => {
+			}, _error => {
 				assert.ok(false);
 			});
 		});
@@ -568,7 +568,7 @@ suite('window namespace tests', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
 
-			return new Promise((resolve, reject) => {
+			return new Promise((resolve, _reject) => {
 
 				let subscription = window.onDidChangeTextEditorSelection(e => {
 					assert.ok(e.textEditor === editor);

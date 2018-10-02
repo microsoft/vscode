@@ -16,7 +16,7 @@ class MyEditorInput extends EditorInput {
 
 suite('Workbench editor input', () => {
 
-	test('EditorInput', function () {
+	test('EditorInput', () => {
 		let counter = 0;
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
@@ -35,7 +35,7 @@ suite('Workbench editor input', () => {
 		assert.equal(counter, 1);
 	});
 
-	test('DiffEditorInput', function () {
+	test('DiffEditorInput', () => {
 		let counter = 0;
 		let input = new MyEditorInput();
 		input.onDispose(() => {

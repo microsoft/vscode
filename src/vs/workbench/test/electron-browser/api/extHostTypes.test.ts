@@ -45,7 +45,7 @@ suite('ExtHostTypes', function () {
 		});
 	});
 
-	test('Disposable', function () {
+	test('Disposable', () => {
 
 		let count = 0;
 		let d = new types.Disposable(() => {
@@ -72,7 +72,7 @@ suite('ExtHostTypes', function () {
 
 	});
 
-	test('Position', function () {
+	test('Position', () => {
 		assert.throws(() => new types.Position(-1, 0));
 		assert.throws(() => new types.Position(0, -1));
 
@@ -187,7 +187,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => p1.with({ character: -1 }));
 	});
 
-	test('Range', function () {
+	test('Range', () => {
 		assert.throws(() => new types.Range(-1, 0, 0, 0));
 		assert.throws(() => new types.Range(0, -1, 0, 0));
 		assert.throws(() => new types.Range(new types.Position(0, 0), undefined));
@@ -331,7 +331,7 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => range.with(undefined, null));
 	});
 
-	test('TextEdit', function () {
+	test('TextEdit', () => {
 
 		let range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined);
@@ -345,7 +345,7 @@ suite('ExtHostTypes', function () {
 		assert.equal(edit.newText, '');
 	});
 
-	test('WorkspaceEdit', function () {
+	test('WorkspaceEdit', () => {
 
 		let a = URI.file('a.ts');
 		let b = URI.file('b.ts');
@@ -424,7 +424,7 @@ suite('ExtHostTypes', function () {
 		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
 	});
 
-	test('DocumentLink', function () {
+	test('DocumentLink', () => {
 		assert.throws(() => new types.DocumentLink(null, null));
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));
 	});

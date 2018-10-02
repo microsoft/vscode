@@ -337,7 +337,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('whenRestored', function () {
+	test('whenRestored', () => {
 		const part = createPart();
 
 		return part.whenRestored.then(() => {
@@ -346,7 +346,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('options', function () {
+	test('options', () => {
 		const part = createPart();
 
 		let oldOptions: IEditorPartOptions;
@@ -582,7 +582,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('closeAllEditors', function () {
+	test('closeAllEditors', () => {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);
@@ -687,7 +687,7 @@ suite('Editor groups service', () => {
 		});
 	});
 
-	test('replaceEditors', function () {
+	test('replaceEditors', () => {
 		const part = createPart();
 		const group = part.activeGroup;
 		assert.equal(group.isEmpty(), true);

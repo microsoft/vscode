@@ -264,8 +264,9 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		const handler = bindings.dispatch(event.toKeybinding());
+		const handler: any = bindings.dispatch(event.toKeybinding());
 		if (handler) {
+			// TODO: TS 3.1 upgrade. Why are we checking against void?
 			if (handler(tree, event)) {
 				event.preventDefault();
 				event.stopPropagation();

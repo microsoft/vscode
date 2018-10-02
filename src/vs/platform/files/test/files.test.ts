@@ -17,7 +17,7 @@ suite('Files', () => {
 		return URI.file(join('C:\\', path));
 	}
 
-	test('FileChangesEvent', function () {
+	test('FileChangesEvent', () => {
 		let changes = [
 			{ resource: URI.file(join('C:\\', '/foo/updated.txt')), type: FileChangeType.UPDATED },
 			{ resource: URI.file(join('C:\\', '/foo/otherupdated.txt')), type: FileChangeType.UPDATED },
