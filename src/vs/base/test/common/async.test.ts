@@ -82,8 +82,7 @@ suite('Async', () => {
 		const cancellablePromise = async.createCancelablePromise(token => {
 			order.push('in callback');
 			token.onCancellationRequested(_ => order.push('cancelled'));
-			// TODO: TS 3.1 upgrade. Why are we passing void?
-			return new Promise(c => setTimeout((c as any)(1234), 0));
+			return new Promise(c => setTimeout(c.bind(1234), 0));
 		});
 
 		order.push('afterCreate');
