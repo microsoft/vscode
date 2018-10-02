@@ -4668,14 +4668,14 @@ declare namespace monaco.languages {
 		Enum = 15,
 		EnumMember = 16,
 		Keyword = 17,
-		Snippet = 18,
-		Text = 19,
-		Color = 20,
-		File = 21,
-		Reference = 22,
-		Customcolor = 23,
-		Folder = 24,
-		TypeParameter = 25
+		Text = 18,
+		Color = 19,
+		File = 20,
+		Reference = 21,
+		Customcolor = 22,
+		Folder = 23,
+		TypeParameter = 24,
+		Snippet = 25
 	}
 
 	/**

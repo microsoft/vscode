@@ -166,33 +166,22 @@ function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: Comple
 	}
 }
 function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
-
 	// check with 'sortText'
-	if (typeof a.suggestion.sortText === 'string' && typeof b.suggestion.sortText === 'string') {
+	if (a.suggestion._sortTextLow && b.suggestion._sortTextLow) {
 		if (a.suggestion._sortTextLow < b.suggestion._sortTextLow) {
 			return -1;
 		} else if (a.suggestion._sortTextLow > b.suggestion._sortTextLow) {
 			return 1;
 		}
 	}
-
 	// check with 'label'
 	if (a.suggestion.label < b.suggestion.label) {
 		return -1;
 	} else if (a.suggestion.label > b.suggestion.label) {
 		return 1;
 	}
-
-	// check with 'type' and lower snippets
-	if (a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === CompletionItemKind.Snippet) {
-			return 1;
-		} else if (b.suggestion.kind === CompletionItemKind.Snippet) {
-			return -1;
-		}
-	}
-
-	return 0;
+	// check with 'type'
+	return a.suggestion.kind - b.suggestion.kind;
 }
 
 function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {

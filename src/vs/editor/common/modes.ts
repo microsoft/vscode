@@ -274,7 +274,6 @@ export enum CompletionItemKind {
 	Enum,
 	EnumMember,
 	Keyword,
-	Snippet,
 	Text,
 	Color,
 	File,
@@ -282,6 +281,7 @@ export enum CompletionItemKind {
 	Customcolor,
 	Folder,
 	TypeParameter,
+	Snippet, // <- highest value (used for compare!)
 }
 
 /**
