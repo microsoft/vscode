@@ -36,6 +36,11 @@
 	display: none;
 }
 
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .icon {
+	width:16px;
+	height: 18px;
+}
+
 .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
@@ -47,6 +52,24 @@
 .hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence,
 .vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .sort-by-precedence {
 	background: url('sort_precedence_inverse.svg') center center no-repeat;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .record-keys {
+	background: url('record-keys.svg') center center no-repeat;
+}
+
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .record-keys,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .record-keys {
+	background: url('record-keys-inverse.svg') center center no-repeat;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .clear-input {
+	background: url('clear.svg') center center no-repeat;
+}
+
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .clear-input,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .monaco-action-bar .action-item > .clear-input {
+	background: url('clear-inverse.svg') center center no-repeat;
 }
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {

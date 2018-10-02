@@ -26,7 +26,7 @@ import { DefineKeybindingWidget, KeybindingsSearchWidget, KeybindingsSearchOptio
 import {
 	IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
 	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
-	KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, CONTEXT_KEYBINDINGS_SEARCH_VALUE
+	KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -54,6 +54,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private keybindingsEditorModel: KeybindingsEditorModel;
 
 	private headerContainer: HTMLElement;
+	private actionsContainer: HTMLElement;
 	private searchWidget: KeybindingsSearchWidget;
 
 	private overlayContainer: HTMLElement;
@@ -71,7 +72,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
-	private searchValueContextKey: IContextKey<boolean>;
 
 	private actionBar: ActionBar;
 	private sortByPrecedenceAction: Action;
@@ -97,7 +97,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
-		this.searchValueContextKey = CONTEXT_KEYBINDINGS_SEARCH_VALUE.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
@@ -280,6 +279,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), 'clear-input', false, () => { this.search(''); return Promise.resolve(null); });
+
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, <KeybindingsSearchOptions>{
 			ariaLabel: fullTextSearchPlaceholder,
@@ -289,13 +290,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			recordEnter: true
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
-			this.searchValueContextKey.set(!!searchValue);
+			clearInputAction.enabled = !!searchValue;
 			this.delayedFiltering.trigger(() => this.filterKeybindings());
 		}));
 		this._register(this.searchWidget.onEscape(() => this.recordKeysAction.checked = false));
 
-		const actionsContainer = DOM.append(searchContainer, DOM.$('.keybindings-search-actions-container'));
-		const recordingBadge = this.createRecordingBadge(actionsContainer);
+		this.actionsContainer = DOM.append(searchContainer, DOM.$('.keybindings-search-actions-container'));
+		const recordingBadge = this.createRecordingBadge(this.actionsContainer);
 
 		const sortByPrecedenceActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE);
 		const sortByPrecedenceActionLabel = localize('sortByPrecedeneLabel', "Sort by Precedence");
@@ -309,7 +310,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		const recordKeysActionKeybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS);
 		const recordKeysActionLabel = localize('recordKeysLabel', "Record Keys");
-		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'octicon octicon-keyboard');
+		this.recordKeysAction = new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, recordKeysActionKeybinding ? localize('recordKeysLabelWithKeybinding', "{0} ({1})", recordKeysActionLabel, recordKeysActionKeybinding.getLabel()) : recordKeysActionLabel, 'record-keys');
 		this.recordKeysAction.checked = false;
 		this._register(this.recordKeysAction.onDidChange(e => {
 			if (e.checked !== void 0) {
@@ -328,7 +329,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			}
 		}));
 
-		this.actionBar = this._register(new ActionBar(actionsContainer, {
+		this.actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
 			actionItemProvider: (action: Action) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
@@ -340,7 +341,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				return null;
 			}
 		}));
-		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction]);
+
+		this.actionBar.push([this.recordKeysAction, this.sortByPrecedenceAction, clearInputAction], { label: false, icon: true });
 	}
 
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
@@ -363,10 +365,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private layoutSearchWidget(dimension: DOM.Dimension): void {
 		this.searchWidget.layout(dimension);
 		DOM.toggleClass(this.headerContainer, 'small', dimension.width < 400);
-		this.searchWidget.inputBox.inputElement.style.paddingRight = '60px';
-		if (dimension.width > 400 && this.recordKeysAction.checked) {
-			this.searchWidget.inputBox.inputElement.style.paddingRight = '180px';
-		}
+		this.searchWidget.inputBox.inputElement.style.paddingRight = `${DOM.getTotalWidth(this.actionsContainer) + 12}px`;
 	}
 
 	private createBody(parent: HTMLElement): void {
