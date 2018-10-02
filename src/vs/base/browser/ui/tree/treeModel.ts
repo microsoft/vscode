@@ -275,7 +275,7 @@ export class TreeModel<T, TFilterData = void> {
 		const result: ITreeNode<T, TFilterData>[] = [];
 		let first = true;
 
-		const recurse = (node: IMutableTreeNode<T, TFilterData>): number => {
+		const recurse = (node: IMutableTreeNode<T, TFilterData>, revealed = true): number => {
 			if (!first || filterFirst) {
 				this.updateNodeFilterState(node);
 			}
@@ -285,13 +285,17 @@ export class TreeModel<T, TFilterData = void> {
 			}
 
 			first = false;
-			result.push(node);
+
+			if (revealed) {
+				result.push(node);
+			}
+
 			node.revealedCount = 1;
 
 			let childrenRevealedCount = 0;
-			if (!node.collapsed) {
+			if (!node.collapsed || typeof node.visible === 'undefined') {
 				for (const child of node.children) {
-					childrenRevealedCount += recurse(child);
+					childrenRevealedCount += recurse(child, revealed && !node.collapsed);
 				}
 			}
 
@@ -301,7 +305,9 @@ export class TreeModel<T, TFilterData = void> {
 				return 0;
 			}
 
-			node.revealedCount += childrenRevealedCount;
+			if (!node.collapsed) {
+				node.revealedCount += childrenRevealedCount;
+			}
 
 			return node.revealedCount;
 		};
