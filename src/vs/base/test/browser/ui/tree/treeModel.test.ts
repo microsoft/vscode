@@ -437,7 +437,6 @@ suite('TreeModel2', function () {
 
 		shouldFilter = false;
 		model.refilter();
-
 		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
 	});
 
