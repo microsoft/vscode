@@ -6,7 +6,7 @@
 import 'vs/css!./tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeNode, ITreeElement, getNodeLocation, ITreeModelOptions } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeElement, ITreeModelOptions } from 'vs/base/browser/ui/tree/treeModel';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
@@ -184,7 +184,7 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const node = e.element;
-		const location = getNodeLocation(node);
+		const location = TreeModel.getNodeLocation(node);
 
 		this.model.toggleCollapsed(location);
 	}
@@ -200,7 +200,7 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getNodeLocation(node);
+		const location = TreeModel.getNodeLocation(node);
 		const didChange = this.model.setCollapsed(location, true);
 
 		if (!didChange) {
@@ -227,7 +227,7 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getNodeLocation(node);
+		const location = TreeModel.getNodeLocation(node);
 		const didChange = this.model.setCollapsed(location, false);
 
 		if (!didChange) {
@@ -254,7 +254,7 @@ export class Tree<T, TFilterData = void> implements IDisposable {
 		}
 
 		const node = nodes[0];
-		const location = getNodeLocation(node);
+		const location = TreeModel.getNodeLocation(node);
 		this.model.toggleCollapsed(location);
 	}
 

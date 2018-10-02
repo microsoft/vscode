@@ -91,23 +91,23 @@ function getVisibleState(visibility: Visibility): boolean | undefined {
 	}
 }
 
-// TODO fix with visibility
-export function getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
-	const location = [];
-
-	while (node.parent) {
-		location.push(node.parent.children.indexOf(node));
-		node = node.parent;
-	}
-
-	return location.reverse();
-}
-
 export interface ITreeModelOptions<T, TFilterData = void> {
 	filter?: ITreeFilter<T, TFilterData>;
 }
 
 export class TreeModel<T, TFilterData = void> {
+
+	// TODO fix with visibility
+	static getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
+		const location = [];
+
+		while (node.parent) {
+			location.push(node.parent.children.indexOf(node));
+			node = node.parent;
+		}
+
+		return location.reverse();
+	}
 
 	private root: IMutableTreeNode<T, TFilterData> = {
 		parent: undefined,

@@ -440,4 +440,31 @@ suite('TreeModel2', function () {
 
 		assert.deepEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
 	});
+
+	suite('getNodeLocation', function () {
+
+		test('simple', function () {
+			const list = [] as ITreeNode<number>[];
+			const model = new TreeModel<number>(toSpliceable(list));
+
+			model.splice([0], 0, Iterator.fromArray([
+				{
+					element: 0, children: Iterator.fromArray([
+						{ element: 10 },
+						{ element: 11 },
+						{ element: 12 },
+					])
+				},
+				{ element: 1 },
+				{ element: 2 }
+			]));
+
+			assert.deepEqual(TreeModel.getNodeLocation(list[0]), [0]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[1]), [0, 0]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[2]), [0, 1]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[3]), [0, 2]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[4]), [1]);
+			assert.deepEqual(TreeModel.getNodeLocation(list[5]), [2]);
+		});
+	});
 });
