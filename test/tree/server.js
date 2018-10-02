@@ -17,7 +17,7 @@ async function getTree(fsPath, level) {
 	const element = path.basename(fsPath);
 	const stat = await fs.stat(fsPath);
 
-	if (!stat.isDirectory() || element === '.git' || element === '.build' || level >= 2) {
+	if (!stat.isDirectory() || element === '.git' || element === '.build' || level >= 5) {
 		return { element };
 	}
 
