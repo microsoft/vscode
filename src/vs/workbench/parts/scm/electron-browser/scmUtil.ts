@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
 
 import { ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
 

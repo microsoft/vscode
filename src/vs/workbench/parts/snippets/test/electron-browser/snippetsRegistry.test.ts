@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
 
 import * as assert from 'assert';
 import { getNonWhitespacePrefix } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
