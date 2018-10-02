@@ -19,7 +19,7 @@ export function formatError(message: string, err: any): string {
 }
 
 export function runSafe<T, E>(func: () => T, errorVal: T, errorMessage: string, token: CancellationToken): Thenable<T | ResponseError<E>> {
-	return new Promise<T | ResponseError<E>>((resolve, reject) => {
+	return new Promise<T | ResponseError<E>>((resolve) => {
 		setImmediate(() => {
 			if (token.isCancellationRequested) {
 				resolve(cancelValue());
