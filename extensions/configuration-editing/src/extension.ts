@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';

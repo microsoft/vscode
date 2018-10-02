@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import { TextDocument, Range, TextEdit, FormattingOptions, Position } from 'vscode-languageserver-types';
 import { LanguageModes, Settings, LanguageModeRange } from './languageModes';
 import { pushAll } from '../utils/arrays';

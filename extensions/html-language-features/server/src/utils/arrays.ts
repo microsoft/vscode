@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 export function pushAll<T>(to: T[], from: T[]) {
 	if (from) {
 		for (var i = 0; i < from.length; i++) {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import { CancellationToken, ResponseError, ErrorCodes } from 'vscode-languageserver';
 
 export function formatError(message: string, err: any): string {

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import * as cp from 'child_process';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import { Location, getLocation, createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
 import { basename } from 'path';
 import { BowerJSONContribution } from './bowerJSONContribution';

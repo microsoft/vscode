@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import {
 	ExtensionContext, TextDocument, commands, ProviderResult, CancellationToken,
 	workspace, tasks, Range, HoverProvider, Hover, Position, MarkdownString, Uri

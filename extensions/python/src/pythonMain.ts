@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { ExtensionContext, languages, IndentAction } from 'vscode';
 
 export function activate(_context: ExtensionContext): any {

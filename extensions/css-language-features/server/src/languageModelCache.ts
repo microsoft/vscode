@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 import { TextDocument } from 'vscode-languageserver';
 
 export interface LanguageModelCache<T> {
