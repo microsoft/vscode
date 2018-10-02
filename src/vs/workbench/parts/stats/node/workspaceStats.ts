@@ -479,18 +479,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.reactNative'] = true;
 								}
-							} else if ('aws-amplify' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.aws-amplify-sdk'] = true;
-								}
-							} else if ('aws-sdk' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.aws-sdk'] = true;
-								}
-							} else if ('firebase' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.firebase'] = true;
-								}
 							} else if ('tns-core-modules' === module) {
 								if (packageJsonContents['dependencies'][module]) {
 									tags['workspace.nativescript'] = true;
