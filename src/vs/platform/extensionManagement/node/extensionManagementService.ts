@@ -342,7 +342,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 		}
 
-		return Promise.reject(cancellablePromise);
+		return Promise.resolve(cancellablePromise);
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
