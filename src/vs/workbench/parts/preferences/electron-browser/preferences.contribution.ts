@@ -374,21 +374,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: new RawContextKey<string>('workbenchState', '').notEqualsTo('empty')
 });
 
-CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, serviceAccessor => {
-	const control = serviceAccessor.get(IEditorService).activeControl as IKeybindingsEditor;
-	if (control) {
-		control.search('@source:default');
-	}
-});
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
-		title: nls.localize('showDefaultKeybindings', "Show Default Keybindings")
-	},
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-	group: '1_keyboard_preferences_actions'
-});
-
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -416,6 +401,37 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	group: 'navigation',
 });
 
+CommandsRegistry.registerCommand(OpenGlobalKeybindingsFileAction.ID, serviceAccessor => {
+	serviceAccessor.get(IInstantiationService).createInstance(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL).run();
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: OpenGlobalKeybindingsFileAction.ID,
+		title: OpenGlobalKeybindingsFileAction.LABEL,
+		iconLocation: {
+			light: URI.parse(require.toUrl(`vs/workbench/parts/preferences/browser/media/open-file.svg`)),
+			dark: URI.parse(require.toUrl(`vs/workbench/parts/preferences/browser/media/open-file-inverse.svg`))
+		}
+	},
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: 'navigation',
+});
+
+CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, serviceAccessor => {
+	const control = serviceAccessor.get(IEditorService).activeControl as IKeybindingsEditor;
+	if (control) {
+		control.search('@source:default');
+	}
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS,
+		title: nls.localize('showDefaultKeybindings', "Show Default Keybindings")
+	},
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+	group: '1_keyboard_preferences_actions'
+});
+
 CommandsRegistry.registerCommand(KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, serviceAccessor => {
 	const control = serviceAccessor.get(IEditorService).activeControl as IKeybindingsEditor;
 	if (control) {
@@ -430,19 +446,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 	group: '1_keyboard_preferences_actions'
 });
-
-CommandsRegistry.registerCommand(OpenGlobalKeybindingsFileAction.ID, serviceAccessor => {
-	serviceAccessor.get(IInstantiationService).createInstance(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL).run();
-});
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: OpenGlobalKeybindingsFileAction.ID,
-		title: OpenGlobalKeybindingsFileAction.LABEL,
-	},
-	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
-	group: '2_keyboard_preferences_actions'
-});
-
 
 abstract class SettingsCommand extends Command {
 
