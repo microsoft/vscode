@@ -11,7 +11,7 @@ import { onUnexpectedExternalError, canceled } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind, SuggestionKind } from 'vs/editor/common/modes';
+import { CompletionList, CompletionItemProvider, CompletionItem, CompletionProviderRegistry, CompletionContext, CompletionTriggerKind, CompletionKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -27,21 +27,21 @@ export const Context = {
 
 export interface ISuggestionItem {
 	position: IPosition;
-	suggestion: ISuggestion;
-	container: ISuggestResult;
-	support: ISuggestSupport;
+	suggestion: CompletionItem;
+	container: CompletionList;
+	support: CompletionItemProvider;
 	resolve(token: CancellationToken): Thenable<void>;
 }
 
 export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
 
-let _snippetSuggestSupport: ISuggestSupport;
+let _snippetSuggestSupport: CompletionItemProvider;
 
-export function getSnippetSuggestSupport(): ISuggestSupport {
+export function getSnippetSuggestSupport(): CompletionItemProvider {
 	return _snippetSuggestSupport;
 }
 
-export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupport {
+export function setSnippetSuggestSupport(support: CompletionItemProvider): CompletionItemProvider {
 	const old = _snippetSuggestSupport;
 	_snippetSuggestSupport = support;
 	return old;
@@ -51,8 +51,8 @@ export function provideSuggestionItems(
 	model: ITextModel,
 	position: Position,
 	snippetConfig: SnippetConfig = 'bottom',
-	onlyFrom?: ISuggestSupport[],
-	context?: SuggestContext,
+	onlyFrom?: CompletionItemProvider[],
+	context?: CompletionContext,
 	token: CancellationToken = CancellationToken.None
 ): Promise<ISuggestionItem[]> {
 
@@ -62,14 +62,14 @@ export function provideSuggestionItems(
 	position = position.clone();
 
 	// get provider groups, always add snippet suggestion provider
-	const supports = SuggestRegistry.orderedGroups(model);
+	const supports = CompletionProviderRegistry.orderedGroups(model);
 
 	// add snippets provider unless turned off
 	if (snippetConfig !== 'none' && _snippetSuggestSupport) {
 		supports.unshift([_snippetSuggestSupport]);
 	}
 
-	const suggestConext = context || { triggerKind: SuggestTriggerKind.Invoke };
+	const suggestConext = context || { triggerKind: CompletionTriggerKind.Invoke };
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
@@ -131,7 +131,7 @@ export function provideSuggestionItems(
 	return result;
 }
 
-function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestResult): void {
+function fixOverwriteBeforeAfter(suggestion: CompletionItem, container: CompletionList): void {
 	if (typeof suggestion.overwriteBefore !== 'number') {
 		suggestion.overwriteBefore = 0;
 	}
@@ -140,7 +140,7 @@ function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestRes
 	}
 }
 
-function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
+function createSuggestionResolver(provider: CompletionItemProvider, suggestion: CompletionItem, model: ITextModel, position: Position): (token: CancellationToken) => Promise<void> {
 	return (token) => {
 		if (typeof provider.resolveCompletionItem === 'function') {
 			return Promise.resolve(provider.resolveCompletionItem(model, position, suggestion, token)).then(value => { assign(suggestion, value); });
@@ -150,9 +150,9 @@ function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISugges
 	};
 }
 
-function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: ISuggestion) => boolean {
+function createSuggesionFilter(snippetConfig: SnippetConfig): (candidate: CompletionItem) => boolean {
 	if (snippetConfig === 'none') {
-		return suggestion => suggestion.kind !== SuggestionKind.Snippet;
+		return suggestion => suggestion.kind !== CompletionKind.Snippet;
 	} else {
 		return () => true;
 	}
@@ -173,9 +173,9 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
 	// check with 'type' and lower snippets
 	if (ret === 0 && a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === SuggestionKind.Snippet) {
+		if (a.suggestion.kind === CompletionKind.Snippet) {
 			ret = 1;
-		} else if (b.suggestion.kind === SuggestionKind.Snippet) {
+		} else if (b.suggestion.kind === CompletionKind.Snippet) {
 			ret = -1;
 		}
 	}
@@ -185,9 +185,9 @@ function defaultComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
 function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	if (a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === SuggestionKind.Snippet) {
+		if (a.suggestion.kind === CompletionKind.Snippet) {
 			return -1;
-		} else if (b.suggestion.kind === SuggestionKind.Snippet) {
+		} else if (b.suggestion.kind === CompletionKind.Snippet) {
 			return 1;
 		}
 	}
@@ -196,9 +196,9 @@ function snippetUpComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 
 function snippetDownComparator(a: ISuggestionItem, b: ISuggestionItem): number {
 	if (a.suggestion.kind !== b.suggestion.kind) {
-		if (a.suggestion.kind === SuggestionKind.Snippet) {
+		if (a.suggestion.kind === CompletionKind.Snippet) {
 			return 1;
-		} else if (b.suggestion.kind === SuggestionKind.Snippet) {
+		} else if (b.suggestion.kind === CompletionKind.Snippet) {
 			return -1;
 		}
 	}
@@ -217,7 +217,7 @@ export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISugg
 
 registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
 
-	const result: ISuggestResult = {
+	const result: CompletionList = {
 		incomplete: false,
 		suggestions: []
 	};
@@ -241,15 +241,15 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 });
 
 interface SuggestController extends IEditorContribution {
-	triggerSuggest(onlyFrom?: ISuggestSupport[]): void;
+	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void;
 }
 
 
-let _provider = new class implements ISuggestSupport {
+let _provider = new class implements CompletionItemProvider {
 
-	onlyOnceSuggestions: ISuggestion[] = [];
+	onlyOnceSuggestions: CompletionItem[] = [];
 
-	provideCompletionItems(): ISuggestResult {
+	provideCompletionItems(): CompletionList {
 		let suggestions = this.onlyOnceSuggestions.slice(0);
 		let result = { suggestions };
 		this.onlyOnceSuggestions.length = 0;
@@ -257,9 +257,9 @@ let _provider = new class implements ISuggestSupport {
 	}
 };
 
-SuggestRegistry.register('*', _provider);
+CompletionProviderRegistry.register('*', _provider);
 
-export function showSimpleSuggestions(editor: ICodeEditor, suggestions: ISuggestion[]) {
+export function showSimpleSuggestions(editor: ICodeEditor, suggestions: CompletionItem[]) {
 	setTimeout(() => {
 		_provider.onlyOnceSuggestions.push(...suggestions);
 		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);

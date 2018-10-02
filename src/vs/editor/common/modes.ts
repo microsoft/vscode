@@ -258,7 +258,7 @@ export interface HoverProvider {
 /**
  * @internal
  */
-export const enum SuggestionKind {
+export const enum CompletionKind {
 	Method,
 	Function,
 	Constructor,
@@ -290,36 +290,36 @@ export const enum SuggestionKind {
 /**
  * @internal
  */
-export let suggestionKindToCssClass = (function () {
+export let completionKindToCssClass = (function () {
 	let data = Object.create(null);
-	data[SuggestionKind.Method] = 'method';
-	data[SuggestionKind.Function] = 'function';
-	data[SuggestionKind.Constructor] = 'constructor';
-	data[SuggestionKind.Field] = 'field';
-	data[SuggestionKind.Variable] = 'variable';
-	data[SuggestionKind.Class] = 'class';
-	data[SuggestionKind.Struct] = 'struct';
-	data[SuggestionKind.Interface] = 'interface';
-	data[SuggestionKind.Module] = 'module';
-	data[SuggestionKind.Property] = 'property';
-	data[SuggestionKind.Event] = 'event';
-	data[SuggestionKind.Operator] = 'operator';
-	data[SuggestionKind.Unit] = 'unit';
-	data[SuggestionKind.Value] = 'value';
-	data[SuggestionKind.Constant] = 'constant';
-	data[SuggestionKind.Enum] = 'enum';
-	data[SuggestionKind.EnumMember] = 'enum-member';
-	data[SuggestionKind.Keyword] = 'keyword';
-	data[SuggestionKind.Snippet] = 'snippet';
-	data[SuggestionKind.Text] = 'text';
-	data[SuggestionKind.Color] = 'color';
-	data[SuggestionKind.File] = 'file';
-	data[SuggestionKind.Reference] = 'reference';
-	data[SuggestionKind.Customcolor] = 'customcolor';
-	data[SuggestionKind.Folder] = 'folder';
-	data[SuggestionKind.TypeParameter] = 'type-parameter';
+	data[CompletionKind.Method] = 'method';
+	data[CompletionKind.Function] = 'function';
+	data[CompletionKind.Constructor] = 'constructor';
+	data[CompletionKind.Field] = 'field';
+	data[CompletionKind.Variable] = 'variable';
+	data[CompletionKind.Class] = 'class';
+	data[CompletionKind.Struct] = 'struct';
+	data[CompletionKind.Interface] = 'interface';
+	data[CompletionKind.Module] = 'module';
+	data[CompletionKind.Property] = 'property';
+	data[CompletionKind.Event] = 'event';
+	data[CompletionKind.Operator] = 'operator';
+	data[CompletionKind.Unit] = 'unit';
+	data[CompletionKind.Value] = 'value';
+	data[CompletionKind.Constant] = 'constant';
+	data[CompletionKind.Enum] = 'enum';
+	data[CompletionKind.EnumMember] = 'enum-member';
+	data[CompletionKind.Keyword] = 'keyword';
+	data[CompletionKind.Snippet] = 'snippet';
+	data[CompletionKind.Text] = 'text';
+	data[CompletionKind.Color] = 'color';
+	data[CompletionKind.File] = 'file';
+	data[CompletionKind.Reference] = 'reference';
+	data[CompletionKind.Customcolor] = 'customcolor';
+	data[CompletionKind.Folder] = 'folder';
+	data[CompletionKind.TypeParameter] = 'type-parameter';
 
-	return function (kind: SuggestionKind) {
+	return function (kind: CompletionKind) {
 		return data[kind] || 'property';
 	};
 })();
@@ -327,34 +327,34 @@ export let suggestionKindToCssClass = (function () {
 /**
  * @internal
  */
-export let suggestionKindFromLegacyString = (function () {
+export let completionKindFromLegacyString = (function () {
 	let data = Object.create(null);
-	data['method'] = SuggestionKind.Method;
-	data['function'] = SuggestionKind.Function;
-	data['constructor'] = SuggestionKind.Constructor;
-	data['field'] = SuggestionKind.Field;
-	data['variable'] = SuggestionKind.Variable;
-	data['class'] = SuggestionKind.Class;
-	data['struct'] = SuggestionKind.Struct;
-	data['interface'] = SuggestionKind.Interface;
-	data['module'] = SuggestionKind.Module;
-	data['property'] = SuggestionKind.Property;
-	data['event'] = SuggestionKind.Event;
-	data['operator'] = SuggestionKind.Operator;
-	data['unit'] = SuggestionKind.Unit;
-	data['value'] = SuggestionKind.Value;
-	data['constant'] = SuggestionKind.Constant;
-	data['enum'] = SuggestionKind.Enum;
-	data['enum-member'] = SuggestionKind.EnumMember;
-	data['keyword'] = SuggestionKind.Keyword;
-	data['snippet'] = SuggestionKind.Snippet;
-	data['text'] = SuggestionKind.Text;
-	data['color'] = SuggestionKind.Color;
-	data['file'] = SuggestionKind.File;
-	data['reference'] = SuggestionKind.Reference;
-	data['customcolor'] = SuggestionKind.Customcolor;
-	data['folder'] = SuggestionKind.Folder;
-	data['type-parameter'] = SuggestionKind.TypeParameter;
+	data['method'] = CompletionKind.Method;
+	data['function'] = CompletionKind.Function;
+	data['constructor'] = CompletionKind.Constructor;
+	data['field'] = CompletionKind.Field;
+	data['variable'] = CompletionKind.Variable;
+	data['class'] = CompletionKind.Class;
+	data['struct'] = CompletionKind.Struct;
+	data['interface'] = CompletionKind.Interface;
+	data['module'] = CompletionKind.Module;
+	data['property'] = CompletionKind.Property;
+	data['event'] = CompletionKind.Event;
+	data['operator'] = CompletionKind.Operator;
+	data['unit'] = CompletionKind.Unit;
+	data['value'] = CompletionKind.Value;
+	data['constant'] = CompletionKind.Constant;
+	data['enum'] = CompletionKind.Enum;
+	data['enum-member'] = CompletionKind.EnumMember;
+	data['keyword'] = CompletionKind.Keyword;
+	data['snippet'] = CompletionKind.Snippet;
+	data['text'] = CompletionKind.Text;
+	data['color'] = CompletionKind.Color;
+	data['file'] = CompletionKind.File;
+	data['reference'] = CompletionKind.Reference;
+	data['customcolor'] = CompletionKind.Customcolor;
+	data['folder'] = CompletionKind.Folder;
+	data['type-parameter'] = CompletionKind.TypeParameter;
 
 	return function (value: string) {
 		return data[value] || 'property';
@@ -364,11 +364,11 @@ export let suggestionKindFromLegacyString = (function () {
 /**
  * @internal
  */
-export interface ISuggestion {
+export interface CompletionItem {
 	label: string;
 	insertText: string;
 	insertTextIsSnippet?: boolean;
-	kind: SuggestionKind;
+	kind: CompletionKind;
 	detail?: string;
 	documentation?: string | IMarkdownString;
 	filterText?: string;
@@ -386,8 +386,8 @@ export interface ISuggestion {
 /**
  * @internal
  */
-export interface ISuggestResult {
-	suggestions: ISuggestion[];
+export interface CompletionList {
+	suggestions: CompletionItem[];
 	incomplete?: boolean;
 	dispose?(): void;
 }
@@ -395,7 +395,7 @@ export interface ISuggestResult {
 /**
  * How a suggest provider was triggered.
  */
-export enum SuggestTriggerKind {
+export enum CompletionTriggerKind {
 	Invoke = 0,
 	TriggerCharacter = 1,
 	TriggerForIncompleteCompletions = 2
@@ -404,21 +404,21 @@ export enum SuggestTriggerKind {
 /**
  * @internal
  */
-export interface SuggestContext {
-	triggerKind: SuggestTriggerKind;
+export interface CompletionContext {
+	triggerKind: CompletionTriggerKind;
 	triggerCharacter?: string;
 }
 
 /**
  * @internal
  */
-export interface ISuggestSupport {
+export interface CompletionItemProvider {
 
 	triggerCharacters?: string[];
 
-	provideCompletionItems(model: model.ITextModel, position: Position, context: SuggestContext, token: CancellationToken): ProviderResult<ISuggestResult>;
+	provideCompletionItems(model: model.ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList>;
 
-	resolveCompletionItem?(model: model.ITextModel, position: Position, item: ISuggestion, token: CancellationToken): ProviderResult<ISuggestion>;
+	resolveCompletionItem?(model: model.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 
 export interface CodeAction {
@@ -1156,7 +1156,7 @@ export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider
 /**
  * @internal
  */
-export const SuggestRegistry = new LanguageFeatureRegistry<ISuggestSupport>();
+export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
 
 /**
  * @internal

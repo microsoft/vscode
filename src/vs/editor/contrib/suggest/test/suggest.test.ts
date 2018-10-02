@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { SuggestRegistry, SuggestionKind } from 'vs/editor/common/modes';
+import { CompletionProviderRegistry, CompletionKind } from 'vs/editor/common/modes';
 import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
 import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -21,21 +21,21 @@ suite('Suggest', function () {
 	setup(function () {
 
 		model = TextModel.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
-		registration = SuggestRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
+		registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
 			provideCompletionItems() {
 				return {
 					incomplete: false,
 					suggestions: [{
 						label: 'aaa',
-						kind: SuggestionKind.Snippet,
+						kind: CompletionKind.Snippet,
 						insertText: 'aaa'
 					}, {
 						label: 'zzz',
-						kind: SuggestionKind.Snippet,
+						kind: CompletionKind.Snippet,
 						insertText: 'zzz'
 					}, {
 						label: 'fff',
-						kind: SuggestionKind.Property,
+						kind: CompletionKind.Property,
 						insertText: 'fff'
 					}]
 				};
@@ -98,7 +98,7 @@ suite('Suggest', function () {
 				};
 			}
 		};
-		const registration = SuggestRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
 
 		provideSuggestionItems(model, new Position(1, 1), undefined, [foo]).then(items => {
 			registration.dispose();

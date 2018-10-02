@@ -456,12 +456,12 @@ export function registerLinkProvider(languageId: string, provider: modes.LinkPro
  */
 export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable {
 	let adapter = new SuggestAdapter(provider);
-	return modes.SuggestRegistry.register(languageId, {
+	return modes.CompletionProviderRegistry.register(languageId, {
 		triggerCharacters: provider.triggerCharacters,
-		provideCompletionItems: (model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+		provideCompletionItems: (model: model.ITextModel, position: Position, context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> => {
 			return adapter.provideCompletionItems(model, position, context, token);
 		},
-		resolveCompletionItem: (model: model.ITextModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> => {
+		resolveCompletionItem: (model: model.ITextModel, position: Position, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> => {
 			return adapter.resolveCompletionItem(model, position, suggestion, token);
 		}
 	});
@@ -659,7 +659,7 @@ export interface CompletionContext {
 	/**
 	 * How the completion was triggered.
 	 */
-	triggerKind: modes.SuggestTriggerKind;
+	triggerKind: modes.CompletionTriggerKind;
 
 	/**
 	 * Character that triggered the completion item provider.
@@ -696,32 +696,32 @@ export interface CompletionItemProvider {
 	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): CompletionItem | Thenable<CompletionItem>;
 }
 
-interface ISuggestion2 extends modes.ISuggestion {
+interface ISuggestion2 extends modes.CompletionItem {
 	_actual: CompletionItem;
 }
-function convertKind(kind: CompletionItemKind): modes.SuggestionKind {
+function convertKind(kind: CompletionItemKind): modes.CompletionKind {
 	switch (kind) {
-		case CompletionItemKind.Method: return modes.SuggestionKind.Method;
-		case CompletionItemKind.Function: return modes.SuggestionKind.Function;
-		case CompletionItemKind.Constructor: return modes.SuggestionKind.Constructor;
-		case CompletionItemKind.Field: return modes.SuggestionKind.Field;
-		case CompletionItemKind.Variable: return modes.SuggestionKind.Variable;
-		case CompletionItemKind.Class: return modes.SuggestionKind.Class;
-		case CompletionItemKind.Interface: return modes.SuggestionKind.Interface;
-		case CompletionItemKind.Module: return modes.SuggestionKind.Module;
-		case CompletionItemKind.Property: return modes.SuggestionKind.Property;
-		case CompletionItemKind.Unit: return modes.SuggestionKind.Unit;
-		case CompletionItemKind.Value: return modes.SuggestionKind.Value;
-		case CompletionItemKind.Enum: return modes.SuggestionKind.Enum;
-		case CompletionItemKind.Keyword: return modes.SuggestionKind.Keyword;
-		case CompletionItemKind.Snippet: return modes.SuggestionKind.Snippet;
-		case CompletionItemKind.Text: return modes.SuggestionKind.Text;
-		case CompletionItemKind.Color: return modes.SuggestionKind.Color;
-		case CompletionItemKind.File: return modes.SuggestionKind.File;
-		case CompletionItemKind.Reference: return modes.SuggestionKind.Reference;
-		case CompletionItemKind.Folder: return modes.SuggestionKind.Folder;
+		case CompletionItemKind.Method: return modes.CompletionKind.Method;
+		case CompletionItemKind.Function: return modes.CompletionKind.Function;
+		case CompletionItemKind.Constructor: return modes.CompletionKind.Constructor;
+		case CompletionItemKind.Field: return modes.CompletionKind.Field;
+		case CompletionItemKind.Variable: return modes.CompletionKind.Variable;
+		case CompletionItemKind.Class: return modes.CompletionKind.Class;
+		case CompletionItemKind.Interface: return modes.CompletionKind.Interface;
+		case CompletionItemKind.Module: return modes.CompletionKind.Module;
+		case CompletionItemKind.Property: return modes.CompletionKind.Property;
+		case CompletionItemKind.Unit: return modes.CompletionKind.Unit;
+		case CompletionItemKind.Value: return modes.CompletionKind.Value;
+		case CompletionItemKind.Enum: return modes.CompletionKind.Enum;
+		case CompletionItemKind.Keyword: return modes.CompletionKind.Keyword;
+		case CompletionItemKind.Snippet: return modes.CompletionKind.Snippet;
+		case CompletionItemKind.Text: return modes.CompletionKind.Text;
+		case CompletionItemKind.Color: return modes.CompletionKind.Color;
+		case CompletionItemKind.File: return modes.CompletionKind.File;
+		case CompletionItemKind.Reference: return modes.CompletionKind.Reference;
+		case CompletionItemKind.Folder: return modes.CompletionKind.Folder;
 	}
-	return modes.SuggestionKind.Property;
+	return modes.CompletionKind.Property;
 }
 
 class SuggestAdapter {
@@ -776,10 +776,10 @@ class SuggestAdapter {
 		return suggestion;
 	}
 
-	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> {
+	provideCompletionItems(model: model.ITextModel, position: Position, context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> {
 		const result = this._provider.provideCompletionItems(model, position, token, context);
 		return Promise.resolve<CompletionItem[] | CompletionList>(result).then(value => {
-			const result: modes.ISuggestResult = {
+			const result: modes.CompletionList = {
 				suggestions: []
 			};
 
@@ -819,7 +819,7 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(model: model.ITextModel, position: Position, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(model: model.ITextModel, position: Position, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
@@ -878,7 +878,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CompletionItemKind: CompletionItemKind,
 		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
-		SuggestTriggerKind: modes.SuggestTriggerKind,
+		CompletionTriggerKind: modes.CompletionTriggerKind,
 		FoldingRangeKind: modes.FoldingRangeKind,
 		SignatureHelpTriggerReason: modes.SignatureHelpTriggerReason,
 	};

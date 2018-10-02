@@ -4511,7 +4511,7 @@ declare namespace monaco.languages {
 		/**
 		 * How the completion was triggered.
 		 */
-		triggerKind: SuggestTriggerKind;
+		triggerKind: CompletionTriggerKind;
 		/**
 		 * Character that triggered the completion item provider.
 		 *
@@ -4821,7 +4821,7 @@ declare namespace monaco.languages {
 	/**
 	 * How a suggest provider was triggered.
 	 */
-	export enum SuggestTriggerKind {
+	export enum CompletionTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
 		TriggerForIncompleteCompletions = 2

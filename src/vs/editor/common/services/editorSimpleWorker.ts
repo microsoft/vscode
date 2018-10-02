@@ -15,7 +15,7 @@ import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorTextModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit, SuggestionKind } from 'vs/editor/common/modes';
+import { IInplaceReplaceSupportResult, ILink, CompletionList, CompletionItem, TextEdit, CompletionKind } from 'vs/editor/common/modes';
 import { computeLinks, ILinkComputerTarget } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
@@ -457,10 +457,10 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<CompletionList> {
 		const model = this._getModel(modelUrl);
 		if (model) {
-			const suggestions: ISuggestion[] = [];
+			const suggestions: CompletionItem[] = [];
 			const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 			const currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
 
@@ -482,7 +482,7 @@ export abstract class BaseEditorSimpleWorker {
 				}
 
 				suggestions.push({
-					kind: SuggestionKind.Text,
+					kind: CompletionKind.Text,
 					label: word,
 					insertText: word,
 					noAutoAccept: true,

@@ -10,7 +10,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { SuggestionKind, suggestionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
 
 export abstract class Memory {
 
@@ -56,7 +56,7 @@ export class NoMemory extends Memory {
 }
 
 export interface MemItem {
-	type: string | SuggestionKind;
+	type: string | CompletionKind;
 	insertText: string;
 	touch: number;
 }
@@ -120,7 +120,7 @@ export class LRUMemory extends Memory {
 		let seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
-			value.type = typeof value.type === 'number' ? value.type : suggestionKindFromLegacyString(value.type);
+			value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 			this._cache.set(key, value);
 		}
 		this._seq = this._cache.size;
@@ -184,7 +184,7 @@ export class PrefixMemory extends Memory {
 		if (data.length > 0) {
 			this._seq = data[0][1].touch + 1;
 			for (const [key, value] of data) {
-				value.type = typeof value.type === 'number' ? value.type : suggestionKindFromLegacyString(value.type);
+				value.type = typeof value.type === 'number' ? value.type : completionKindFromLegacyString(value.type);
 				this._trie.set(key, value);
 			}
 		}

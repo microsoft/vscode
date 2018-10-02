@@ -13,7 +13,7 @@ import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 import { Snippet, SnippetSource } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
-import { SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
 
 class SimpleSnippetService implements ISnippetsService {
 	_serviceBrand: any;
@@ -41,7 +41,7 @@ suite('SnippetsService', function () {
 
 	let modeService: ModeServiceImpl;
 	let snippetService: ISnippetsService;
-	let suggestContext: SuggestContext = { triggerKind: SuggestTriggerKind.Invoke };
+	let suggestContext: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
 
 	setup(function () {
 		modeService = new ModeServiceImpl();
@@ -251,7 +251,7 @@ suite('SnippetsService', function () {
 		result = await provider.provideCompletionItems(model, new Position(1, 3), suggestContext);
 		assert.equal(result.suggestions.length, 1);
 
-		result = await provider.provideCompletionItems(model, new Position(1, 3), { triggerCharacter: '-', triggerKind: SuggestTriggerKind.TriggerCharacter });
+		result = await provider.provideCompletionItems(model, new Position(1, 3), { triggerCharacter: '-', triggerKind: CompletionTriggerKind.TriggerCharacter });
 		assert.equal(result.suggestions.length, 1);
 	});
 

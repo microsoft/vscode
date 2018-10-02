@@ -376,7 +376,7 @@ export class ExtHostApiCommands {
 			triggerCharacter,
 			maxItemsToResolve
 		};
-		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
+		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
 				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
 				return new types.CompletionList(items, result.incomplete);

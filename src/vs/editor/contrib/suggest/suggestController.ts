@@ -15,7 +15,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType, Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ISuggestion, ISuggestSupport } from 'vs/editor/common/modes';
+import { CompletionItem, CompletionItemProvider } from 'vs/editor/common/modes';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
@@ -270,7 +270,7 @@ export class SuggestController implements IEditorContribution {
 		SuggestController._onDidSelectTelemetry(this._telemetryService, suggestion);
 	}
 
-	private static _onDidSelectTelemetry(service: ITelemetryService, item: ISuggestion): void {
+	private static _onDidSelectTelemetry(service: ITelemetryService, item: CompletionItem): void {
 		/* __GDPR__
 			"acceptSuggestion" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -288,7 +288,7 @@ export class SuggestController implements IEditorContribution {
 		alert(msg);
 	}
 
-	triggerSuggest(onlyFrom?: ISuggestSupport[]): void {
+	triggerSuggest(onlyFrom?: CompletionItemProvider[]): void {
 		this._model.trigger({ auto: false }, false, onlyFrom);
 		this._editor.revealLine(this._editor.getPosition().lineNumber, ScrollType.Smooth);
 		this._editor.focus();

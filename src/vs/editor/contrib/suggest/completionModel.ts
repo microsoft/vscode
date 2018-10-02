@@ -7,7 +7,7 @@
 
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
-import { ISuggestResult, ISuggestSupport, SuggestionKind } from 'vs/editor/common/modes';
+import { CompletionList, CompletionItemProvider, CompletionKind } from 'vs/editor/common/modes';
 import { ISuggestionItem } from './suggest';
 import { InternalSuggestOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
@@ -57,7 +57,7 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems: ICompletionItem[];
-	private _isIncomplete: Set<ISuggestSupport>;
+	private _isIncomplete: Set<CompletionItemProvider>;
 	private _stats: ICompletionStats;
 
 	constructor(
@@ -81,7 +81,7 @@ export class CompletionModel {
 	}
 
 	dispose(): void {
-		const seen = new Set<ISuggestResult>();
+		const seen = new Set<CompletionList>();
 		for (const { container } of this._items) {
 			if (!seen.has(container)) {
 				seen.add(container);
@@ -110,12 +110,12 @@ export class CompletionModel {
 		return this._filteredItems;
 	}
 
-	get incomplete(): Set<ISuggestSupport> {
+	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
 		return this._isIncomplete;
 	}
 
-	adopt(except: Set<ISuggestSupport>): ISuggestionItem[] {
+	adopt(except: Set<CompletionItemProvider>): ISuggestionItem[] {
 		let res = new Array<ISuggestionItem>();
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].support)) {
@@ -223,8 +223,8 @@ export class CompletionModel {
 			// update stats
 			this._stats.suggestionCount++;
 			switch (suggestion.kind) {
-				case SuggestionKind.Snippet: this._stats.snippetCount++; break;
-				case SuggestionKind.Text: this._stats.textCount++; break;
+				case CompletionKind.Snippet: this._stats.snippetCount++; break;
+				case CompletionKind.Text: this._stats.textCount++; break;
 			}
 		}
 
@@ -252,9 +252,9 @@ export class CompletionModel {
 
 	private static _compareCompletionItemsSnippetsDown(a: ICompletionItem, b: ICompletionItem): number {
 		if (a.suggestion.kind !== b.suggestion.kind) {
-			if (a.suggestion.kind === SuggestionKind.Snippet) {
+			if (a.suggestion.kind === CompletionKind.Snippet) {
 				return 1;
-			} else if (b.suggestion.kind === SuggestionKind.Snippet) {
+			} else if (b.suggestion.kind === CompletionKind.Snippet) {
 				return -1;
 			}
 		}
@@ -263,9 +263,9 @@ export class CompletionModel {
 
 	private static _compareCompletionItemsSnippetsUp(a: ICompletionItem, b: ICompletionItem): number {
 		if (a.suggestion.kind !== b.suggestion.kind) {
-			if (a.suggestion.kind === SuggestionKind.Snippet) {
+			if (a.suggestion.kind === CompletionKind.Snippet) {
 				return -1;
-			} else if (b.suggestion.kind === SuggestionKind.Snippet) {
+			} else if (b.suggestion.kind === CompletionKind.Snippet) {
 				return 1;
 			}
 		}

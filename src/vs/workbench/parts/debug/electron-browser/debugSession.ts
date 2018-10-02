@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISuggestion, suggestionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
@@ -445,7 +445,7 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]> {
 		if (this.raw) {
 			return this.raw.completions({
 				frameId,
@@ -454,14 +454,14 @@ export class DebugSession implements IDebugSession {
 				line: position.lineNumber
 			}).then(response => {
 
-				const result: ISuggestion[] = [];
+				const result: CompletionItem[] = [];
 				if (response && response.body && response.body.targets) {
 					response.body.targets.forEach(item => {
 						if (item && item.label) {
 							result.push({
 								label: item.label,
 								insertText: item.text || item.label,
-								kind: suggestionKindFromLegacyString(item.type),
+								kind: completionKindFromLegacyString(item.type),
 								filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
 								overwriteBefore: item.length || overwriteBefore
 							});

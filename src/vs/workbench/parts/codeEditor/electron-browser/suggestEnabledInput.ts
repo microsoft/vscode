@@ -168,9 +168,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			triggerCharacters: suggestionProvider.triggerCharacters || []
 		};
 
-		this.disposables.push(modes.SuggestRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this.disposables.push(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext) => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
 				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
@@ -186,7 +186,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 							insertText: result,
 							overwriteBefore: alreadyTypedCount,
 							sortText: validatedSuggestProvider.sortKey(result),
-							kind: modes.SuggestionKind.Keyword
+							kind: modes.CompletionKind.Keyword
 						};
 					})
 				};
