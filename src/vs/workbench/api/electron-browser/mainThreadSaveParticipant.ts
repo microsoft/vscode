@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { sequence, IdleValue } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { WorkspaceStats, collectWorkspaceStats, collectLaunchConfigs, WorkspaceStatItem } from 'vs/base/node/stats';
 import { IMainProcessInfo } from 'vs/platform/launch/electron-main/launchService';
 import { ProcessItem, listProcesses } from 'vs/base/node/ps';

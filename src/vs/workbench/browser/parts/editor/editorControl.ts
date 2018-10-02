@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';

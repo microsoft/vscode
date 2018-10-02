@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegions, ILineRange } from 'vs/editor/contrib/folding/foldingRanges';
 import { RangeProvider } from './folding';

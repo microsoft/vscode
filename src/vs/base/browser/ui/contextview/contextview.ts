@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./contextview';
 import * as DOM from 'vs/base/browser/dom';
 import { IDisposable, dispose, toDisposable, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';

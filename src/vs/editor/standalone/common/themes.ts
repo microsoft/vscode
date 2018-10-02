@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
 import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from 'vs/platform/theme/common/colorRegistry';
 import { editorIndentGuides, editorActiveIndentGuides } from 'vs/editor/common/view/editorColorRegistry';

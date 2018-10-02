@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { ITextModel } from 'vs/editor/common/model';

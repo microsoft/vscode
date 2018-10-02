@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ExplorerItem, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Event } from 'vs/base/common/event';
 import { IExpression } from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { compareAnything } from 'vs/base/common/comparers';
 import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
 import { nativeSep } from 'vs/base/common/paths';

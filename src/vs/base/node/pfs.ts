@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as extfs from 'vs/base/node/extfs';
 import { join } from 'path';
 import { nfcall, Queue } from 'vs/base/common/async';

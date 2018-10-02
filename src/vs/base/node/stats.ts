@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { readdir, stat, exists, readFile } from 'fs';
 import { join } from 'path';
 import { parse } from 'vs/base/common/json';

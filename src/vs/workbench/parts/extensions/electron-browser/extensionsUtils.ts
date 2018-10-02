@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { Event, chain, anyEvent, debounceEvent } from 'vs/base/common/event';

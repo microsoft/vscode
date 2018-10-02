@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { isBoolean, isNumber } from 'vs/base/common/types';
 import * as https from 'https';
 import * as http from 'http';

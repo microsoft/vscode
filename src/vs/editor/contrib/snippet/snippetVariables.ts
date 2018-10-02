@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { basename, dirname } from 'vs/base/common/paths';
 import { ITextModel } from 'vs/editor/common/model';

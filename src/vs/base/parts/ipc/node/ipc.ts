@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent, toNativePromise, Relay } from 'vs/base/common/event';
 import { always, CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore, FuzzyScorer } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
 import { CompletionList, CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';

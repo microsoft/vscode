@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
