@@ -1173,7 +1173,7 @@ export class Repository {
 		}
 
 		if (options.prune) {
-			args.push('-p');
+			args.push('--prune');
 		}
 
 
