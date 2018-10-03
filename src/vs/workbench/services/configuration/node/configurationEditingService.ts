@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
 import * as json from 'vs/base/common/json';
 import * as encoding from 'vs/base/node/encoding';
@@ -144,11 +143,11 @@ export class ConfigurationEditingService {
 					if (!options.donotNotifyError) {
 						this.onError(error, operation, options.scopes);
 					}
-					return TPromise.wrapError(error);
+					return Promise.reject(error);
 				})));
 	}
 
-	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): TPromise<void> {
+	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
 		const checkDirtyConfiguration = !(options.force || options.donotSave);
 		const saveConfiguration = options.force || !options.donotSave;
 		return this.resolveAndValidate(operation.target, operation, checkDirtyConfiguration, options.scopes || {})
@@ -156,12 +155,11 @@ export class ConfigurationEditingService {
 				.then(() => reference.dispose()));
 	}
 
-	private writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
+	private async writeToBuffer(model: ITextModel, operation: IConfigurationEditOperation, save: boolean): Promise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (edit && this.applyEditsToBuffer(edit, model) && save) {
 			return this.textFileService.save(operation.resource, { skipSaveParticipants: true /* programmatic change */ });
 		}
-		return TPromise.as(null);
 	}
 
 	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
@@ -266,10 +264,10 @@ export class ConfigurationEditingService {
 		this.editorService.openEditor({ resource });
 	}
 
-	private wrapError<T = never>(code: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): TPromise<T> {
+	private wrapError<T = never>(code: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): Promise<T> {
 		const message = this.toErrorMessage(code, target, operation);
 
-		return TPromise.wrapError<T>(new ConfigurationEditingError(message, code));
+		return Promise.reject(new ConfigurationEditingError(message, code));
 	}
 
 	private toErrorMessage(error: ConfigurationEditingErrorCode, target: ConfigurationTarget, operation: IConfigurationEditOperation): string {
@@ -354,12 +352,12 @@ export class ConfigurationEditingService {
 		return setProperty(model.getValue(), jsonPath, value, { tabSize, insertSpaces, eol });
 	}
 
-	private resolveModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		return this.fileService.existsFile(resource)
-			.then(exists => {
-				const result = exists ? TPromise.as(null) : this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
-				return result.then(() => this.textModelResolverService.createModelReference(resource));
-			});
+	private async resolveModelReference(resource: URI): Promise<IReference<ITextEditorModel>> {
+		const exists = await this.fileService.existsFile(resource);
+		if (!exists) {
+			await this.fileService.updateContent(resource, '{}', { encoding: encoding.UTF8 });
+		}
+		return this.textModelResolverService.createModelReference(resource);
 	}
 
 	private hasParseErrors(model: ITextModel, operation: IConfigurationEditOperation): boolean {
@@ -373,7 +371,7 @@ export class ConfigurationEditingService {
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): Promise<IReference<ITextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.workspaceStandAloneConfigurationKey) {

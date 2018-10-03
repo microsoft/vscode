@@ -9,7 +9,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -83,7 +82,7 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): TPromise<boolean> {
+	function setUpWorkspace(): Promise<boolean> {
 		const id = uuid.generateUuid();
 		parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
@@ -93,7 +92,7 @@ suite('ConfigurationEditingService', () => {
 		return mkdirp(workspaceSettingsDir, 493);
 	}
 
-	function setUpServices(noWorkspace: boolean = false): TPromise<void> {
+	function setUpServices(noWorkspace: boolean = false): Promise<void> {
 		// Clear services if they are already created
 		clearServices();
 
@@ -127,8 +126,8 @@ suite('ConfigurationEditingService', () => {
 		}
 	}
 
-	function clearWorkspace(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
+	function clearWorkspace(): Promise<void> {
+		return new Promise<void>((c, e) => {
 			if (parentDir) {
 				extfs.del(parentDir, os.tmpdir(), () => c(null), () => c(null));
 			} else {

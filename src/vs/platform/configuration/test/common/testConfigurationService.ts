@@ -5,7 +5,6 @@
 
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService implements IConfigurationService {
@@ -44,7 +43,7 @@ export class TestConfigurationService implements IConfigurationService {
 			this.configuration[key] = value;
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public onDidChangeConfiguration() {
