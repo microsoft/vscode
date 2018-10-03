@@ -15,13 +15,13 @@ import { ITreeModel, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 
-function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T, any>> {
+export function createComposedTreeListOptions<T, N extends { element: T }>(options?: IListOptions<T>): IListOptions<N> {
 	if (!options) {
 		return undefined;
 	}
 
-	let identityProvider: IIdentityProvider<ITreeNode<T, any>> | undefined = undefined;
-	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T, any>> | undefined = undefined;
+	let identityProvider: IIdentityProvider<N> | undefined = undefined;
+	let multipleSelectionController: IMultipleSelectionController<N> | undefined = undefined;
 
 	if (options.identityProvider) {
 		identityProvider = el => options.identityProvider(el.element);
@@ -45,15 +45,15 @@ function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode
 	};
 }
 
-class TreeDelegate<T> implements IVirtualDelegate<ITreeNode<T, any>> {
+export class ComposedTreeDelegate<T, N extends { element: T }> implements IVirtualDelegate<N> {
 
 	constructor(private delegate: IVirtualDelegate<T>) { }
 
-	getHeight(element: ITreeNode<T, any>): number {
+	getHeight(element: N): number {
 		return this.delegate.getHeight(element.element);
 	}
 
-	getTemplateId(element: ITreeNode<T, any>): string {
+	getTemplateId(element: N): string {
 		return this.delegate.getTemplateId(element.element);
 	}
 }
@@ -149,13 +149,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		renderers: IRenderer<T, any>[],
 		options?: ITreeOptions<T, TFilterData>
 	) {
-		const treeDelegate = new TreeDelegate(delegate);
+		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ITreeNode<T, TFilterData>>();
-		const treeRenderers = renderers.map(r => new TreeRenderer(r, onDidChangeCollapseStateRelay.event));
+		const treeRenderers = renderers.map(r => new TreeRenderer<T, TFilterData, any>(r, onDidChangeCollapseStateRelay.event));
 		this.disposables.push(...treeRenderers);
 
-		this.view = new List(container, treeDelegate, treeRenderers, toTreeListOptions(options));
+		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions<T, ITreeNode<T, TFilterData>>(options));
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 

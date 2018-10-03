@@ -10,7 +10,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
-export class ObjectTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, ITreeNode<T, TFilterData>> {
+export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T, TFilterData, ITreeNode<T, TFilterData>> {
 
 	protected model: ObjectTreeModel<T, TFilterData>;
 
