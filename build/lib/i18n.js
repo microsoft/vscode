@@ -79,20 +79,9 @@ var PackageJsonFormat;
     }
     PackageJsonFormat.is = is;
 })(PackageJsonFormat || (PackageJsonFormat = {}));
-var ModuleJsonFormat;
-(function (ModuleJsonFormat) {
-    function is(value) {
-        var candidate = value;
-        return Is.defined(candidate)
-            && Is.array(candidate.messages) && candidate.messages.every(function (message) { return Is.string(message); })
-            && Is.array(candidate.keys) && candidate.keys.every(function (key) { return Is.string(key) || LocalizeInfo.is(key); });
-    }
-    ModuleJsonFormat.is = is;
-})(ModuleJsonFormat || (ModuleJsonFormat = {}));
 var Line = /** @class */ (function () {
     function Line(indent) {
         if (indent === void 0) { indent = 0; }
-        this.indent = indent;
         this.buffer = [];
         if (indent > 0) {
             this.buffer.push(new Array(indent + 1).join(' '));
@@ -375,7 +364,6 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
     var messageSection = json.messages;
     var bundleSection = json.bundles;
     var statistics = Object.create(null);
-    var total = 0;
     var defaultMessages = Object.create(null);
     var modules = Object.keys(keysSection);
     modules.forEach(function (module) {
@@ -388,7 +376,6 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
         var messageMap = Object.create(null);
         defaultMessages[module] = messageMap;
         keys.map(function (key, i) {
-            total++;
             if (typeof key === 'string') {
                 messageMap[key] = messages[i];
             }

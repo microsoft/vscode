@@ -150,11 +150,6 @@ function fromLocalNormal(extensionPath) {
         .catch(function (err) { return result.emit('error', err); });
     return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
-function error(err) {
-    var result = es.through();
-    setTimeout(function () { return result.emit('error', err); });
-    return result;
-}
 var baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
     'User-Agent': 'VSCode Build',

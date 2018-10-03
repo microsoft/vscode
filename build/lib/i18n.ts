@@ -1064,7 +1064,7 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 			called = true;
 			const stream = this;
 			resources.map(function (resource) {
-				retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
+				retrieveResource(language, resource, apiHostname, credentials).then((file: File | null) => {
 					if (file) {
 						stream.emit('data', file);
 					}

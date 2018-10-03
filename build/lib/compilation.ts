@@ -175,7 +175,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 		}));
 	}
 
-	resultStream = es.through(function (this: any, data) {
+	resultStream = es.through(function (data) {
 		const filePath = path.normalize(path.resolve(basePath, data.relative));
 		if (neededFiles[filePath]) {
 			setInputFile(filePath, data.contents.toString());

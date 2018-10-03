@@ -110,12 +110,12 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 			let relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
 
 			return webpackGulp(webpackConfig, webpack, webpackDone)
-				.pipe(es.through(function (this: any, data) {
+				.pipe(es.through(function (data) {
 					data.stat = data.stat || {};
 					data.base = extensionPath;
 					this.emit('data', data);
 				}))
-				.pipe(es.through(function (this: any, data: File) {
+				.pipe(es.through(function (data: File) {
 					// source map handling:
 					// * rewrite sourceMappingURL
 					// * save to disk so that upload-task picks this up
