@@ -12,7 +12,6 @@ import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 function storageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -51,7 +50,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => TPromise.as([]) } as IExtensionManagementService);
+		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => Promise.resolve([]) } as IExtensionManagementService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 	});
 
@@ -354,7 +353,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test getDisabledExtensions include extensions disabled in enviroment', () => {
 		instantiationService.stub(IEnvironmentService, { disableExtensions: ['pub.a'] } as IEnvironmentService);
-		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => TPromise.as([aLocalExtension('pub.a'), aLocalExtension('pub.b')]) } as IExtensionManagementService);
+		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => Promise.resolve([aLocalExtension('pub.a'), aLocalExtension('pub.b')]) } as IExtensionManagementService);
 		testObject = new TestExtensionEnablementService(instantiationService);
 		return testObject.getDisabledExtensions()
 			.then(actual => {
