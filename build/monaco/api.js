@@ -7,8 +7,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var ts = require("typescript");
 var path = require("path");
+var util = require("gulp-util");
 var tsfmt = require('../../tsfmt.json');
-var util = require('gulp-util');
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {

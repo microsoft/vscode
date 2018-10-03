@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import path = require('path');
-import vm = require('vm');
+import * as fs from 'fs';
+import * as path from 'path';
+import * as vm from 'vm';
 
 interface IPosition {
 	line: number;

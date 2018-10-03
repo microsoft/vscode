@@ -7,15 +7,15 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import { through, readable, ThroughStream } from 'event-stream';
-import File = require('vinyl');
+import * as File from 'vinyl';
 import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as glob from 'glob';
 import * as https from 'https';
 import * as gulp from 'gulp';
 
-var util = require('gulp-util');
-var iconv = require('iconv-lite');
+import * as util from 'gulp-util';
+import * as iconv from 'iconv-lite';
 
 const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 
@@ -1331,7 +1331,7 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 
 	return new File({
 		path: filePath,
-		contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8'), innoSetup.codePage)
+		contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
 	});
 }
 

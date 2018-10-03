@@ -13,8 +13,8 @@ var xml2js = require("xml2js");
 var glob = require("glob");
 var https = require("https");
 var gulp = require("gulp");
-var util = require('gulp-util');
-var iconv = require('iconv-lite');
+var util = require("gulp-util");
+var iconv = require("iconv-lite");
 var NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message) {
     var rest = [];
@@ -1192,7 +1192,7 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     var filePath = basename + "." + language.id + ".isl";
     return new File({
         path: filePath,
-        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8'), innoSetup.codePage)
+        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
     });
 }
 function encodeEntities(value) {

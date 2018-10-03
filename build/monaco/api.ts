@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import ts = require('typescript');
-import path = require('path');
+import * as fs from 'fs';
+import * as ts from 'typescript';
+import * as path from 'path';
+import * as util from 'gulp-util';
+
 const tsfmt = require('../../tsfmt.json');
 
-var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
 }

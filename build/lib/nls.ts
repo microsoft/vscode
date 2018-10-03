@@ -6,10 +6,10 @@
 import * as ts from 'typescript';
 import * as lazy from 'lazy.js';
 import { duplex, through } from 'event-stream';
-import File = require('vinyl');
+import * as File from 'vinyl';
 import * as sm from 'source-map';
 import assign = require('object-assign');
-import path = require('path');
+import * as  path from 'path';
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
