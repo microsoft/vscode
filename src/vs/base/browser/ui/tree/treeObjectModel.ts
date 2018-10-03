@@ -8,11 +8,14 @@
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { TreeModel, ITreeNode, ITreeModelOptions, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
+import { Event } from 'vs/base/common/event';
 
 export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 
 	private model: TreeModel<T, TFilterData>;
 	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
+
+	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this.model.onDidChangeCollapseState;
 
 	get size(): number { return this.nodes.size; }
 
