@@ -143,6 +143,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected model: ITreeModel<T, TFilterData, TRef>;
 	protected disposables: IDisposable[] = [];
 
+	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
@@ -158,6 +160,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view = new List(container, treeDelegate, treeRenderers, createComposedTreeListOptions<T, ITreeNode<T, TFilterData>>(options));
 		this.model = this.createModel(this.view, options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
+		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
 
@@ -172,12 +175,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
-	// collapseAll(): void {
-	// 	this.model.setCollapsedAll(true);
-	// }
-
 	refilter(): void {
 		this.model.refilter();
+	}
+
+	collapse(location: TRef): boolean {
+		return this.model.setCollapsed(location, true);
+	}
+
+	expand(location: TRef): boolean {
+		return this.model.setCollapsed(location, false);
 	}
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {

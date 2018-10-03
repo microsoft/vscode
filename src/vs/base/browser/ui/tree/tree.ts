@@ -44,7 +44,7 @@ export interface ITreeNode<T, TFilterData = void> {
 }
 
 export interface ITreeModel<T, TFilterData, TRef> {
-	onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
+	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 
 	getListIndex(ref: TRef): number;
 	setCollapsed(ref: TRef, collapsed: boolean): boolean;

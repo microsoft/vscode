@@ -6,7 +6,8 @@
 import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export interface IDataTreeElement<T> {
 	readonly element: T;
@@ -20,15 +21,15 @@ export interface IDataSource<T extends NonNullable<any>> {
 }
 
 enum DataTreeNodeState {
-	Idle,
+	Uninitialized,
+	Loaded,
 	Loading
 }
 
 interface IDataTreeNode<T extends NonNullable<any>> {
-	readonly element: T;
+	readonly element: T | null;
 	readonly parent: IDataTreeNode<T> | null;
 	state: DataTreeNodeState;
-	// promise: Thenable<any>;
 }
 
 interface IDataTreeListTemplateData<T> {
@@ -62,11 +63,13 @@ class DataTreeRenderer<T, TTemplateData> implements IRenderer<IDataTreeNode<T>, 
 	}
 }
 
-export class DataTree<T extends NonNullable<any>, TFilterData = void> {
+export class DataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
 
 	private tree: ObjectTree<IDataTreeNode<T>, TFilterData>;
 	private root: IDataTreeNode<T>;
 	private nodes = new Map<T, IDataTreeNode<T>>();
+
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -81,22 +84,28 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> {
 
 		this.tree = new ObjectTree(container, treeDelegate, treeRenderers, treeOptions);
 		this.root = {
-			element: undefined, // TODO@joao
+			element: null,
 			parent: null,
-			state: DataTreeNodeState.Idle,
+			state: DataTreeNodeState.Uninitialized,
 		};
 
 		this.nodes.set(null, this.root);
+
+		this.tree.onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
 	}
 
-	refresh(element: T | null, recursive = true): Thenable<void> {
+	refresh(element: T | null): Thenable<void> {
 		const node: IDataTreeNode<T> = this.nodes.get(element);
 
 		if (typeof node === 'undefined') {
 			throw new Error(`Data tree node not found: ${element}`);
 		}
 
-		const hasChildren = this.dataSource.hasChildren(element);
+		return this.refreshNode(node);
+	}
+
+	private refreshNode(node: IDataTreeNode<T>): Thenable<void> {
+		const hasChildren = this.dataSource.hasChildren(node.element);
 
 		if (!hasChildren) {
 			this.tree.setChildren(node === this.root ? null : node);
@@ -104,15 +113,15 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> {
 		} else {
 			node.state = DataTreeNodeState.Loading;
 
-			return this.dataSource.getChildren(element)
+			return this.dataSource.getChildren(node.element)
 				.then(children => {
-					node.state = DataTreeNodeState.Idle;
+					node.state = DataTreeNodeState.Loaded;
 
 					const createTreeElement = (el: IDataTreeElement<T>): ITreeElement<IDataTreeNode<T>> => {
 						return {
 							element: {
 								element: el.element,
-								state: DataTreeNodeState.Idle,
+								state: DataTreeNodeState.Uninitialized,
 								parent: node
 							},
 							collapsible: el.collapsible,
@@ -124,9 +133,24 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> {
 
 					this.tree.setChildren(node === this.root ? null : node, nodeChildren);
 				}, err => {
-					node.state = DataTreeNodeState.Idle;
+					node.state = DataTreeNodeState.Uninitialized;
+
+					if (node !== this.root) {
+						this.tree.collapse(node);
+					}
+
 					return Promise.reject(err);
 				});
 		}
+	}
+
+	private onDidChangeCollapseState(treeNode: ITreeNode<IDataTreeNode<T>, any>): void {
+		if (!treeNode.collapsed && treeNode.element.state === DataTreeNodeState.Uninitialized) {
+			this.refreshNode(treeNode.element);
+		}
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }

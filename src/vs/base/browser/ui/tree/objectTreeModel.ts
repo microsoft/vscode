@@ -13,7 +13,7 @@ import { ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tre
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> { }
 
-export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> implements ITreeModel<T, TFilterData, ITreeNode<T, TFilterData>> {
+export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> implements ITreeModel<T, TFilterData, T> {
 
 	private model: IndexTreeModel<T, TFilterData>;
 	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
@@ -45,28 +45,42 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		return this.model.splice([...location, 0], Number.MAX_VALUE, children, onDidCreateNode, onDidDeleteNode);
 	}
 
-	getListIndex(node: ITreeNode<T, TFilterData>): number {
-		const location = this.getElementLocation(node.element);
+	getListIndex(element: T): number {
+		const location = this.getElementLocation(element);
 		return this.model.getListIndex(location);
 	}
 
-	setCollapsed(node: ITreeNode<T, TFilterData>, collapsed: boolean): boolean {
-		const location = this.getElementLocation(node.element);
+	setCollapsed(element: T, collapsed: boolean): boolean {
+		const location = this.getElementLocation(element);
 		return this.model.setCollapsed(location, collapsed);
 	}
 
-	toggleCollapsed(node: ITreeNode<T, TFilterData>): void {
-		const location = this.getElementLocation(node.element);
+	toggleCollapsed(element: T): void {
+		const location = this.getElementLocation(element);
 		this.model.toggleCollapsed(location);
 	}
 
-	isCollapsed(node: ITreeNode<T, TFilterData>): boolean {
-		const location = this.getElementLocation(node.element);
+	isCollapsed(element: T): boolean {
+		const location = this.getElementLocation(element);
 		return this.model.isCollapsed(location);
 	}
 
 	refilter(): void {
 		this.model.refilter();
+	}
+
+	getNodeLocation(node: ITreeNode<T, TFilterData>): T {
+		return node.element;
+	}
+
+	getParentNodeLocation(element: T): T | null {
+		const node = this.nodes.get(element);
+
+		if (!node) {
+			throw new Error(`Tree element not found: ${element}`);
+		}
+
+		return node.parent.element;
 	}
 
 	private getElementLocation(element: T | null): number[] {
@@ -81,13 +95,5 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData = void> imp
 		}
 
 		return this.model.getNodeLocation(node);
-	}
-
-	getNodeLocation(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> {
-		return node;
-	}
-
-	getParentNodeLocation(node: ITreeNode<T, TFilterData>): ITreeNode<T, TFilterData> | null {
-		return node.parent || null;
 	}
 }
