@@ -159,6 +159,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		));
 
 		this.registerListeners();
+
+		// if the service is created late enough that an editor is already opened
+		// make sure to trigger the onActiveEditorChanged() to track the editor
+		// properly (fixes https://github.com/Microsoft/vscode/issues/59908)
+		if (editorService.activeControl) {
+			this.onActiveEditorChanged();
+		}
 	}
 
 	private getExcludes(root?: URI): IExpression {
