@@ -20,13 +20,13 @@ function incremental(streamProvider, initial, supportsCancellation) {
     var output = es.through();
     var state = 'idle';
     var buffer = Object.create(null);
-    var token = !supportsCancellation ? null : { isCancellationRequested: function () { return Object.keys(buffer).length > 0; } };
+    var token = !supportsCancellation ? undefined : { isCancellationRequested: function () { return Object.keys(buffer).length > 0; } };
     var run = function (input, isCancellable) {
         state = 'running';
         var stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
         input
             .pipe(stream)
-            .pipe(es.through(null, function () {
+            .pipe(es.through(undefined, function () {
             state = 'idle';
             eventuallyRun();
         }))
@@ -119,7 +119,7 @@ function loadSourcemaps() {
     var output = input
         .pipe(es.map(function (f, cb) {
         if (f.sourceMap) {
-            cb(null, f);
+            cb(undefined, f);
             return;
         }
         if (!f.contents) {
@@ -128,7 +128,8 @@ function loadSourcemaps() {
         }
         var contents = f.contents.toString('utf8');
         var reg = /\/\/# sourceMappingURL=(.*)$/g;
-        var lastMatch = null, match = null;
+        var lastMatch = null;
+        var match = null;
         while (match = reg.exec(contents)) {
             lastMatch = match;
         }
@@ -140,7 +141,7 @@ function loadSourcemaps() {
                 sources: [f.relative.replace(/\//g, '/')],
                 sourcesContent: [contents]
             };
-            cb(null, f);
+            cb(undefined, f);
             return;
         }
         f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
@@ -149,7 +150,7 @@ function loadSourcemaps() {
                 return cb(err);
             }
             f.sourceMap = JSON.parse(contents);
-            cb(null, f);
+            cb(undefined, f);
         });
     }));
     return es.duplex(input, output);
@@ -192,7 +193,7 @@ function getVersion(root) {
 exports.getVersion = getVersion;
 function rebase(count) {
     return rename(function (f) {
-        var parts = f.dirname.split(/[\/\\]/);
+        var parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
         f.dirname = parts.slice(count).join(path.sep);
     });
 }
