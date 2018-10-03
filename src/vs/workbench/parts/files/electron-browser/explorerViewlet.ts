@@ -6,7 +6,6 @@
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import { IActionRunner } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet, VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
 import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -176,7 +175,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		return super.create(parent).then(() => {
 			DOM.addClass(parent, 'explorer-viewlet');
 		});
@@ -236,7 +235,7 @@ export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerVi
 		return <EmptyView>this.getView(EmptyView.ID);
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		this.viewletVisibleContextKey.set(visible);
 		return super.setVisible(visible);
 	}

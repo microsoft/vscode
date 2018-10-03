@@ -132,8 +132,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	public create(parent: HTMLElement): TPromise<void> {
-		super.create(parent);
+	public async create(parent: HTMLElement): Promise<void> {
+		await super.create(parent);
 		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
@@ -149,10 +149,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			controller
 		}, replTreeOptions);
 
-		return this.tree.setInput(this.debugService.getModel());
+		await this.tree.setInput(this.debugService.getModel());
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		if (!visible) {
 			dispose(this.model);
 		} else {

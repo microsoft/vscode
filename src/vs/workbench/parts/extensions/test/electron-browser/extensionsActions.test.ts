@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import * as ExtensionsActions from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
@@ -81,7 +80,7 @@ suite('ExtensionsActions Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		instantiationService.stub(IExtensionService, { getExtensions: () => TPromise.wrap([]) });
+		instantiationService.stub(IExtensionService, { getExtensions: () => Promise.resolve([]) });
 		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).reset();
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));

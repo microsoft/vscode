@@ -6,7 +6,6 @@
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { ThrottledDelayer, always, timeout } from 'vs/base/common/async';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, create as createError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -325,7 +324,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		}, this, this.disposables);
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
 
@@ -361,7 +360,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return super.create(this.extensionsBox);
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		const isVisibilityChanged = this.isVisible() !== visible;
 		return super.setVisible(visible).then(() => {
 			if (isVisibilityChanged) {
@@ -444,7 +443,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		return this.searchBox.getValue().replace(/@category/g, 'category').replace(/@tag:/g, 'tag:').replace(/@ext:/g, 'ext:');
 	}
 
-	private doSearch(): TPromise<any> {
+	private doSearch(): Promise<any> {
 		const value = this.normalizedQuery();
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
@@ -453,18 +452,18 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
 		if (value) {
-			return this.progress(TPromise.join(this.panels.map(view => {
+			return this.progress(Promise.all(this.panels.map(view => {
 				(<ExtensionsListView>view).show(this.normalizedQuery()).then(model => {
 					this.alertSearchResult(model.length, view.id);
 				});
 			})));
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
 		const addedViews = super.onDidAddViews(added);
-		this.progress(TPromise.join(addedViews.map(addedView => {
+		this.progress(Promise.all(addedViews.map(addedView => {
 			(<ExtensionsListView>addedView).show(this.normalizedQuery()).then(model => {
 				this.alertSearchResult(model.length, addedView.id);
 			});
@@ -527,14 +526,14 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 				const editors = group.editors.filter(input => input instanceof ExtensionsInput);
 				const promises = editors.map(editor => group.closeEditor(editor));
 
-				return TPromise.join(promises);
+				return Promise.all(promises);
 			});
 
-			TPromise.join(promises);
+			Promise.all(promises);
 		}
 	}
 
-	private progress<T>(promise: TPromise<T>): TPromise<T> {
+	private progress<T>(promise: Promise<T>): Promise<T> {
 		const progressRunner = this.progressService.show(true);
 		return always(promise, () => progressRunner.done());
 	}
@@ -619,7 +618,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 			.then(() => this.loopCheckForMaliciousExtensions());
 	}
 
-	private checkForMaliciousExtensions(): TPromise<any> {
+	private checkForMaliciousExtensions(): Promise<any> {
 		return this.extensionsManagementService.getExtensionsReport().then(report => {
 			const maliciousSet = getMaliciousExtensionsSet(report);
 
@@ -628,7 +627,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 					.filter(e => maliciousSet.has(getGalleryExtensionIdFromLocal(e)));
 
 				if (maliciousExtensions.length) {
-					return TPromise.join(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
+					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e, true).then(() => {
 						this.notificationService.prompt(
 							Severity.Warning,
 							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", getGalleryExtensionIdFromLocal(e)),
@@ -639,7 +638,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 						);
 					})));
 				} else {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 			});
 		}, err => this.logService.error(err));
