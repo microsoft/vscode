@@ -160,6 +160,7 @@ interface ContributedKeyBinding {
 	mac?: string;
 	linux?: string;
 	win?: string;
+	args?: [string];
 }
 
 function isContributedKeyBindingsArray(thing: ContributedKeyBinding | ContributedKeyBinding[]): thing is ContributedKeyBinding[] {
@@ -200,7 +201,7 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 
 let keybindingType: IJSONSchema = {
 	type: 'object',
-	default: { command: '', key: '' },
+	default: { command: '', key: '', args: [''] },
 	properties: {
 		command: {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),
@@ -221,6 +222,9 @@ let keybindingType: IJSONSchema = {
 		win: {
 			description: nls.localize('vscode.extension.contributes.keybindings.win', 'Windows specific key or key sequence.'),
 			type: 'string'
+		},
+		args: {
+			'description': nls.localize('scode.extension.contributes.keybindings.args', "Arguments to pass to the command to execute.")
 		},
 		when: {
 			description: nls.localize('vscode.extension.contributes.keybindings.when', 'Condition when the key is active.'),
