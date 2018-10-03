@@ -30,11 +30,13 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.5",
+    "axios": "^0.15.3",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "generator-code": "^1.1.38",
     "getmac": "1.4.1",
     "graceful-fs": "4.1.11",
+    "gulp-yarn": "^2.0.0",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.4.23",
@@ -45,6 +47,9 @@
     "native-keymap": "1.2.5",
     "native-watchdog": "1.0.0",
     "node-pty": "0.7.8",
+    "react": "^15.4.2",
+    "react-dom": "^15.4.2",
+    "react-router": "^3.0.2",
     "semver": "^5.5.0",
     "spdlog": "0.7.2",
     "sudo-prompt": "8.2.0",
@@ -58,11 +63,7 @@
     "winreg": "^1.2.4",
     "yauzl": "^2.9.1",
     "yazl": "^2.4.3",
-    "yeoman-generator": "^3.1.1",
-    "react": "^15.4.2",
-    "react-dom": "^15.4.2",
-    "react-router": "^3.0.2",
-    "axios": "^0.15.3"
+    "yeoman-generator": "^3.1.1"
   },
   "devDependencies": {
     "7zip": "0.0.6",
