@@ -27,15 +27,6 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getDefinitionsAtPosition } from 'vs/editor/contrib/goToDefinition/goToDefinition';
-import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
-import { DefinitionLink } from 'vs/editor/common/modes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Position } from 'vs/editor/common/core/position';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -245,9 +236,6 @@ export class ModesHoverController implements IEditorContribution {
 }
 
 class ShowHoverAction extends EditorAction {
-	private static previousPromise: CancelablePromise<DefinitionLink[]>;
-	private static decorations: string[] = [];
-	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	constructor() {
 		super({
@@ -270,198 +258,14 @@ class ShowHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const textModelResolverService = accessor.get(ITextModelService);
-		const modeService = accessor.get(IModeService);
-
 		let controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
 		const position = editor.getPosition();
-		const word = editor.getModel().getWordAtPosition(position);
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-
-		if (!word) {
-			this.removeDecorations(editor);
-			return;
-		}
-
-		if (ShowHoverAction.previousPromise) {
-			ShowHoverAction.previousPromise.cancel();
-			ShowHoverAction.previousPromise = null;
-		}
-
-		let state = new EditorState(editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
-
-		ShowHoverAction.previousPromise = createCancelablePromise(token => getDefinitionsAtPosition(editor.getModel(), position, token));
-		ShowHoverAction.previousPromise.then(results => {
-			if (!results || !results.length || !state.validate(editor)) {
-				this.removeDecorations(editor);
-				return;
-			}
-
-			// Multiple results
-			if (results.length > 1) {
-				this.addDecoration(
-					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
-					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length)),
-					editor
-				);
-			}
-
-			// Single result
-			else {
-				let result = results[0];
-
-				if (!result.uri) {
-					return;
-				}
-
-				textModelResolverService.createModelReference(result.uri).then(ref => {
-
-					if (!ref.object || !ref.object.textEditorModel) {
-						ref.dispose();
-						return;
-					}
-
-					const { object: { textEditorModel } } = ref;
-					const { startLineNumber } = result.range;
-
-					if (startLineNumber < 1 || startLineNumber > textEditorModel.getLineCount()) {
-						// invalid range
-						ref.dispose();
-						return;
-					}
-
-					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
-
-					let wordRange: Range;
-					if (result.origin) {
-						wordRange = Range.lift(result.origin);
-					} else {
-						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-					}
-
-					this.addDecoration(
-						wordRange,
-						new MarkdownString().appendCodeblock(modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), previewValue
-						), editor);
-
-					ref.dispose();
-				});
-			}
-
-			controller.showContentHover(range, HoverStartMode.Immediate, false);
-		}).then(undefined, onUnexpectedError);
-
+		controller.showContentHover(range, HoverStartMode.Immediate, true);
 	}
-
-	private addDecoration(range: Range, hoverMessage: MarkdownString, editor: ICodeEditor): string[] {
-
-		const newDecorations: IModelDeltaDecoration = {
-			range: range,
-			options: {
-				inlineClassName: 'show-definition-hover',
-				hoverMessage
-			}
-		};
-
-		return ShowHoverAction.decorations = editor.deltaDecorations(ShowHoverAction.decorations, [newDecorations]);
-	}
-
-	private removeDecorations(editor: ICodeEditor): void {
-		if (ShowHoverAction.decorations.length > 0) {
-			ShowHoverAction.decorations = editor.deltaDecorations(ShowHoverAction.decorations, []);
-		}
-	}
-
-
-	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
-		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
-		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
-		if (numberOfLinesInRange >= ShowHoverAction.MAX_SOURCE_PREVIEW_LINES) {
-			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
-		}
-
-		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
-		return previewValue;
-	}
-
-	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: Range) {
-		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		let minIndent = startIndent;
-
-		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
-			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
-			minIndent = Math.min(minIndent, endIndent);
-		}
-
-		const previewValue = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
-		return previewValue;
-	}
-
-	private getPreviewRangeBasedOnIndentation(textEditorModel: ITextModel, startLineNumber: number) {
-		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + ShowHoverAction.MAX_SOURCE_PREVIEW_LINES);
-		let endLineNumber = startLineNumber + 1;
-
-		for (; endLineNumber < maxLineNumber; endLineNumber++) {
-			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
-
-			if (startIndent === endIndent) {
-				break;
-			}
-		}
-
-		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
-	}
-
-	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + ShowHoverAction.MAX_SOURCE_PREVIEW_LINES);
-
-		const brackets = [];
-
-		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
-		while (currentBracket !== null) {
-
-			if (brackets.length === 0) {
-				brackets.push(currentBracket);
-			} else {
-				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open === currentBracket.open && lastBracket.isOpen && !currentBracket.isOpen) {
-					brackets.pop();
-				} else {
-					brackets.push(currentBracket);
-				}
-
-				if (brackets.length === 0) {
-					if (ignoreFirstEmpty) {
-						ignoreFirstEmpty = false;
-					} else {
-						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
-					}
-				}
-			}
-
-			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
-			let nextLineNumber = currentBracket.range.endLineNumber;
-			let nextColumn = currentBracket.range.endColumn;
-			if (maxColumn === currentBracket.range.endColumn) {
-				nextLineNumber++;
-				nextColumn = 1;
-			}
-
-			if (nextLineNumber > maxLineNumber) {
-				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-			}
-
-			currentBracket = textEditorModel.findNextBracket(new Position(nextLineNumber, nextColumn));
-		}
-
-		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
-	}
-
 }
 
 registerEditorContribution(ModesHoverController);
