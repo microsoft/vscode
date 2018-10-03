@@ -305,6 +305,15 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
+export function disposableTimeout(handler: TimerHandler, timeout = 0): IDisposable {
+	const timer = setTimeout(handler, timeout);
+	return {
+		dispose() {
+			clearTimeout(timer);
+		}
+	};
+}
+
 /**
  * Returns a new promise that joins the provided promise. Upon completion of
  * the provided promise the provided function will always be called. This
