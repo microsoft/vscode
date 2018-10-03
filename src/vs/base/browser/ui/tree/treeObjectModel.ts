@@ -15,12 +15,13 @@ export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 	private model: TreeModel<T, TFilterData>;
 	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
 
-	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>> = this.model.onDidChangeCollapseState;
+	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 
 	get size(): number { return this.nodes.size; }
 
 	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
 		this.model = new TreeModel(list, options);
+		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState;
 	}
 
 	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
