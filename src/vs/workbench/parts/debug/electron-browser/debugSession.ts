@@ -13,7 +13,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
@@ -24,10 +24,13 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Range } from 'vs/editor/common/core/range';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class DebugSession implements IDebugSession {
 
@@ -54,6 +57,9 @@ export class DebugSession implements IDebugSession {
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
+		@IWindowService private windowService: IWindowService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		this.id = generateUuid();
 	}
@@ -80,7 +86,7 @@ export class DebugSession implements IDebugSession {
 
 	get state(): State {
 		const focusedThread = this.debugService.getViewModel().focusedThread;
-		if (focusedThread && !!this.getThread(focusedThread.threadId)) {
+		if (focusedThread && focusedThread.session === this) {
 			return focusedThread.stopped ? State.Stopped : State.Running;
 		}
 		if (this.getAllThreads().some(t => t.stopped)) {
@@ -590,7 +596,15 @@ export class DebugSession implements IDebugSession {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(<Thread>thread).then(() => {
-						return !event.body.preserveFocusHint ? this.debugService.tryToAutoFocusStackFrame(thread) : undefined;
+						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
+							this.debugService.focusStackFrame(undefined, thread);
+							if (thread.stoppedDetails) {
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
+									this.viewletService.openViewlet(VIEWLET_ID);
+								}
+								this.windowService.focusWindow();
+							}
+						}
 					});
 				}
 			}).then(() => this._onDidChangeState.fire());

@@ -794,11 +794,6 @@ export interface IDebugService {
 	 * Gets the current view model.
 	 */
 	getViewModel(): IViewModel;
-
-	/**
-	 * Try to auto focus the top stack frame of the passed thread.
-	 */
-	tryToAutoFocusStackFrame(thread: IThread): TPromise<any>;
 }
 
 // Editor interfaces

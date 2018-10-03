@@ -19,7 +19,6 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
@@ -49,6 +48,7 @@ import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSes
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -101,7 +101,6 @@ export class DebugService implements IDebugService {
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
 		@IPartService private partService: IPartService,
-		@IWindowService private windowService: IWindowService,
 		@IBroadcastService private broadcastService: IBroadcastService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -499,10 +498,14 @@ export class DebugService implements IDebugService {
 	}
 
 	private registerSessionListeners(session: IDebugSession): void {
-
-		this.toDispose.push(session.onDidChangeState(() => {
-			if (session.state === State.Running && this.viewModel.focusedSession && this.viewModel.focusedSession.getId() === session.getId()) {
+		const sessionRunningScheduler = new RunOnceScheduler(() => {
+			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.focusStackFrame(undefined);
+			}
+		}, 200);
+		this.toDispose.push(session.onDidChangeState(() => {
+			if (session.state === State.Running && this.viewModel.focusedSession === session) {
+				sessionRunningScheduler.schedule();
 			}
 		}));
 
@@ -741,37 +744,14 @@ export class DebugService implements IDebugService {
 
 	//---- focus management
 
-	tryToAutoFocusStackFrame(thread: IThread): TPromise<any> {
-		const callStack = thread.getCallStack();
-		if (!callStack.length || (this.viewModel.focusedStackFrame && this.viewModel.focusedStackFrame.thread.getId() === thread.getId())) {
-			return Promise.resolve(null);
-		}
-
-		// focus first stack frame from top that has source location if no other stack frame is focused
-		const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, undefined);
-		if (!stackFrameToFocus) {
-			return Promise.resolve(null);
-		}
-
-		this.focusStackFrame(stackFrameToFocus);
-		if (thread.stoppedDetails) {
-			if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
-				this.viewletService.openViewlet(VIEWLET_ID);
-			}
-			this.windowService.focusWindow();
-			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
-		}
-
-		return stackFrameToFocus.openInEditor(this.editorService, true);
-	}
-
 	focusStackFrame(stackFrame: IStackFrame, thread?: IThread, session?: IDebugSession, explicit?: boolean): void {
 		if (!session) {
 			if (stackFrame || thread) {
 				session = stackFrame ? stackFrame.thread.session : thread.session;
 			} else {
 				const sessions = this.model.getSessions();
-				session = sessions.length ? sessions[0] : undefined;
+				const stoppedSession = sessions.filter(s => s.state === State.Stopped).shift();
+				session = stoppedSession || (sessions.length ? sessions[0] : undefined);
 			}
 		}
 
@@ -780,15 +760,21 @@ export class DebugService implements IDebugService {
 				thread = stackFrame.thread;
 			} else {
 				const threads = session ? session.getAllThreads() : undefined;
-				thread = threads && threads.length ? threads[0] : undefined;
+				const stoppedThread = threads && threads.filter(t => t.stopped).shift();
+				thread = stoppedThread || (threads && threads.length ? threads[0] : undefined);
 			}
 		}
 
 		if (!stackFrame) {
 			if (thread) {
 				const callStack = thread.getCallStack();
-				stackFrame = callStack && callStack.length ? callStack[0] : null;
+				stackFrame = first(callStack, sf => sf.source && sf.source.available, undefined);
 			}
+		}
+
+		if (stackFrame) {
+			stackFrame.openInEditor(this.editorService, true).then(undefined, errors.onUnexpectedError);
+			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber));
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
