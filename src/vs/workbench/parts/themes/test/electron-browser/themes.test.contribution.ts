@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -160,7 +159,7 @@ class Snapper {
 		return result;
 	}
 
-	private _getThemesResult(grammar: IGrammar, lines: string[]): TPromise<IThemesResult> {
+	private _getThemesResult(grammar: IGrammar, lines: string[]): Thenable<IThemesResult> {
 		let currentTheme = this.themeService.getColorTheme();
 
 		let getThemeName = (id: string) => {
@@ -176,7 +175,7 @@ class Snapper {
 
 		return this.themeService.getColorThemes().then(themeDatas => {
 			let defaultThemes = themeDatas.filter(themeData => !!getThemeName(themeData.id));
-			return TPromise.join(defaultThemes.map(defaultTheme => {
+			return Promise.all(defaultThemes.map(defaultTheme => {
 				let themeId = defaultTheme.id;
 				return this.themeService.setColorTheme(themeId, null).then(success => {
 					if (success) {
@@ -219,7 +218,7 @@ class Snapper {
 		}
 	}
 
-	public captureSyntaxTokens(fileName: string, content: string): TPromise<IToken[]> {
+	public captureSyntaxTokens(fileName: string, content: string): Thenable<IToken[]> {
 		return this.modeService.getOrCreateModeByFilepathOrFirstLine(fileName).then(mode => {
 			return this.textMateService.createGrammar(mode.getId()).then((grammar) => {
 				let lines = content.split(/\r\n|\r|\n/);
