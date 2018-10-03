@@ -31,9 +31,9 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { mark } from 'vs/base/common/performance';
+import * as perf from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, runWhenIdle } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import product from 'vs/platform/node/product';
@@ -311,7 +311,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostProcessActivationTimes = Object.create(null);
 		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 
-		this.startDelayed(lifecycleService);
+		this._startDelayed(lifecycleService);
 
 		if (this._extensionEnablementService.allUserExtensionsDisabled) {
 			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All installed extensions are temporarily disabled. Reload the window to return to the previous state."), [{
@@ -323,17 +323,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private startDelayed(lifecycleService: ILifecycleService): void {
-		let started = false;
-		const startOnce = () => {
-			if (!started) {
-				started = true;
-
-				this._startExtensionHostProcess([]);
-				this._scanAndHandleExtensions();
-			}
-		};
-
+	private _startDelayed(lifecycleService: ILifecycleService): void {
 		// delay extension host creation and extension scanning
 		// until the workbench is restoring. we cannot defer the
 		// extension host more (LifecyclePhase.Running) because
@@ -341,15 +331,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		// and this would result in a deadlock
 		// see https://github.com/Microsoft/vscode/issues/41322
 		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
-			// we add an additional delay of 800ms because the extension host
-			// starting is a potential expensive operation and we do no want
-			// to fight with editors, viewlets and panels restoring.
-			setTimeout(() => startOnce(), 800);
+			// reschedule to ensure this runs after restoring viewlets, panels, and editors
+			runWhenIdle(() => {
+				perf.mark('willLoadExtensions');
+				this._scanAndHandleExtensions();
+				this._startExtensionHostProcess([]);
+				this.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
+			}, 50 /*max delay*/);
 		});
-
-		// if we are running before the 800ms delay, make sure to start
-		// the extension host right away though.
-		lifecycleService.when(LifecyclePhase.Running).then(() => startOnce());
 	}
 
 	public dispose(): void {
@@ -601,7 +590,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
 				}
 
-				mark('extensionHostReady');
+				perf.mark('extensionHostReady');
 				this._installedExtensionsReady.open();
 				this._onDidRegisterExtensions.fire(void 0);
 				this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
