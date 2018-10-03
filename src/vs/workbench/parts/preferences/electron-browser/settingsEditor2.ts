@@ -34,7 +34,7 @@ import { badgeBackground, badgeForeground, contrastBorder, editorForeground } fr
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditor, IEditorMemento } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/parts/codeEditor/electron-browser/suggestEnabledInput';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -47,9 +47,11 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const $ = DOM.$;
 
+const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends BaseEditor {
 
 	public static readonly ID: string = 'workbench.editor.settings2';
@@ -116,6 +118,8 @@ export class SettingsEditor2 extends BaseEditor {
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
 
+	private editorMemento: IEditorMemento<ISettingsEditor2State>;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -129,6 +133,7 @@ export class SettingsEditor2 extends BaseEditor {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageService private storageService: IStorageService,
 		@INotificationService private notificationService: INotificationService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
@@ -146,6 +151,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
+
+		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(storageService, editorGroupService, SETTINGS_EDITOR_STATE_KEY);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source !== ConfigurationTarget.DEFAULT) {
@@ -194,7 +201,6 @@ export class SettingsEditor2 extends BaseEditor {
 				} else if (!options.target) {
 					options.target = ConfigurationTarget.USER;
 				}
-
 				this._setOptions(options);
 
 				this.render(token);
@@ -202,6 +208,14 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
+			}).then(() => {
+				const cachedState = this.editorMemento.loadState(this.group, this.input);
+				if (cachedState) {
+					const settingsTarget = cachedState.target;
+					this.settingsTargetsWidget.settingsTarget = settingsTarget;
+					this.viewState = { settingsTarget };
+					this.searchWidget.setValue(cachedState.searchQuery);
+				}
 			});
 	}
 
@@ -227,6 +241,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
+		this.editorMemento.clearState(this.input, this.group);
 		super.clearInput();
 	}
 
@@ -618,7 +633,6 @@ export class SettingsEditor2 extends BaseEditor {
 		if (!this.tocTree.getInput()) {
 			return;
 		}
-
 		this.updateTreePagingByScroll();
 
 		const elementToSync = this.settingsTree.getFirstVisibleElement();
@@ -845,7 +859,13 @@ export class SettingsEditor2 extends BaseEditor {
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 
-			return this.renderTree(undefined, forceRefresh);
+			// Make sure that all extensions' settings are included in search results
+			const cachedState = this.editorMemento.loadState(this.group, this.input);
+			if (cachedState && cachedState.searchQuery) {
+				this.triggerSearch(cachedState.searchQuery);
+			} else {
+				return this.renderTree(undefined, forceRefresh);
+			}
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
 			this.settingsTreeModel.update(resolvedSettingsRoot);
@@ -1207,7 +1227,22 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.settingsTreeRenderer.updateWidth(dimension.width);
 	}
+
+	shutdown(): void {
+		if (this.isVisible()) {
+			const searchQuery = this.searchWidget.getValue().trim();
+			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;
+			this.editorMemento.saveState(this.group, this.input, { searchQuery, target });
+		}
+		super.shutdown();
+	}
 }
+
+interface ISettingsEditor2State {
+	searchQuery: string;
+	target: SettingsTarget;
+}
+
 
 interface ISettingsToolbarContext {
 	target: SettingsTarget;
