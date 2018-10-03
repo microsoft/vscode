@@ -11,6 +11,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/serv
 import { IColorTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/colorThemeData';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -106,7 +107,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeData(themeId: string, defaultId?: string): Thenable<ColorThemeData> {
+	public findThemeData(themeId: string, defaultId?: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
@@ -121,7 +122,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public findThemeDataBySettingsId(settingsId: string, defaultId: string): Thenable<ColorThemeData> {
+	public findThemeDataBySettingsId(settingsId: string, defaultId: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
 			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
@@ -136,7 +137,7 @@ export class ColorThemeStore {
 		});
 	}
 
-	public getColorThemes(): Thenable<IColorTheme[]> {
+	public getColorThemes(): TPromise<IColorTheme[]> {
 		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.extensionsColorThemes;
 		});

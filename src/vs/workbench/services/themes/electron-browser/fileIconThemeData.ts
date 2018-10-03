@@ -9,6 +9,7 @@ import * as Paths from 'path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
@@ -29,7 +30,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	private constructor() {
 	}
 
-	public ensureLoaded(fileService: IFileService): Thenable<string> {
+	public ensureLoaded(fileService: IFileService): TPromise<string> {
 		if (!this.isLoaded) {
 			if (this.location) {
 				return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
@@ -43,7 +44,7 @@ export class FileIconThemeData implements IFileIconTheme {
 				});
 			}
 		}
-		return Promise.resolve(this.styleSheetContent);
+		return TPromise.as(this.styleSheetContent);
 	}
 
 	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
@@ -156,14 +157,14 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-function _loadIconThemeDocument(fileService: IFileService, location: URI): Thenable<IconThemeDocument> {
+function _loadIconThemeDocument(fileService: IFileService, location: URI): TPromise<IconThemeDocument> {
 	return fileService.resolveContent(location, { encoding: 'utf8' }).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);
 		if (errors.length > 0 || !contentValue) {
-			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
+			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		}
-		return Promise.resolve(contentValue);
+		return TPromise.as(contentValue);
 	});
 }
 

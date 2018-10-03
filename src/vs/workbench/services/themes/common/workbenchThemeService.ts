@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Event } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -53,15 +54,15 @@ export interface IFileIconTheme {
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: any;
-	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme>;
+	setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme>;
 	getColorTheme(): IColorTheme;
-	getColorThemes(): Thenable<IColorTheme[]>;
+	getColorThemes(): TPromise<IColorTheme[]>;
 	onDidColorThemeChange: Event<IColorTheme>;
 	restoreColorTheme();
 
-	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
+	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme>;
 	getFileIconTheme(): IFileIconTheme;
-	getFileIconThemes(): Thenable<IFileIconTheme[]>;
+	getFileIconThemes(): TPromise<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;
 }
 
