@@ -407,6 +407,11 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 			}
 
 			if (typeof value === 'boolean' && value) {
+				if (strings.startsWith(key, '\\\\')) {
+					// Absolute globs UNC paths don't work properly, see #58758
+					key += '**';
+				}
+
 				globArgs.push(fixDriveC(key));
 			} else if (value && value.when) {
 				if (!siblingClauses) {
