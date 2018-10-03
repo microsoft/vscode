@@ -524,9 +524,8 @@ class RenameAdapter {
 			if (!range) {
 				return undefined;
 			}
-
-			if (!range.contains(pos)) {
-				console.warn('INVALID rename location: range must contain position');
+			if (range.start.line > pos.line || range.end.line < pos.line) {
+				console.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
