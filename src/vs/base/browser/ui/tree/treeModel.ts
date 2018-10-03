@@ -26,14 +26,14 @@ export interface ITreeNode<T, TFilterData = void> {
 }
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
-	parent: IMutableTreeNode<T, TFilterData> | undefined;
-	children: IMutableTreeNode<T, TFilterData>[];
+	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
+	readonly children: IMutableTreeNode<T, TFilterData>[];
 	collapsible: boolean;
 	collapsed: boolean;
 	revealedCount: number;
 	filterData: TFilterData | undefined;
 
-	// internal state
+	// internal state TODO@joao remove undefined
 	visible: boolean | undefined;
 }
 
@@ -64,7 +64,7 @@ function getRevealedCount<T>(nodes: IMutableTreeNode<T, any>[]): number {
 	return nodes.reduce(revealedCountReducer, 0);
 }
 
-function getTreeElementIterator<T>(elements: Iterator<ITreeElement<T>> | ITreeElement<T>[] | undefined): Iterator<ITreeElement<T>> {
+function asIterator<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
 	if (!elements) {
 		return Iterator.empty();
 	} else if (Array.isArray(elements)) {
@@ -135,7 +135,7 @@ export class TreeModel<T, TFilterData = void> {
 
 		const { parentNode, listIndex, revealed } = this.findParentNode(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
-		const elementsToInsert = getTreeElementIterator(toInsert);
+		const elementsToInsert = asIterator(toInsert);
 		const nodesToInsert = Iterator.collect(Iterator.map(elementsToInsert, el => this.createTreeNode(el, parentNode, revealed, treeListElementsToInsert)));
 		const lastIndex = location[location.length - 1];
 		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
@@ -236,12 +236,19 @@ export class TreeModel<T, TFilterData = void> {
 			treeListElements.push(node);
 		}
 
-		const children = getTreeElementIterator(treeElement.children);
-		node.children = Iterator.collect(Iterator.map(children, el => this.createTreeNode(el, node, revealed && !treeElement.collapsed, treeListElements)));
+		const childElements = asIterator(treeElement.children);
+		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, revealed && !treeElement.collapsed, treeListElements));
+		let hasVisibleDescendants = false;
+
+		Iterator.forEach(childNodes, child => {
+			node.children.push(child);
+			hasVisibleDescendants = hasVisibleDescendants || child.visible;
+		});
+
 		node.collapsible = node.collapsible || node.children.length > 0;
 
 		if (typeof node.visible === 'undefined') {
-			node.visible = node.children.length > 0;
+			node.visible = hasVisibleDescendants;
 		}
 
 		if (!node.visible) {

@@ -366,6 +366,28 @@ suite('TreeModel2', function () {
 		assert.deepEqual(toArray(list), [0, 2, 4, 6]);
 	});
 
+	test('recursive filter on initial model', function () {
+		const list = [] as ITreeNode<number>[];
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number): Visibility {
+				return element === 0 ? Visibility.Recurse : Visibility.Hidden;
+			}
+		};
+
+		const model = new TreeModel<number>(toSpliceable(list), { filter });
+
+		model.splice([0], 0, Iterator.fromArray([
+			{
+				element: 0, children: [
+					{ element: 1 },
+					{ element: 2 }
+				]
+			}
+		]));
+
+		assert.deepEqual(toArray(list), []);
+	});
+
 	test('refilter', function () {
 		const list = [] as ITreeNode<number>[];
 		let shouldFilter = false;
