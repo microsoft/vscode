@@ -136,16 +136,16 @@ export class ConfigurationEditingService {
 		this.queue = new Queue<void>();
 	}
 
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): TPromise<void> {
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
-		return this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
+		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
 			.then(() => null,
 				error => {
 					if (!options.donotNotifyError) {
 						this.onError(error, operation, options.scopes);
 					}
 					return TPromise.wrapError(error);
-				}));
+				})));
 	}
 
 	private doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): TPromise<void> {

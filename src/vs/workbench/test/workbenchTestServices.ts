@@ -1433,7 +1433,7 @@ export class TestViewletService implements IViewletService {
 	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
 	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }> = new Emitter<{ id: string, enabled: boolean }>().event;
 
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet> { return null; }
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet> { return null; }
 
 	getActiveViewlet(): IViewlet { return null; }
 

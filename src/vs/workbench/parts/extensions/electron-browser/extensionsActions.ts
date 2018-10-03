@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { Throttler } from 'vs/base/common/async';
 import severity from 'vs/base/common/severity';
@@ -131,7 +130,7 @@ export class InstallAction extends Action {
 		}
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		this.extensionsWorkbenchService.open(this.extension);
 
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
@@ -139,7 +138,7 @@ export class InstallAction extends Action {
 		return this.install(this.extension);
 	}
 
-	private install(extension: IExtension): TPromise<void> {
+	private install(extension: IExtension): Promise<void> {
 		return this.extensionsWorkbenchService.install(extension).then(() => {
 			alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 		}, err => {
@@ -223,7 +222,7 @@ export class UninstallAction extends Action {
 		this.enabled = true;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		alert(localize('uninstallExtensionStart', "Uninstalling extension {0} started.", this.extension.displayName));
 
 		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
@@ -297,14 +296,14 @@ export class CombinedInstallAction extends Action {
 		}
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		if (this.installAction.enabled) {
 			return this.installAction.run();
 		} else if (this.uninstallAction.enabled) {
 			return this.uninstallAction.run();
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -361,12 +360,12 @@ export class UpdateAction extends Action {
 		this.label = this.extension.outdated ? this.getUpdateLabel(this.extension.latestVersion) : this.getUpdateLabel();
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		alert(localize('updateExtensionStart', "Updating extension {0} to version {1} started.", this.extension.displayName, this.extension.latestVersion));
 		return this.install(this.extension);
 	}
 
-	private install(extension: IExtension): TPromise<void> {
+	private install(extension: IExtension): Promise<void> {
 		return this.extensionsWorkbenchService.install(extension).then(() => {
 			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", this.extension.displayName, this.extension.latestVersion));
 		}, err => {
@@ -411,7 +410,7 @@ export class DropDownMenuActionItem extends ActionItem {
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions),
+			getActions: () => Promise.resolve(actions),
 			actionRunner: this.actionRunner
 		});
 	}
@@ -500,9 +499,9 @@ export class ManageExtensionAction extends Action {
 		this._actionItem.menuActionGroups = menuActionGroups;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this._actionItem.showMenu();
-		return TPromise.wrap(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -540,7 +539,7 @@ export class EnableForWorkspaceAction extends Action implements IExtensionAction
 		}
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.WorkspaceEnabled);
 	}
 
@@ -577,7 +576,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 		}
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.Enabled);
 	}
 
@@ -647,9 +646,9 @@ export class EnableAction extends Action {
 		this.class = this.enabled ? EnableAction.EnabledClass : EnableAction.DisabledClass;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this._actionItem.showMenu();
-		return TPromise.wrap(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -688,7 +687,7 @@ export class DisableForWorkspaceAction extends Action implements IExtensionActio
 		}
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.WorkspaceDisabled);
 	}
 
@@ -725,7 +724,7 @@ export class DisableGloballyAction extends Action implements IExtensionAction {
 		}
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.Disabled);
 	}
 
@@ -793,9 +792,9 @@ export class DisableAction extends Action {
 		this.class = this.enabled ? DisableAction.EnabledClass : DisableAction.DisabledClass;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this._actionItem.showMenu();
-		return TPromise.wrap(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -852,7 +851,7 @@ export class CheckForUpdatesAction extends Action {
 		);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.checkForUpdates().then(() => this.checkUpdatesAndNotify());
 	}
 }
@@ -874,7 +873,7 @@ export class ToggleAutoUpdateAction extends Action {
 		this.enabled = this.configurationService.getValue(AutoUpdateConfigurationKey) !== this.autoUpdateValue;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.configurationService.updateValue(AutoUpdateConfigurationKey, this.autoUpdateValue);
 	}
 }
@@ -936,11 +935,11 @@ export class UpdateAllAction extends Action {
 		this.enabled = this.outdated.length > 0;
 	}
 
-	run(): TPromise<any> {
-		return TPromise.join(this.outdated.map(e => this.install(e)));
+	run(): Promise<any> {
+		return Promise.all(this.outdated.map(e => this.install(e)));
 	}
 
-	private install(extension: IExtension): TPromise<void> {
+	private install(extension: IExtension): Promise<void> {
 		return this.extensionsWorkbenchService.install(extension).then(null, err => {
 			if (!extension.gallery) {
 				return this.notificationService.error(err);
@@ -995,11 +994,11 @@ export class ReloadAction extends Action {
 			this.tooltip = '';
 			this.reloadMessage = '';
 			if (!this.extension) {
-				return TPromise.wrap<void>(null);
+				return Promise.resolve<void>(null);
 			}
 			const state = this.extension.state;
 			if (state === ExtensionState.Installing || state === ExtensionState.Uninstalling) {
-				return TPromise.wrap<void>(null);
+				return Promise.resolve<void>(null);
 			}
 			return this.extensionService.getExtensions()
 				.then(runningExtensions => this.computeReloadState(runningExtensions));
@@ -1062,8 +1061,8 @@ export class ReloadAction extends Action {
 			this.tooltip = text;
 		}
 	}
-	run(): TPromise<any> {
-		return this.windowService.reloadWindow();
+	run(): Promise<any> {
+		return Promise.resolve(this.windowService.reloadWindow());
 	}
 }
 
@@ -1101,7 +1100,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1124,7 +1123,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1147,7 +1146,7 @@ export class ShowDisabledExtensionsAction extends Action {
 		super(id, label, 'null', true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1179,7 +1178,7 @@ export class ClearExtensionsInputAction extends Action {
 		this.enabled = !!value;
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1206,7 +1205,7 @@ export class ShowBuiltInExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1229,7 +1228,7 @@ export class ShowOutdatedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1252,7 +1251,7 @@ export class ShowPopularExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1275,7 +1274,7 @@ export class ShowRecommendedExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1308,7 +1307,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		this.recommendations = recommendations;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1326,7 +1325,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 							});
 						}));
 					}
-					return TPromise.join(installPromises);
+					return Promise.all(installPromises);
 				});
 			});
 	}
@@ -1351,7 +1350,7 @@ export class InstallRecommendedExtensionAction extends Action {
 		this.extensionId = extensionId;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1392,9 +1391,9 @@ export class IgnoreExtensionRecommendationAction extends Action {
 		this.enabled = true;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.id, true);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -1422,9 +1421,9 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 		this.enabled = true;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.id, false);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -1447,7 +1446,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1470,7 +1469,7 @@ export class ShowLanguageExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1493,7 +1492,7 @@ export class ShowAzureExtensionsAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1532,7 +1531,7 @@ export class ChangeSortAction extends Action {
 		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1570,7 +1569,7 @@ export class ChangeGroupAction extends Action {
 		this.query = new Query(query.value, query.sortBy, this.groupBy || query.groupBy);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
@@ -1706,7 +1705,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		super(id, label, null);
 	}
 
-	protected openExtensionsFile(extensionsFileResource: URI): TPromise<any> {
+	protected openExtensionsFile(extensionsFileResource: URI): Promise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
 			.then(({ created, content }) =>
 				this.getSelectionPosition(content, extensionsFileResource, ['recommendations'])
@@ -1717,10 +1716,10 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 							selection
 						}
 					})),
-				error => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+				error => Promise.reject(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
 	}
 
-	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<any> {
+	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<any> {
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
 			.then(content => this.getSelectionPosition(content.value, content.resource, ['extensions', 'recommendations']))
 			.then(selection => this.editorService.openEditor({
@@ -1741,7 +1740,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				let removeFrom = shouldRecommend ? workspaceExtensionsConfigContent.unwantedRecommendations || [] : workspaceExtensionsConfigContent.recommendations || [];
 
 				if (insertInto.some(e => e.toLowerCase() === extensionIdLowerCase)) {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				insertInto.push(extensionId);
@@ -1759,7 +1758,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	protected addExtensionToWorkspaceFolderConfig(extensionsFileResource: URI, extensionId: string, shouldRecommend: boolean): TPromise<any> {
+	protected addExtensionToWorkspaceFolderConfig(extensionsFileResource: URI, extensionId: string, shouldRecommend: boolean): Promise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
 			.then(({ content }) => {
 				const extensionIdLowerCase = extensionId.toLowerCase();
@@ -1768,12 +1767,12 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				let removeFrom = shouldRecommend ? extensionsConfigContent.unwantedRecommendations || [] : extensionsConfigContent.recommendations || [];
 
 				if (insertInto.some(e => e.toLowerCase() === extensionIdLowerCase)) {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				insertInto.push(extensionId);
 
-				let removeFromPromise = TPromise.wrap(null);
+				let removeFromPromise = Promise.resolve(null);
 				if (removeFrom.some(e => e.toLowerCase() === extensionIdLowerCase)) {
 					removeFrom = removeFrom.filter(x => x.toLowerCase() !== extensionIdLowerCase);
 					removeFromPromise = this.jsonEditingService.write(extensionsFileResource,
@@ -1795,22 +1794,22 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	protected getWorkspaceExtensionsConfigContent(extensionsFileResource: URI): TPromise<IExtensionsConfigContent> {
-		return this.fileService.resolveContent(extensionsFileResource)
+	protected getWorkspaceExtensionsConfigContent(extensionsFileResource: URI): Promise<IExtensionsConfigContent> {
+		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource))
 			.then(content => {
 				return (json.parse(content.value) || {})['extensions'] || {};
 			}, err => ({ recommendations: [], unwantedRecommendations: [] }));
 	}
 
-	protected getWorkspaceFolderExtensionsConfigContent(extensionsFileResource: URI): TPromise<IExtensionsConfigContent> {
-		return this.fileService.resolveContent(extensionsFileResource)
+	protected getWorkspaceFolderExtensionsConfigContent(extensionsFileResource: URI): Promise<IExtensionsConfigContent> {
+		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource))
 			.then(content => {
 				return (<IExtensionsConfigContent>json.parse(content.value));
 			}, err => ({ recommendations: [], unwantedRecommendations: [] }));
 	}
 
-	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<IContent> {
-		return this.fileService.resolveContent(workspaceConfigurationFile)
+	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): Promise<IContent> {
+		return Promise.resolve(this.fileService.resolveContent(workspaceConfigurationFile))
 			.then(content => {
 				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value)['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
@@ -1821,14 +1820,14 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	private getSelectionPosition(content: string, resource: URI, path: json.JSONPath): TPromise<ITextEditorSelection> {
+	private getSelectionPosition(content: string, resource: URI, path: json.JSONPath): Promise<ITextEditorSelection> {
 		const tree = json.parseTree(content);
 		const node = json.findNodeAtLocation(tree, path);
 		if (node && node.parent.children[1]) {
 			const recommendationsValueNode = node.parent.children[1];
 			const lastExtensionNode = recommendationsValueNode.children && recommendationsValueNode.children.length ? recommendationsValueNode.children[recommendationsValueNode.children.length - 1] : null;
 			const offset = lastExtensionNode ? lastExtensionNode.offset + lastExtensionNode.length : recommendationsValueNode.offset + 1;
-			return this.textModelResolverService.createModelReference(resource)
+			return Promise.resolve(this.textModelResolverService.createModelReference(resource))
 				.then(reference => {
 					const position = reference.object.textEditorModel.getPositionAt(offset);
 					reference.dispose();
@@ -1840,11 +1839,11 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					};
 				});
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
-	private getOrCreateExtensionsFile(extensionsFileResource: URI): TPromise<{ created: boolean, extensionsFileResource: URI, content: string }> {
-		return this.fileService.resolveContent(extensionsFileResource).then(content => {
+	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean, extensionsFileResource: URI, content: string }> {
+		return Promise.resolve(this.fileService.resolveContent(extensionsFileResource)).then(content => {
 			return { created: false, extensionsFileResource, content: content.value };
 		}, err => {
 			return this.fileService.updateContent(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
@@ -1879,14 +1878,14 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
 				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(paths.join('.vscode', 'extensions.json')));
 			case WorkbenchState.WORKSPACE:
 				return this.openWorkspaceConfigurationFile(this.contextService.getWorkspace().configuration);
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -1921,10 +1920,10 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		this.enabled = this.contextService.getWorkspace().folders.length > 0;
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		const folderCount = this.contextService.getWorkspace().folders.length;
-		const pickFolderPromise = folderCount === 1 ? TPromise.as(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		return TPromise.wrap(pickFolderPromise)
+		const pickFolderPromise = folderCount === 1 ? Promise.resolve(this.contextService.getWorkspace().folders[0]) : this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+		return Promise.resolve(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
 					return this.openExtensionsFile(workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')));
@@ -1961,24 +1960,24 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 	}
 
-	run(shouldRecommend: boolean): TPromise<void> {
+	run(shouldRecommend: boolean): Promise<void> {
 		if (!(this.editorService.activeEditor instanceof ExtensionsInput) || !this.editorService.activeEditor.extension) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		const folders = this.contextService.getWorkspace().folders;
 		if (!folders || !folders.length) {
 			this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.noWorkspace', 'There are no workspace folders open to add recommendations.'));
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const extensionId = this.editorService.activeEditor.extension.id;
 		const pickFolderPromise = folders.length === 1
-			? TPromise.as(folders[0])
+			? Promise.resolve(folders[0])
 			: this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		return TPromise.wrap(pickFolderPromise)
+		return Promise.resolve(pickFolderPromise)
 			.then(workspaceFolder => {
 				if (!workspaceFolder) {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 				const configurationFile = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 				return this.getWorkspaceFolderExtensionsConfigContent(configurationFile).then(content => {
@@ -1986,7 +1985,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 					if (shouldRecommend) {
 						if ((content.recommendations || []).some(e => e.toLowerCase() === extensionIdLowerCase)) {
 							this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.alreadyExists', 'This extension is already present in this workspace folder\'s recommendations.'));
-							return TPromise.as(null);
+							return Promise.resolve(null);
 						}
 
 						return this.addExtensionToWorkspaceFolderConfig(configurationFile, extensionId, shouldRecommend).then(() => {
@@ -2003,7 +2002,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 					else {
 						if ((content.unwantedRecommendations || []).some(e => e.toLowerCase() === extensionIdLowerCase)) {
 							this.notificationService.info(localize('AddToWorkspaceFolderIgnoredRecommendations.alreadyExists', 'This extension is already present in this workspace folder\'s unwanted recommendations.'));
-							return TPromise.as(null);
+							return Promise.resolve(null);
 						}
 
 						return this.addExtensionToWorkspaceFolderConfig(configurationFile, extensionId, shouldRecommend).then(() => {
@@ -2043,9 +2042,9 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 	}
 
-	run(shouldRecommend: boolean): TPromise<void> {
+	run(shouldRecommend: boolean): Promise<void> {
 		if (!(this.editorService.activeEditor instanceof ExtensionsInput) || !this.editorService.activeEditor.extension) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		const workspaceConfig = this.contextService.getWorkspace().configuration;
 
@@ -2056,7 +2055,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 			if (shouldRecommend) {
 				if ((content.recommendations || []).some(e => e.toLowerCase() === extensionIdLowerCase)) {
 					this.notificationService.info(localize('AddToWorkspaceRecommendations.alreadyExists', 'This extension is already present in workspace recommendations.'));
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				return this.addExtensionToWorkspaceConfig(workspaceConfig, extensionId, shouldRecommend).then(() => {
@@ -2073,7 +2072,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 			} else {
 				if ((content.unwantedRecommendations || []).some(e => e.toLowerCase() === extensionIdLowerCase)) {
 					this.notificationService.info(localize('AddToWorkspaceUnwantedRecommendations.alreadyExists', 'This extension is already present in workspace unwanted recommendations.'));
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 
 				return this.addExtensionToWorkspaceConfig(workspaceConfig, extensionId, shouldRecommend).then(() => {
@@ -2114,8 +2113,8 @@ export class MaliciousStatusLabelAction extends Action {
 		}
 	}
 
-	run(): TPromise<any> {
-		return TPromise.as(null);
+	run(): Promise<any> {
+		return Promise.resolve(null);
 	}
 }
 
@@ -2156,8 +2155,8 @@ export class DisabledStatusLabelAction extends Action {
 			}));
 	}
 
-	run(): TPromise<any> {
-		return TPromise.as(null);
+	run(): Promise<any> {
+		return Promise.resolve(null);
 	}
 }
 
@@ -2182,7 +2181,7 @@ export class DisableAllAction extends Action {
 		this.enabled = this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && (e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) && e.local && this.extensionEnablementService.canChangeEnablement(e.local));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User), EnablementState.Disabled);
 	}
 
@@ -2214,7 +2213,7 @@ export class DisableAllWorkpsaceAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => e.type === LocalExtensionType.User && (e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User), EnablementState.WorkspaceDisabled);
 	}
 
@@ -2245,7 +2244,7 @@ export class EnableAllAction extends Action {
 		this.enabled = this.extensionsWorkbenchService.local.some(e => e.local && this.extensionEnablementService.canChangeEnablement(e.local) && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.Enabled);
 	}
 
@@ -2278,7 +2277,7 @@ export class EnableAllWorkpsaceAction extends Action {
 		this.enabled = this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.extensionsWorkbenchService.local.some(e => e.local && this.extensionEnablementService.canChangeEnablement(e.local) && (e.enablementState === EnablementState.Disabled || e.enablementState === EnablementState.WorkspaceDisabled));
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.WorkspaceEnabled);
 	}
 
@@ -2303,10 +2302,10 @@ export class OpenExtensionsFolderAction extends Action {
 		super(id, label, null, true);
 	}
 
-	run(): TPromise<void> {
+	run(): Promise<void> {
 		const extensionsHome = this.environmentService.extensionsPath;
 
-		return this.fileService.resolveFile(URI.file(extensionsHome)).then(file => {
+		return Promise.resolve(this.fileService.resolveFile(URI.file(extensionsHome))).then(file => {
 			let itemToShow: string;
 			if (file.children && file.children.length > 0) {
 				itemToShow = file.children[0].resource.fsPath;
@@ -2334,18 +2333,18 @@ export class InstallVSIXAction extends Action {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
-	run(): TPromise<any> {
-		return this.windowService.showOpenDialog({
+	run(): Promise<any> {
+		return Promise.resolve(this.windowService.showOpenDialog({
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
 			properties: ['openFile'],
 			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
-		}).then(result => {
+		})).then(result => {
 			if (!result) {
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 
-			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
+			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
 				this.notificationService.prompt(
 					Severity.Info,
 					localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
@@ -2378,8 +2377,8 @@ export class ReinstallAction extends Action {
 		return this.extensionsWorkbenchService.local.filter(l => l.type === LocalExtensionType.User && l.local).length > 0;
 	}
 
-	run(): TPromise<any> {
-		return this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") })
+	run(): Promise<any> {
+		return Promise.resolve(this.quickInputService.pick(this.getEntries(), { placeHolder: localize('selectExtension', "Select Extension to Reinstall") }))
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
@@ -2400,7 +2399,7 @@ export class ReinstallAction extends Action {
 			});
 	}
 
-	private reinstallExtension(extension: IExtension): TPromise<void> {
+	private reinstallExtension(extension: IExtension): Promise<void> {
 		return this.extensionsWorkbenchService.reinstall(extension)
 			.then(() => {
 				this.notificationService.prompt(

@@ -15,8 +15,8 @@ export class TestConfigurationService implements IConfigurationService {
 
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
-	public reloadConfiguration<T>(): TPromise<T> {
-		return TPromise.as(this.getValue());
+	public reloadConfiguration<T>(): Promise<T> {
+		return Promise.resolve(this.getValue());
 	}
 
 	public getValue(arg1?: any, arg2?: any): any {
@@ -31,8 +31,8 @@ export class TestConfigurationService implements IConfigurationService {
 		return this.configuration;
 	}
 
-	public updateValue(key: string, overrides?: IConfigurationOverrides): TPromise<void> {
-		return TPromise.as(null);
+	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
+		return Promise.resolve(null);
 	}
 
 	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {

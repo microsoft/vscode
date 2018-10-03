@@ -740,7 +740,7 @@ suite('TelemetryService', () => {
 						enableTelemetry: enableTelemetry
 					} as any;
 				},
-				updateValue(): TPromise<void> {
+				updateValue(): Promise<void> {
 					return null;
 				},
 				inspect(key: string) {
@@ -754,7 +754,7 @@ suite('TelemetryService', () => {
 				},
 				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
 				onDidChangeConfiguration: emitter.event,
-				reloadConfiguration(): TPromise<void> { return null; },
+				reloadConfiguration(): Promise<void> { return null; },
 				getConfigurationData() { return null; }
 			});
 

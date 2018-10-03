@@ -36,8 +36,8 @@ export class JSONEditingService implements IJSONEditingService {
 		this.queue = new Queue<void>();
 	}
 
-	write(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {
-		return this.queue.queue(() => this.doWriteConfiguration(resource, value, save)); // queue up writes to prevent race conditions
+	write(resource: URI, value: IJSONValue, save: boolean): Promise<void> {
+		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, value, save))); // queue up writes to prevent race conditions
 	}
 
 	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {

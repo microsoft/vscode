@@ -1035,21 +1035,25 @@ suite('ExtensionsActions Test', () => {
 			});
 	});
 
-	test('Test ReloadAction when extension is newly installed', () => {
+	test('Test ReloadAction when extension is newly installed', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction, false);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
-			.then((paged) => {
-				testObject.extension = paged.firstPage[0];
-				installEvent.fire({ identifier: gallery.identifier, gallery });
-				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
-				assert.ok(testObject.enabled);
-				assert.equal('Reload to Activate', testObject.tooltip);
-				assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
+		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery();
+		testObject.extension = paged.firstPage[0];
+		assert.ok(!testObject.enabled);
+
+		return new Promise(c => {
+			testObject.onDidChange(() => {
+				if (testObject.enabled && testObject.tooltip === 'Reload to Activate') {
+					c();
+				}
 			});
+			installEvent.fire({ identifier: gallery.identifier, gallery });
+			didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
+		});
 	});
 
 	test('Test ReloadAction when extension is installed and uninstalled', () => {
@@ -1070,21 +1074,23 @@ suite('ExtensionsActions Test', () => {
 			});
 	});
 
-	test('Test ReloadAction when extension is uninstalled', () => {
+	test('Test ReloadAction when extension is uninstalled', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction, false);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
-			.then(extensions => {
-				testObject.extension = extensions[0];
-				uninstallEvent.fire(local.identifier);
-				didUninstallEvent.fire({ identifier: local.identifier });
+		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
+		testObject.extension = extensions[0];
 
-				assert.ok(testObject.enabled);
-				assert.equal('Reload to Deactivate', testObject.tooltip);
-				assert.equal(`Reload this window to deactivate the uninstalled extension 'a'?`, testObject.reloadMessage);
+		return new Promise(c => {
+			testObject.onDidChange(() => {
+				if (testObject.enabled && testObject.tooltip === 'Reload to Deactivate') {
+					c();
+				}
 			});
+			uninstallEvent.fire(local.identifier);
+			didUninstallEvent.fire({ identifier: local.identifier });
+		});
 	});
 
 	test('Test ReloadAction when extension is uninstalled and installed', () => {
@@ -1107,24 +1113,25 @@ suite('ExtensionsActions Test', () => {
 			});
 	});
 
-	test('Test ReloadAction when extension is updated while running', () => {
+	test('Test ReloadAction when extension is updated while running', async () => {
 		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.1', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction, false);
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		return workbenchService.queryLocal()
-			.then(extensions => {
-				testObject.extension = extensions[0];
+		const extensions = await workbenchService.queryLocal();
+		testObject.extension = extensions[0];
 
-				const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
-				installEvent.fire({ identifier: gallery.identifier, gallery });
-				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
-
-				assert.ok(testObject.enabled);
-				assert.equal('Reload to Update', testObject.tooltip);
-				assert.equal(`Reload this window to activate the updated extension 'a'?`, testObject.reloadMessage);
+		return new Promise(c => {
+			testObject.onDidChange(() => {
+				if (testObject.enabled && testObject.tooltip === 'Reload to Update') {
+					c();
+				}
 			});
+			const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
+			installEvent.fire({ identifier: gallery.identifier, gallery });
+			didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
+		});
 	});
 
 	test('Test ReloadAction when extension is updated when not running', () => {

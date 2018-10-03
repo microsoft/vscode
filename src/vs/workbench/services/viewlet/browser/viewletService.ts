@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -69,17 +68,17 @@ export class ViewletService extends Disposable implements IViewletService {
 		}
 	}
 
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
 		if (this.getViewlet(id)) {
-			return this.sidebarPart.openViewlet(id, focus);
+			return Promise.resolve(this.sidebarPart.openViewlet(id, focus));
 		}
-		return this.extensionService.whenInstalledExtensionsRegistered()
+		return Promise.resolve(this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
 				if (this.getViewlet(id)) {
 					return this.sidebarPart.openViewlet(id, focus);
 				}
 				return null;
-			});
+			}));
 	}
 
 	getActiveViewlet(): IViewlet {
