@@ -27,7 +27,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_DIRTY_BORDER_TOP } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_DIRTY_ACTIVE_FOCUSED_BORDER, TAB_DIRTY_ACTIVE_UNFOCUSED_BORDER, TAB_DIRTY_INACTIVE_UNFOCUSED_BORDER, TAB_DIRTY_INACTIVE_FOCUSED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -908,8 +908,15 @@ export class TabsTitleControl extends TitleControl {
 	private redrawEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void {
 		if (editor.isDirty()) {
 			addClass(tabContainer, 'dirty');
+
+			if (this.accessor.partOptions.dirtyTabBorder && !this.getColor(TAB_ACTIVE_BORDER_TOP)) {
+				addClass(tabContainer, 'dirty-border');
+			} else {
+				removeClass(tabContainer, 'dirty-border');
+			}
 		} else {
 			removeClass(tabContainer, 'dirty');
+			removeClass(tabContainer, 'dirty-border');
 		}
 	}
 
@@ -1140,19 +1147,44 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
+	// Dirty tab borders
 	if (theme.type !== 'hc') {
-		// Dirty tab border
-		const dirtyTabBorderTop = theme.getColor(TAB_DIRTY_BORDER_TOP);
-		const activeTabBorderTop = theme.getColor(TAB_ACTIVE_BORDER_TOP);
-		if (dirtyTabBorderTop && !activeTabBorderTop) {// conflicts with active top border
+		const tabDirtyActiveFocusedBorder = theme.getColor(TAB_DIRTY_ACTIVE_FOCUSED_BORDER);
+		if (tabDirtyActiveFocusedBorder) {
 			collector.addRule(`
-				.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty  {
-					box-shadow: ${dirtyTabBorderTop} 0 3px inset !important;
+				.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active.dirty-border  {
+					box-shadow: ${tabDirtyActiveFocusedBorder} 0 2px inset !important;
 				}
 			`);
 		}
+		const tabDirtyActiveUnfocusedBorder = theme.getColor(TAB_DIRTY_ACTIVE_UNFOCUSED_BORDER);
+		if (tabDirtyActiveUnfocusedBorder) {
+			collector.addRule(`
+				.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.dirty-border  {
+					box-shadow: ${tabDirtyActiveUnfocusedBorder} 0 2px inset !important;
+				}
+			`);
+		}
+		const tabDirtyInactiveFocusedBorder = theme.getColor(TAB_DIRTY_INACTIVE_FOCUSED_BORDER);
+		if (tabDirtyInactiveFocusedBorder) {
+			collector.addRule(`
+				.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty-border  {
+					box-shadow: ${tabDirtyInactiveFocusedBorder} 0 2px inset !important;
+				}
+			`);
+		}
+		const tabDirtyInactiveUnfocusedBorder = theme.getColor(TAB_DIRTY_INACTIVE_UNFOCUSED_BORDER);
+		if (tabDirtyInactiveUnfocusedBorder) {
+			collector.addRule(`
+				.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border  {
+					box-shadow: ${tabDirtyInactiveUnfocusedBorder} 0 2px inset !important;
+				}
+			`);
+		}
+	}
 
-		// Fade out styles via linear gradient (when tabs are set to shrink)
+	// Fade out styles via linear gradient (when tabs are set to shrink)
+	if (theme.type !== 'hc') {
 		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
 		const editorBackgroundColor = theme.getColor(editorBackground);
 		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);

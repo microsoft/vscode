@@ -938,6 +938,7 @@ export interface IWorkbenchEditorConfiguration {
 
 export interface IWorkbenchEditorPartConfiguration {
 	showTabs?: boolean;
+	dirtyTabBorder?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;

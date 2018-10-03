@@ -66,11 +66,29 @@ export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
 	hc: null
 }, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_DIRTY_BORDER_TOP = registerColor('tab.dirtyBorderTop', {
+export const TAB_DIRTY_ACTIVE_FOCUSED_BORDER = registerColor('tab.dirtyActiveFocusedBorder', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('tabDirtyBorderTop', "Border on the top of dirty file tabs in editor area."));
+}, nls.localize('tabDirtyActiveFocusedBorder', "Border on the top of dirty active tab in active editor group."));
+
+export const TAB_DIRTY_ACTIVE_UNFOCUSED_BORDER = registerColor('tab.dirtyActiveUnfocusedBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabDirtyActiveUnfocusedBorder', "Border on the top of dirty active tab in inactive editor group."));
+
+export const TAB_DIRTY_INACTIVE_FOCUSED_BORDER = registerColor('tab.dirtyInactiveFocusedBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabDirtyInactiveFocusedBorder', "Border on the top of dirty inactive tab in active editor group."));
+
+export const TAB_DIRTY_INACTIVE_UNFOCUSED_BORDER = registerColor('tab.dirtyInactiveUnfocusedBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabDirtyInactiveUnfocusedBorder', "Border on the top of dirty inactive tab in inactive editor group."));
 
 export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
 	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
