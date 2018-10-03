@@ -499,6 +499,8 @@ export class DebugService implements IDebugService {
 
 	private registerSessionListeners(session: IDebugSession): void {
 		const sessionRunningScheduler = new RunOnceScheduler(() => {
+			// Do not immediatly focus another session or thread if a session is running
+			// Stepping in a session should preserve that session focussed even if some continued events happen
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.focusStackFrame(undefined);
 			}
@@ -711,6 +713,8 @@ export class DebugService implements IDebugService {
 					return Promise.resolve(null);
 				}
 				once(TaskEventKind.Active, this.taskService.onDidStateChange)((taskEvent) => {
+					// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
+					// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
 					taskStarted = true;
 				});
 				const taskPromise = this.taskService.run(task);
