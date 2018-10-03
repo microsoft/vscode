@@ -957,7 +957,7 @@ function pullXlfFiles(apiHostname, username, password, language, resources) {
     var credentials = username + ":" + password;
     var expectedTranslationsCount = resources.length;
     var translationsRetrieved = 0, called = false;
-    return event_stream_1.readable(function (count, callback) {
+    return event_stream_1.readable(function (_count, callback) {
         // Mark end of stream when all resources were retrieved
         if (translationsRetrieved === expectedTranslationsCount) {
             return this.emit('end');

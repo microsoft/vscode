@@ -99,8 +99,8 @@ export function submitAllStats(productJson: any, commit: string): Promise<boolea
 	return new Promise(resolve => {
 		try {
 
-			const sizes = {};
-			const counts = {};
+			const sizes: any = {};
+			const counts: any = {};
 			for (const entry of sorted) {
 				sizes[entry.name] = entry.totalSize;
 				counts[entry.name] = entry.totalCount;

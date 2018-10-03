@@ -289,14 +289,14 @@ export class XLF {
 		return new Promise((resolve, reject) => {
 			let parser = new xml2js.Parser();
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
-			parser.parseString(xlfString, function (err, result) {
+			parser.parseString(xlfString, function (err: any, result: any) {
 				const fileNodes: any[] = result['xliff']['file'];
 				fileNodes.forEach(file => {
 					const originalFilePath = file.$.original;
 					const messages: Map<string> = {};
 					const transUnits = file.body[0]['trans-unit'];
 					if (transUnits) {
-						transUnits.forEach(unit => {
+						transUnits.forEach((unit: any) => {
 							const key = unit.$.id;
 							const val = pseudify(unit.source[0]['_'].toString());
 							if (key && val) {
@@ -317,7 +317,7 @@ export class XLF {
 
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
 
-			parser.parseString(xlfString, function (err, result) {
+			parser.parseString(xlfString, function (err: any, result: any) {
 				if (err) {
 					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
@@ -340,7 +340,7 @@ export class XLF {
 
 					const transUnits = file.body[0]['trans-unit'];
 					if (transUnits) {
-						transUnits.forEach(unit => {
+						transUnits.forEach((unit: any) => {
 							const key = unit.$.id;
 							if (!unit.target) {
 								return; // No translation available
@@ -1077,7 +1077,7 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 	let expectedTranslationsCount = resources.length;
 	let translationsRetrieved = 0, called = false;
 
-	return readable(function (count, callback) {
+	return readable(function (_count: any, callback: any) {
 		// Mark end of stream when all resources were retrieved
 		if (translationsRetrieved === expectedTranslationsCount) {
 			return this.emit('end');
@@ -1101,7 +1101,7 @@ function pullXlfFiles(apiHostname: string, username: string, password: string, l
 }
 const limiter = new Limiter<File | null>(NUMBER_OF_CONCURRENT_DOWNLOADS);
 
-function retrieveResource(language: Language, resource: Resource, apiHostname, credentials): Promise<File | null> {
+function retrieveResource(language: Language, resource: Resource, apiHostname: string, credentials: string): Promise<File | null> {
 	return limiter.queue(() => new Promise<File | null>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;

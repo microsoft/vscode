@@ -59,7 +59,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		}
 		const workbenchResources = JSON.parse(json).workbench;
 
-		workbenchResources.forEach(existingResource => {
+		workbenchResources.forEach((existingResource: any) => {
 			if (existingResource.name === resource) {
 				resourceDefined = true;
 				return;

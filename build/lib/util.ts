@@ -36,7 +36,7 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 
 	const token: ICancellationToken | undefined = !supportsCancellation ? undefined : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
 
-	const run = (input, isCancellable) => {
+	const run = (input: NodeJS.ReadWriteStream, isCancellable: boolean) => {
 		state = 'running';
 
 		const stream = !supportsCancellation ? streamProvider() : streamProvider(isCancellable ? token : NoCancellationToken);
@@ -220,7 +220,7 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 export function rimraf(dir: string): (cb: any) => void {
 	let retries = 0;
 
-	const retry = cb => {
+	const retry = (cb: (err?: any) => void) => {
 		_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
 			if (!err) {
 				return cb();

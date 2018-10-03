@@ -127,7 +127,7 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	config.paths['vs/css'] = 'out-build/vs/css.build';
 	loader.config(config);
 
-	loader(['require'], (localRequire) => {
+	loader(['require'], (localRequire: any) => {
 		let resolvePath = (path: string) => {
 			let r = localRequire.toUrl(path);
 			if (!/\.js/.test(r)) {
@@ -155,7 +155,7 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 			cssInlinedResources: cssInlinedResources,
 			bundleData: partialResult.bundleData
 		});
-	}, (err) => callback(err, null));
+	}, (err: any) => callback(err, null));
 }
 
 function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMap): IPartialBundleResult {
@@ -463,7 +463,7 @@ function emitEntryPoint(
 		}
 	});
 
-	let toIFile = (path): IFile => {
+	let toIFile = (path: string): IFile => {
 		let contents = readFileAndRemoveBOM(path);
 		return {
 			path: path,
@@ -495,7 +495,7 @@ function readFileAndRemoveBOM(path: string): string {
 function emitPlugin(entryPoint: string, plugin: ILoaderPlugin, pluginName: string, moduleName: string): IFile {
 	let result = '';
 	if (typeof plugin.write === 'function') {
-		let write: ILoaderPluginWriteFunc = <any>((what) => {
+		let write: ILoaderPluginWriteFunc = <any>((what: string) => {
 			result += what;
 		});
 		write.getEntryPoint = () => {

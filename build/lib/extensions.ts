@@ -15,11 +15,11 @@ import { createStatsStream } from './stats';
 import * as util2 from './util';
 import remote = require('gulp-remote-src');
 const vzip = require('gulp-vinyl-zip');
-const filter = require('gulp-filter');
-const rename = require('gulp-rename');
+import filter = require('gulp-filter');
+import rename = require('gulp-rename');
 const util = require('gulp-util');
 const buffer = require('gulp-buffer');
-const json = require('gulp-json-editor');
+import json = require('gulp-json-editor');
 const webpack = require('webpack');
 const webpackGulp = require('webpack-stream');
 
@@ -79,7 +79,7 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 		const patchFilesStream = filesStream
 			.pipe(packageJsonFilter)
 			.pipe(buffer())
-			.pipe(json(data => {
+			.pipe(json((data: any) => {
 				// hardcoded entry point directory!
 				data.main = data.main.replace('/out/', /dist/);
 				return data;
@@ -89,7 +89,7 @@ function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | 
 
 		const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
 
-			const webpackDone = (err, stats) => {
+			const webpackDone = (err: any, stats: any) => {
 				util.log(`Bundled extension: ${util.colors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
 				if (err) {
 					result.emit('error', err);
@@ -205,7 +205,7 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 	return remote('', options)
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
-		.pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
+		.pipe(rename(p => p.dirname = p.dirname!.replace(/^extension\/?/, '')))
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(json({ __metadata: metadata }))

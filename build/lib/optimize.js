@@ -181,7 +181,7 @@ exports.optimizeTask = optimizeTask;
  */
 function uglifyWithCopyrights() {
     var preserveComments = function (f) {
-        return function (node, comment) {
+        return function (_node, comment) {
             var text = comment.value;
             var type = comment.type;
             if (/@minifier_do_not_preserve/.test(text)) {
