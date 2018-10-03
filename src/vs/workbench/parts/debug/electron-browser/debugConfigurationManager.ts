@@ -22,7 +22,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -33,6 +33,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/parts/debug/common/debugSchemas';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -51,7 +52,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private providers: IDebugConfigurationProvider[];
 	private debugAdapterProviders: Map<string, IDebugAdapterProvider>;
 	private terminalLauncher: ITerminalLauncher;
-
+	private debugConfigurationTypeContext: IContextKey<string>;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -63,6 +64,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService private extensionService: IExtensionService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.providers = [];
 		this.debuggers = [];
@@ -71,10 +73,11 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.initLaunches();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
+		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
+		this.debugAdapterProviders = new Map<string, IDebugAdapterProvider>();
 		if (previousSelectedLaunch) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
 		}
-		this.debugAdapterProviders = new Map<string, IDebugAdapterProvider>();
 	}
 
 	public registerDebugConfigurationProvider(handle: number, debugConfigurationProvider: IDebugConfigurationProvider): void {
@@ -305,6 +308,12 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 		if (names.indexOf(this.selectedName) === -1) {
 			this.selectedName = names.length ? names[0] : undefined;
+		}
+		if (this.selectedLaunch && this.selectedName) {
+			const configuration = this.selectedLaunch.getConfiguration(this.selectedName);
+			this.debugConfigurationTypeContext.set(configuration ? configuration.type : undefined);
+		} else {
+			this.debugConfigurationTypeContext.reset();
 		}
 
 		if (this.selectedLaunch !== previousLaunch || this.selectedName !== previousName) {
