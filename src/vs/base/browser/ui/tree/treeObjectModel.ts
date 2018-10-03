@@ -20,7 +20,7 @@ export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 		this.model = new TreeModel(list, options);
 	}
 
-	splice(element: T | null, start: number, deleteCount: number, toInsert?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
+	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
 		const location = this.getLocation(element);
 		const insertedElements = new Set<T>();
 
@@ -35,7 +35,7 @@ export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 			}
 		};
 
-		return this.model.splice([...location, start], deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+		return this.model.splice([...location, 0], Number.MAX_VALUE, children, onDidCreateNode, onDidDeleteNode);
 	}
 
 	getListIndex(element: T): number {
