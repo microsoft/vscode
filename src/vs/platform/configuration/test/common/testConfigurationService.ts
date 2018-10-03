@@ -5,7 +5,6 @@
 
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
 export class TestConfigurationService implements IConfigurationService {
@@ -15,8 +14,8 @@ export class TestConfigurationService implements IConfigurationService {
 
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
-	public reloadConfiguration<T>(): TPromise<T> {
-		return TPromise.as(this.getValue());
+	public reloadConfiguration<T>(): Promise<T> {
+		return Promise.resolve(this.getValue());
 	}
 
 	public getValue(arg1?: any, arg2?: any): any {
@@ -31,8 +30,8 @@ export class TestConfigurationService implements IConfigurationService {
 		return this.configuration;
 	}
 
-	public updateValue(key: string, overrides?: IConfigurationOverrides): TPromise<void> {
-		return TPromise.as(null);
+	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
+		return Promise.resolve(null);
 	}
 
 	public setUserConfiguration(key: any, value: any, root?: URI): Thenable<void> {
@@ -44,7 +43,7 @@ export class TestConfigurationService implements IConfigurationService {
 			this.configuration[key] = value;
 		}
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public onDidChangeConfiguration() {

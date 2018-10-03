@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { mkdirp } from 'vs/base/node/pfs';
 import {
@@ -259,13 +258,13 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const id = uuid.generateUuid();
 		parentResource = path.join(os.tmpdir(), 'vsctests', id);
 		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
 	}
 
-	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
+	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const folderDir = path.join(parentDir, folderName);
 		const workspaceSettingsDir = path.join(folderDir, '.vscode');
 		return mkdirp(workspaceSettingsDir, 493).then(() => {

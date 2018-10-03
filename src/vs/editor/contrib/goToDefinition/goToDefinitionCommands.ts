@@ -8,7 +8,6 @@ import { createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -51,7 +50,7 @@ export class DefinitionAction extends EditorAction {
 		this._configuration = configuration;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Thenable<void> {
 		const notificationService = accessor.get(INotificationService);
 		const editorService = accessor.get(ICodeEditorService);
 		const progressService = accessor.get(IProgressService);
@@ -111,7 +110,7 @@ export class DefinitionAction extends EditorAction {
 		});
 
 		progressService.showWhile(definitionPromise, 250);
-		return TPromise.wrap(definitionPromise);
+		return definitionPromise;
 	}
 
 	protected _getDeclarationsAtPosition(model: ITextModel, position: corePosition.Position, token: CancellationToken): Thenable<DefinitionLink[]> {
@@ -147,7 +146,7 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): Thenable<ICodeEditor> {
 		return editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {

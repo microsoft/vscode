@@ -340,9 +340,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 
 	return expandAbbreviationInRange(editor, abbreviationList, allAbbreviationsSame).then(success => {
-		if (!success) {
-			return fallbackTab();
-		}
+		return success ? Promise.resolve(undefined) : fallbackTab();
 	});
 }
 
@@ -581,7 +579,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
+function expandAbbr(input: ExpandAbbreviationInput): string {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -601,9 +599,9 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		}
 	}
 
+	let expandedText;
 	try {
 		// Expand the abbreviation
-		let expandedText;
 
 		if (input.textToWrap) {
 			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
@@ -628,13 +626,11 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
 
-		return expandedText;
-
 	} catch (e) {
 		vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
 
-
+	return expandedText;
 }
 
 function getSyntaxFromArgs(args: { [x: string]: string }): string | undefined {

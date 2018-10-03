@@ -8,7 +8,6 @@ import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/parts/extensions/electron-browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
@@ -120,7 +119,7 @@ suite('ExtensionsListView Tests', () => {
 
 		instantiationService.stub(IExtensionService, {
 			getExtensions: () => {
-				return TPromise.wrap([
+				return Promise.resolve([
 					{ id: localEnabledTheme.galleryIdentifier.id },
 					{ id: localEnabledLanguage.galleryIdentifier.id },
 					{ id: localRandom.galleryIdentifier.id },
@@ -203,7 +202,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
 		});
 
-		return TPromise.join([
+		return Promise.all([
 			allInstalledCheck,
 			installedCheck,
 			allDisabledCheck,
@@ -270,7 +269,7 @@ suite('ExtensionsListView Tests', () => {
 			assert.equal(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
 		});
 
-		return TPromise.join([
+		return Promise.resolve([
 			installedCategoryWithoutQuotesCheck,
 			installedCategoryWithQuotesCheck,
 			installedCategoryWithSpaceCheck,

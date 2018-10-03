@@ -8,7 +8,6 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
 import { createMatches } from 'vs/base/common/filters';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/outlineTree';
 import 'vs/css!./media/symbol-icons';
@@ -96,14 +95,14 @@ export class OutlineDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
+	getChildren(tree: ITree, element: TreeElement): Promise<TreeElement[]> {
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
-		return TPromise.wrap(res);
+		return Promise.resolve(res);
 	}
 
-	getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return TPromise.wrap(element && element.parent);
+	getParent(tree: ITree, element: TreeElement | any): Promise<TreeElement> {
+		return Promise.resolve(element && element.parent);
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
@@ -284,7 +283,7 @@ export class OutlineTreeState {
 	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): Promise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 
 		// expansion

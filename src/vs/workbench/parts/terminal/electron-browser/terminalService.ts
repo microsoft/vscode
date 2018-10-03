@@ -15,7 +15,6 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { ITerminalInstance, ITerminalService, IShellLaunchConfig, ITerminalConfigHelper, NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY, TERMINAL_PANEL_ID, ITerminalProcessExtHostProxy } from 'vs/workbench/parts/terminal/common/terminal';
 import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/terminal/common/terminalService';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getDefaultShell } from 'vs/workbench/parts/terminal/node/terminal';
@@ -109,7 +108,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	public focusFindWidget(): TPromise<void> {
+	public focusFindWidget(): Promise<void> {
 		return this.showPanel(false).then(() => {
 			const panel = this._panelService.getActivePanel() as TerminalPanel;
 			panel.focusFindWidget();
@@ -174,7 +173,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				run: () => {
 					this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
-							return TPromise.as(null);
+							return Promise.resolve(null);
 						}
 						// Launch a new instance with the newly selected shell
 						const instance = this.createTerminal({
@@ -184,7 +183,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 						if (instance) {
 							this.setActiveInstance(instance);
 						}
-						return TPromise.as(null);
+						return Promise.resolve(null);
 					});
 				}
 			},
@@ -196,7 +195,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		);
 	}
 
-	public selectDefaultWindowsShell(): TPromise<string> {
+	public selectDefaultWindowsShell(): Promise<string> {
 		return this._detectWindowsShells().then(shells => {
 			const options: IPickOptions<IQuickPickItem> = {
 				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
@@ -211,7 +210,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	private _detectWindowsShells(): TPromise<IQuickPickItem[]> {
+	private _detectWindowsShells(): Promise<IQuickPickItem[]> {
 		// Determine the correct System32 path. We want to point to Sysnative
 		// when the 32-bit version of VS Code is running on a 64-bit machine.
 		// The reason for this is because PowerShell's important PSReadline
@@ -237,9 +236,9 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
-		const promises: TPromise<[string, string]>[] = [];
+		const promises: PromiseLike<[string, string]>[] = [];
 		Object.keys(expectedLocations).forEach(key => promises.push(this._validateShellPaths(key, expectedLocations[key])));
-		return TPromise.join(promises).then(results => {
+		return Promise.all(promises).then(results => {
 			return results.filter(result => !!result).map(result => {
 				return <IQuickPickItem>{
 					label: result[0],
@@ -249,7 +248,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		});
 	}
 
-	private _validateShellPaths(label: string, potentialPaths: string[]): TPromise<[string, string]> {
+	private _validateShellPaths(label: string, potentialPaths: string[]): PromiseLike<[string, string]> {
 		const current = potentialPaths.shift();
 		return pfs.fileExists(current).then(exists => {
 			if (!exists) {
@@ -267,7 +266,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return activeInstance ? activeInstance : this.createTerminal(undefined, wasNewTerminalAction);
 	}
 
-	protected _showTerminalCloseConfirmation(): TPromise<boolean> {
+	protected _showTerminalCloseConfirmation(): PromiseLike<boolean> {
 		let message;
 		if (this.terminalInstances.length === 1) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");

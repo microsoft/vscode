@@ -144,7 +144,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		return super.create(parent).then(() => {
 			this._register(this.onDidSashChange(() => this.saveViewSizes()));
 			this.viewsModel.onDidAdd(added => this.onDidAddViews(added));
@@ -191,7 +191,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		return result;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		return super.setVisible(visible)
 			.then(() => Promise.all(this.panels.filter(view => view.isVisible() !== visible)
 				.map((view) => view.setVisible(visible))))

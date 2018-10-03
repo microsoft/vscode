@@ -9,7 +9,6 @@ import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -279,13 +278,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
 		const model = this.editor.getModel();
 		if (!model) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		return getDefinitionsAtPosition(model, target.position, token);
 	}
 
-	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
+	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): Thenable<any> {
 		this.editor.setPosition(target.position);
 		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));

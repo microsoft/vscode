@@ -10,7 +10,6 @@ import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrid
 import { DefaultConfigurationModel, Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { equals } from 'vs/base/common/objects';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
@@ -57,12 +56,12 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return this.configuration.getValue(section, overrides, null);
 	}
 
-	updateValue(key: string, value: any): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>;
-	updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
-		return TPromise.wrapError(new Error('not supported'));
+	updateValue(key: string, value: any): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): Promise<void>;
+	updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
+		return Promise.reject(new Error('not supported'));
 	}
 
 	inspect<T>(key: string): {
@@ -84,8 +83,8 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return this.configuration.keys(null);
 	}
 
-	reloadConfiguration(folder?: IWorkspaceFolder): TPromise<void> {
-		return folder ? TPromise.as(null) :
+	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void> {
+		return folder ? Promise.resolve(null) :
 			this.userConfiguration.reload().then(() => this.onDidChangeUserConfiguration());
 	}
 

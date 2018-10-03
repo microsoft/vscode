@@ -51,7 +51,7 @@ function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
 
 		const next = (ctx: string) => {
 			tryFile(path.resolve(ctx, filePath))
-				.then(resolve, err => {
+				.then(resolve, () => {
 					const dir = path.dirname(ctx);
 					if (!dir || dir === ctx) {
 						return reject(`Unable to locate absolute file ${filePath}`);

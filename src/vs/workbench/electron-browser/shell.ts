@@ -123,7 +123,6 @@ export class WorkbenchShell extends Disposable {
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
@@ -398,12 +397,7 @@ export class WorkbenchShell extends Disposable {
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 
-
-		this.extensionService = instantiationService.createInstance(ExtensionService);
-		serviceCollection.set(IExtensionService, this.extensionService);
-
-		perf.mark('willLoadExtensions');
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
+		serviceCollection.set(IExtensionService, instantiationService.createInstance(ExtensionService));
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);

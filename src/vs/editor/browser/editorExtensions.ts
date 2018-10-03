@@ -5,7 +5,6 @@
 
 import { illegalArgument } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -107,7 +106,7 @@ export abstract class Command {
 		}
 	}
 
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
+	public abstract runCommand(accessor: ServicesAccessor, args: any): void | Thenable<void>;
 }
 
 //#endregion Command
@@ -144,7 +143,7 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
+	public runCommand(accessor: ServicesAccessor, args: any): void | Thenable<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
 		// Find the editor with text focus or active
@@ -165,7 +164,7 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Thenable<void>;
 }
 
 //#endregion EditorCommand

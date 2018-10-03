@@ -7,7 +7,6 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { assign } from 'vs/base/common/objects';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
@@ -1215,8 +1214,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
 	}
 
-	function eventToPromise(event: Event<any>, count: number = 1): TPromise<void> {
-		return new TPromise<void>(c => {
+	function eventToPromise(event: Event<any>, count: number = 1): Promise<void> {
+		return new Promise<void>(c => {
 			let counter = 0;
 			event(() => {
 				if (++counter === count) {

@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -424,7 +423,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as(actions)
+				getActions: () => Promise.resolve(actions)
 			});
 		});
 	}
@@ -451,8 +450,8 @@ export class ShowRuntimeExtensionsAction extends Action {
 		super(id, label);
 	}
 
-	public run(e?: any): TPromise<any> {
-		return this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+	public async run(e?: any): Promise<any> {
+		await this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
 	}
 }
 
@@ -466,11 +465,11 @@ class ReportExtensionIssueAction extends Action {
 		super(id, label, 'extension-action report-issue');
 	}
 
-	run(extension: IRuntimeExtension): TPromise<any> {
+	run(extension: IRuntimeExtension): Promise<any> {
 		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 		window.open(this.generateNewIssueUrl(extension));
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private generateNewIssueUrl(extension: IRuntimeExtension): string {
@@ -508,21 +507,20 @@ export class DebugExtensionHostAction extends Action {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
 
-	run(): TPromise<any> {
+	async run(): Promise<any> {
 
 		const inspectPort = this._extensionService.getInspectPort();
 		if (!inspectPort) {
-			return this._dialogService.confirm({
+			const res = await this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
-			}).then(res => {
-				if (res.confirmed) {
-					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
-				}
 			});
+			if (res.confirmed) {
+				this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+			}
 		}
 
 		return this._debugService.startDebugging(null, {
@@ -544,9 +542,9 @@ export class StartExtensionHostProfileAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		this._extensionHostProfileService.startProfiling();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -561,9 +559,9 @@ export class StopExtensionHostProfileAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		this._extensionHostProfileService.stopProfiling();
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }
 
@@ -584,8 +582,8 @@ export class SaveExtensionHostProfileAction extends Action {
 		});
 	}
 
-	run(): TPromise<any> {
-		return TPromise.wrap(this._asyncRun());
+	run(): Promise<any> {
+		return Promise.resolve(this._asyncRun());
 	}
 
 	private async _asyncRun(): Promise<any> {

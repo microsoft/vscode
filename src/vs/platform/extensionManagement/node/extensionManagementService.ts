@@ -850,8 +850,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.withUninstalledExtensions(uninstalled => uninstalled);
 	}
 
-	private withUninstalledExtensions<T>(fn: (uninstalled: { [id: string]: boolean; }) => T): Promise<T> {
-		return Promise.resolve(this.uninstalledFileLimiter.queue(() => {
+	private async withUninstalledExtensions<T>(fn: (uninstalled: { [id: string]: boolean; }) => T): Promise<T> {
+		return await this.uninstalledFileLimiter.queue(() => {
 			let result: T = null;
 			return pfs.readFile(this.uninstalledPath, 'utf8')
 				.then(null, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
@@ -866,7 +866,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 					}
 				})
 				.then(() => result);
-		}));
+		});
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {

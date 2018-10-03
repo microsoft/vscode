@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -237,7 +236,7 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | TPromise<void> {
+	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Thenable<void> {
 		const editorService = accessor.get(ICodeEditorService);
 		const [uri, pos] = args || [undefined, undefined];
 
@@ -254,10 +253,10 @@ export class RenameAction extends EditorAction {
 		return super.runCommand(accessor, args);
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		let controller = RenameController.get(editor);
 		if (controller) {
-			return TPromise.wrap(controller.run(CancellationToken.None));
+			return Promise.resolve(controller.run(CancellationToken.None));
 		}
 		return undefined;
 	}

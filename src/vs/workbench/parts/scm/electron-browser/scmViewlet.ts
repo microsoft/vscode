@@ -1071,7 +1071,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.disposables.push(this.contributedViews);
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		return super.create(parent).then(() => {
 			this.el = parent;
 			addClass(this.el, 'scm-viewlet');
@@ -1165,7 +1165,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return (this.mainPanel ? 1 : 0) + this.repositoryPanels.length;
 	}
 
-	setVisible(visible: boolean): TPromise<void> {
+	setVisible(visible: boolean): Promise<void> {
 		const promises: TPromise<any>[] = [];
 		promises.push(super.setVisible(visible));
 
@@ -1182,7 +1182,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			promises.push(panel.setVisible(visible));
 		}
 
-		return TPromise.join(promises) as TPromise<any>;
+		return Promise.all(promises).then(() => null);
 	}
 
 	getOptimalWidth(): number {

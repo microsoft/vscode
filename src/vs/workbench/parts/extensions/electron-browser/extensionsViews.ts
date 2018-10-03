@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { chain } from 'vs/base/common/event';
@@ -172,10 +171,10 @@ export class ExtensionsListView extends ViewletPanel {
 		return this.list.length;
 	}
 
-	protected showEmptyModel(): TPromise<IPagedModel<IExtension>> {
+	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
 		const emptyModel = new PagedModel([]);
 		this.setModel(emptyModel);
-		return TPromise.as(emptyModel);
+		return Promise.resolve(emptyModel);
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IExtension>): void {
@@ -185,7 +184,7 @@ export class ExtensionsListView extends ViewletPanel {
 			if (manageExtensionAction.enabled) {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e.anchor,
-					getActions: () => TPromise.as(manageExtensionAction.actionItem.getActions())
+					getActions: () => Promise.resolve(manageExtensionAction.actionItem.getActions())
 				});
 			}
 		}
@@ -422,7 +421,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return extensions;
 	}
 
-	private getAllRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+	private getAllRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:all/g, '').replace(/@recommended/g, '').trim().toLowerCase();
 
 		return this.extensionsWorkbenchService.queryLocal()
@@ -432,7 +431,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const othersPromise = this.tipsService.getOtherRecommendations();
 				const workspacePromise = this.tipsService.getWorkspaceRecommendations();
 
-				return TPromise.join([othersPromise, workspacePromise])
+				return Promise.all([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						const names = this.getTrimmedRecommendations(local, value, fileBasedRecommendations, others, workspaceRecommendations);
 						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
@@ -452,7 +451,7 @@ export class ExtensionsListView extends ViewletPanel {
 							})
 						});
 						if (!names.length) {
-							return TPromise.as(new PagedModel([]));
+							return Promise.resolve(new PagedModel([]));
 						}
 						options.source = 'recommendations-all';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
@@ -464,22 +463,19 @@ export class ExtensionsListView extends ViewletPanel {
 			});
 	}
 
-	private getCuratedModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+	private async getCuratedModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/curated:/g, '').trim();
-		return this.experimentService.getCuratedExtensionsList(value).then(names => {
-			if (Array.isArray(names) && names.length) {
-				options.source = `curated:${value}`;
-				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => {
-						this.sortFirstPage(pager, names);
-						return new PagedModel(pager || []);
-					});
-			}
-			return TPromise.as(new PagedModel([]));
-		});
+		const names = await this.experimentService.getCuratedExtensionsList(value);
+		if (Array.isArray(names) && names.length) {
+			options.source = `curated:${value}`;
+			const pager = await this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }));
+			this.sortFirstPage(pager, names);
+			return new PagedModel(pager || []);
+		}
+		return new PagedModel([]);
 	}
 
-	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+	private getRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended/g, '').trim().toLowerCase();
 
 		return this.extensionsWorkbenchService.queryLocal()
@@ -489,7 +485,7 @@ export class ExtensionsListView extends ViewletPanel {
 				const othersPromise = this.tipsService.getOtherRecommendations();
 				const workspacePromise = this.tipsService.getWorkspaceRecommendations();
 
-				return TPromise.join([othersPromise, workspacePromise])
+				return Promise.all([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						fileBasedRecommendations = fileBasedRecommendations.filter(x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
 						others = others.filter(x => x => workspaceRecommendations.every(({ extensionId }) => x.extensionId !== extensionId));
@@ -514,7 +510,7 @@ export class ExtensionsListView extends ViewletPanel {
 						});
 
 						if (!names.length) {
-							return TPromise.as(new PagedModel([]));
+							return Promise.resolve(new PagedModel([]));
 						}
 						options.source = 'recommendations';
 						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
@@ -559,7 +555,7 @@ export class ExtensionsListView extends ViewletPanel {
 		return installed.some(i => areSameExtensions({ id: i.id }, { id: recommendation.extensionId }));
 	}
 
-	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+	private getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:workspace/g, '').trim().toLowerCase();
 		return this.tipsService.getWorkspaceRecommendations()
 			.then(recommendations => {
@@ -572,7 +568,7 @@ export class ExtensionsListView extends ViewletPanel {
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
-					return TPromise.as(new PagedModel([]));
+					return Promise.resolve(new PagedModel([]));
 				}
 				options.source = 'recommendations-workspace';
 				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
@@ -580,13 +576,13 @@ export class ExtensionsListView extends ViewletPanel {
 			});
 	}
 
-	private getKeymapRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+	private getKeymapRecommendationsModel(query: Query, options: IQueryOptions): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
 		const names: string[] = this.tipsService.getKeymapRecommendations().map(({ extensionId }) => extensionId)
 			.filter(extensionId => extensionId.toLowerCase().indexOf(value) > -1);
 
 		if (!names.length) {
-			return TPromise.as(new PagedModel([]));
+			return Promise.resolve(new PagedModel([]));
 		}
 		options.source = 'recommendations-keymaps';
 		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
@@ -832,12 +828,12 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		this.setRecommendationsToInstall();
 	}
 
-	private setRecommendationsToInstall(): TPromise<void> {
+	private setRecommendationsToInstall(): Promise<void> {
 		return this.getRecommendationsToInstall()
 			.then(recommendations => { this.installAllAction.recommendations = recommendations; });
 	}
 
-	private getRecommendationsToInstall(): TPromise<IExtensionRecommendation[]> {
+	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
 		return this.tipsService.getWorkspaceRecommendations()
 			.then(recommendations => recommendations.filter(({ extensionId }) => !this.extensionsWorkbenchService.local.some(i => areSameExtensions({ id: extensionId }, { id: i.id }))));
 	}

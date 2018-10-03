@@ -5,7 +5,6 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
 import { fork, ChildProcess } from 'child_process';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -24,15 +23,14 @@ export class ExtensionsLifecycle extends Disposable {
 		super();
 	}
 
-	uninstall(extension: ILocalExtension): TPromise<void> {
+	async uninstall(extension: ILocalExtension): Promise<void> {
 		const uninstallScript = this.parseUninstallScript(extension);
 		if (uninstallScript) {
 			this.logService.info(extension.identifier.id, 'Running Uninstall hook');
-			return this.processesLimiter.queue(() =>
+			await this.processesLimiter.queue(() =>
 				this.runUninstallHook(uninstallScript.uninstallHook, uninstallScript.args, extension)
 					.then(() => this.logService.info(extension.identifier.id, 'Finished running uninstall hook'), err => this.logService.error(extension.identifier.id, `Failed to run uninstall hook: ${err}`)));
 		}
-		return TPromise.as(null);
 	}
 
 	private parseUninstallScript(extension: ILocalExtension): { uninstallHook: string, args: string[] } {
@@ -47,8 +45,8 @@ export class ExtensionsLifecycle extends Disposable {
 		return null;
 	}
 
-	private runUninstallHook(lifecycleHook: string, args: string[], extension: ILocalExtension): TPromise<void> {
-		return new TPromise((c, e) => {
+	private runUninstallHook(lifecycleHook: string, args: string[], extension: ILocalExtension): Promise<void> {
+		return new Promise((c, e) => {
 
 			const extensionLifecycleProcess = this.start(lifecycleHook, args, extension);
 			let timeoutHandler;
