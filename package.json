@@ -8,7 +8,7 @@
   "main": "./out/main",
   "private": true,
   "scripts": {
-    "test": "gulp test",
+    "test": "gulp test && jest --coverage",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "gulp compile --max_old_space_size=4095",
@@ -26,7 +26,8 @@
     "build": "gulp",
     "serve": "gulp serve",
     "serve:dist": "gulp serve:dist",
-    "test:auto": "gulp test:auto"
+    "test:auto": "gulp test:auto",
+    "posttest": "cat ./coverage/lcov.info | coveralls"
   },
   "dependencies": {
     "applicationinsights": "1.0.5",
@@ -34,6 +35,7 @@
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "generator-code": "^1.1.38",
+    "generator-jest": "^1.6.0",
     "getmac": "1.4.1",
     "graceful-fs": "4.1.11",
     "gulp-yarn": "^2.0.0",
@@ -79,7 +81,7 @@
     "chromium-pickle-js": "^0.2.0",
     "clean-css": "3.4.6",
     "copy-webpack-plugin": "^4.5.2",
-    "coveralls": "^2.11.11",
+    "coveralls": "^3.0.2",
     "cson-parser": "^1.3.3",
     "debounce": "^1.0.0",
     "documentdb": "^1.5.1",
@@ -188,7 +190,8 @@
     "eslint-plugin-babel": "^4.0.1",
     "babel-core": "^6.23.1",
     "babel-polyfill": "^6.23.0",
-    "babel-preset-es2015": "^6.22.0"
+    "babel-preset-es2015": "^6.22.0",
+    "jest": "^23.5.0"
   },
   "repository": {
     "type": "git",
@@ -213,5 +216,8 @@
       "xo-space/esnext"
     ],
     "parser": "babel-eslint"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
