@@ -115,7 +115,7 @@ function getAllTopLevelDeclarations(sourceFile) {
 function getTopLevelDeclaration(sourceFile, typeName) {
     var result = null;
     visitTopLevelDeclarations(sourceFile, function (node) {
-        if (isDeclaration(node)) {
+        if (isDeclaration(node) && node.name) {
             if (node.name.text === typeName) {
                 result = node;
                 return true /*stop*/;
@@ -308,7 +308,7 @@ function generateDeclarationFile(out, inputFiles, recipe) {
                 typesToExcludeArr_1.push(typeName);
             });
             getAllTopLevelDeclarations(sourceFile_2).forEach(function (declaration) {
-                if (isDeclaration(declaration)) {
+                if (isDeclaration(declaration) && declaration.name) {
                     if (typesToExcludeMap_1[declaration.name.text]) {
                         return;
                     }
