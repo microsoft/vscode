@@ -87,7 +87,6 @@
     "gulp-eslint": "^3.0.1",
     "gulp-filter": "^3.0.0",
     "gulp-flatmap": "^1.0.0",
-    "gulp-image-resize": "^0.10.0",
     "gulp-json-editor": "^2.2.1",
     "gulp-mocha": "^2.1.3",
     "gulp-plumber": "^1.2.0",
