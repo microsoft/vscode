@@ -19,6 +19,7 @@
     "@types/mime": "0.0.29",
     "@types/minimatch": "^2.0.29",
     "@types/node": "8.0.33",
+    "@types/pump": "^1.0.1",
     "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.2",
     "@types/through": "^0.0.29",
