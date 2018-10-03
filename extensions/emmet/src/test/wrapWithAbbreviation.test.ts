@@ -127,7 +127,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</ul>
 	`;
 
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(2, 0, 2, 0)];
 			const promise = wrapWithAbbreviation({ abbreviation: 'li.hello|c' });
 			if (!promise) {
@@ -155,7 +155,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</div>
 	`;
 
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(1, 1, 1, 1)];
 			const promise = wrapWithAbbreviation({ abbreviation: 'div' });
 			if (!promise) {
@@ -183,7 +183,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</div>
 	`;
 
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(3, 1, 3, 1)];
 			const promise = wrapWithAbbreviation({ abbreviation: 'div' });
 			if (!promise) {
@@ -208,7 +208,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</ul>
 	`;
 
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(1, 2, 1, 2)];
 			const promise = wrapWithAbbreviation({ abbreviation: 'ul>li>a' });
 			if (!promise) {
@@ -237,7 +237,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		</ul>
 	</ul>
 `;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(2, 2, 3, 33)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' });
 			if (!promise) {
@@ -266,7 +266,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		</ul>
 	</ul>
 `;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(2, 1, 4, 0)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' });
 			if (!promise) {
@@ -297,7 +297,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		</ul>
 	</ul>
 `;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(2, 2, 3, 33)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello*|c' });
 			if (!promise) {
@@ -326,7 +326,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 			</ul>
 		</ul>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [new Selection(2, 3, 3, 16)];
 			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*|t' });
 			if (!promise) {
@@ -344,7 +344,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 
 
 function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string): Thenable<any> {
-	return withRandomFileEditor(htmlContentsForWrapTests, 'html', (editor, doc) => {
+	return withRandomFileEditor(htmlContentsForWrapTests, 'html', (editor, _) => {
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {

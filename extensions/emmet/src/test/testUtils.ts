@@ -57,7 +57,7 @@ export function withRandomFileEditor(initialContents: string, fileExtension: str
 			return vscode.window.showTextDocument(doc).then((editor) => {
 				return run(editor, doc).then(_ => {
 					if (doc.isDirty) {
-						return doc.save().then(saved => {
+						return doc.save().then(() => {
 							return deleteFile(file);
 						});
 					} else {
