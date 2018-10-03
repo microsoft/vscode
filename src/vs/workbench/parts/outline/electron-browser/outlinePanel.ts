@@ -376,15 +376,18 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 	}
 
-	protected layoutBody(height: number = this._cachedHeight): void {
-		if (this._pendingLayout) {
-			this._pendingLayout.dispose();
-		}
-		this._pendingLayout = dom.measure(() => {
+	protected layoutBody(height: number): void {
+		if (height !== this._cachedHeight) {
 			this._cachedHeight = height;
-			this._input.layout();
-			this._tree.layout(height - (dom.getTotalHeight(this._inputContainer) + 5 /*progressbar height, defined in outlinePanel.css*/));
-		});
+			if (this._pendingLayout) {
+				this._pendingLayout.dispose();
+			}
+			this._pendingLayout = dom.measure(() => {
+				// this._input.layout();
+				const inputHeight = dom.getTotalHeight(this._inputContainer);
+				this._tree.layout(height - (inputHeight + 5 /*progressbar height, defined in outlinePanel.css*/));
+			});
+		}
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
