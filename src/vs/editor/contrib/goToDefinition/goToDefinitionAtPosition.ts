@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./goToDefinitionMouse';
+import 'vs/css!./goToDefinitionAtPosition';
 import * as nls from 'vs/nls';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -24,12 +24,12 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { DefinitionAction, DefinitionActionConfig, GoToDefinitionAction } from './goToDefinitionCommands';
+import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 
-export class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
+export class GotoDefinitionAtPositionEditorContribution implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
@@ -37,7 +37,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 	private editor: ICodeEditor;
 	private toUnhook: IDisposable[];
 	private linkDecorations: string[];
-	private currentWordUnderMouse: IWordAtPosition;
+	private currentWordAtPosition: IWordAtPosition;
 	private previousPromise: CancelablePromise<DefinitionLink[]>;
 
 	constructor(
@@ -70,12 +70,12 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 
 		this.toUnhook.push(linkGesture.onCancel(() => {
 			this.removeLinkDecorations();
-			this.currentWordUnderMouse = null;
+			this.currentWordAtPosition = null;
 		}));
 	}
 
-	static get(editor: ICodeEditor): GotoDefinitionWithMouseEditorContribution {
-		return editor.getContribution<GotoDefinitionWithMouseEditorContribution>(GotoDefinitionWithMouseEditorContribution.ID);
+	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution {
+		return editor.getContribution<GotoDefinitionAtPositionEditorContribution>(GotoDefinitionAtPositionEditorContribution.ID);
 	}
 
 	startFindDefinitionFromCursor(position: Position) {
@@ -85,7 +85,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 
 	private startFindDefinitionFromMouse(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent) {
 		if (!this.isEnabled(mouseEvent, withKey)) {
-			this.currentWordUnderMouse = null;
+			this.currentWordAtPosition = null;
 			this.removeLinkDecorations();
 			return;
 		}
@@ -99,17 +99,17 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 	private startFindDefinition(position: Position) {
 		let word = position ? this.editor.getModel().getWordAtPosition(position) : null;
 		if (!word) {
-			this.currentWordUnderMouse = null;
+			this.currentWordAtPosition = null;
 			this.removeLinkDecorations();
 			return Promise.resolve(0);
 		}
 
 		// Return early if word at position is still the same
-		if (this.currentWordUnderMouse && this.currentWordUnderMouse.startColumn === word.startColumn && this.currentWordUnderMouse.endColumn === word.endColumn && this.currentWordUnderMouse.word === word.word) {
+		if (this.currentWordAtPosition && this.currentWordAtPosition.startColumn === word.startColumn && this.currentWordAtPosition.endColumn === word.endColumn && this.currentWordAtPosition.word === word.word) {
 			return Promise.resolve(0);
 		}
 
-		this.currentWordUnderMouse = word;
+		this.currentWordAtPosition = word;
 
 		// Find definition and decorate word if found
 		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
@@ -181,7 +181,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
 		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
-		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
+		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
 		}
 
@@ -204,7 +204,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 
 	private getPreviewRangeBasedOnIndentation(textEditorModel: ITextModel, startLineNumber: number) {
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
 		let endLineNumber = startLineNumber + 1;
 
 		for (; endLineNumber < maxLineNumber; endLineNumber++) {
@@ -219,7 +219,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 	}
 
 	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
 
 		const brackets = [];
 
@@ -307,7 +307,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 	}
 
 	public getId(): string {
-		return GotoDefinitionWithMouseEditorContribution.ID;
+		return GotoDefinitionAtPositionEditorContribution.ID;
 	}
 
 	public dispose(): void {
@@ -315,7 +315,7 @@ export class GotoDefinitionWithMouseEditorContribution implements editorCommon.I
 	}
 }
 
-registerEditorContribution(GotoDefinitionWithMouseEditorContribution);
+registerEditorContribution(GotoDefinitionAtPositionEditorContribution);
 
 registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);

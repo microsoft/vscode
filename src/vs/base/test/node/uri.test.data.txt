@@ -2628,8 +2628,8 @@
 /users/foo/src/vs/editor/contrib/caretOperations/transpose.ts
 /users/foo/src/vs/editor/contrib/caretOperations/moveCaretCommand.ts
 /users/foo/src/vs/editor/contrib/goToDefinition
-/users/foo/src/vs/editor/contrib/goToDefinition/goToDefinitionMouse.css
-/users/foo/src/vs/editor/contrib/goToDefinition/goToDefinitionMouse.ts
+/users/foo/src/vs/editor/contrib/goToDefinition/goToDefinitionAtPosition.css
+/users/foo/src/vs/editor/contrib/goToDefinition/goToDefinitionAtPosition.ts
 /users/foo/src/vs/editor/contrib/goToDefinition/goToDefinition.ts
 /users/foo/src/vs/editor/contrib/goToDefinition/goToDefinitionCommands.ts
 /users/foo/src/vs/editor/contrib/goToDefinition/clickLinkGesture.ts

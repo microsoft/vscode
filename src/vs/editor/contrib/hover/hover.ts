@@ -27,7 +27,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { GotoDefinitionWithMouseEditorContribution } from '../goToDefinition/goToDefinitionMouse';
+import { GotoDefinitionAtPositionEditorContribution } from '../goToDefinition/goToDefinitionAtPosition';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -263,9 +263,38 @@ class ShowHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
+
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const goto = GotoDefinitionWithMouseEditorContribution.get(editor);
+		controller.showContentHover(range, HoverStartMode.Immediate, true);
+	}
+}
+
+class ShowCtrlHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.showCtrlHover',
+			label: nls.localize({
+				key: 'showCtrlHover',
+				comment: [
+					'Label for action that will trigger the showing of a ctrl+hover in the editor.',
+					'This allows for users to show the ctrl+hover without using the mouse.'
+				]
+			}, "Show Control Hover"),
+			alias: 'Show Control Hover',
+			precondition: null
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		const position = editor.getPosition();
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
 		const promise = goto.startFindDefinitionFromCursor(position);
 		if (promise) {
 			promise.then(_ => {
@@ -279,6 +308,7 @@ class ShowHoverAction extends EditorAction {
 
 registerEditorContribution(ModesHoverController);
 registerEditorAction(ShowHoverAction);
+registerEditorAction(ShowCtrlHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {
