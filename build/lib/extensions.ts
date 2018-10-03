@@ -34,7 +34,7 @@ function fromLocal(extensionPath: string, sourceMappingURLBase?: string): Stream
 	}
 }
 
-function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string): Stream {
+function fromLocalWebpack(extensionPath: string, sourceMappingURLBase: string | undefined): Stream {
 	let result = es.through();
 
 	let packagedDependencies: string[] = [];
@@ -249,7 +249,7 @@ function sequence(streamProviders: { (): Stream }[]): Stream {
 		if (streamProviders.length === 0) {
 			result.emit('end');
 		} else {
-			const fn = streamProviders.shift();
+			const fn = streamProviders.shift()!;
 			fn()
 				.on('end', function () { setTimeout(pop, 0); })
 				.pipe(result, { end: false });
@@ -260,8 +260,8 @@ function sequence(streamProviders: { (): Stream }[]): Stream {
 	return result;
 }
 
-export function packageExtensionsStream(opts?: IPackageExtensionsOptions): NodeJS.ReadWriteStream {
-	opts = opts || {};
+export function packageExtensionsStream(optsIn?: IPackageExtensionsOptions): NodeJS.ReadWriteStream {
+	const opts = optsIn || {};
 
 	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))
 		.map(manifestPath => {

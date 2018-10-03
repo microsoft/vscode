@@ -41,7 +41,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, true, null, err => reporter(err.toString()));
+	const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
 
@@ -66,7 +66,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 				sourceRoot: opts.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(reporter.end(emitError));
+			.pipe(reporter.end(!!emitError));
 
 		return es.duplex(input, output);
 	};

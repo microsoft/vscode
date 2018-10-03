@@ -36,7 +36,7 @@ function createCompile(src, build, emitError) {
     var opts = _.clone(getTypeScriptCompilerOptions(src));
     opts.inlineSources = !!build;
     opts.noFilesystemLookup = true;
-    var ts = tsb.create(opts, true, null, function (err) { return reporter(err.toString()); });
+    var ts = tsb.create(opts, true, undefined, function (err) { return reporter(err.toString()); });
     return function (token) {
         var utf8Filter = util.filter(function (data) { return /(\/|\\)test(\/|\\).*utf8/.test(data.path); });
         var tsFilter = util.filter(function (data) { return /\.ts$/.test(data.path); });
@@ -58,7 +58,7 @@ function createCompile(src, build, emitError) {
             sourceRoot: opts.sourceRoot
         }))
             .pipe(tsFilter.restore)
-            .pipe(reporter.end(emitError));
+            .pipe(reporter.end(!!emitError));
         return es.duplex(input, output);
     };
 }

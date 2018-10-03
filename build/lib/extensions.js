@@ -211,8 +211,8 @@ function sequence(streamProviders) {
     pop();
     return result;
 }
-function packageExtensionsStream(opts) {
-    opts = opts || {};
+function packageExtensionsStream(optsIn) {
+    var opts = optsIn || {};
     var localExtensionDescriptions = glob.sync('extensions/*/package.json')
         .map(function (manifestPath) {
         var extensionPath = path.dirname(path.join(root, manifestPath));

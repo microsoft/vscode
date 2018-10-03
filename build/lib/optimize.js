@@ -124,7 +124,7 @@ function optimizeTask(opts) {
         var resourcesStream = es.through(); // this stream will contain the resources
         var bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
         bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-            if (err) {
+            if (err || !result) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
             toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
@@ -163,7 +163,7 @@ function optimizeTask(opts) {
         var result = es.merge(loader(src, bundledFileHeader, bundleLoader), bundlesStream, otherSourcesStream, resourcesStream, bundleInfoStream);
         return result
             .pipe(sourcemaps.write('./', {
-            sourceRoot: null,
+            sourceRoot: undefined,
             addComment: true,
             includeContent: true
         }))
@@ -219,13 +219,13 @@ function uglifyWithCopyrights() {
     return es.duplex(input, output);
 }
 function minifyTask(src, sourceMapBaseUrl) {
-    var sourceMappingURL = sourceMapBaseUrl && (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; });
+    var sourceMappingURL = sourceMapBaseUrl ? (function (f) { return sourceMapBaseUrl + "/" + f.relative + ".map"; }) : undefined;
     return function (cb) {
         var jsFilter = filter('**/*.js', { restore: true });
         var cssFilter = filter('**/*.css', { restore: true });
         pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), uglifyWithCopyrights(), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.write('./', {
             sourceMappingURL: sourceMappingURL,
-            sourceRoot: null,
+            sourceRoot: undefined,
             includeContent: true,
             addComment: true
         }), gulp.dest(src + '-min'), function (err) {

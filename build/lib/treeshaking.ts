@@ -448,7 +448,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 					}
 
 					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) {
-						enqueue_black(declaration.name);
+						enqueue_black(declaration.name!);
 
 						for (let j = 0; j < declaration.members.length; j++) {
 							const member = declaration.members[j];
@@ -635,7 +635,7 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
-function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol, ts.Declaration] {
+function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
 	/**
 	 * Returns the containing object literal property declaration given a possible name node, e.g. "a" in x = { "a": 1 }
 	 */

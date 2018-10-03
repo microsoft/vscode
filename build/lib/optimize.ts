@@ -188,7 +188,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
 
 		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-			if (err) { return bundlesStream.emit('error', JSON.stringify(err)); }
+			if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
 			toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
 
@@ -237,7 +237,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 
 		return result
 			.pipe(sourcemaps.write('./', {
-				sourceRoot: null,
+				sourceRoot: undefined,
 				addComment: true,
 				includeContent: true
 			}))
@@ -302,7 +302,7 @@ function uglifyWithCopyrights(): NodeJS.ReadWriteStream {
 }
 
 export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) => void {
-	const sourceMappingURL = sourceMapBaseUrl && (f => `${sourceMapBaseUrl}/${f.relative}.map`);
+	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
 		const jsFilter = filter('**/*.js', { restore: true });
@@ -319,7 +319,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 			cssFilter.restore,
 			sourcemaps.write('./', {
 				sourceMappingURL,
-				sourceRoot: null,
+				sourceRoot: undefined,
 				includeContent: true,
 				addComment: true
 			}),

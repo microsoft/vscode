@@ -45,6 +45,7 @@ function log() {
     var messages = errors
         .map(function (err) { return regex.exec(err); })
         .filter(function (match) { return !!match; })
+        .map(function (x) { return x; })
         .map(function (_a) {
         var path = _a[1], line = _a[2], column = _a[3], message = _a[4];
         return ({ path: path, line: parseInt(line), column: parseInt(column), message: message });
