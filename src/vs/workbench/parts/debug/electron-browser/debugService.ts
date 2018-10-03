@@ -698,6 +698,9 @@ export class DebugService implements IDebugService {
 					// task is already running - nothing to do.
 					return TPromise.as(null);
 				}
+				once(TaskEventKind.Active, this.taskService.onDidStateChange)((taskEvent) => {
+					taskStarted = true;
+				});
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
 					return new TPromise((c, e) => once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => {
