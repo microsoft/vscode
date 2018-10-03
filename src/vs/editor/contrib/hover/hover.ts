@@ -27,6 +27,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { GotoDefinitionWithMouseEditorContribution } from '../goToDefinition/goToDefinitionMouse';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -264,7 +265,15 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		controller.showContentHover(range, HoverStartMode.Immediate, true);
+		const goto = GotoDefinitionWithMouseEditorContribution.get(editor);
+		const promise = goto.startFindDefinitionFromCursor(position);
+		if (promise) {
+			promise.then(_ => {
+				controller.showContentHover(range, HoverStartMode.Immediate, true);
+			});
+		} else {
+			controller.showContentHover(range, HoverStartMode.Immediate, true);
+		}
 	}
 }
 

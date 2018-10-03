@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { DefinitionProviderRegistry, DefinitionLink } from 'vs/editor/common/modes';
-import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDefinition';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -24,19 +24,19 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
-import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
+import { DefinitionAction, DefinitionActionConfig, GoToDefinitionAction } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 
-class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
+export class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static readonly ID = 'editor.contrib.gotodefinitionwithmouse';
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private editor: ICodeEditor;
 	private toUnhook: IDisposable[];
-	private decorations: string[];
+	private linkDecorations: string[];
 	private currentWordUnderMouse: IWordAtPosition;
 	private previousPromise: CancelablePromise<DefinitionLink[]>;
 
@@ -46,7 +46,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		@IModeService private modeService: IModeService
 	) {
 		this.toUnhook = [];
-		this.decorations = [];
+		this.linkDecorations = [];
 		this.editor = editor;
 		this.previousPromise = null;
 
@@ -54,46 +54,59 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(linkGesture);
 
 		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinition(mouseEvent, keyboardEvent);
+			this.startFindDefinitionFromMouse(mouseEvent, keyboardEvent);
 		}));
 
 		this.toUnhook.push(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
-				this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).then(() => {
-					this.removeDecorations();
+				this.gotoDefinition(mouseEvent.target.position, mouseEvent.hasSideBySideModifier).then(() => {
+					this.removeLinkDecorations();
 				}, (error: Error) => {
-					this.removeDecorations();
+					this.removeLinkDecorations();
 					onUnexpectedError(error);
 				});
 			}
 		}));
 
 		this.toUnhook.push(linkGesture.onCancel(() => {
-			this.removeDecorations();
+			this.removeLinkDecorations();
 			this.currentWordUnderMouse = null;
 		}));
-
 	}
 
-	private startFindDefinition(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+	static get(editor: ICodeEditor): GotoDefinitionWithMouseEditorContribution {
+		return editor.getContribution<GotoDefinitionWithMouseEditorContribution>(GotoDefinitionWithMouseEditorContribution.ID);
+	}
+
+	startFindDefinitionFromCursor(position: Position) {
+		// equivalent to mouse move with meta/ctrl key
+		return this.startFindDefinition(position);
+	}
+
+	private startFindDefinitionFromMouse(mouseEvent: ClickLinkMouseEvent, withKey: ClickLinkKeyboardEvent) {
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
-			this.removeDecorations();
+			this.removeLinkDecorations();
 			return;
 		}
 
 		// Find word at mouse position
 		let position = mouseEvent.target.position;
+
+		this.startFindDefinition(position);
+	}
+
+	private startFindDefinition(position: Position) {
 		let word = position ? this.editor.getModel().getWordAtPosition(position) : null;
 		if (!word) {
 			this.currentWordUnderMouse = null;
-			this.removeDecorations();
-			return;
+			this.removeLinkDecorations();
+			return Promise.resolve(0);
 		}
 
 		// Return early if word at position is still the same
 		if (this.currentWordUnderMouse && this.currentWordUnderMouse.startColumn === word.startColumn && this.currentWordUnderMouse.endColumn === word.endColumn && this.currentWordUnderMouse.word === word.word) {
-			return;
+			return Promise.resolve(0);
 		}
 
 		this.currentWordUnderMouse = word;
@@ -106,11 +119,11 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			this.previousPromise = null;
 		}
 
-		this.previousPromise = createCancelablePromise(token => this.findDefinition(mouseEvent.target, token));
+		this.previousPromise = createCancelablePromise(token => this.findDefinition(position, token));
 
-		this.previousPromise.then(results => {
+		return this.previousPromise.then(results => {
 			if (!results || !results.length || !state.validate(this.editor)) {
-				this.removeDecorations();
+				this.removeLinkDecorations();
 				return;
 			}
 
@@ -261,12 +274,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			}
 		};
 
-		this.decorations = this.editor.deltaDecorations(this.decorations, [newDecorations]);
+		this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, [newDecorations]);
 	}
 
-	private removeDecorations(): void {
-		if (this.decorations.length > 0) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
+	private removeLinkDecorations(): void {
+		if (this.linkDecorations.length > 0) {
+			this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, []);
 		}
 	}
 
@@ -278,17 +291,17 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget, token: CancellationToken): Thenable<DefinitionLink[]> {
+	private findDefinition(position: Position, token: CancellationToken): Thenable<DefinitionLink[]> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
 		}
 
-		return getDefinitionsAtPosition(model, target.position, token);
+		return getDefinitionsAtPosition(model, position, token);
 	}
 
-	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
-		this.editor.setPosition(target.position);
+	private gotoDefinition(position: Position, sideBySide: boolean): TPromise<any> {
+		this.editor.setPosition(position);
 		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
 		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
