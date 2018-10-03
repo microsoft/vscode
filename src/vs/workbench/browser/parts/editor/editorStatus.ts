@@ -621,6 +621,9 @@ export class EditorStatus implements IStatusbarItem {
 				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
 					this.onMetadataChange(activeControl);
 				}));
+				this.activeEditorListeners.push(editor.onDidOpenInPlace(() => {
+					this.updateStatusBar();
+				}));
 			});
 		}
 	}
