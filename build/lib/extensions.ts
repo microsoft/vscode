@@ -174,12 +174,6 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
-function error(err: any): Stream {
-	const result = es.through();
-	setTimeout(() => result.emit('error', err));
-	return result;
-}
-
 const baseHeaders = {
 	'X-Market-Client-Id': 'VSCode Build',
 	'User-Agent': 'VSCode Build',

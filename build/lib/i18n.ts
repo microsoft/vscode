@@ -137,27 +137,6 @@ module PackageJsonFormat {
 	}
 }
 
-interface ModuleJsonFormat {
-	messages: string[];
-	keys: (string | LocalizeInfo)[];
-}
-
-module ModuleJsonFormat {
-	export function is(value: any): value is ModuleJsonFormat {
-		let candidate = value as ModuleJsonFormat;
-		return Is.defined(candidate)
-			&& Is.array(candidate.messages) && candidate.messages.every(message => Is.string(message))
-			&& Is.array(candidate.keys) && candidate.keys.every(key => Is.string(key) || LocalizeInfo.is(key));
-	}
-}
-
-interface BundledExtensionHeaderFormat {
-	id: string;
-	type: string;
-	hash: string;
-	outDir: string;
-}
-
 interface BundledExtensionFormat {
 	[key: string]: {
 		messages: string[];
@@ -168,7 +147,7 @@ interface BundledExtensionFormat {
 export class Line {
 	private buffer: string[] = [];
 
-	constructor(private indent: number = 0) {
+	constructor(indent: number = 0) {
 		if (indent > 0) {
 			this.buffer.push(new Array(indent + 1).join(' '));
 		}
@@ -484,7 +463,6 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 
 	let statistics: Map<number> = Object.create(null);
 
-	let total: number = 0;
 	let defaultMessages: Map<Map<string>> = Object.create(null);
 	let modules = Object.keys(keysSection);
 	modules.forEach((module) => {
@@ -497,7 +475,6 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 		let messageMap: Map<string> = Object.create(null);
 		defaultMessages[module] = messageMap;
 		keys.map((key, i) => {
-			total++;
 			if (typeof key === 'string') {
 				messageMap[key] = messages[i];
 			} else {
