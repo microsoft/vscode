@@ -32,9 +32,7 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	collapsed: boolean;
 	revealedCount: number;
 	filterData: TFilterData | undefined;
-
-	// internal state TODO@joao remove undefined
-	visible: boolean | undefined;
+	visible: boolean;
 }
 
 export const enum Visibility {
@@ -95,7 +93,6 @@ export interface ITreeModelOptions<T, TFilterData = void> {
 
 export class TreeModel<T, TFilterData = void> {
 
-	// TODO fix with visibility
 	static getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
 		const location = [];
 
@@ -230,7 +227,7 @@ export class TreeModel<T, TFilterData = void> {
 			filterData: undefined
 		};
 
-		this.updateNodeFilterState(node);
+		const visible = this._filterNode(node);
 
 		if (revealed) {
 			treeListElements.push(node);
@@ -246,10 +243,7 @@ export class TreeModel<T, TFilterData = void> {
 		});
 
 		node.collapsible = node.collapsible || node.children.length > 0;
-
-		if (typeof node.visible === 'undefined') {
-			node.visible = hasVisibleDescendants;
-		}
+		node.visible = typeof visible === 'undefined' ? hasVisibleDescendants : visible;
 
 		if (!node.visible) {
 			node.revealedCount = 0;
@@ -258,6 +252,7 @@ export class TreeModel<T, TFilterData = void> {
 				treeListElements.pop();
 			}
 		} else if (!node.collapsed) {
+			// TODO@joao fix perf
 			node.revealedCount += getRevealedCount(node.children);
 		}
 
@@ -306,10 +301,13 @@ export class TreeModel<T, TFilterData = void> {
 	}
 
 	private _updateNodeAfterFilterChange(node: IMutableTreeNode<T, TFilterData>, result: ITreeNode<T, TFilterData>[], revealed = true): boolean {
-		if (node !== this.root) {
-			this.updateNodeFilterState(node);
+		let visible: boolean | undefined;
 
-			if (node.visible === false) {
+		if (node !== this.root) {
+			visible = this._filterNode(node);
+
+			if (visible === false) {
+				node.visible = false;
 				return false;
 			}
 
@@ -322,14 +320,14 @@ export class TreeModel<T, TFilterData = void> {
 		node.revealedCount = node === this.root ? 0 : 1;
 
 		let hasVisibleDescendants = false;
-		if (node.visible !== false || !node.collapsed) {
+		if (visible !== false || !node.collapsed) {
 			for (const child of node.children) {
 				hasVisibleDescendants = this._updateNodeAfterFilterChange(child, result, revealed && !node.collapsed) || hasVisibleDescendants;
 			}
 		}
 
-		if (typeof node.visible === 'undefined') {
-			node.visible = hasVisibleDescendants;
+		if (node !== this.root) {
+			node.visible = typeof visible === 'undefined' ? hasVisibleDescendants : visible;
 		}
 
 		if (!node.visible) {
@@ -356,18 +354,18 @@ export class TreeModel<T, TFilterData = void> {
 		}
 	}
 
-	private updateNodeFilterState(node: IMutableTreeNode<T, TFilterData>): void {
+	private _filterNode(node: IMutableTreeNode<T, TFilterData>): boolean | undefined {
 		const result = this.filter ? this.filter.filter(node.element) : Visibility.Visible;
 
 		if (typeof result === 'boolean') {
-			node.visible = result;
 			node.filterData = undefined;
+			return result;
 		} else if (isFilterResult<TFilterData>(result)) {
-			node.visible = getVisibleState(result.visibility);
 			node.filterData = result.data;
+			return getVisibleState(result.visibility);
 		} else {
-			node.visible = getVisibleState(result);
 			node.filterData = undefined;
+			return getVisibleState(result);
 		}
 	}
 
