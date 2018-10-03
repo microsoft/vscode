@@ -14,6 +14,8 @@ export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 	private model: TreeModel<T, TFilterData>;
 	private nodes = new Map<T, ITreeNode<T, TFilterData>>();
 
+	get size(): number { return this.nodes.size; }
+
 	constructor(list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
 		this.model = new TreeModel(list, options);
 	}

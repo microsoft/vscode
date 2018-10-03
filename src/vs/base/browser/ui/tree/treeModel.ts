@@ -133,7 +133,8 @@ export class TreeModel<T, TFilterData = void> {
 		const lastIndex = location[location.length - 1];
 		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
 		const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.revealedCount, 0);
-		parentNode.revealedCount += revealedCount - visibleDeleteCount;
+
+		this._updateAncestorsRevealedCount(parentNode, revealedCount - visibleDeleteCount);
 
 		if (revealed) {
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
