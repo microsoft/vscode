@@ -380,7 +380,8 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
-			oldOptions.iconTheme !== newOptions.iconTheme
+			oldOptions.iconTheme !== newOptions.iconTheme ||
+			oldOptions.dirtyTabBorder !== newOptions.dirtyTabBorder
 		) {
 			this.redraw();
 		}
