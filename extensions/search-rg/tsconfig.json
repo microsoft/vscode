@@ -2,7 +2,7 @@
 	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true,
+		"experimentalDecorators": true
 	},
 	"include": [
 		"src/**/*"
