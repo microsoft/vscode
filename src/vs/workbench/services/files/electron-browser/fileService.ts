@@ -44,30 +44,6 @@ import product from 'vs/platform/node/product';
 import { IEncodingOverride, ResourceEncodings } from 'vs/workbench/services/files/electron-browser/encoding';
 import { createReadableOfSnapshot } from 'vs/workbench/services/files/electron-browser/streams';
 
-class BufferPool {
-
-	static _64K = new BufferPool(64 * 1024, 5);
-
-	constructor(
-		readonly bufferSize: number,
-		private readonly _capacity: number,
-		private readonly _free: Buffer[] = [],
-	) { }
-
-	acquire(): Buffer {
-		if (this._free.length === 0) {
-			return Buffer.allocUnsafe(this.bufferSize);
-		} else {
-			return this._free.shift();
-		}
-	}
-
-	release(buf: Buffer): void {
-		if (this._free.length <= this._capacity) {
-			this._free.push(buf);
-		}
-	}
-}
 
 export interface IFileServiceTestOptions {
 	disableWatcher?: boolean;
@@ -414,7 +390,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): TPromise<IContentData> {
 
-		const chunkBuffer = BufferPool._64K.acquire();
+		const chunkBuffer = Buffer.allocUnsafe(64 * 1024);
 
 		const result: IContentData = {
 			encoding: void 0,
@@ -461,9 +437,6 @@ export class FileService extends Disposable implements IFileService {
 					if (decoder) {
 						decoder.end();
 					}
-
-					// return the shared buffer
-					BufferPool._64K.release(chunkBuffer);
 
 					if (fd) {
 						fs.close(fd, err => {
