@@ -193,6 +193,11 @@
 		"body": "'$1' => $2${3:,} $0",
 		"description": "Key-Value initializer"
 	},
+	"… <=> …": {
+		"prefix": "spaceship",
+		"body": "$1 <=> $2",
+		"description": "Spaceship operator initializer"
+	},
 	"switch …": {
 		"prefix": "switch",
 		"body": [
