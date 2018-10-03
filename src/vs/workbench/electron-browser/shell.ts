@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/shell';
 
 import * as platform from 'vs/base/common/platform';
@@ -90,7 +88,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, measure } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -125,7 +123,6 @@ export class WorkbenchShell extends Disposable {
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private themeService: WorkbenchThemeService;
 	private lifecycleService: LifecycleService;
@@ -164,6 +161,12 @@ export class WorkbenchShell extends Disposable {
 
 		// Instantiation service with services
 		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
+
+		// Warm up font cache information before building up too many dom elements
+		measure(() => {
+			restoreFontInfo(this.storageService);
+			readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
+		});
 
 		// Workbench
 		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
@@ -349,10 +352,6 @@ export class WorkbenchShell extends Disposable {
 			client.registerChannel('dialog', instantiationService.createInstance(DialogChannel));
 		});
 
-		// Warm up font cache information before building up too many dom elements
-		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
-
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
 
@@ -400,12 +399,7 @@ export class WorkbenchShell extends Disposable {
 		const extensionEnablementService = this._register(instantiationService.createInstance(ExtensionEnablementService));
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 
-
-		this.extensionService = instantiationService.createInstance(ExtensionService);
-		serviceCollection.set(IExtensionService, this.extensionService);
-
-		perf.mark('willLoadExtensions');
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
+		serviceCollection.set(IExtensionService, instantiationService.createInstance(ExtensionService));
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
 		serviceCollection.set(IWorkbenchThemeService, this.themeService);

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';

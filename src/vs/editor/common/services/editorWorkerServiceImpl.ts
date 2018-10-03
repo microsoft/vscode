@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IntervalTimer } from 'vs/base/common/async';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -66,7 +65,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 				return this._workerManager.withWorker().then(client => client.computeLinks(model.uri));
 			}
 		}));
-		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
+		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
 	}
 
 	public dispose(): void {
@@ -117,7 +116,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 	}
 }
 
-class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
+class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: ITextResourceConfigurationService;
@@ -133,7 +132,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 		this._modelService = modelService;
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.ISuggestResult> {
+	provideCompletionItems(model: ITextModel, position: Position): TPromise<modes.CompletionList> {
 		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
@@ -409,7 +408,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
+	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.CompletionList> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

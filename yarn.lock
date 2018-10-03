@@ -22,12 +22,12 @@
   dependencies:
     commander "*"
 
-"@types/keytar@4.0.1":
+"@types/keytar@^4.0.1":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@types/keytar/-/keytar-4.0.1.tgz#e2cf6405dc33861424e59b67516c66d2cf7bc21b"
   integrity sha512-loKBID6UL4QjhD2scuvv6oAPlQ/WAY7aYTDyKlKo7fIgriLS8EZExqT567cHL5CY6si51MRoX1+r3mitD3eYrA==
 
-"@types/minimist@1.2.0":
+"@types/minimist@^1.2.0":
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/@types/minimist/-/minimist-1.2.0.tgz#69a23a3ad29caf0097f06eda59b361ee2f0639f6"
   integrity sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
@@ -42,15 +42,15 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-4.2.22.tgz#cf488a0f6b4a9c245d09927f4f757ca278b9c8ce"
   integrity sha512-LXRap3bb4AjtLZ5NOFc4ssVZrQPTgdPcNm++0SEJuJZaOA+xHkojJNYqy33A5q/94BmG5tA6yaMeD4VdCv5aSA==
 
-"@types/semver@^5.4.0":
+"@types/semver@^5.4.0", "@types/semver@^5.5.0":
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.5.0.tgz#146c2a29ee7d3bae4bf2fcb274636e264c813c45"
   integrity sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
 
-"@types/sinon@1.16.34":
-  version "1.16.34"
-  resolved "https://registry.yarnpkg.com/@types/sinon/-/sinon-1.16.34.tgz#a9761fff33d0f7b3fe61875b577778a2576a9a03"
-  integrity sha1-qXYf/zPQ97P+YYdbV3d4oldqmgM=
+"@types/sinon@^1.16.36":
+  version "1.16.36"
+  resolved "https://registry.yarnpkg.com/@types/sinon/-/sinon-1.16.36.tgz#74bb6ed7928597c1b3fb1b009005e94dc6eae357"
+  integrity sha1-dLtu15KFl8Gz+xsAkAXpTcbq41c=
 
 "@types/tapable@*":
   version "1.0.4"
@@ -73,6 +73,11 @@
     "@types/tapable" "*"
     "@types/uglify-js" "*"
     source-map "^0.6.0"
+
+"@types/winreg@^1.2.30":
+  version "1.2.30"
+  resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.30.tgz#91d6710e536d345b9c9b017c574cf6a8da64c518"
+  integrity sha1-kdZxDlNtNFucmwF8V0z2qNpkxRg=
 
 "@webassemblyjs/ast@1.5.13":
   version "1.5.13"

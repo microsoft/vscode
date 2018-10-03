@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';

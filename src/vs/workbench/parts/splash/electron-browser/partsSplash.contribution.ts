@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';

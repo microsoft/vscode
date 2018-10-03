@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -163,7 +161,7 @@ export class SaveWorkspaceAsAction extends Action {
 
 	private getNewWorkspaceConfigPath(): TPromise<URI> {
 		return this.dialogService.showSaveDialog({
-			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
+			saveLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: this.dialogService.defaultWorkspacePath(Schemas.file)

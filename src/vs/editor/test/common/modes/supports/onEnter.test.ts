@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';

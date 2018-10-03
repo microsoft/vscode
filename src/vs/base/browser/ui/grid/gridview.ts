@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';

@@ -122,7 +122,7 @@
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper,
-.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper {
+.settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	margin-left: 0px;
 }
 
@@ -132,20 +132,27 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
-	margin-left: 208px;
-	width: calc(100% - 208px);
+	padding-left: 208px;
+	padding-right: 24px;
+	box-sizing: border-box;
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows,
-.settings-editor.narrow > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
+.settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-tree-wrapper .monaco-tree-rows {
 	/* 3 margin + 20 padding + 2 border */
 	width: calc(100% - 25px);
-	margin-left: 25px;
+	padding-left: 25px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-row > .content::before {
 	/* Hide twisties */
 	display: none !important;
+}
+
+.settings-editor.mid-width > .settings-body > .settings-tree-container .shadow.top {
+	left: 0;
+	width: calc(100% - 48px);
+	margin-left: 24px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .shadow.top {
@@ -200,7 +207,7 @@
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-toc-container,
-.settings-editor.narrow > .settings-body .settings-toc-container {
+.settings-editor.narrow-width > .settings-body .settings-toc-container {
 	display: none;
 }
 
@@ -269,7 +276,7 @@
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-tree-container,
-.settings-editor.narrow > .settings-body .settings-tree-container {
+.settings-editor.narrow-width > .settings-body .settings-tree-container {
 	margin-left: 0px;
 }
 

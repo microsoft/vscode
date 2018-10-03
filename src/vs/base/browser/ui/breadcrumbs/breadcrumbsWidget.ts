@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
@@ -79,6 +77,9 @@ export class BreadcrumbsWidget {
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
+	private _pendingLayout: IDisposable;
+	private _dimension: dom.Dimension;
+
 	constructor(
 		container: HTMLElement
 	) {
@@ -107,6 +108,7 @@ export class BreadcrumbsWidget {
 
 	dispose(): void {
 		dispose(this._disposables);
+		dispose(this._pendingLayout);
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
@@ -117,13 +119,37 @@ export class BreadcrumbsWidget {
 	}
 
 	layout(dim: dom.Dimension): void {
+		if (dom.Dimension.equals(dim, this._dimension)) {
+			return;
+		}
+		if (this._pendingLayout) {
+			this._pendingLayout.dispose();
+		}
 		if (dim) {
+			// only meaure
+			this._pendingLayout = this._updateDimensions(dim);
+		} else {
+			this._pendingLayout = this._updateScrollbar();
+		}
+	}
+
+	private _updateDimensions(dim: dom.Dimension): IDisposable {
+		let disposables: IDisposable[] = [];
+		disposables.push(dom.modify(() => {
+			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
-		}
-		this._scrollable.setRevealOnScroll(false);
-		this._scrollable.scanDomNode();
-		this._scrollable.setRevealOnScroll(true);
+			disposables.push(this._updateScrollbar());
+		}));
+		return combinedDisposable(disposables);
+	}
+
+	private _updateScrollbar(): IDisposable {
+		return dom.measure(() => {
+			this._scrollable.setRevealOnScroll(false);
+			this._scrollable.scanDomNode();
+			this._scrollable.setRevealOnScroll(true);
+		});
 	}
 
 	style(style: IBreadcrumbsWidgetStyles): void {

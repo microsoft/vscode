@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -162,7 +160,7 @@ function save(
 					}
 				};
 
-				return TPromise.join(editorGroupService.groups.map(g =>
+				return Promise.all(editorGroupService.groups.map(g =>
 					editorService.replaceEditors([{
 						editor: { resource },
 						replacement

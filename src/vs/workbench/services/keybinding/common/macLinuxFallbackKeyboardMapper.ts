@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ResolvedKeybinding, SimpleKeybinding, Keybinding, KeyCode, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';

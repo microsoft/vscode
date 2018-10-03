@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IStateService } from 'vs/platform/state/common/state';

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { KeyCode, KeyMod, KeyChord, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';

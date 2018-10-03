@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { editorBackground, ColorDefaults, ColorValue } from 'vs/platform/theme/common/colorRegistry';
 

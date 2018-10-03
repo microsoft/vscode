@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as os from 'os';
 
 import * as ipc from 'vs/base/parts/ipc/node/ipc';

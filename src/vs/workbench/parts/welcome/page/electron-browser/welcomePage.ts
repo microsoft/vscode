@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
@@ -420,7 +419,7 @@ class WelcomePage {
 				this.notificationService.info(strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+			const foundAndInstalled = installedExtension ? Promise.resolve(installedExtension.local) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
 				.then(result => {
 					const [extension] = result.firstPage;
 					if (!extension) {
@@ -602,11 +601,11 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const buttonColor = getExtraColor(theme, buttonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
 	if (buttonColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { background: ${buttonColor}; }`);
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button { background: ${buttonColor}; }`);
 	}
 	const buttonHoverColor = getExtraColor(theme, buttonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
 	if (buttonHoverColor) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { background: ${buttonHoverColor}; }`);
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button:hover { background: ${buttonHoverColor}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
@@ -623,10 +622,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { border-color: ${border}; }`);
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button { border-color: ${border}; }`);
 	}
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {
-		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { outline-color: ${activeBorder}; }`);
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands .item button:hover { outline-color: ${activeBorder}; }`);
 	}
 });

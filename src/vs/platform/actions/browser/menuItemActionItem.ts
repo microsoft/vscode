@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { addClasses, createCSSRule, removeClasses } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions, WorkspaceFolder } from 'vscode';
 import { Git, CommitOptions, Stash, ForcePushMode } from './git';
 import { Repository, Resource, Status, ResourceGroupType } from './repository';
@@ -120,7 +118,7 @@ interface Command {
 const Commands: Command[] = [];
 
 function command(commandId: string, options: CommandOptions = {}): Function {
-	return (target: any, key: string, descriptor: any) => {
+	return (_target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
@@ -146,11 +144,11 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	const possibleUnresolved = merge.filter(isBothAddedOrModified);
 	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
 	const unresolvedBothModified = await Promise.all<boolean>(promises);
-	const resolved = possibleUnresolved.filter((s, i) => !unresolvedBothModified[i]);
+	const resolved = possibleUnresolved.filter((_s, i) => !unresolvedBothModified[i]);
 	const deletionConflicts = merge.filter(s => isAnyDeleted(s));
 	const unresolved = [
 		...merge.filter(s => !isBothAddedOrModified(s) && !isAnyDeleted(s)),
-		...possibleUnresolved.filter((s, i) => unresolvedBothModified[i])
+		...possibleUnresolved.filter((_s, i) => unresolvedBothModified[i])
 	];
 
 	return { merge, resolved, unresolved, deletionConflicts };
@@ -304,6 +302,7 @@ export class CommandCenter {
 			case Status.DELETED_BY_THEM:
 				return this.getURI(resource.resourceUri, '');
 		}
+		return undefined;
 	}
 
 	private async getRightResource(resource: Resource): Promise<Uri | undefined> {
@@ -346,6 +345,7 @@ export class CommandCenter {
 			case Status.BOTH_MODIFIED:
 				return resource.resourceUri;
 		}
+		return undefined;
 	}
 
 	private getTitle(resource: Resource): string {
@@ -2052,6 +2052,7 @@ export class CommandCenter {
 			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
+		return undefined;
 	}
 
 	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;

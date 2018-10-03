@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, chain } from 'vs/base/common/event';

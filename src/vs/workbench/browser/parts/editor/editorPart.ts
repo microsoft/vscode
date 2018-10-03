@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
@@ -833,15 +831,15 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				// Ensure last active group has focus
 				this._activeGroup.focus();
 			} catch (error) {
-				this.handleGridRestoreError(error);
+				this.handleGridRestoreError(error, uiState);
 			}
 		}
 	}
 
-	private handleGridRestoreError(error: Error): void {
+	private handleGridRestoreError(error: Error, state: IEditorPartUIState): void {
 
 		// Log error
-		onUnexpectedError(error);
+		onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(state)})`));
 
 		// Clear any state we have from the failing restore
 		if (this.gridWidget) {
@@ -865,6 +863,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Create new
+		const groupViews: IEditorGroupView[] = [];
 		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
@@ -874,6 +873,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 					groupView = this.doCreateGroupView(serializedEditorGroup);
 				}
 
+				groupViews.push(groupView);
+
 				if (groupView.id === activeGroupId) {
 					this.doSetGroupActive(groupView);
 				}
@@ -881,6 +882,18 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				return groupView;
 			}
 		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
+
+		// If the active group was not found when restoring the grid
+		// make sure to make at least one group active. We always need
+		// an active group.
+		if (!this._activeGroup) {
+			this.doSetGroupActive(groupViews[0]);
+		}
+
+		// Validate MRU group views matches grid widget state
+		if (this.mostRecentActiveGroups.some(groupId => !this.getGroup(groupId))) {
+			this.mostRecentActiveGroups = groupViews.map(group => group.id);
+		}
 
 		// Set it
 		this.doSetGridWidget(gridWidget);

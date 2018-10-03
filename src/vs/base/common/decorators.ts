@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 export function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
 	return (target: any, key: string, descriptor: any) => {
 		let fnKey: string = null;

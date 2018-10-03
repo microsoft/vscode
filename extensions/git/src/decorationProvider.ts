@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
 import * as path from 'path';
 import { Repository, GitResourceGroup, Status } from './repository';
@@ -56,6 +54,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 					color: new ThemeColor('gitDecoration.ignoredResourceForeground')
 				};
 			}
+			return undefined;
 		});
 	}
 

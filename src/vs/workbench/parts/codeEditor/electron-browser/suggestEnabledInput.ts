@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { $, addClass, append, Dimension, removeClass } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -168,9 +166,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			triggerCharacters: suggestionProvider.triggerCharacters || []
 		};
 
-		this.disposables.push(modes.SuggestRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this.disposables.push(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext) => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
 				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
@@ -186,7 +184,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 							insertText: result,
 							overwriteBefore: alreadyTypedCount,
 							sortText: validatedSuggestProvider.sortKey(result),
-							kind: modes.SuggestionKind.Keyword
+							kind: modes.CompletionItemKind.Keyword
 						};
 					})
 				};
@@ -249,15 +247,15 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 // Override styles in selections.ts
 registerThemingParticipant((theme, collector) => {
-	let workbenchSelectionColor = theme.getColor(selectionBackground);
+	const workbenchSelectionColor = theme.getColor(selectionBackground);
 	if (workbenchSelectionColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor}; }`);
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor.transparent(.4)}; }`);
 	}
 
 	// Override inactive selection bg
 	const inputBackgroundColor = theme.getColor(inputBackground);
 	if (inputBackground) {
-		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor}; }`);
+		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(.4)}; }`);
 	}
 
 	// Override selected fg

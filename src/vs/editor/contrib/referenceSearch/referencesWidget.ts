@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -19,7 +18,6 @@ import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/referencesWidget';
@@ -184,9 +182,9 @@ class DataSource implements tree.IDataSource {
 		return false;
 	}
 
-	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): TPromise<any[]> {
+	public getChildren(tree: tree.ITree, element: ReferencesModel | FileReferences): Promise<any[]> {
 		if (element instanceof ReferencesModel) {
-			return TPromise.as(element.groups);
+			return Promise.resolve(element.groups);
 		} else if (element instanceof FileReferences) {
 			return element.resolve(this._textModelResolverService).then(val => {
 				if (element.failure) {
@@ -197,18 +195,18 @@ class DataSource implements tree.IDataSource {
 				return val.children;
 			});
 		} else {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
 	}
 
-	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+	public getParent(tree: tree.ITree, element: any): Promise<any> {
 		let result: any = null;
 		if (element instanceof FileReferences) {
 			result = (<FileReferences>element).parent;
 		} else if (element instanceof OneReference) {
 			result = (<OneReference>element).parent;
 		}
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }
 

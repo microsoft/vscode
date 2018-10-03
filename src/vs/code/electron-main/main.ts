@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/code/code.main';
 import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';

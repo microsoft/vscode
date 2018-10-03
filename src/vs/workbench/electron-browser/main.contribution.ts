@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
@@ -592,7 +590,7 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.openDefaultKeybindings': {
 			'type': 'boolean',
 			'description': nls.localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
-			'default': true
+			'default': false
 		},
 		'workbench.sideBar.location': {
 			'type': 'string',

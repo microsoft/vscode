@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -173,7 +171,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public create(parent: HTMLElement): TPromise<void> {
+	public create(parent: HTMLElement): Promise<void> {
 		super.create(parent);
 
 		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
@@ -278,7 +276,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this._register(this.onDidFocus(() => this.viewletFocused.set(true)));
 		this._register(this.onDidBlur(() => this.viewletFocused.set(false)));
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public get searchAndReplaceWidget(): SearchWidget {
@@ -663,8 +661,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		let promise: TPromise<void>;
+	public setVisible(visible: boolean): Promise<void> {
+		let promise: Promise<void>;
 		this.viewletVisible.set(visible);
 		if (visible) {
 			if (this.changedWhileHidden) {

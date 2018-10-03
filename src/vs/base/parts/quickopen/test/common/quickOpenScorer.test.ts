@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as scorer from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { URI } from 'vs/base/common/uri';

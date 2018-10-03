@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { compareFileNames, compareFileExtensions, setFileNameComparer } from 'vs/base/common/comparers';
 import * as assert from 'assert';
 

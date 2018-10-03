@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TextDocument, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver';
@@ -19,7 +18,7 @@ export function getPathCompletionParticipant(
 	result: CompletionItem[]
 ): ICompletionParticipant {
 	return {
-		onHtmlAttributeValue: ({ tag, position, attribute, value: valueBeforeCursor, range }) => {
+		onHtmlAttributeValue: ({ tag, attribute, value: valueBeforeCursor, range }) => {
 			const fullValue = stripQuotes(document.getText(range));
 
 			if (shouldDoPathCompletion(tag, attribute, fullValue)) {
@@ -145,6 +144,7 @@ function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: Workspa
 			return path.resolve(URI.parse(workspaceFolders[i].uri).fsPath);
 		}
 	}
+	return undefined;
 }
 
 function shiftPosition(pos: Position, offset: number): Position {

@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import { normalizeNFC, normalizeNFD } from './normalization';
 import { rgPath } from './ripgrep';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
-import { anchorGlob } from './utils';
+import { anchorGlob, Maybe } from './utils';
 
 const isMac = process.platform === 'darwin';
 
@@ -18,17 +18,7 @@ const isMac = process.platform === 'darwin';
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepFileSearchEngine {
-	private rgProc: cp.ChildProcess;
-	private isDone: boolean;
-
 	constructor(private outputChannel: vscode.OutputChannel) { }
-
-	cancel() {
-		this.isDone = true;
-		if (this.rgProc) {
-			this.rgProc.kill();
-		}
-	}
 
 	provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
@@ -39,7 +29,16 @@ export class RipgrepFileSearchEngine {
 		})}`);
 
 		return new Promise((resolve, reject) => {
-			token.onCancellationRequested(() => this.cancel());
+			let isDone = false;
+
+			const cancel = () => {
+				isDone = true;
+				if (rgProc) {
+					rgProc.kill();
+				}
+			};
+
+			token.onCancellationRequested(() => cancel());
 
 			const rgArgs = getRgArgs(options);
 
@@ -50,22 +49,22 @@ export class RipgrepFileSearchEngine {
 				.join(' ');
 			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
 
-			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
+			let rgProc: Maybe<cp.ChildProcess> = cp.spawn(rgDiskPath, rgArgs, { cwd });
 
-			this.rgProc.on('error', e => {
+			rgProc.on('error', e => {
 				console.log(e);
 				reject(e);
 			});
 
 			let leftover = '';
-			this.collectStdout(this.rgProc, (err, stdout, last) => {
+			this.collectStdout(rgProc, (err, stdout, last) => {
 				if (err) {
 					reject(err);
 					return;
 				}
 
 				// Mac: uses NFD unicode form on disk, but we want NFC
-				const normalized = leftover + (isMac ? normalizeNFC(stdout) : stdout);
+				const normalized = leftover + (isMac ? normalizeNFC(stdout || '') : stdout);
 				const relativeFiles = normalized.split('\n');
 
 				if (last) {
@@ -75,7 +74,7 @@ export class RipgrepFileSearchEngine {
 						relativeFiles.pop();
 					}
 				} else {
-					leftover = relativeFiles.pop();
+					leftover = <string>relativeFiles.pop();
 				}
 
 				if (relativeFiles.length && relativeFiles[0].indexOf('\n') !== -1) {
@@ -88,11 +87,11 @@ export class RipgrepFileSearchEngine {
 				});
 
 				if (last) {
-					if (this.isDone) {
+					if (isDone) {
 						resolve();
 					} else {
 						// Trigger last result
-						this.rgProc = null;
+						rgProc = null;
 						if (err) {
 							reject(err);
 						} else {
@@ -104,8 +103,8 @@ export class RipgrepFileSearchEngine {
 		});
 	}
 
-	private collectStdout(cmd: cp.ChildProcess, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
-		let onData = (err: Error, stdout?: string, last?: boolean) => {
+	private collectStdout(cmd: cp.ChildProcess, cb: (err?: Error, stdout?: string, last?: boolean) => void): void {
+		let onData = (err?: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
 				onData = () => { };
 			}
@@ -136,19 +135,19 @@ export class RipgrepFileSearchEngine {
 
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
-			let stderrText, displayMsg: string;
+			let stderrText, displayMsg: Maybe<string>;
 			if (!gotData && (stderrText = this.decodeData(stderr)) && (displayMsg = rgErrorMsgForDisplay(stderrText))) {
 				onData(new Error(`command failed with error code ${code}: ${displayMsg}`));
 			} else {
-				onData(null, '', true);
+				onData(undefined, '', true);
 			}
 		});
 	}
 
-	private forwardData(stream: Readable, cb: (err: Error, stdout?: string) => void): NodeStringDecoder {
+	private forwardData(stream: Readable, cb: (err?: Error, stdout?: string) => void): NodeStringDecoder {
 		const decoder = new StringDecoder();
 		stream.on('data', (data: Buffer) => {
-			cb(null, decoder.write(data));
+			cb(undefined, decoder.write(data));
 		});
 		return decoder;
 	}

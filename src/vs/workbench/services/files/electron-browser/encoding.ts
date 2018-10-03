@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import * as encoding from 'vs/base/node/encoding';
 import { URI as uri } from 'vs/base/common/uri';

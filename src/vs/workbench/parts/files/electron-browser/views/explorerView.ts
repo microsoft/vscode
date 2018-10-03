@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -863,7 +862,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		let statsToExpand: ExplorerItem[] = [];
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;
-		return TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
+		return Promise.all(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
 			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorRoot(target.resource, target.root), () => errorRoot(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree

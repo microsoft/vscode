@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { isLinux, isWindows } from 'vs/base/common/platform';

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
@@ -525,9 +524,8 @@ class RenameAdapter {
 			if (!range) {
 				return undefined;
 			}
-
-			if (!range.contains(pos)) {
-				console.warn('INVALID rename location: range must contain position');
+			if (range.start.line > pos.line || range.end.line < pos.line) {
+				console.warn('INVALID rename location: position line must be within range start/end lines');
 				return undefined;
 			}
 			return { range: typeConvert.Range.from(range), text };
@@ -571,7 +569,7 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = typeConvert.Position.to(position);
@@ -618,7 +616,7 @@ class SuggestAdapter {
 		});
 	}
 
-	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	resolveCompletionItem(resource: URI, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return Promise.resolve(suggestion);
@@ -671,10 +669,15 @@ class SuggestAdapter {
 			sortText: item.sortText,
 			preselect: item.preselect,
 			//
+			range: undefined,
 			insertText: undefined,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
-			commitCharacters: item.commitCharacters
+			commitCharacters: item.commitCharacters,
+			// help with perf
+			_labelLow: item.label.toLowerCase(),
+			_filterTextLow: item.filterText && item.filterText.toLowerCase(),
+			_sortTextLow: item.sortText && item.sortText.toLowerCase()
 		};
 
 		// 'insertText'-logic
@@ -704,8 +707,7 @@ class SuggestAdapter {
 		} else {
 			range = defaultRange;
 		}
-		result.overwriteBefore = position.character - range.start.character;
-		result.overwriteAfter = range.end.character - position.character;
+		result.range = typeConvert.Range.from(range);
 
 		if (!range.isSingleLine || range.start.line !== position.line) {
 			console.warn('INVALID text edit -> must be single line and on the same line');
@@ -1133,11 +1135,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<SuggestResultDto> {
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Thenable<SuggestResultDto> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context, token));
 	}
 
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion, token: CancellationToken): Thenable<modes.ISuggestion> {
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.CompletionItem, token: CancellationToken): Thenable<modes.CompletionItem> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.resolveCompletionItem(URI.revive(resource), position, suggestion, token));
 	}
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';

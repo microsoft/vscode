@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -107,6 +106,7 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 				const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 				return commands.then(ids => ids.map(id => newSimpleCompletionItem(JSON.stringify(id), range)));
 			}
+			return undefined;
 		}
 	});
 }
@@ -204,6 +204,7 @@ function provideInstalledExtensionProposals(extensionsContent: IExtensionsConten
 			return [example];
 		}
 	}
+	return undefined;
 }
 
 function newSimpleCompletionItem(label: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {

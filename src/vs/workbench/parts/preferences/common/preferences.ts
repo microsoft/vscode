@@ -67,7 +67,6 @@ export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSetti
 export const CONTEXT_TOC_ROW_FOCUS = new RawContextKey<boolean>('settingsTocRowFocus', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
-export const CONTEXT_KEYBINDINGS_SEARCH_VALUE = new RawContextKey<boolean>('hasKeybindingsSearchValue', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 
 export const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -107,8 +106,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	create(parent: HTMLElement): void; // create is sync for editors
-	create(parent: HTMLElement): TPromise<void>;
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void>;
+	create(parent: HTMLElement): Promise<void> {
 		const res = super.create(parent);
 
 		// Create Editor
@@ -123,8 +122,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	protected abstract createEditor(parent: HTMLElement): void;
 
 	setVisible(visible: boolean, group?: IEditorGroup): void; // setVisible is sync for editors
-	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void>;
-	setVisible(visible: boolean, group?: IEditorGroup): TPromise<void> {
+	setVisible(visible: boolean, group?: IEditorGroup): Promise<void>;
+	setVisible(visible: boolean, group?: IEditorGroup): Promise<void> {
 		const promise = super.setVisible(visible);
 
 		// Propagate to Editor

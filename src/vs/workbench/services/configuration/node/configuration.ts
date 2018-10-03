@@ -7,7 +7,6 @@ import { URI } from 'vs/base/common/uri';
 import { createHash } from 'crypto';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
@@ -43,14 +42,14 @@ export class WorkspaceConfiguration extends Disposable {
 	private _workspaceConfigurationModelParser: WorkspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceConfigPath ? this._workspaceConfigPath.fsPath : '');
 	private _cache: ConfigurationModel = new ConfigurationModel();
 
-	load(workspaceConfigPath: URI): TPromise<void> {
+	load(workspaceConfigPath: URI): Promise<void> {
 		if (this._workspaceConfigPath && this._workspaceConfigPath.fsPath === workspaceConfigPath.fsPath) {
 			return this.reload();
 		}
 
 		this._workspaceConfigPath = workspaceConfigPath;
 
-		return new TPromise<void>((c, e) => {
+		return new Promise<void>((c, e) => {
 			const defaultConfig = new WorkspaceConfigurationModelParser(this._workspaceConfigPath.fsPath);
 			defaultConfig.parse(JSON.stringify({ folders: [] } as IStoredWorkspace, null, '\t'));
 			if (this._workspaceConfigurationWatcher) {
@@ -72,9 +71,9 @@ export class WorkspaceConfiguration extends Disposable {
 		});
 	}
 
-	reload(): TPromise<void> {
+	reload(): Promise<void> {
 		this.stopListeningToWatcher();
-		return new TPromise<void>(c => this._workspaceConfigurationWatcher.reload(() => {
+		return new Promise<void>(c => this._workspaceConfigurationWatcher.reload(() => {
 			this.listenToWatcher();
 			c(null);
 		}));
@@ -84,7 +83,7 @@ export class WorkspaceConfiguration extends Disposable {
 		return this._workspaceConfigurationModelParser.folders;
 	}
 
-	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): TPromise<void> {
+	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): Promise<void> {
 		return jsonEditingService.write(this._workspaceConfigPath, { key: 'folders', value: folders }, true)
 			.then(() => this.reload());
 	}
@@ -137,7 +136,7 @@ function isFolderSettingsConfigurationFile(resource: URI): boolean {
 export interface IFolderConfiguration {
 	readonly onDidChange: Event<void>;
 	readonly loaded: boolean;
-	loadConfiguration(): TPromise<ConfigurationModel>;
+	loadConfiguration(): Promise<ConfigurationModel>;
 	reprocess(): ConfigurationModel;
 	dispose(): void;
 }
@@ -164,7 +163,7 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 		return this._loaded;
 	}
 
-	loadConfiguration(): TPromise<ConfigurationModel> {
+	loadConfiguration(): Promise<ConfigurationModel> {
 		return this.loadFolderConfigurationContents()
 			.then((contents) => {
 
@@ -212,7 +211,7 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 		}
 	}
 
-	protected abstract loadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]>;
+	protected abstract loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]>;
 }
 
 export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
@@ -224,10 +223,10 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 		this.folderConfigurationPath = resources.joinPath(folder, configFolderRelativePath);
 	}
 
-	protected loadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
+	protected loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
 		return this.resolveStat(this.folderConfigurationPath).then(stat => {
 			if (!stat.isDirectory) {
-				return TPromise.as([]);
+				return Promise.resolve([]);
 			}
 			return this.resolveContents(stat.children.filter(stat => isFolderConfigurationFile(stat.resource))
 				.map(stat => stat.resource));
@@ -235,14 +234,14 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 			.then(null, errors.onUnexpectedError);
 	}
 
-	private resolveContents(resources: URI[]): TPromise<{ resource: URI, value: string }[]> {
-		return TPromise.join(resources.map(resource =>
+	private resolveContents(resources: URI[]): Promise<{ resource: URI, value: string }[]> {
+		return Promise.all(resources.map(resource =>
 			pfs.readFile(resource.fsPath)
 				.then(contents => ({ resource, value: contents.toString() }))));
 	}
 
-	private resolveStat(resource: URI): TPromise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }> {
-		return new TPromise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }>((c, e) => {
+	private resolveStat(resource: URI): Promise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }> {
+		return new Promise<{ resource: URI, isDirectory?: boolean, children?: { resource: URI; }[] }>((c, e) => {
 			extfs.readdir(resource.fsPath, (error, children) => {
 				if (error) {
 					if ((<any>error).code === 'ENOTDIR') {
@@ -275,22 +274,22 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 	}
 
-	protected loadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
-		return this.loadConfigurationDelayer.trigger(() => this.doLoadFolderConfigurationContents());
+	protected loadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
+		return Promise.resolve(this.loadConfigurationDelayer.trigger(() => this.doLoadFolderConfigurationContents()));
 	}
 
-	private doLoadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
-		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IContent> } = Object.create(null);
-		const bulkContentFetchromise = this.fileService.resolveFile(this.folderConfigurationPath)
+	private doLoadFolderConfigurationContents(): Promise<{ resource: URI, value: string }[]> {
+		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: Promise<IContent> } = Object.create(null);
+		const bulkContentFetchromise = Promise.resolve(this.fileService.resolveFile(this.folderConfigurationPath))
 			.then(stat => {
 				if (stat.isDirectory && stat.children) {
 					stat.children
 						.filter(child => isFolderConfigurationFile(child.resource))
-						.forEach(child => workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = this.fileService.resolveContent(child.resource).then(null, errors.onUnexpectedError));
+						.forEach(child => workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = Promise.resolve(this.fileService.resolveContent(child.resource)).then(null, errors.onUnexpectedError));
 				}
 			}).then(null, err => [] /* never fail this call */);
 
-		return bulkContentFetchromise.then(() => TPromise.join(collections.values(workspaceFilePathToConfiguration)));
+		return bulkContentFetchromise.then(() => Promise.all(collections.values(workspaceFilePathToConfiguration)));
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
@@ -372,7 +371,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		this.configurationModel = new ConfigurationModel();
 	}
 
-	loadConfiguration(): TPromise<ConfigurationModel> {
+	loadConfiguration(): Promise<ConfigurationModel> {
 		return pfs.readFile(this.cachedConfigurationPath)
 			.then(contents => {
 				const parsed: IConfigurationModel = JSON.parse(contents.toString());
@@ -382,7 +381,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 			}, () => this.configurationModel);
 	}
 
-	updateConfiguration(configurationModel: ConfigurationModel): TPromise<void> {
+	updateConfiguration(configurationModel: ConfigurationModel): Promise<void> {
 		const raw = JSON.stringify(configurationModel.toJSON());
 		return this.createCachedFolder().then(created => {
 			if (created) {
@@ -400,7 +399,7 @@ export class CachedFolderConfiguration extends Disposable implements IFolderConf
 		return [];
 	}
 
-	private createCachedFolder(): TPromise<boolean> {
+	private createCachedFolder(): Promise<boolean> {
 		return pfs.exists(this.cachedFolderPath)
 			.then(null, () => false)
 			.then(exists => exists ? exists : pfs.mkdirp(this.cachedFolderPath).then(() => true, () => false));
@@ -435,7 +434,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 	}
 
-	loadConfiguration(): TPromise<ConfigurationModel> {
+	loadConfiguration(): Promise<ConfigurationModel> {
 		return this.folderConfiguration.loadConfiguration()
 			.then(model => {
 				this._loaded = this.folderConfiguration.loaded;
@@ -451,7 +450,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		return this._loaded;
 	}
 
-	adopt(fileService: IFileService): TPromise<boolean> {
+	adopt(fileService: IFileService): Promise<boolean> {
 		if (fileService) {
 			if (this.folderConfiguration instanceof CachedFolderConfiguration) {
 				return this.adoptFromCachedConfiguration(fileService);
@@ -461,10 +460,10 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 				return this.adoptFromNodeBasedConfiguration(fileService);
 			}
 		}
-		return TPromise.as(false);
+		return Promise.resolve(false);
 	}
 
-	private adoptFromCachedConfiguration(fileService: IFileService): TPromise<boolean> {
+	private adoptFromCachedConfiguration(fileService: IFileService): Promise<boolean> {
 		const folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService);
 		return folderConfiguration.loadConfiguration()
 			.then(() => {
@@ -475,12 +474,12 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 			});
 	}
 
-	private adoptFromNodeBasedConfiguration(fileService: IFileService): TPromise<boolean> {
+	private adoptFromNodeBasedConfiguration(fileService: IFileService): Promise<boolean> {
 		const oldFolderConfiguration = this.folderConfiguration;
 		this.folderConfiguration = new FileServiceBasedFolderConfiguration(this.workspaceFolder.uri, this.configFolderRelativePath, this.workbenchState, fileService, <AbstractFolderConfiguration>oldFolderConfiguration);
 		oldFolderConfiguration.dispose();
 		this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
-		return TPromise.as(false);
+		return Promise.resolve(false);
 	}
 
 	private onDidFolderConfigurationChange(): void {
@@ -488,11 +487,11 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		this._onDidChange.fire();
 	}
 
-	private updateCache(): TPromise<void> {
+	private updateCache(): Promise<void> {
 		if (this.workspaceFolder.uri.scheme !== Schemas.file && this.folderConfiguration instanceof FileServiceBasedFolderConfiguration) {
 			return this.folderConfiguration.loadConfiguration()
 				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
 		}
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 }

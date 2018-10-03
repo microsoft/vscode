@@ -10,10 +10,10 @@ import * as platform from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISuggestion, suggestionKindFromLegacyString } from 'vs/editor/common/modes';
+import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
@@ -24,9 +24,13 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { Range } from 'vs/editor/common/core/range';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export class DebugSession implements IDebugSession {
 
@@ -53,6 +57,9 @@ export class DebugSession implements IDebugSession {
 		@IDebugService private debugService: IDebugService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IOutputService private outputService: IOutputService,
+		@IWindowService private windowService: IWindowService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		this.id = generateUuid();
 	}
@@ -79,7 +86,7 @@ export class DebugSession implements IDebugSession {
 
 	get state(): State {
 		const focusedThread = this.debugService.getViewModel().focusedThread;
-		if (focusedThread && !!this.getThread(focusedThread.threadId)) {
+		if (focusedThread && focusedThread.session === this) {
 			return focusedThread.stopped ? State.Stopped : State.Running;
 		}
 		if (this.getAllThreads().some(t => t.stopped)) {
@@ -445,7 +452,7 @@ export class DebugSession implements IDebugSession {
 		return Promise.reject(new Error('no debug adapter'));
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]> {
 		if (this.raw) {
 			return this.raw.completions({
 				frameId,
@@ -454,16 +461,16 @@ export class DebugSession implements IDebugSession {
 				line: position.lineNumber
 			}).then(response => {
 
-				const result: ISuggestion[] = [];
+				const result: CompletionItem[] = [];
 				if (response && response.body && response.body.targets) {
 					response.body.targets.forEach(item => {
 						if (item && item.label) {
 							result.push({
 								label: item.label,
 								insertText: item.text || item.label,
-								kind: suggestionKindFromLegacyString(item.type),
+								kind: completionKindFromLegacyString(item.type),
 								filterText: item.start && item.length && text.substr(item.start, item.length).concat(item.label),
-								overwriteBefore: item.length || overwriteBefore
+								range: Range.fromPositions(position.delta(0, -(item.length || overwriteBefore)), position)
 							});
 						}
 					});
@@ -589,7 +596,15 @@ export class DebugSession implements IDebugSession {
 					// Call fetch call stack twice, the first only return the top stack frame.
 					// Second retrieves the rest of the call stack. For performance reasons #25605
 					this.model.fetchCallStack(<Thread>thread).then(() => {
-						return !event.body.preserveFocusHint ? this.debugService.tryToAutoFocusStackFrame(thread) : undefined;
+						if (!event.body.preserveFocusHint && thread.getCallStack().length) {
+							this.debugService.focusStackFrame(undefined, thread);
+							if (thread.stoppedDetails) {
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
+									this.viewletService.openViewlet(VIEWLET_ID);
+								}
+								this.windowService.focusWindow();
+							}
+						}
 					});
 				}
 			}).then(() => this._onDidChangeState.fire());
@@ -655,16 +670,16 @@ export class DebugSession implements IDebugSession {
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(this, event.body.variablesReference, generateUuid());
 				outputPromises.push(container.getChildren().then(children => {
-					return TPromise.join(waitFor).then(() => children.forEach(child => {
+					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
 						this.debugService.logToRepl(child, outputSeverity, source);
 					}));
 				}));
 			} else if (typeof event.body.output === 'string') {
-				TPromise.join(waitFor).then(() => this.debugService.logToRepl(event.body.output, outputSeverity, source));
+				Promise.all(waitFor).then(() => this.debugService.logToRepl(event.body.output, outputSeverity, source));
 			}
-			TPromise.join(outputPromises).then(() => outputPromises = []);
+			Promise.all(outputPromises).then(() => outputPromises = []);
 		}));
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {

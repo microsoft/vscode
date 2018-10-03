@@ -132,8 +132,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		}
 	}
 
-	public create(parent: HTMLElement): TPromise<void> {
-		super.create(parent);
+	public async create(parent: HTMLElement): Promise<void> {
+		await super.create(parent);
 		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $('.repl-tree'));
 		this.createReplInput(this.container);
@@ -149,10 +149,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			controller
 		}, replTreeOptions);
 
-		return this.tree.setInput(this.debugService.getModel());
+		await this.tree.setInput(this.debugService.getModel());
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		if (!visible) {
 			dispose(this.model);
 		} else {
@@ -175,9 +175,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+		modes.CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext, token: CancellationToken): Thenable<modes.CompletionList> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
 				this.historyNavigationEnablement.set(false);
 

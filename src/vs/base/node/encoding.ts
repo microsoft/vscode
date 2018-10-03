@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as stream from 'vs/base/node/stream';
 import * as iconv from 'iconv-lite';
 import { TPromise } from 'vs/base/common/winjs.base';

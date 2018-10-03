@@ -14,7 +14,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
 import { IEditor } from 'vs/workbench/common/editor';
 import { Position } from 'vs/editor/common/core/position';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -38,6 +38,7 @@ export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_DEBUG_TYPE = new RawContextKey<string>('debugType', undefined);
+export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debugConfigurationType', undefined);
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive');
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false);
 export const CONTEXT_NOT_IN_DEBUG_MODE = CONTEXT_IN_DEBUG_MODE.toNegated();
@@ -195,7 +196,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): TPromise<DebugProtocol.PauseResponse>;
 	terminateThreads(threadIds: number[]): TPromise<DebugProtocol.TerminateThreadsResponse>;
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]>;
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]>;
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): TPromise<Source[]>;
@@ -794,11 +795,6 @@ export interface IDebugService {
 	 * Gets the current view model.
 	 */
 	getViewModel(): IViewModel;
-
-	/**
-	 * Try to auto focus the top stack frame of the passed thread.
-	 */
-	tryToAutoFocusStackFrame(thread: IThread): TPromise<any>;
 }
 
 // Editor interfaces

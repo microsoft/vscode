@@ -17,42 +17,47 @@ export function activate(): void {
 	}
 }
 
-type SearchEngine = RipgrepFileSearchEngine | RipgrepTextSearchEngine;
-
 class RipgrepSearchProvider implements vscode.FileIndexProvider, vscode.TextSearchProvider {
-	private inProgress: Set<SearchEngine> = new Set();
+	private inProgress: Set<vscode.CancellationTokenSource> = new Set();
 
 	constructor(private outputChannel: vscode.OutputChannel) {
 		process.once('exit', () => this.dispose());
 	}
 
-	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
+	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
 		const engine = new RipgrepTextSearchEngine(this.outputChannel);
-		return this.withEngine(engine, () => engine.provideTextSearchResults(query, options, progress, token));
+		return this.withToken(token, token => engine.provideTextSearchResults(query, options, progress, token));
 	}
 
 	provideFileIndex(options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const engine = new RipgrepFileSearchEngine(this.outputChannel);
 
 		const results: vscode.Uri[] = [];
-		const onResult = relativePathMatch => {
+		const onResult = (relativePathMatch: string) => {
 			results.push(vscode.Uri.file(options.folder.fsPath + '/' + relativePathMatch));
 		};
 
-		return this.withEngine(engine, () => engine.provideFileSearchResults(options, { report: onResult }, token))
+		return this.withToken(token, token => engine.provideFileSearchResults(options, { report: onResult }, token))
 			.then(() => results);
 	}
 
-	private withEngine<T>(engine: SearchEngine, fn: () => Thenable<T>): Thenable<T> {
-		this.inProgress.add(engine);
-		return fn().then(result => {
-			this.inProgress.delete(engine);
+	private async withToken<T>(token: vscode.CancellationToken, fn: (token: vscode.CancellationToken) => Thenable<T>): Promise<T> {
+		const merged = mergedTokenSource(token);
+		this.inProgress.add(merged);
+		const result = await fn(merged.token);
+		this.inProgress.delete(merged);
 
-			return result;
-		});
+		return result;
 	}
 
 	private dispose() {
 		this.inProgress.forEach(engine => engine.cancel());
 	}
+}
+
+function mergedTokenSource(token: vscode.CancellationToken): vscode.CancellationTokenSource {
+	const tokenSource = new vscode.CancellationTokenSource();
+	token.onCancellationRequested(() => tokenSource.cancel());
+
+	return tokenSource;
 }

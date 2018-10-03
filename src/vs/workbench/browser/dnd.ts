@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { extname, basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -214,7 +212,7 @@ export class ResourcesDropHandler {
 		// Check for dirty editors being dropped
 		const resourcesWithBackups: IDraggedEditor[] = untitledOrFileResources.filter(resource => !resource.isExternal && !!(resource as IDraggedEditor).backupResource);
 		if (resourcesWithBackups.length > 0) {
-			return TPromise.join(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
+			return Promise.all(resourcesWithBackups.map(resourceWithBackup => this.handleDirtyEditorDrop(resourceWithBackup))).then(() => false);
 		}
 
 		// Check for workspace file being dropped if we are allowed to do so
@@ -263,7 +261,7 @@ export class ResourcesDropHandler {
 			folders: []
 		};
 
-		return TPromise.join(fileOnDiskResources.map(fileOnDiskResource => {
+		return Promise.all(fileOnDiskResources.map(fileOnDiskResource => {
 
 			// Check for Workspace
 			if (extname(fileOnDiskResource.fsPath) === `.${WORKSPACE_EXTENSION}`) {

@@ -10,7 +10,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
 import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { ISuggestion } from 'vs/editor/common/modes';
+import { CompletionItem } from 'vs/editor/common/modes';
 
 export class MockDebugService implements IDebugService {
 
@@ -180,7 +180,7 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve([]);
 	}
 
-	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<ISuggestion[]> {
+	completions(frameId: number, text: string, position: Position, overwriteBefore: number): TPromise<CompletionItem[]> {
 		return Promise.resolve([]);
 	}
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editorgroupview';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
@@ -845,7 +843,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const startingIndex = this.getIndexOfEditor(editor) + 1;
 
 			// Open the other ones inactive
-			return TPromise.join(editors.map(({ editor, options }, index) => {
+			return Promise.all(editors.map(({ editor, options }, index) => {
 				const adjustedEditorOptions = options || new EditorOptions();
 				adjustedEditorOptions.inactive = true;
 				adjustedEditorOptions.pinned = true;

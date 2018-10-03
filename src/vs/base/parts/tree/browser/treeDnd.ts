@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as _ from 'vs/base/parts/tree/browser/tree';
 import * as Mouse from 'vs/base/browser/mouseEvent';

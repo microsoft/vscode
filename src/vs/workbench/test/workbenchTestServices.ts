@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -1435,7 +1433,7 @@ export class TestViewletService implements IViewletService {
 	onDidViewletClose: Event<IViewlet> = new Emitter<IViewlet>().event;
 	onDidViewletEnablementChange: Event<{ id: string, enabled: boolean }> = new Emitter<{ id: string, enabled: boolean }>().event;
 
-	openViewlet(id: string, focus?: boolean): TPromise<IViewlet> { return null; }
+	openViewlet(id: string, focus?: boolean): Promise<IViewlet> { return null; }
 
 	getActiveViewlet(): IViewlet { return null; }
 

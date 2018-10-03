@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -410,9 +409,9 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this.configuration().getValue(section, overrides, null);
 	}
 
-	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
+	public updateValue(key: string, value: any, arg3?: any, arg4?: any): Promise<void> {
 		this.configuration().updateValue(key, value);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	public inspect<C>(key: string, options: IConfigurationOverrides = {}): {
@@ -429,8 +428,8 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this.configuration().keys(null);
 	}
 
-	public reloadConfiguration(): TPromise<void> {
-		return TPromise.as(null);
+	public reloadConfiguration(): Promise<void> {
+		return Promise.resolve(null);
 	}
 
 	public getConfigurationData(): IConfigurationData {

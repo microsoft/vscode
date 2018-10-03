@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';

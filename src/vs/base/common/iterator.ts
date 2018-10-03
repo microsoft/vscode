@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 export interface IteratorResult<T> {
 	readonly done: boolean;
 	readonly value: T | undefined;
@@ -35,6 +33,16 @@ export module Iterator {
 				return { done: false, value: array[index++] };
 			}
 		};
+	}
+
+	export function from<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
+		if (!elements) {
+			return Iterator.empty();
+		} else if (Array.isArray(elements)) {
+			return Iterator.fromArray(elements);
+		} else {
+			return elements;
+		}
 	}
 
 	export function map<T, R>(iterator: Iterator<T>, fn: (t: T) => R): Iterator<R> {

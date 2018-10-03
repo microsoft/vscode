@@ -90,7 +90,7 @@ function onReady() {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
 				if (cachedDataDir) {
-					process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
+					process.env['VSCODE_NODE_CACHED_DATA_DIR'] = cachedDataDir;
 				}
 
 				// Load main in AMD

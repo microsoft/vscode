@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { compareIgnoreCase } from 'vs/base/common/strings';

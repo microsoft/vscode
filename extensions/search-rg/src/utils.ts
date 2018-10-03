@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as vscode from 'vscode';
+
+export type Maybe<T> = T | null | undefined;
 
 export function fixDriveC(_path: string): string {
 	const root = path.parse(_path).root;

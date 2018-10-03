@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 export const IJSONEditingService = createDecorator<IJSONEditingService>('jsonEditingService');
@@ -37,5 +36,5 @@ export interface IJSONEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
-	write(resource: URI, value: IJSONValue, save: boolean): TPromise<void>;
+	write(resource: URI, value: IJSONValue, save: boolean): Promise<void>;
 }

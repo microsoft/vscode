@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
@@ -664,7 +663,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 	}
 
 	protected doCloseAll(): TPromise<any> {
-		return TPromise.join(this.groupsToClose.map(g => g.closeAllEditors()));
+		return Promise.all(this.groupsToClose.map(g => g.closeAllEditors()));
 	}
 }
 
@@ -683,7 +682,7 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 	}
 
 	protected doCloseAll(): TPromise<any> {
-		return TPromise.join(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
+		return Promise.all(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
 			this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
 		});
 	}
@@ -704,7 +703,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 
 	run(context?: IEditorIdentifier): TPromise<any> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
+		return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
 			if (g.id === groupToSkip.id) {
 				return TPromise.as(null);
 			}
@@ -731,7 +730,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 	run(): TPromise<any> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor) {
-			return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
+			return Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
 		}
 
 		return TPromise.as(null);

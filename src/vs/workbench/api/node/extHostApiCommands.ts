@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -376,9 +375,9 @@ export class ExtHostApiCommands {
 			triggerCharacter,
 			maxItemsToResolve
 		};
-		return this._commands.executeCommand<modes.ISuggestResult>('_executeCompletionItemProvider', args).then(result => {
+		return this._commands.executeCommand<modes.CompletionList>('_executeCompletionItemProvider', args).then(result => {
 			if (result) {
-				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(position, suggestion));
+				const items = result.suggestions.map(suggestion => typeConverters.Suggest.to(suggestion));
 				return new types.CompletionList(items, result.incomplete);
 			}
 			return undefined;

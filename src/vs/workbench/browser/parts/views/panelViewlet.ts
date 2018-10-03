@@ -208,7 +208,7 @@ export class PanelViewlet extends Viewlet {
 		super(id, configurationService, partService, telemetryService, themeService);
 	}
 
-	create(parent: HTMLElement): TPromise<void> {
+	create(parent: HTMLElement): Promise<void> {
 		return super.create(parent).then(() => {
 			this.panelview = this._register(new PanelView(parent, this.options));
 			this._register(this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel)));

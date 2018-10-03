@@ -610,7 +610,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
-			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
+			.then(scopes => Promise.all(scopes.map(scope => scope.getChildren()
 				.then(children => {
 					let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 					if (scope.range) {
