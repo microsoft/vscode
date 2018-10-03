@@ -106,7 +106,7 @@ export class TerminalPanel extends Panel {
 		this._terminalService.terminalTabs.forEach(t => t.layout(dimension.width, dimension.height));
 	}
 
-	public setVisible(visible: boolean): PromiseLike<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		if (visible) {
 			if (this._terminalService.terminalInstances.length > 0) {
 				this._updateFont();

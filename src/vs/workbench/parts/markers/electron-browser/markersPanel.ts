@@ -75,7 +75,7 @@ export class MarkersPanel extends Panel {
 		this.setCurrentActiveEditor();
 	}
 
-	public create(parent: HTMLElement): TPromise<void> {
+	public create(parent: HTMLElement): Promise<void> {
 		super.create(parent);
 
 		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
@@ -133,7 +133,7 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): Promise<void> {
 		const wasVisible = this.isVisible();
 		return super.setVisible(visible)
 			.then(() => {
@@ -300,10 +300,10 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	private render(): TPromise<void> {
+	private async render(): Promise<void> {
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersWorkbenchService.markersModel.hasFilteredResources());
-		return this.tree.setInput(this.markersWorkbenchService.markersModel)
-			.then(() => this.renderMessage());
+		await this.tree.setInput(this.markersWorkbenchService.markersModel);
+		this.renderMessage();
 	}
 
 	private renderMessage(): void {
