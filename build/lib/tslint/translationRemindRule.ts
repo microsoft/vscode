@@ -30,7 +30,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 		this.visitImportLikeDeclaration(node);
 	}
 
-    protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
+	protected visitImportEqualsDeclaration(node: ts.ImportEqualsDeclaration): void {
 		const reference = node.moduleReference.getText();
 		if (reference !== `require('${TranslationRemindRuleWalker.NLS_MODULE}')`) {
 			return;
@@ -47,7 +47,7 @@ class TranslationRemindRuleWalker extends Lint.RuleWalker {
 			return;
 		}
 
-		const resource = matchService ? matchService[0] : matchPart[0];
+		const resource = matchService ? matchService[0] : matchPart![0];
 		let resourceDefined = false;
 
 		let json;

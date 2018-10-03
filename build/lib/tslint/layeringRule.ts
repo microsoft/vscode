@@ -18,7 +18,7 @@ export class Rule extends Lint.Rules.AbstractRule {
 		const parts = dirname(sourceFile.fileName).split(/\\|\//);
 		let ruleArgs = this.getOptions().ruleArguments[0];
 
-		let config: Config;
+		let config: Config | undefined;
 		for (let i = parts.length - 1; i >= 0; i--) {
 			if (ruleArgs[parts[i]]) {
 				config = {
@@ -26,8 +26,8 @@ export class Rule extends Lint.Rules.AbstractRule {
 					disallowed: new Set<string>()
 				};
 				Object.keys(ruleArgs).forEach(key => {
-					if (!config.allowed.has(key)) {
-						config.disallowed.add(key);
+					if (!config!.allowed.has(key)) {
+						config!.disallowed.add(key);
 					}
 				});
 				break;

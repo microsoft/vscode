@@ -40,7 +40,7 @@ function isPropertyAssignment(node: ts.Node): node is ts.PropertyAssignment {
 
 interface KeyMessagePair {
 	key: ts.StringLiteral;
-	message: ts.Node;
+	message: ts.Node | undefined;
 }
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
@@ -50,8 +50,8 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 	private static DOUBLE_QUOTE: string = '"';
 
 	private signatures: Map<boolean>;
-	private messageIndex: number;
-	private keyIndex: number;
+	private messageIndex: number | undefined;
+	private keyIndex: number | undefined;
 	private ignores: Map<boolean>;
 
 	private usedKeys: Map<KeyMessagePair[]>;
@@ -121,7 +121,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			return;
 		}
 
-		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
+		if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName!])) {
 			const s = node.getText();
 			const fix = [
 				Lint.Replacement.replaceFromTo(node.getStart(), node.getWidth(), `nls.localize('KEY-${s.substring(1, s.length - 1)}', ${s})`),
@@ -130,16 +130,16 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			return;
 		}
 		// We have a single quoted string outside a localize function name.
-		if (!doubleQuoted && !this.signatures[functionName]) {
+		if (!doubleQuoted && !this.signatures[functionName!]) {
 			return;
 		}
 		// We have a string that is a direct argument into the localize call.
-		let keyArg: ts.Expression = callInfo.argIndex === this.keyIndex
+		let keyArg: ts.Expression | null = callInfo && callInfo.argIndex === this.keyIndex
 			? callInfo.callExpression.arguments[this.keyIndex]
 			: null;
 		if (keyArg) {
 			if (isStringLiteral(keyArg)) {
-				this.recordKey(keyArg, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
+				this.recordKey(keyArg, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 			} else if (isObjectLiteral(keyArg)) {
 				for (let i = 0; i < keyArg.properties.length; i++) {
 					let property = keyArg.properties[i];
@@ -148,7 +148,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 						if (name === 'key') {
 							let initializer = property.initializer;
 							if (isStringLiteral(initializer)) {
-								this.recordKey(initializer, this.messageIndex ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
+								this.recordKey(initializer, this.messageIndex && callInfo ? callInfo.callExpression.arguments[this.messageIndex] : undefined);
 							}
 							break;
 						}
@@ -157,17 +157,17 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			}
 		}
 
-		const messageArg = callInfo.callExpression.arguments[this.messageIndex];
+		const messageArg = callInfo!.callExpression.arguments[this.messageIndex!];
 
 		if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
 			this.addFailure(this.createFailure(
 				messageArg.getStart(), messageArg.getWidth(),
-				`Message argument to '${callInfo.callExpression.expression.getText()}' must be a string literal.`));
+				`Message argument to '${callInfo!.callExpression.expression.getText()}' must be a string literal.`));
 			return;
 		}
 	}
 
-	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
+	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node | undefined) {
 		let text = keyNode.getText();
 		// We have an empty key
 		if (text.match(/(['"]) *\1/)) {
@@ -191,7 +191,7 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 		occurrences.push({ key: keyNode, message: messageNode });
 	}
 
-	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, isImport?: boolean; } {
+	private findDescribingParent(node: ts.Node): { callInfo?: { callExpression: ts.CallExpression, argIndex: number }, isImport?: boolean; } | null {
 		let parent: ts.Node;
 		while ((parent = node.parent)) {
 			let kind = parent.kind;
@@ -208,5 +208,6 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 			}
 			node = parent;
 		}
+		return null;
 	}
 }
