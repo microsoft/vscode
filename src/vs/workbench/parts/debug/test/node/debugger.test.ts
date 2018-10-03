@@ -118,7 +118,7 @@ suite('Debug - Debugger', () => {
 
 	const configurationManager = <IConfigurationManager>{
 		provideDebugAdapter(session: IDebugSession, folderUri: URI | undefined, config: IConfig): TPromise<IDebugAdapterExecutable | undefined> {
-			return TPromise.as(undefined);
+			return Promise.resolve(undefined);
 		}
 	};
 

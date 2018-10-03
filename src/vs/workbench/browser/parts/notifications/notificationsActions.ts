@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsActions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
@@ -32,7 +30,7 @@ export class ClearNotificationAction extends Action {
 	run(notification: INotificationViewItem): TPromise<any> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -52,7 +50,7 @@ export class ClearAllNotificationsAction extends Action {
 	run(notification: INotificationViewItem): TPromise<any> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -72,7 +70,7 @@ export class HideNotificationsCenterAction extends Action {
 	run(notification: INotificationViewItem): TPromise<any> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -92,7 +90,7 @@ export class ExpandNotificationAction extends Action {
 	run(notification: INotificationViewItem): TPromise<any> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -112,7 +110,7 @@ export class CollapseNotificationAction extends Action {
 	run(notification: INotificationViewItem): TPromise<any> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -150,7 +148,7 @@ export class CopyNotificationMessageAction extends Action {
 	run(notification: INotificationViewItem): TPromise<any> {
 		this.clipboardService.writeText(notification.message.raw);
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }
 
@@ -176,6 +174,6 @@ export class NotificationActionRunner extends ActionRunner {
 		// Run and make sure to notify on any error again
 		super.runAction(action, context).then(null, error => this.notificationService.error(error));
 
-		return TPromise.as(void 0);
+		return Promise.resolve(void 0);
 	}
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as paths from 'path';
 import { nfcall } from 'vs/base/common/async';
@@ -12,7 +10,6 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as uuid from 'vs/base/common/uuid';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { encode, encodeStream } from 'vs/base/node/encoding';
 import * as flow from 'vs/base/node/flow';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -131,32 +128,32 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 	reader.pipe(writer);
 }
 
-export function mkdirp(path: string, mode?: number, token?: CancellationToken): TPromise<boolean> {
+export function mkdirp(path: string, mode?: number, token?: CancellationToken): Promise<boolean> {
 	const mkdir = () => {
 		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
 
 			// ENOENT: a parent folder does not exist yet
 			if (mkdirErr.code === 'ENOENT') {
-				return TPromise.wrapError(mkdirErr);
+				return Promise.reject(mkdirErr);
 			}
 
 			// Any other error: check if folder exists and
 			// return normally in that case if its a folder
 			return nfcall(fs.stat, path).then((stat: fs.Stats) => {
 				if (!stat.isDirectory()) {
-					return TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`));
+					return Promise.reject(new Error(`'${path}' exists and is not a directory.`));
 				}
 
 				return null;
 			}, statErr => {
-				return TPromise.wrapError(mkdirErr); // bubble up original mkdir error
+				return Promise.reject(mkdirErr); // bubble up original mkdir error
 			});
 		});
 	};
 
 	// stop at root
 	if (path === paths.dirname(path)) {
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 
 	// recursively mkdir
@@ -164,7 +161,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 
 		// Respect cancellation
 		if (token && token.isCancellationRequested) {
-			return TPromise.as(false);
+			return Promise.resolve(false);
 		}
 
 		// ENOENT: a parent folder does not exist yet, continue
@@ -174,7 +171,7 @@ export function mkdirp(path: string, mode?: number, token?: CancellationToken): 
 		}
 
 		// Any other error
-		return TPromise.wrapError<boolean>(err);
+		return Promise.reject(err);
 	});
 }
 

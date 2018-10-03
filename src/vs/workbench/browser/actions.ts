@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -106,7 +105,7 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return TPromise.as(prepareActions(actions));
+		return Promise.resolve(prepareActions(actions));
 	}
 
 	hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -136,7 +135,7 @@ export class ContributableActionProvider implements IActionProvider {
 			}
 		}
 
-		return TPromise.as(prepareActions(actions));
+		return Promise.resolve(prepareActions(actions));
 	}
 
 	getActionItem(tree: ITree, element: any, action: Action): BaseActionItem {

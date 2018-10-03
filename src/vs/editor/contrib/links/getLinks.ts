@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
@@ -45,7 +42,7 @@ export class Link implements ILink {
 			try {
 				return Promise.resolve(URI.parse(this._link.url));
 			} catch (e) {
-				return TPromise.wrapError<URI>(new Error('invalid'));
+				return Promise.reject(new Error('invalid'));
 			}
 		}
 
@@ -57,11 +54,11 @@ export class Link implements ILink {
 					return this.resolve(token);
 				}
 
-				return TPromise.wrapError<URI>(new Error('missing'));
+				return Promise.reject(new Error('missing'));
 			});
 		}
 
-		return TPromise.wrapError<URI>(new Error('missing'));
+		return Promise.reject(new Error('missing'));
 	}
 }
 

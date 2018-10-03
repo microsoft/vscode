@@ -133,6 +133,8 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
+	tree.clearFocus();
+	tree.clearSelection();
 
 	let disposed = false;
 	const toDispose: IDisposable[] = [inputBox, styler];

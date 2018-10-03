@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -54,6 +52,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { timeout } from 'vs/base/common/async';
 import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { once } from 'vs/base/common/event';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -515,6 +514,10 @@ export class EditorStatus implements IStatusbarItem {
 					}
 				}]
 			);
+
+			once(this.screenReaderNotification.onDidClose)(() => {
+				this.screenReaderNotification = null;
+			});
 		}
 	}
 
@@ -690,7 +693,6 @@ export class EditorStatus implements IStatusbarItem {
 
 		if (screenReaderMode === false && this.screenReaderNotification) {
 			this.screenReaderNotification.close();
-			this.screenReaderNotification = null;
 		}
 
 		this.updateState({ screenReaderMode: screenReaderMode });
@@ -972,7 +974,7 @@ export class ChangeModeAction extends Action {
 			// Find mode
 			let mode: TPromise<IMode>;
 			if (pick === autoDetectMode) {
-				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+				mode = this.modeService.getOrCreateModeByFilepathOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {
 				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
 			}
@@ -987,7 +989,7 @@ export class ChangeModeAction extends Action {
 	private configureFileAssociation(resource: uri): void {
 		const extension = paths.extname(resource.fsPath);
 		const basename = paths.basename(resource.fsPath);
-		const currentAssociation = this.modeService.getModeIdByFilenameOrFirstLine(basename);
+		const currentAssociation = this.modeService.getModeIdByFilepathOrFirstLine(basename);
 
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {

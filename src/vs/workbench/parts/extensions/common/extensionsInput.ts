@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { localize } from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -41,8 +38,8 @@ export class ExtensionsInput extends EditorInput {
 		return this.extension === otherExtensionInput.extension;
 	}
 
-	resolve(): TPromise<any> {
-		return TPromise.as(null);
+	resolve(): Promise<any> {
+		return Promise.resolve(null);
 	}
 
 	supportsSplitEditor(): boolean {

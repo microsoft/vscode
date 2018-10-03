@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./media/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -52,7 +51,7 @@ export class ToggleEditorLayoutAction extends Action {
 		const newOrientation = (this.editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
 		this.editorGroupService.setGroupOrientation(newOrientation);
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -68,7 +67,7 @@ CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', functi
 
 	editorGroupService.setGroupOrientation(orientation);
 
-	return TPromise.as<void>(null);
+	return Promise.resolve(null);
 });
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
@@ -17,8 +16,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-
-declare var Proxy: any; // TODO@TypeScript
 
 function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
 

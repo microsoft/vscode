@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { $, addClass, append, Dimension, removeClass } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -26,9 +24,9 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IStyleOverrides, IThemable } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -168,9 +166,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			triggerCharacters: suggestionProvider.triggerCharacters || []
 		};
 
-		this.disposables.push(modes.SuggestRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this.disposables.push(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext) => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
 				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
@@ -186,7 +184,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 							insertText: result,
 							overwriteBefore: alreadyTypedCount,
 							sortText: validatedSuggestProvider.sortKey(result),
-							kind: modes.SuggestionKind.Keyword
+							kind: modes.CompletionItemKind.Keyword
 						};
 					})
 				};
@@ -246,6 +244,26 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		super.dispose();
 	}
 }
+
+// Override styles in selections.ts
+registerThemingParticipant((theme, collector) => {
+	const workbenchSelectionColor = theme.getColor(selectionBackground);
+	if (workbenchSelectionColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor.transparent(.4)}; }`);
+	}
+
+	// Override inactive selection bg
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	if (inputBackground) {
+		collector.addRule(`.suggest-input-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(.4)}; }`);
+	}
+
+	// Override selected fg
+	const inputForegroundColor = theme.getColor(inputForeground);
+	if (inputForegroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+	}
+});
 
 
 function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {

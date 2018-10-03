@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';

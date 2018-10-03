@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -12,7 +11,7 @@ import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions, AutoSaveContext, IWillMoveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
@@ -33,7 +32,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { isEqualOrParent, isEqual, joinPath } from 'vs/base/common/resources';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -76,6 +75,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		protected environmentService: IEnvironmentService,
 		private backupFileService: IBackupFileService,
 		private windowsService: IWindowsService,
+		protected windowService: IWindowService,
 		private historyService: IHistoryService,
 		contextKeyService: IContextKeyService,
 		private modelService: IModelService
@@ -99,7 +99,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(resource: URI, defaultPath: string): TPromise<string>;
+	abstract promptForPath(resource: URI, defaultPath: URI): TPromise<URI>;
 
 	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
@@ -385,10 +385,9 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 					options = Object.create(null);
 				}
 
-				options.force = true;
 				options.reason = SaveReason.EXPLICIT;
 
-				model.save(options).then(() => !model.isDirty());
+				return model.save(options).then(() => !model.isDirty());
 			}
 		}
 
@@ -451,7 +450,7 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 							});
 						}
 
-						targetUri = URI.file(targetPath);
+						targetUri = targetPath;
 					}
 
 					targetsForUntitled.push(targetUri);
@@ -536,18 +535,12 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		if (target) {
 			targetPromise = TPromise.wrap(target);
 		} else {
-			let dialogPath = resource.fsPath;
+			let dialogPath = resource;
 			if (resource.scheme === Schemas.untitled) {
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			targetPromise = this.promptForPath(resource, dialogPath).then(pathRaw => {
-				if (pathRaw) {
-					return URI.file(pathRaw);
-				}
-
-				return void 0;
-			});
+			targetPromise = this.promptForPath(resource, dialogPath);
 		}
 
 		return targetPromise.then(target => {
@@ -630,20 +623,22 @@ export abstract class TextFileService extends Disposable implements ITextFileSer
 		});
 	}
 
-	private suggestFileName(untitledResource: URI): string {
+	private suggestFileName(untitledResource: URI): URI {
 		const untitledFileName = this.untitledEditorService.suggestFileName(untitledResource);
 
-		const lastActiveFile = this.historyService.getLastActiveFile(Schemas.file);
+		const schemeFilter = Schemas.file;
+
+		const lastActiveFile = this.historyService.getLastActiveFile(schemeFilter);
 		if (lastActiveFile) {
-			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
+			return joinPath(lastActiveFile, untitledFileName);
 		}
 
-		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
 		if (lastActiveFolder) {
-			return URI.file(paths.join(lastActiveFolder.fsPath, untitledFileName)).fsPath;
+			return joinPath(lastActiveFolder, untitledFileName);
 		}
 
-		return untitledFileName;
+		return URI.file(untitledFileName);
 	}
 
 	revert(resource: URI, options?: IRevertOptions): TPromise<boolean> {

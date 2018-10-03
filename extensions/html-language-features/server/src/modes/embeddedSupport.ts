@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 
 import { TextDocument, Position, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
@@ -132,7 +130,7 @@ function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], ra
 	return result;
 }
 
-function getLanguagesInDocument(document: TextDocument, regions: EmbeddedRegion[]): string[] {
+function getLanguagesInDocument(_document: TextDocument, regions: EmbeddedRegion[]): string[] {
 	let result = [];
 	for (let region of regions) {
 		if (region.languageId && result.indexOf(region.languageId) === -1) {

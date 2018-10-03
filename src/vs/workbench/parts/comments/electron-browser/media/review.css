@@ -359,7 +359,7 @@
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .folding {
-	margin-left: 9px;
+	margin-left: 7px;
 }
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {

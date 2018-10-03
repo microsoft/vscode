@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/node/ipc';
 import { IWatcherRequest, IWatcherService, IWatcherOptions, IWatchError } from './watcher';
@@ -16,7 +14,8 @@ export interface IWatcherChannel extends IChannel {
 	listen<T>(event: string, arg?: any): Event<T>;
 
 	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
-	call(command: 'setVerboseLogging', request: boolean): TPromise<void>;
+	call(command: 'setVerboseLogging', enable: boolean): TPromise<void>;
+	call(command: 'stop'): TPromise<void>;
 	call<T>(command: string, arg?: any): TPromise<T>;
 }
 

@@ -45,7 +45,7 @@ export function update(numString: string, delta: number): string {
 
 	if (m = numString.match(/^\-?(0\d+)/)) {
 		// padded number: preserve padding
-		output = output.replace(/^(\-?)(\d+)/, (str, minus, prefix) =>
+		output = output.replace(/^(\-?)(\d+)/, (_, minus, prefix) =>
 			minus + '0'.repeat(Math.max(0, (m ? m[1].length : 0) - prefix.length)) + prefix);
 	}
 
@@ -102,6 +102,8 @@ export function locate(document: vscode.TextDocument, pos: vscode.Position): vsc
 	if (start !== end && isValidNumber(line.slice(start, end))) {
 		return new vscode.Range(pos.line, start, pos.line, end);
 	}
+
+	return;
 }
 
 /**

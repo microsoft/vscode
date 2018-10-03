@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -56,7 +54,7 @@ interface ITestRunner {
 
 export class ExtensionHostMain {
 
-	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 5000;
+	private static readonly WORKSPACE_CONTAINS_TIMEOUT = 7000;
 
 	private _isTerminating: boolean = false;
 	private _workspace: IWorkspaceData;

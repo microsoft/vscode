@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as platform from 'vs/base/common/platform';
@@ -254,7 +252,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');
@@ -273,7 +271,7 @@ suite('Files - TextFileService', () => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
 
 		const service = accessor.textFileService;
-		service.setPromptPath(model.getResource().fsPath);
+		service.setPromptPath(model.getResource());
 
 		return model.load().then(() => {
 			model.textEditorModel.setValue('foo');

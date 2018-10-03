@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -374,7 +373,6 @@ export class RemoteFileService extends FileService {
 
 				const decodeStreamOpts: IDecodeStreamOptions = {
 					guessEncoding: options.autoGuessEncoding,
-					guessableEncodings: options.guessableEncodings,
 					overwriteEncoding: detected => {
 						return this.encoding.getReadEncoding(resource, options, { encoding: detected, seemsBinary: false });
 					}

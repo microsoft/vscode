@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
@@ -236,7 +234,7 @@ export class CodeApplication {
 		});
 
 		ipc.on('vscode:labelRegisterFormatter', (event: any, data: RegisterFormatterEvent) => {
-			this.labelService.registerFormatter(data.scheme, data.formatter);
+			this.labelService.registerFormatter(data.selector, data.formatter);
 		});
 
 		ipc.on('vscode:toggleDevTools', (event: Event) => {

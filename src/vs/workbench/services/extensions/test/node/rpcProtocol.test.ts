@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/node/ipc';

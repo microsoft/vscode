@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { KeyCode, KeyMod, KeyChord, createKeybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -192,7 +190,7 @@ suite('KeybindingResolver', () => {
 		]);
 	});
 
-	test('contextIsEntirelyIncluded', function () {
+	test('contextIsEntirelyIncluded', () => {
 		let assertIsIncluded = (a: ContextKeyExpr[], b: ContextKeyExpr[]) => {
 			let tmpA = new ContextKeyAndExpr(a).normalize();
 			let tmpB = new ContextKeyAndExpr(b).normalize();

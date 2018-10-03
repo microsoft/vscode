@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
 import * as fs from 'fs';
@@ -251,7 +249,7 @@ suite('BackupMainService', () => {
 
 		const emptyBackups = service.getEmptyWindowBackupPaths();
 		assert.equal(1, emptyBackups.length);
-		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0])).length);
+		assert.equal(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder)).length);
 	});
 
 	suite('migrate folderPath to folderURI', () => {
@@ -457,7 +455,7 @@ suite('BackupMainService', () => {
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [],
 				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString()],
-				emptyWorkspaces: []
+				emptyWorkspaceInfos: []
 			};
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
@@ -475,7 +473,7 @@ suite('BackupMainService', () => {
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [],
 				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString().toLowerCase()],
-				emptyWorkspaces: []
+				emptyWorkspaceInfos: []
 			};
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
@@ -500,7 +498,7 @@ suite('BackupMainService', () => {
 			const workspacesJson: IBackupWorkspacesFormat = {
 				rootWorkspaces: [workspace1, workspace2, workspace3],
 				folderURIWorkspaces: [],
-				emptyWorkspaces: []
+				emptyWorkspaceInfos: []
 			};
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
@@ -601,8 +599,8 @@ suite('BackupMainService', () => {
 		});
 
 		test('should remove empty workspaces from workspaces.json', () => {
-			service.registerEmptyWindowBackupSync('foo');
-			service.registerEmptyWindowBackupSync('bar');
+			service.registerEmptyWindowBackupSync({ backupFolder: 'foo' });
+			service.registerEmptyWindowBackupSync({ backupFolder: 'bar' });
 			service.unregisterEmptyWindowBackupSync('foo');
 			return pfs.readFile(backupWorkspacesPath, 'utf-8').then(buffer => {
 				const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -619,7 +617,7 @@ suite('BackupMainService', () => {
 
 			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
 
-			const workspacesJson: IBackupWorkspacesFormat = { rootWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaces: [] };
+			const workspacesJson: IBackupWorkspacesFormat = { rootWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaceInfos: [] };
 			return pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson)).then(() => {
 				service.loadSync();
 				service.unregisterFolderBackupSync(barFile);

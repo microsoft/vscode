@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { URI } from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -60,7 +58,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 		this._resourceKey.set(value);
 		this._schemeKey.set(value && value.scheme);
 		this._filenameKey.set(value && paths.basename(value.fsPath));
-		this._langIdKey.set(value && this._modeService.getModeIdByFilenameOrFirstLine(value.fsPath));
+		this._langIdKey.set(value && this._modeService.getModeIdByFilepathOrFirstLine(value.fsPath));
 		this._extensionKey.set(value && paths.extname(value.fsPath));
 		this._hasResource.set(!!value);
 		this._isfileSystemResource.set(value && this._fileService.canHandleResource(value));

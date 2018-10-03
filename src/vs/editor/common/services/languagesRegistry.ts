@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as mime from 'vs/base/common/mime';
@@ -292,7 +291,7 @@ export class LanguagesRegistry {
 		return [];
 	}
 
-	public getModeIdsFromFilenameOrFirstLine(filepath: string, firstLine?: string): string[] {
+	public getModeIdsFromFilepathOrFirstLine(filepath: string, firstLine?: string): string[] {
 		if (!filepath && !firstLine) {
 			return [];
 		}

@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -32,8 +30,8 @@ class TestViewletService implements IViewletService {
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
 
-	public openViewlet(id: string, focus?: boolean): TPromise<IViewlet> {
-		return TPromise.as(null);
+	public openViewlet(id: string, focus?: boolean): Promise<IViewlet> {
+		return Promise.resolve(null);
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
@@ -71,7 +69,7 @@ class TestPanelService implements IPanelService {
 	onDidPanelOpen = new Emitter<IPanel>().event;
 	onDidPanelClose = new Emitter<IPanel>().event;
 
-	public openPanel(id: string, focus?: boolean): Promise {
+	public openPanel(id: string, focus?: boolean): TPromise {
 		return TPromise.as(null);
 	}
 
@@ -244,7 +242,7 @@ suite('Progress Service', () => {
 
 	});
 
-	test('WorkbenchProgressService', function () {
+	test('WorkbenchProgressService', () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();

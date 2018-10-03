@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -233,10 +232,10 @@ export class SubmenuItemAction extends Action {
 
 export class MenuItemAction extends ExecuteCommandAction {
 
-	private _options: IMenuActionOptions;
-
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction;
+
+	private _options: IMenuActionOptions;
 
 	constructor(
 		item: ICommandAction,

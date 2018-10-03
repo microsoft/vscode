@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { always } from 'vs/base/common/async';

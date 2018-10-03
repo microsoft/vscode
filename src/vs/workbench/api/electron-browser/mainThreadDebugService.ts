@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
@@ -183,8 +182,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $startDebugging(_folderUri: uri | undefined, nameOrConfiguration: string | IConfig): Thenable<boolean> {
 		const folderUri = _folderUri ? uri.revive(_folderUri) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
-		return this.debugService.startDebugging(launch, nameOrConfiguration).then(x => {
-			return true;
+		return this.debugService.startDebugging(launch, nameOrConfiguration).then(success => {
+			return success;
 		}, err => {
 			return TPromise.wrapError(new Error(err && err.message ? err.message : 'cannot start debugging'));
 		});

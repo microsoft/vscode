@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString, Transform } from 'vs/editor/contrib/snippet/snippetParser';
 
@@ -529,7 +527,7 @@ suite('SnippetParser', () => {
 		assert.ok(first.parent === snippet.children[0]);
 	});
 
-	test('TextmateSnippet#enclosingPlaceholders', function () {
+	test('TextmateSnippet#enclosingPlaceholders', () => {
 		let snippet = new SnippetParser().parse('This ${1:is ${2:nested}}$0', true);
 		let [first, second] = snippet.placeholders;
 
@@ -655,6 +653,7 @@ suite('SnippetParser', () => {
 		assert.equal(new FormatString(1, 'downcase').resolve('FOO'), 'foo');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar'), 'Bar');
 		assert.equal(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
+		assert.equal(new FormatString(1, 'pascalcase').resolve('bar-foo'), 'BarFoo');
 		assert.equal(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if

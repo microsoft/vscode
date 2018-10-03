@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { matchesFuzzy, IMatch } from 'vs/base/common/filters';
 import { ltrim } from 'vs/base/common/strings';
 

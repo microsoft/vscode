@@ -280,7 +280,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openDefaultKeybindingsFile(): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource });
+		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
 	configureSettingsForLanguage(language: string): void {

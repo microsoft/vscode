@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./parameterHints';
 import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
@@ -287,6 +285,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.editor.addContentWidget(this);
 		this.hide();
 
+		this.element.style.userSelect = 'text';
 		this.disposables.push(this.editor.onDidChangeCursorSelection(e => {
 			if (this.visible) {
 				this.editor.layoutContentWidget(this);

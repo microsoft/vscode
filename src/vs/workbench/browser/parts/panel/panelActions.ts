@@ -79,7 +79,7 @@ class FocusPanelAction extends Action {
 		if (panel) {
 			panel.focus();
 		}
-		return TPromise.as(true);
+		return Promise.resolve(true);
 	}
 }
 
@@ -88,8 +88,8 @@ export class TogglePanelPositionAction extends Action {
 	static readonly ID = 'workbench.action.togglePanelPosition';
 	static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
 
-	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move to Right");
-	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move to Bottom");
+	private static readonly MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move Panel Right");
+	private static readonly MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move Panel to Bottom");
 
 	private toDispose: IDisposable[];
 
@@ -97,7 +97,6 @@ export class TogglePanelPositionAction extends Action {
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
 		this.toDispose = [];
@@ -146,8 +145,8 @@ export class ToggleMaximizedPanelAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return (!this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : TPromise.as(null))
-			.then(() => this.partService.toggleMaximizedPanel());
+		const thenable: Thenable<void> = !this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : Promise.resolve(null);
+		return thenable.then(() => this.partService.toggleMaximizedPanel());
 	}
 
 	dispose(): void {
@@ -185,4 +184,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
 	},
 	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	group: '2_workbench_layout',
+	command: {
+		id: TogglePanelPositionAction.ID,
+		title: TogglePanelPositionAction.LABEL
+	},
+	order: 3
 });

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
@@ -137,7 +135,7 @@ suite('MarkersModel Test', () => {
 		assert.equal(actuals[14].raw, marker4);
 	});
 
-	test('toString()', function () {
+	test('toString()', () => {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker, null).toString());

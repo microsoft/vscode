@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Event, Emitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer, latch, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -84,7 +82,7 @@ suite('Event', function () {
 		assert.equal(counter.count, 2);
 	});
 
-	test('onFirstAdd|onLastRemove', function () {
+	test('onFirstAdd|onLastRemove', () => {
 
 		let firstCount = 0;
 		let lastCount = 0;
@@ -109,7 +107,7 @@ suite('Event', function () {
 		assert.equal(lastCount, 1);
 	});
 
-	test('throwingListener', function () {
+	test('throwingListener', () => {
 		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => null);
 
@@ -750,7 +748,7 @@ suite('Event utils', () => {
 		});
 	});
 
-	test('latch', function () {
+	test('latch', () => {
 		const emitter = new Emitter<number>();
 		const event = latch(emitter.event);
 

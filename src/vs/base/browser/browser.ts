@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as Platform from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -167,41 +166,3 @@ export function hasClipboardSupport() {
 
 	return true;
 }
-
-//#region -- run on idle tricks ------------
-
-export interface IdleDeadline {
-	readonly didTimeout: boolean;
-	timeRemaining(): DOMHighResTimeStamp;
-}
-/**
- * Execute the callback the next time the browser is idle
- */
-export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
-
-declare module self {
-	export function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
-	export function cancelIdleCallback(handle: number): void;
-}
-(function () {
-	if (typeof self === 'undefined' || !self.requestIdleCallback || !self.cancelIdleCallback) {
-		let warned = false;
-		runWhenIdle = (runner, timeout?) => {
-			if (!warned) {
-				console.warn('requestIdleCallback not available. using fallback');
-				warned = true;
-			}
-			let handle = setTimeout(() => runner({ didTimeout: true, timeRemaining() { return Number.MAX_VALUE; } }), timeout);
-			return { dispose() { clearTimeout(handle); } };
-		};
-	} else {
-		runWhenIdle = (runner, timeout?) => {
-			let handle = self.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
-			return { dispose() { self.cancelIdleCallback(handle); } };
-		};
-	}
-})();
-
-
-
-//#endregion

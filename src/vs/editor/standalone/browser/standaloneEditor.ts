@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import 'vs/css!./standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -157,7 +156,7 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 			firstLine = value.substring(0, firstLF);
 		}
 
-		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilenameOrFirstLine(path, firstLine), uri);
+		return doCreateModel(value, StaticServices.modeService.get().getOrCreateModeByFilepathOrFirstLine(path, firstLine), uri);
 	}
 	return doCreateModel(value, StaticServices.modeService.get().getOrCreateMode(language), uri);
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'mocha';
 import * as assert from 'assert';
 import { join } from 'path';
@@ -65,7 +63,7 @@ suite('commands namespace tests', () => {
 		});
 
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
-			return window.showTextDocument(doc).then(editor => {
+			return window.showTextDocument(doc).then(_editor => {
 				return commands.executeCommand('t1', 12345, commands);
 			}).then(() => {
 				assert.ok(args);

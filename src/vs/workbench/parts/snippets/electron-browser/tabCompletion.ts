@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -127,7 +125,11 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box
-			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => new SnippetSuggestion(snippet, snippet.prefix.length)));
+			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => {
+				const position = this._editor.getPosition();
+				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
+				return new SnippetSuggestion(snippet, range);
+			}));
 		}
 	}
 }

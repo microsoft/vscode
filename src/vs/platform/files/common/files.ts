@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as paths from 'vs/base/common/paths';
@@ -553,12 +552,6 @@ export interface IResolveContentOptions {
 	autoGuessEncoding?: boolean;
 
 	/**
-	 * The optional list of encodings that can be used when guessing. If not provided, all encodings
-	 * will be supported for guessing.
-	 */
-	guessableEncodings?: string[];
-
-	/**
 	 * Is an integer specifying where to begin reading from in the file. If position is null,
 	 * data will be read from the current file position.
 	 */
@@ -667,7 +660,6 @@ export interface IFilesConfiguration {
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
 		autoGuessEncoding: boolean;
-		guessableEncodings: string[];
 		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;

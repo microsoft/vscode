@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/notificationsToasts';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -73,14 +71,20 @@ export class NotificationsToasts extends Themable {
 		this.mapNotificationToToast = new Map<INotificationViewItem, INotificationToast>();
 		this.notificationsToastsVisibleContextKey = NotificationsToastsVisibleContext.bindTo(contextKeyService);
 
-		// Show toast for initial notifications if any
-		model.notifications.forEach(notification => this.addToast(notification));
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+
+		// Wait for the running phase to ensure we can draw notifications properly
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+
+			// Show toast for initial notifications if any
+			this.model.notifications.forEach(notification => this.addToast(notification));
+
+			// Update toasts on notification changes
+			this._register(this.model.onDidNotificationChange(e => this.onDidNotificationChange(e)));
+		});
 	}
 
 	private onDidNotificationChange(e: INotificationChangeEvent): void {
@@ -205,16 +209,12 @@ export class NotificationsToasts extends Themable {
 		// Context Key
 		this.notificationsToastsVisibleContextKey.set(true);
 
-		// Animate In if we are in a running session (otherwise just show directly)
-		if (this.lifecycleService.phase >= LifecyclePhase.Running) {
-			addClass(notificationToast, 'notification-fade-in');
-			itemDisposeables.push(addDisposableListener(notificationToast, 'transitionend', () => {
-				removeClass(notificationToast, 'notification-fade-in');
-				addClass(notificationToast, 'notification-fade-in-done');
-			}));
-		} else {
+		// Animate in
+		addClass(notificationToast, 'notification-fade-in');
+		itemDisposeables.push(addDisposableListener(notificationToast, 'transitionend', () => {
+			removeClass(notificationToast, 'notification-fade-in');
 			addClass(notificationToast, 'notification-fade-in-done');
-		}
+		}));
 	}
 
 	private removeToast(item: INotificationViewItem): void {

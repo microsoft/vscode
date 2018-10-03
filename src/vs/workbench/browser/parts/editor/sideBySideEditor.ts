@@ -159,7 +159,7 @@ export class SideBySideEditor extends BaseEditor {
 			return this.setNewInput(newInput, options, token);
 		}
 
-		return TPromise.join([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
+		return Promise.all([this.detailsEditor.setInput(newInput.details, null, token), this.masterEditor.setInput(newInput.master, options, token)]).then(() => void 0);
 	}
 
 	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
@@ -190,7 +190,7 @@ export class SideBySideEditor extends BaseEditor {
 
 		this.onDidCreateEditors.fire();
 
-		return TPromise.join([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
+		return Promise.all([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}
 
 	updateStyles(): void {

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -64,8 +63,8 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
-	public getModeIdByFilenameOrFirstLine(filepath: string, firstLine?: string): string {
-		const modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filepath, firstLine);
+	public getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string {
+		const modeIds = this._registry.getModeIdsFromFilepathOrFirstLine(filepath, firstLine);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -142,9 +141,9 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
-	public getOrCreateModeByFilenameOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode> {
+	public getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode> {
 		return this._onReady().then(() => {
-			const modeId = this.getModeIdByFilenameOrFirstLine(filepath, firstLine);
+			const modeId = this.getModeIdByFilepathOrFirstLine(filepath, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
 		});

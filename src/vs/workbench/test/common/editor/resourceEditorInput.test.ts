@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -33,7 +31,7 @@ suite('Workbench resource editor input', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	test('simple', function () {
+	test('simple', () => {
 		let resource = URI.from({ scheme: 'inmemory', authority: null, path: 'thePath' });
 		accessor.modelService.createModel('function test() {}', accessor.modeService.getOrCreateMode('text'), resource);
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);

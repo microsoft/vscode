@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/extensionEditor';
 import { localize } from 'vs/nls';
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as marked from 'vs/base/common/marked/marked';
 import { createCancelablePromise } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
@@ -116,11 +113,11 @@ class NavBar {
 		this._update(this.currentId);
 	}
 
-	_update(id: string = this.currentId, focus?: boolean): TPromise<void> {
+	_update(id: string = this.currentId, focus?: boolean): Promise<void> {
 		this.currentId = id;
 		this._onChange.fire({ id, focus });
 		this.actions.forEach(a => a.enabled = a.id !== id);
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	dispose(): void {
@@ -483,7 +480,7 @@ export class ExtensionEditor extends BaseEditor {
 			case NavbarSection.Dependencies: return this.openDependencies(extension);
 			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension);
 		}
-		return Promise.wrap(null);
+		return Promise.resolve(null);
 	}
 
 	private openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string): Promise<IActiveElement> {
@@ -572,7 +569,7 @@ export class ExtensionEditor extends BaseEditor {
 	private openDependencies(extension: IExtension): Promise<IActiveElement> {
 		if (extension.dependencies.length === 0) {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
-			return TPromise.as(this.content);
+			return Promise.resolve(this.content);
 		}
 
 		return this.loadContents(() => this.extensionDependencies.get())
@@ -623,7 +620,7 @@ export class ExtensionEditor extends BaseEditor {
 			}
 
 			getChildren(): Promise<IExtensionData[]> {
-				return this.extensionDependencies.dependencies ? TPromise.as(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : null;
+				return this.extensionDependencies.dependencies ? Promise.resolve(this.extensionDependencies.dependencies.map(d => new ExtensionData(d))) : null;
 			}
 		}
 
@@ -647,7 +644,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.contentDisposables.push(extensionsPackTree);
 		scrollableContent.scanDomNode();
-		return Promise.wrap({ focus() { extensionsPackTree.domFocus(); } });
+		return Promise.resolve({ focus() { extensionsPackTree.domFocus(); } });
 	}
 
 	private renderExtensionPack(container: HTMLElement, extension: IExtension): Tree {
@@ -672,7 +669,7 @@ export class ExtensionEditor extends BaseEditor {
 					return extensionsWorkbenchService.queryGallery({ names, pageSize: names.length })
 						.then(result => result.firstPage.map(extension => new ExtensionData(extension, this)));
 				}
-				return TPromise.as(null);
+				return Promise.resolve(null);
 			}
 		}
 
@@ -1082,7 +1079,7 @@ export class ExtensionEditor extends BaseEditor {
 		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 
-	private loadContents<T>(loadingTask: () => CacheResult<T>): Thenable<T> {
+	private loadContents<T>(loadingTask: () => CacheResult<T>): Promise<T> {
 		addClass(this.content, 'loading');
 
 		const result = loadingTask();

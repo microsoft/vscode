@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
@@ -55,7 +53,7 @@ suite('Workbench editor', () => {
 		accessor.untitledEditorService.dispose();
 	});
 
-	test('toResource', function () {
+	test('toResource', () => {
 		const service = accessor.untitledEditorService;
 
 		assert.ok(!toResource(null));

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { ParseError, Node, parseTree, findNodeAtLocation, JSONPath, Segment } from 'vs/base/common/json';
 import { Edit, FormattingOptions, format, applyEdit } from 'vs/base/common/jsonFormatter';

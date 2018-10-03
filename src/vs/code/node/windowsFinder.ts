@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as platform from 'vs/base/common/platform';
 import * as paths from 'vs/base/common/paths';
 import { OpenContext } from 'vs/platform/windows/common/windows';
@@ -15,7 +13,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
 export interface ISimpleWindow {
 	openedWorkspace?: IWorkspaceIdentifier;
 	openedFolderUri?: URI;
-	openedFileUri?: URI;
+
 	extensionDevelopmentPath?: string;
 	lastFocusTime: number;
 }
@@ -38,7 +36,6 @@ export function findBestWindowOrFolderForFile<W extends ISimpleWindow>({ windows
 			return windowOnFilePath;
 		}
 	}
-
 	return !newWindow ? getLastActiveWindow(windows) : null;
 }
 

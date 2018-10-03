@@ -8,7 +8,7 @@ import { layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/con
 
 suite('Contextview', function () {
 
-	test('layout', function () {
+	test('layout', () => {
 		assert.equal(layout(200, 20, { offset: 0, size: 0, position: LayoutAnchorPosition.Before }), 0);
 		assert.equal(layout(200, 20, { offset: 50, size: 0, position: LayoutAnchorPosition.Before }), 50);
 		assert.equal(layout(200, 20, { offset: 200, size: 0, position: LayoutAnchorPosition.Before }), 180);

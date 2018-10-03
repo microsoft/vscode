@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { asThenable } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -79,7 +78,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 						detail = item.detail;
 						picked = item.picked;
 						if (enableProposedApi) {
-							alwaysShow = item.shouldAlwaysShow;
+							alwaysShow = item.alwaysShow;
 						}
 					}
 					pickItems.push({
@@ -168,8 +167,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- QuickInput
 
-	createQuickPick<T extends QuickPickItem>(extensionId: string): QuickPick<T> {
-		const session = new ExtHostQuickPick(this._proxy, extensionId, () => this._sessions.delete(session._id));
+	createQuickPick<T extends QuickPickItem>(extensionId: string, enableProposedApi: boolean): QuickPick<T> {
+		const session = new ExtHostQuickPick(this._proxy, extensionId, enableProposedApi, () => this._sessions.delete(session._id));
 		this._sessions.set(session._id, session);
 		return session;
 	}
@@ -473,7 +472,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _selectedItems: T[] = [];
 	private _onDidChangeSelectionEmitter = new Emitter<T[]>();
 
-	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, onDispose: () => void) {
+	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, private _enableProposedApi: boolean, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
 		this._disposables.push(
 			this._onDidChangeActiveEmitter,
@@ -500,7 +499,8 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 				description: item.description,
 				handle: i,
 				detail: item.detail,
-				picked: item.picked
+				picked: item.picked,
+				alwaysShow: this._enableProposedApi ? item.alwaysShow : undefined
 			}))
 		});
 	}

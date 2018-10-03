@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { join, isEqual, isEqualOrParent } from 'vs/base/common/paths';
@@ -17,7 +15,7 @@ suite('Files', () => {
 		return URI.file(join('C:\\', path));
 	}
 
-	test('FileChangesEvent', function () {
+	test('FileChangesEvent', () => {
 		let changes = [
 			{ resource: URI.file(join('C:\\', '/foo/updated.txt')), type: FileChangeType.UPDATED },
 			{ resource: URI.file(join('C:\\', '/foo/otherupdated.txt')), type: FileChangeType.UPDATED },

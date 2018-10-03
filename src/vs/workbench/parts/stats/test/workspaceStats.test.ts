@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import * as crypto from 'crypto';
 import { getDomainsOfRemotes, getRemotes, getHashedRemotesFromConfig } from 'vs/workbench/parts/stats/node/workspaceStats';
@@ -55,7 +53,7 @@ suite('Telemetry - WorkspaceStats', () => {
 		assert.deepStrictEqual(getDomainsOfRemotes(config, whitelist).sort(), ['example.com', 'github.com']);
 	});
 
-	test('Whitelisting', function () {
+	test('Whitelisting', () => {
 		const config = ['https://github.com/Microsoft/vscode.git', 'https://git.foobar.com/gitproject.git'].map(remote).join('');
 		assert.deepStrictEqual(getDomainsOfRemotes(config, whitelist).sort(), ['aaaaaa.aaa', 'github.com']);
 	});

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { IntervalTree, IntervalNode, getNodeColor, NodeColor, SENTINEL, intervalCompare, setNodeStickiness, nodeAcceptEdit } from 'vs/editor/common/model/intervalTree';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';

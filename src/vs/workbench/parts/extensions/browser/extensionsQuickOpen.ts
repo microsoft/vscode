@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IAutoFocus, Mode, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -47,7 +46,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string, token: CancellationToken): TPromise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
 		const label = nls.localize('manage', "Press Enter to manage your extensions.");
 		const action = () => {
 			this.viewletService.openViewlet(VIEWLET_ID, true)
@@ -58,7 +57,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 				});
 		};
 
-		return TPromise.as(new QuickOpenModel([new SimpleEntry(label, action)]));
+		return Promise.resolve(new QuickOpenModel([new SimpleEntry(label, action)]));
 	}
 
 	getEmptyLabel(input: string): string {
@@ -83,7 +82,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		super();
 	}
 
-	getResults(text: string, token: CancellationToken): TPromise<IModel<any>> {
+	getResults(text: string, token: CancellationToken): Promise<IModel<any>> {
 		if (/\./.test(text)) {
 			return this.galleryService.query({ names: [text], pageSize: 1 })
 				.then(galleryResult => {
@@ -127,7 +126,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 			entries.push(new SimpleEntry(label, action));
 		}
 
-		return TPromise.as(new QuickOpenModel(entries));
+		return Promise.resolve(new QuickOpenModel(entries));
 	}
 
 	getEmptyLabel(input: string): string {

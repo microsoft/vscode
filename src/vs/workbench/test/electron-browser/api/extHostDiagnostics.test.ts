@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
@@ -25,7 +23,7 @@ suite('ExtHostDiagnostics', () => {
 		}
 	}
 
-	test('disposeCheck', function () {
+	test('disposeCheck', () => {
 
 		const collection = new DiagnosticCollection('test', 'test', 100, new DiagnosticsShape(), new Emitter());
 

@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
@@ -21,7 +19,7 @@ export interface ItemDescription {
 suite('Completions', () => {
 	const cssLanguageService = getCSSLanguageService();
 
-	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, offset: number) {
+	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
 		let matches = completions.items.filter(completion => {
 			return completion.label === expected.label;
 		});

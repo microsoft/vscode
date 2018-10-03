@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -381,7 +380,7 @@ class MockConfigurationService implements IConfigurationService {
 
 		return object;
 	}
-	public updateValue(): TPromise<void> { return null; }
+	public updateValue(): Promise<void> { return null; }
 	public getConfigurationData(): any { return null; }
 	public onDidChangeConfiguration() { return { dispose() { } }; }
 	public reloadConfiguration() { return null; }
@@ -393,7 +392,7 @@ class MockCommandService implements ICommandService {
 	public callCount = 0;
 
 	onWillExecuteCommand = () => Disposable.None;
-	public executeCommand(commandId: string, ...args: any[]): TPromise<any> {
+	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
 		this.callCount++;
 
 		let result = `${commandId}-result`;
@@ -403,6 +402,6 @@ class MockCommandService implements ICommandService {
 			}
 		}
 
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }

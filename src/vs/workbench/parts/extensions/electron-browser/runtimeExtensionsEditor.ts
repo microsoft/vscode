@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -40,10 +37,13 @@ import { RuntimeExtensionsInput } from 'vs/workbench/services/extensions/electro
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
+export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
+export const CONTEXT_EXTENSION_HOST_PROFILE_RECORDED = new RawContextKey<boolean>('extensionHostProfileRecorded', false);
 
-export const enum ProfileSessionState {
+export enum ProfileSessionState {
 	None = 0,
 	Starting = 1,
 	Running = 2,
@@ -89,7 +89,7 @@ interface IRuntimeExtension {
 
 export class RuntimeExtensionsEditor extends BaseEditor {
 
-	static readonly ID: string = 'workbench.editor.runtimeExtensions';
+	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension>;
 	private _profileInfo: IExtensionHostProfile;
@@ -97,10 +97,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	private _elements: IRuntimeExtension[];
 	private _extensionsDescriptions: IExtensionDescription[];
 	private _updateSoon: RunOnceScheduler;
+	private _profileSessionState: IContextKey<string>;
+	private _extensionsHostRecoded: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -114,13 +117,22 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this._profileInfo = this._extensionHostProfileService.lastProfile;
+			this._extensionsHostRecoded.set(!!this._profileInfo);
 			this._updateExtensions();
 		}));
+		this._extensionHostProfileService.onDidChangeState(() => {
+			const state = this._extensionHostProfileService.state;
+
+			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
+		});
 
 		this._elements = null;
 
 		this._extensionsDescriptions = [];
 		this._updateExtensions();
+
+		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
+		this._extensionsHostRecoded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 
 		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
@@ -401,31 +413,19 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
 				actions.push(new Separator());
 			}
-			actions.push(this.extensionHostProfileAction, this.saveExtensionHostProfileAction);
+			const state = this._extensionHostProfileService.state;
+			if (state === ProfileSessionState.Running) {
+				actions.push(this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL));
+			} else {
+				actions.push(this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL));
+			}
+			actions.push(this.saveExtensionHostProfileAction);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => TPromise.as(actions)
+				getActions: () => Promise.resolve(actions)
 			});
 		});
-	}
-
-	public getActions(): IAction[] {
-		return [
-			this.debugExtensionHostAction,
-			this.saveExtensionHostProfileAction,
-			this.extensionHostProfileAction
-		];
-	}
-
-	@memoize
-	private get debugExtensionHostAction(): IAction {
-		return this._instantiationService.createInstance(DebugExtensionHostAction);
-	}
-
-	@memoize
-	private get extensionHostProfileAction(): IAction {
-		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.ID, ExtensionHostProfileAction.LABEL_START);
 	}
 
 	@memoize
@@ -450,8 +450,8 @@ export class ShowRuntimeExtensionsAction extends Action {
 		super(id, label);
 	}
 
-	public run(e?: any): TPromise<any> {
-		return this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+	public async run(e?: any): Promise<any> {
+		await this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
 	}
 }
 
@@ -465,11 +465,11 @@ class ReportExtensionIssueAction extends Action {
 		super(id, label, 'extension-action report-issue');
 	}
 
-	run(extension: IRuntimeExtension): TPromise<any> {
+	run(extension: IRuntimeExtension): Promise<any> {
 		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 		window.open(this.generateNewIssueUrl(extension));
 
-		return TPromise.as(null);
+		return Promise.resolve(null);
 	}
 
 	private generateNewIssueUrl(extension: IRuntimeExtension): string {
@@ -493,7 +493,7 @@ class ReportExtensionIssueAction extends Action {
 	}
 }
 
-class DebugExtensionHostAction extends Action {
+export class DebugExtensionHostAction extends Action {
 	static readonly ID = 'workbench.extensions.action.debugExtensionHost';
 	static LABEL = nls.localize('debugExtensionHost', "Start Debugging Extension Host");
 	static CSS_CLASS = 'debug-extension-host';
@@ -507,21 +507,20 @@ class DebugExtensionHostAction extends Action {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
 
-	run(): TPromise<any> {
+	async run(): Promise<any> {
 
 		const inspectPort = this._extensionService.getInspectPort();
 		if (!inspectPort) {
-			return this._dialogService.confirm({
+			const res = await this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
 				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
-			}).then(res => {
-				if (res.confirmed) {
-					this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
-				}
 			});
+			if (res.confirmed) {
+				this._windowsService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+			}
 		}
 
 		return this._debugService.startDebugging(null, {
@@ -532,48 +531,41 @@ class DebugExtensionHostAction extends Action {
 	}
 }
 
-class ExtensionHostProfileAction extends Action {
+export class StartExtensionHostProfileAction extends Action {
 	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
-	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
-	static LABEL_STOP = nls.localize('extensionHostProfileStop', "Stop Extension Host Profile");
-	static STOP_CSS_CLASS = 'extension-host-profile-stop';
-	static START_CSS_CLASS = 'extension-host-profile-start';
+	static LABEL = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
 
 	constructor(
-		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
+		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
-		super(id, label, ExtensionHostProfileAction.START_CSS_CLASS);
-
-		this._extensionHostProfileService.onDidChangeState(() => this._update());
+		super(id, label);
 	}
 
-	private _update(): void {
-		const state = this._extensionHostProfileService.state;
-
-		if (state === ProfileSessionState.Running) {
-			this.class = ExtensionHostProfileAction.STOP_CSS_CLASS;
-			this.label = ExtensionHostProfileAction.LABEL_STOP;
-		} else {
-			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
-			this.label = ExtensionHostProfileAction.LABEL_START;
-		}
-	}
-
-	run(): TPromise<any> {
-		const state = this._extensionHostProfileService.state;
-
-		if (state === ProfileSessionState.Running) {
-			this._extensionHostProfileService.stopProfiling();
-		} else if (state === ProfileSessionState.None) {
-			this._extensionHostProfileService.startProfiling();
-		}
-
-		return TPromise.as(null);
+	run(): Promise<any> {
+		this._extensionHostProfileService.startProfiling();
+		return Promise.resolve(null);
 	}
 }
 
-class SaveExtensionHostProfileAction extends Action {
+export class StopExtensionHostProfileAction extends Action {
+	static readonly ID = 'workbench.extensions.action.stopExtensionHostProfile';
+	static LABEL = nls.localize('stopExtensionHostProfileStart', "Stop Extension Host Profile");
+
+	constructor(
+		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<any> {
+		this._extensionHostProfileService.stopProfiling();
+		return Promise.resolve(null);
+	}
+}
+
+export class SaveExtensionHostProfileAction extends Action {
 
 	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
 	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
@@ -584,15 +576,14 @@ class SaveExtensionHostProfileAction extends Action {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
-		super(id, label, 'save-extension-host-profile', false);
-		this.enabled = (this._extensionHostProfileService.lastProfile !== null);
+		super(id, label, undefined, false);
 		this._extensionHostProfileService.onDidChangeLastProfile(() => {
 			this.enabled = (this._extensionHostProfileService.lastProfile !== null);
 		});
 	}
 
-	run(): TPromise<any> {
-		return TPromise.wrap(this._asyncRun());
+	run(): Promise<any> {
+		return Promise.resolve(this._asyncRun());
 	}
 
 	private async _asyncRun(): Promise<any> {

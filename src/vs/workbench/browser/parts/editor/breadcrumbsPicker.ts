@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { compareFileNames } from 'vs/base/common/comparers';
@@ -228,7 +226,7 @@ export class FileDataSource implements IDataSource {
 
 	getChildren(tree: ITree, element: IWorkspace | IWorkspaceFolder | IFileStat | URI): TPromise<IWorkspaceFolder[] | IFileStat[]> {
 		if (IWorkspace.isIWorkspace(element)) {
-			return TPromise.as(element.folders).then(folders => {
+			return Promise.resolve(element.folders).then(folders => {
 				for (let child of folders) {
 					this._parents.set(element, child);
 				}
@@ -252,7 +250,7 @@ export class FileDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: IWorkspace | URI | IWorkspaceFolder | IFileStat): TPromise<IWorkspaceFolder | IFileStat> {
-		return TPromise.as(this._parents.get(element));
+		return Promise.resolve(this._parents.get(element));
 	}
 }
 
@@ -321,7 +319,7 @@ export class FileHighlighter implements IHighlighter {
 		return IWorkspaceFolder.isIWorkspaceFolder(element) ? element.uri.toString() : element.resource.toString();
 	}
 	getHighlights(tree: ITree, element: IFileStat | IWorkspaceFolder, pattern: string): FuzzyScore {
-		return fuzzyScore(pattern, element.name, undefined, true);
+		return fuzzyScore(pattern, pattern.toLowerCase(), 0, element.name, element.name.toLowerCase(), 0, true);
 	}
 }
 

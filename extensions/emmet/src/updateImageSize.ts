@@ -5,8 +5,6 @@
 
 // Based on @sergeche's work on the emmet plugin for atom
 
-'use strict';
-
 import { TextEditor, Range, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
 import { getImageSize } from './imageSizeHelper';
@@ -37,7 +35,7 @@ export function updateImageSize() {
 	return Promise.all(allUpdatesPromise).then((updates) => {
 		return editor.edit(builder => {
 			updates.forEach(update => {
-				update!.forEach((textEdit: TextEdit) => {
+				update.forEach((textEdit: TextEdit) => {
 					builder.replace(textEdit.range, textEdit.newText);
 				});
 			});
@@ -48,7 +46,7 @@ export function updateImageSize() {
 /**
  * Updates image size of context tag of HTML model
  */
-function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[] | undefined> {
+function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<TextEdit[]> {
 	const imageNode = getImageHTMLNode(editor, position);
 
 	const src = imageNode && getImageSrcHTML(imageNode);
@@ -66,11 +64,12 @@ function updateImageSizeHTML(editor: TextEditor, position: Position): Promise<Te
 			if (img && getImageSrcHTML(img) === src) {
 				return updateHTMLTag(editor, img, size.width, size.height);
 			}
+			return [];
 		})
 		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
 
-function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<TextEdit[] | undefined> {
+function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promise<TextEdit[]> {
 	const getPropertyInsiderStyleTag = (editor: TextEditor): Property | null => {
 		const rootNode = parseDocument(editor.document);
 		const currentNode = <HtmlNode>getNode(rootNode, position, true);
@@ -88,14 +87,14 @@ function updateImageSizeStyleTag(editor: TextEditor, position: Position): Promis
 	return updateImageSizeCSS(editor, position, getPropertyInsiderStyleTag);
 }
 
-function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise<TextEdit[] | undefined> {
+function updateImageSizeCSSFile(editor: TextEditor, position: Position): Promise<TextEdit[]> {
 	return updateImageSizeCSS(editor, position, getImageCSSNode);
 }
 
 /**
  * Updates image size of context rule of stylesheet model
  */
-function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor: TextEditor, position: Position) => Property | null): Promise<TextEdit[] | undefined> {
+function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (editor: TextEditor, position: Position) => Property | null): Promise<TextEdit[]> {
 	const node = fetchNode(editor, position);
 	const src = node && getImageSrcCSS(node, position);
 
@@ -105,13 +104,14 @@ function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (
 
 	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
-		.then((size: any): TextEdit[] | undefined => {
+		.then((size: any): TextEdit[] => {
 			// since this action is asynchronous, we have to ensure that editor wasn’t
 			// changed and user didn’t moved caret outside <img> node
 			const prop = fetchNode(editor, position);
 			if (prop && getImageSrcCSS(prop, position) === src) {
 				return updateCSSNode(editor, prop, size.width, size.height);
 			}
+			return [];
 		})
 		.catch(err => { console.warn('Error while updating image size:', err); return []; });
 }
@@ -263,12 +263,14 @@ function findUrlToken(node: Property, pos: Position): CssToken | undefined {
 				url = token;
 				return false;
 			}
+			return true;
 		});
 
 		if (url) {
 			return url;
 		}
 	}
+	return;
 }
 
 /**

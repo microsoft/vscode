@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
@@ -12,6 +10,7 @@ import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlConte
 import * as marked from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
@@ -152,12 +151,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 					return;
 				}
 			}
-
-			const href = target.dataset['href'];
-			if (href) {
-				options.actionHandler.callback(href, event);
+			try {
+				const href = target.dataset['href'];
+				if (href) {
+					options.actionHandler.callback(href, event);
+				}
+			} catch (err) {
+				onUnexpectedError(err);
+			} finally {
+				event.preventDefault();
 			}
-			event.preventDefault();
 		}));
 	}
 

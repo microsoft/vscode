@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -37,7 +36,7 @@ export interface IModeService {
 	getMimeForMode(modeId: string): string;
 	getLanguageName(modeId: string): string;
 	getModeIdForLanguageName(alias: string): string;
-	getModeIdByFilenameOrFirstLine(filepath: string, firstLine?: string): string;
+	getModeIdByFilepathOrFirstLine(filepath: string, firstLine?: string): string;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
 	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier;
 	getConfigurationFiles(modeId: string): URI[];
@@ -46,5 +45,5 @@ export interface IModeService {
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;
 	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode>;
 	getOrCreateModeByLanguageName(languageName: string): TPromise<IMode>;
-	getOrCreateModeByFilenameOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode>;
+	getOrCreateModeByFilepathOrFirstLine(filepath: string, firstLine?: string): TPromise<IMode>;
 }

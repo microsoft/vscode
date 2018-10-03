@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
@@ -96,7 +94,7 @@ suite('Workbench parts', () => {
 		document.body.removeChild(fixture);
 	});
 
-	test('Creation', function () {
+	test('Creation', () => {
 		let b = document.createElement('div');
 		document.getElementById(fixtureId).appendChild(b);
 		hide(b);

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { EditorModel } from 'vs/workbench/common/editor';
@@ -40,7 +38,7 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', function () {
+	test('EditorModel', () => {
 		let counter = 0;
 
 		let m = new MyEditorModel();
@@ -58,7 +56,7 @@ suite('Workbench editor model', () => {
 		});
 	});
 
-	test('BaseTextEditorModel', function () {
+	test('BaseTextEditorModel', () => {
 		let modelService = stubModelService(instantiationService);
 
 		let m = new MyTextEditorModel(modelService, modeService);

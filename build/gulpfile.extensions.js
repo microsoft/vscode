@@ -21,6 +21,7 @@ const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
+const _ = require('underscore');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
@@ -35,7 +36,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(extensionsPath, tsconfigFile);
 	const relativeDirname = path.dirname(tsconfigFile);
 
-	const tsOptions = require(absolutePath).compilerOptions;
+	const tsconfig = require(absolutePath);
+	const tsOptions = _.assign({}, tsconfig.extends ? require(path.join(extensionsPath, relativeDirname, tsconfig.extends)).compilerOptions : {}, tsconfig.compilerOptions);
 	tsOptions.verbose = false;
 	tsOptions.sourceMap = true;
 

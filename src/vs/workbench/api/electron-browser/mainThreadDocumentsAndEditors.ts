@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
@@ -271,7 +270,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		}
 
 		// active editor: if none of the previous editors had focus we try
-		// to match output panels or the the active workbench editor with
+		// to match output panels or the active workbench editor with
 		// one of editor we have just computed
 		if (!activeEditor) {
 			let candidate: IEditor;

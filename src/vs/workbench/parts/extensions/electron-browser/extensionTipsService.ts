@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
@@ -82,7 +81,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _workspaceIgnoredRecommendations: string[] = [];
 	private _extensionsRecommendationsUrl: string;
 	private _disposables: IDisposable[] = [];
-	public loadWorkspaceConfigPromise: TPromise<any>;
+	public loadWorkspaceConfigPromise: Promise<any>;
 	private proactiveRecommendationsFetched: boolean = false;
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
@@ -161,17 +160,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}));
 	}
 
-	private fetchProactiveRecommendations(calledDuringStartup?: boolean): TPromise<void> {
-		let fetchPromise = TPromise.as(null);
+	private fetchProactiveRecommendations(calledDuringStartup?: boolean): Promise<void> {
+		let fetchPromise = Promise.resolve(null);
 		if (!this.proactiveRecommendationsFetched) {
 			this.proactiveRecommendationsFetched = true;
 
 			// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
 			// So that the startup is not affected
 
-			fetchPromise = new TPromise((c, e) => {
+			fetchPromise = new Promise((c, e) => {
 				setTimeout(() => {
-					TPromise.join([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(null));
+					Promise.all([this.fetchExecutableRecommendations(), this.fetchDynamicWorkspaceRecommendations()]).then(() => c(null));
 				}, calledDuringStartup ? 10000 : 0);
 			});
 
@@ -233,15 +232,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		};
 	}
 
-	getWorkspaceRecommendations(): TPromise<IExtensionRecommendation[]> {
-		if (!this.isEnabled()) { return TPromise.as([]); }
+	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
+		if (!this.isEnabled()) { return Promise.resolve([]); }
 		return this.fetchWorkspaceRecommendations()
 			.then(() => this._allWorkspaceRecommendedExtensions.filter(rec => this.isExtensionAllowedToBeRecommended(rec.extensionId)));
 	}
 
-	private fetchWorkspaceRecommendations(): TPromise<void> {
+	private fetchWorkspaceRecommendations(): Promise<void> {
 
-		if (!this.isEnabled) { return TPromise.as(null); }
+		if (!this.isEnabled) { return Promise.resolve(null); }
 
 		return this.fetchExtensionRecommendationContents()
 			.then(result => this.validateExtensions(result.map(({ contents }) => contents))
@@ -287,32 +286,32 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}));
 	}
 
-	private fetchExtensionRecommendationContents(): TPromise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }[]> {
+	private fetchExtensionRecommendationContents(): Promise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }[]> {
 		const workspace = this.contextService.getWorkspace();
-		return TPromise.join<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }>([
+		return Promise.all<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }>([
 			this.resolveWorkspaceExtensionConfig(workspace).then(contents => contents ? { contents, source: workspace } : null),
 			...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder).then(contents => contents ? { contents, source: workspaceFolder } : null))
 		]).then(contents => coalesce(contents));
 	}
 
-	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent | null> {
+	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): Promise<IExtensionsConfigContent | null> {
 		if (!workspace.configuration) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
-		return this.fileService.resolveContent(workspace.configuration)
-			.then(content => <IExtensionsConfigContent>(json.parse(content.value)['extensions']), err => null);
+		return Promise.resolve(this.fileService.resolveContent(workspace.configuration)
+			.then(content => <IExtensionsConfigContent>(json.parse(content.value)['extensions']), err => null));
 	}
 
-	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent | null> {
+	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent | null> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 
-		return this.fileService.resolveFile(extensionsJsonUri)
+		return Promise.resolve(this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
-			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null);
+			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null));
 	}
 
-	private async validateExtensions(contents: IExtensionsConfigContent[]): TPromise<{ invalidExtensions: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ invalidExtensions: string[], message: string }> {
 		const extensionsContent: IExtensionsConfigContent = {
 			recommendations: distinct(flatten(contents.map(content => content.recommendations || []))),
 			unwantedRecommendations: distinct(flatten(contents.map(content => content.unwantedRecommendations || [])))
@@ -395,7 +394,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: this._fileBasedRecommendations[extensionId].sources }));
 	}
 
-	getOtherRecommendations(): TPromise<IExtensionRecommendation[]> {
+	getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
 		return this.fetchProactiveRecommendations().then(() => {
 			const others = distinct([
 				...Object.keys(this._exeBasedRecommendations),
@@ -422,15 +421,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: ['application'] }));
 	}
 
-	getAllRecommendations(): TPromise<IExtensionRecommendation[]> {
+	getAllRecommendations(): Promise<IExtensionRecommendation[]> {
 		if (!this.proactiveRecommendationsFetched) {
-			return TPromise.as([]);
+			return Promise.resolve([]);
 		}
-		return TPromise.join([
+		return Promise.all([
 			this.getWorkspaceRecommendations(),
-			TPromise.as(this.getFileBasedRecommendations()),
+			Promise.resolve(this.getFileBasedRecommendations()),
 			this.getOtherRecommendations(),
-			TPromise.as(this.getKeymapRecommendations())
+			Promise.resolve(this.getKeymapRecommendations())
 		]).then(result => flatten(result).filter(e => this.isExtensionAllowedToBeRecommended(e.extensionId)));
 	}
 
@@ -487,10 +486,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 	}
 
-	private getMimeTypes(path: string): TPromise<string[]> {
-		return this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+	private getMimeTypes(path: string): Promise<string[]> {
+		return Promise.resolve(this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			return guessMimeTypes(path);
-		});
+		}));
 	}
 
 	private promptFiletypeBasedRecommendations(model: ITextModel): void {
@@ -546,7 +545,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 			recommendationsToSuggest = recommendationsToSuggest.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1 && this.isExtensionAllowedToBeRecommended(id));
 
-			const importantTipsPromise = recommendationsToSuggest.length === 0 ? TPromise.as(null) : this.extensionWorkbenchService.queryLocal().then(local => {
+			const importantTipsPromise = recommendationsToSuggest.length === 0 ? Promise.resolve(null) : this.extensionWorkbenchService.queryLocal().then(local => {
 				const localExtensions = local.map(e => e.id);
 				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => local !== id.toLowerCase()));
 				if (!recommendationsToSuggest.length) {
@@ -625,7 +624,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			});
 
 			const mimeTypesPromise = this.getMimeTypes(uri.fsPath);
-			TPromise.join([importantTipsPromise, mimeTypesPromise]).then(result => {
+			Promise.all([importantTipsPromise, mimeTypesPromise]).then(result => {
 
 				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
 					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
@@ -719,10 +718,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const recommendations = filteredRecs.filter(({ extensionId }) => local.every(local => !areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(local) })));
 
 			if (!recommendations.length) {
-				return TPromise.as(void 0);
+				return Promise.resolve(void 0);
 			}
 
-			return new TPromise<void>(c => {
+			return new Promise<void>(c => {
 				this.notificationService.prompt(
 					Severity.Info,
 					localize('workspaceRecommended', "This workspace has extension recommendations."),
@@ -802,7 +801,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		);
 	}
 
-	private fetchExecutableRecommendations(): TPromise<any> {
+	private fetchExecutableRecommendations(): Promise<any> {
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
@@ -820,7 +819,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			});
 		};
 
-		let promises: TPromise<any>[] = [];
+		let promises: Promise<any>[] = [];
 		// Loop through recommended extensions
 		forEach(product.exeBasedExtensionTips, entry => {
 			if (typeof entry.value !== 'object' || !Array.isArray(entry.value['recommendations'])) {
@@ -844,7 +843,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
-		return TPromise.join(promises);
+		return Promise.all(promises);
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
@@ -883,17 +882,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 	}
 
-	private fetchDynamicWorkspaceRecommendations(): TPromise<void> {
+	private fetchDynamicWorkspaceRecommendations(): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
 			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
 			|| this._dynamicWorkspaceRecommendations.length
 			|| !this._extensionsRecommendationsUrl) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		const storageKey = 'extensionsAssistant/dynamicWorkspaceRecommendations';
 		const workspaceUri = this.contextService.getWorkspace().folders[0].uri;
-		return TPromise.join([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
+		return Promise.all([getHashedRemotesFromUri(workspaceUri, this.fileService, false), getHashedRemotesFromUri(workspaceUri, this.fileService, true)]).then(([hashedRemotes1, hashedRemotes2]) => {
 			const hashedRemotes = (hashedRemotes1 || []).concat(hashedRemotes2 || []);
 			if (!hashedRemotes.length) {
 				return null;
@@ -901,7 +900,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			return this.requestService.request({ type: 'GET', url: this._extensionsRecommendationsUrl }, CancellationToken.None).then(context => {
 				if (context.res.statusCode !== 200) {
-					return TPromise.as(null);
+					return Promise.resolve(null);
 				}
 				return asJson(context).then((result) => {
 					const allRecommendations: IDynamicWorkspaceRecommendations[] = Array.isArray(result['workspaceRecommendations']) ? result['workspaceRecommendations'] : [];

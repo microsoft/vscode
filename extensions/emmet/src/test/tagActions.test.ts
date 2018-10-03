@@ -295,7 +295,7 @@ suite('Tests for Emmet actions on html tags', () => {
 
 	// #region match tag
 	test('match tag with mutliple cursors', () => {
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+		return withRandomFileEditor(contents, 'html', (editor, _) => {
 			editor.selections = [
 				new Selection(1, 0, 1, 0), // just before tag starts, i.e before <
 				new Selection(1, 1, 1, 1), // just before tag name starts
@@ -326,7 +326,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		</div>
 	</script>`;
 
-		return withRandomFileEditor(templateScript, 'html', (editor, doc) => {
+		return withRandomFileEditor(templateScript, 'html', (editor, _) => {
 			editor.selections = [
 				new Selection(2, 2, 2, 2), // just before div tag starts, i.e before <
 			];

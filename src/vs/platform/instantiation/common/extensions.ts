@@ -2,12 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { SyncDescriptor } from './descriptors';
 import { ServiceIdentifier, IConstructorSignature0 } from './instantiation';
 
-export const Services = 'di.services';
 
 export interface IServiceContribution<T> {
 	id: ServiceIdentifier<T>;

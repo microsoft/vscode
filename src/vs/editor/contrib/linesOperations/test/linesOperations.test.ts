@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
@@ -447,7 +445,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('transpose', function () {
+	test('transpose', () => {
 		withTestCodeEditor(
 			[
 				'hello world',
@@ -774,7 +772,7 @@ suite('Editor Contrib - Line Operations', () => {
 		});
 	});
 
-	test('InsertLineBeforeAction', function () {
+	test('InsertLineBeforeAction', () => {
 		function testInsertLineBefore(lineNumber: number, column: number, callback: (model: ITextModel, cursor: Cursor) => void): void {
 			const TEXT = [
 				'First line',
