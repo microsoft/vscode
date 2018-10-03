@@ -218,9 +218,17 @@ export class TreeModel<T, TFilterData = void> {
 	}
 
 	private createTreeNode(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T, TFilterData>, revealed: boolean, treeListElements: ITreeNode<T, TFilterData>[]): IMutableTreeNode<T, TFilterData> {
-		const depth = parent.depth + 1;
-		const { element, collapsible, collapsed } = treeElement;
-		const node: IMutableTreeNode<T, TFilterData> = { parent, element, children: [], depth, collapsible: !!collapsible, collapsed: !!collapsed, revealedCount: 1, visible: true, filterData: undefined };
+		const node: IMutableTreeNode<T, TFilterData> = {
+			parent,
+			element: treeElement.element,
+			children: [],
+			depth: parent.depth + 1,
+			collapsible: !!treeElement.collapsible,
+			collapsed: !!treeElement.collapsed,
+			revealedCount: 1,
+			visible: true,
+			filterData: undefined
+		};
 
 		this.updateNodeFilterState(node);
 
@@ -242,7 +250,7 @@ export class TreeModel<T, TFilterData = void> {
 			if (revealed) {
 				treeListElements.pop();
 			}
-		} else if (!collapsed) {
+		} else if (!node.collapsed) {
 			node.revealedCount += getRevealedCount(node.children);
 		}
 
@@ -258,7 +266,7 @@ export class TreeModel<T, TFilterData = void> {
 		const result: ITreeNode<T, TFilterData>[] = [];
 
 		this._updateNodeAfterCollapseChange(node, result);
-		this._updateParentRevealedCount(node.parent, result.length - previousRevealedCount);
+		this._updateAncestorsRevealedCount(node.parent, result.length - previousRevealedCount);
 
 		return result;
 	}
@@ -285,7 +293,7 @@ export class TreeModel<T, TFilterData = void> {
 		const result: ITreeNode<T, TFilterData>[] = [];
 
 		this._updateNodeAfterFilterChange(node, result);
-		this._updateParentRevealedCount(node.parent, result.length - previousRevealedCount);
+		this._updateAncestorsRevealedCount(node.parent, result.length - previousRevealedCount);
 
 		return result;
 	}
@@ -330,7 +338,7 @@ export class TreeModel<T, TFilterData = void> {
 		return node.visible;
 	}
 
-	private _updateParentRevealedCount(node: IMutableTreeNode<T, TFilterData>, diff: number): void {
+	private _updateAncestorsRevealedCount(node: IMutableTreeNode<T, TFilterData>, diff: number): void {
 		if (diff === 0) {
 			return;
 		}
