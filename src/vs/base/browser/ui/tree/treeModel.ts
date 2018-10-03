@@ -75,6 +75,7 @@ export interface ITreeModelOptions<T, TFilterData = void> {
 
 export class TreeModel<T, TFilterData = void> {
 
+	// TODO@joao perf!
 	static getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
 		const location = [];
 
