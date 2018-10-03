@@ -90,8 +90,11 @@ const options: minimist.Opts = {
 		'debugBrkPluginHost': 'inspect-brk-extensions',
 		'debugSearch': 'inspect-search',
 		'debugBrkSearch': 'inspect-brk-search',
-	}
+	},
+	unknown: addUnknown
 };
+
+var unknownArgs = [];
 
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
@@ -142,10 +145,27 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
 }
 
 /**
+ * Use this to fail out when an unknown argument is passed
+ */
+function addUnknown(arg) {
+	console.log('Unknown argument: ', arg);
+	unknownArgs.push(arg);
+	return false;
+}
+
+/**
  * Use this to parse code arguments such as `--verbose --wait`
  */
 export function parseArgs(args: string[]): ParsedArgs {
-	return minimist(args, options) as ParsedArgs;
+	var parsedArgs = minimist(args, options) as ParsedArgs;
+	if (unknownArgs.length > 0) {
+		// The user has passed in unknown arguments, so display usage.
+		if (!parsedArgs.help) {
+			parsedArgs.help = true;
+		}
+	}
+	unknownArgs = [];
+	return parsedArgs;
 }
 
 const optionsHelp: { [name: string]: string; } = {
