@@ -54,8 +54,8 @@ class DataTreeRenderer<T, TTemplateData> implements IRenderer<IDataTreeNode<T>, 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
 
-	disposeElement(node: IDataTreeNode<T>): void {
-		// noop
+	disposeElement(node: IDataTreeNode<T>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
+		this.renderer.disposeElement(node.element, index, templateData.templateData);
 	}
 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
