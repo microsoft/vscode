@@ -594,12 +594,13 @@ export class CodeApplication {
 			}
 		}
 
-		// TODO@sbatten: Remove when switching back to dynamic menu
 		// Install Menu
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		let createNativeMenu = true;
+		// Initial value sets the value for macOS. false indicates using Dynamic Menus
+		// Eventually this will not be necessary as the dynamic menu will takeover
+		let createNativeMenu = false;
 		if (platform.isLinux) {
 			createNativeMenu = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
 		} else if (platform.isWindows) {
