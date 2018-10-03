@@ -64,7 +64,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}, onFileInserted);
 	};
 
-	return es.through(function (file) {
+	return es.through(function (this: any, file) {
 		if (file.stat.isDirectory()) {
 			return;
 		}
@@ -88,7 +88,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 			// The file goes inside of xx.asar
 			out.push(file.contents);
 		}
-	}, function () {
+	}, function (this: any) {
 
 		let finish = () => {
 			{
