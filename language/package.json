@@ -1,0 +1,26 @@
+{
+    "name": "language",
+    "displayName": "languaje",
+    "description": "traductor",
+    "version": "0.0.1",
+    "publisher": "vscec",
+    "engines": {
+        "vscode": "^1.27.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [{
+            "id": "12",
+            "aliases": ["traduccion", "12"],
+            "extensions": [".md"],
+            "configuration": "./language-configuration.json"
+        }],
+        "grammars": [{
+            "language": "12",
+            "scopeName": "language",
+            "path": "./syntaxes/12.tmLanguage.json"
+        }]
+    }
+}
