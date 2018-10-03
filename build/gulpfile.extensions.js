@@ -5,6 +5,47 @@
 
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
+<<<<<<< HEAD
+var gulp = require('gulp'),
+	path = require('path'),
+	tsb = require('gulp-tsb'),
+	es = require('event-stream'),
+	filter = require('gulp-filter'),
+	rimraf = require('rimraf'),
+	util = require('./lib/util'),
+	watcher = require('./lib/watch'),
+	createReporter = require('./lib/reporter'),
+	glob = require('glob'),
+	sourcemaps = require('gulp-sourcemaps'),
+	nlsDev = require('vscode-nls-dev'),
+	extensionsPath = path.join(path.dirname(__dirname), 'extensions'),
+compilations = glob.sync('**/tsconfig.json', {
+	cwd: extensionsPath,
+	ignore: ['**/out/**', '**/node_modules/**']
+}),
+languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'],
+tasks = compilations.map(function(tsconfigFile) {
+	var absolutePath = path.join(extensionsPath, tsconfigFile);
+	var relativeDirname = path.dirname(tsconfigFile);
+	var tsOptions = require(absolutePath).compilerOptions;
+	tsOptions.verbose = false;
+	tsOptions.sourceMap = true;
+	var name = relativeDirname.replace(/\//g, '-');
+	// Tasks
+	var clean = 'clean-extension:' + name,
+	compile = 'compile-extension:' + name,
+	watch = 'watch-extension:' + name,
+	cleanBuild = 'clean-extension-build:' + name,
+	compileBuild = 'compile-extension-build:' + name,
+	watchBuild = 'watch-extension-build:' + name,
+	root = path.join('extensions', relativeDirname),
+	srcBase = path.join(root, 'src'),
+	src = path.join(srcBase, '**'),
+	out = path.join(root, 'out'),
+	i18n = path.join(__dirname, '..', 'i18n');
+	function createPipeline(build) {
+		var reporter = createReporter();
+=======
 
 const gulp = require('gulp');
 const path = require('path');
@@ -71,6 +112,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	function createPipeline(build, emitError) {
 		const reporter = createReporter();
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 
 		tsOptions.inlineSources = !!build;
 		tsOptions.base = path.dirname(absolutePath);
@@ -108,34 +150,56 @@ const tasks = compilations.map(function (tsconfigFile) {
 			return es.duplex(input, output);
 		};
 	}
-
 	const srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
+<<<<<<< HEAD
+	gulp.task(clean, function (cb) {
+		rimraf(out, cb);
+	});
+	gulp.task(compile, [clean], function () {
+		const pipeline = createPipeline(false);
+=======
 
 	gulp.task(clean, cb => rimraf(out, cb));
 
 	gulp.task(compile, [clean], () => {
 		const pipeline = createPipeline(false, true);
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		const input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline())
 			.pipe(gulp.dest(out));
 	});
+<<<<<<< HEAD
+	gulp.task(watch, [clean], function () {
+		const pipeline = createPipeline(false),
+		input = gulp.src(src, srcOpts),
+		watchInput = watcher(src, srcOpts);
+=======
 
 	gulp.task(watch, [clean], () => {
 		const pipeline = createPipeline(false);
 		const input = gulp.src(src, srcOpts);
 		const watchInput = watcher(src, srcOpts);
 
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
 			.pipe(gulp.dest(out));
 	});
+<<<<<<< HEAD
+	gulp.task(cleanBuild, function (cb) {
+		rimraf(out, cb);
+	});
+	gulp.task(compileBuild, [clean], function () {
+		const pipeline = createPipeline(true);
+=======
 
 	gulp.task(cleanBuild, cb => rimraf(out, cb));
 
 	gulp.task(compileBuild, [clean], () => {
 		const pipeline = createPipeline(true, true);
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		const input = gulp.src(src, srcOpts);
 
 		return input
@@ -152,7 +216,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 			.pipe(util.incremental(() => pipeline(), input))
 			.pipe(gulp.dest(out));
 	});
-
 	return {
 		clean: clean,
 		compile: compile,
@@ -163,6 +226,14 @@ const tasks = compilations.map(function (tsconfigFile) {
 	};
 });
 
+<<<<<<< HEAD
+gulp.task('clean-extensions', tasks.map(function (t) { return t.clean; }));
+gulp.task('compile-extensions', tasks.map(function (t) { return t.compile; }));
+gulp.task('watch-extensions', tasks.map(function (t) { return t.watch; }));
+gulp.task('clean-extensions-build', tasks.map(function (t) { return t.cleanBuild; }));
+gulp.task('compile-extensions-build', tasks.map(function (t) { return t.compileBuild; }));
+gulp.task('watch-extensions-build', tasks.map(function (t) { return t.watchBuild; }));
+=======
 gulp.task('clean-extensions', tasks.map(t => t.clean));
 gulp.task('compile-extensions', tasks.map(t => t.compile));
 gulp.task('watch-extensions', tasks.map(t => t.watch));
@@ -170,3 +241,4 @@ gulp.task('watch-extensions', tasks.map(t => t.watch));
 gulp.task('clean-extensions-build', tasks.map(t => t.cleanBuild));
 gulp.task('compile-extensions-build', tasks.map(t => t.compileBuild));
 gulp.task('watch-extensions-build', tasks.map(t => t.watchBuild));
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274

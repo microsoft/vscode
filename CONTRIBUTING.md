@@ -1,13 +1,9 @@
 # Contributing to VS Code
-
 Welcome, and thank you for your interest in contributing to VS Code!
-
 There are many ways that you can contribute, beyond writing code. The goal of this document is to provide a high-level overview of how you can get involved.
 
 ## Asking Questions
-
 Have a question? Rather than opening an issue, please ask away on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode) using the tag `vscode`.
-
 The active community will be eager to assist you. Your well-worded question will serve as a resource to others searching for help.
 
 ## Providing Feedback
@@ -93,6 +89,10 @@ We use a bot to help us manage issues. This bot currently:
 If you believe the bot got something wrong, please open a new issue and let us know.
 
 ## Contributing Fixes
+<<<<<<< HEAD
+If you are interested in fixing issues and contributing directly to the code base,
+please see the document [How to Contribute](https://github.com/Micosoft/vscode/wiki/How-to-Contribute).
+=======
 
 If you are interested in writing code to fix issues,
 please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) in the wiki.
@@ -101,3 +101,4 @@ please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-C
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
 
+	>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274

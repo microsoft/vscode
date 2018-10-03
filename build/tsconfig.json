@@ -1,6 +1,10 @@
+<<<<<<< HEAD
+{	"compilerOptions": {
+=======
 {
 	"compilerOptions": {
 		"target": "es5",
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		"module": "commonjs",
 		"noImplicitAny": false,
 		"removeComments": false,

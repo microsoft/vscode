@@ -5,6 +5,19 @@
 
 'use strict';
 
+<<<<<<< HEAD
+const gulp = require('gulp'),
+	  path = require('path'),
+	  assert = require('assert'),
+	  cp = require('child_process'),
+	  util = require('./lib/util'),
+	  pkg = require('../package.json'),
+	  product = require('../product.json'),
+	  repoPath = path.dirname(__dirname),
+	  buildPath = path.join(path.dirname(repoPath), 'VSCode-win32'),
+	  issPath = path.join(__dirname, 'win32', 'code.iss'),
+	  innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
+=======
 const gulp = require('gulp');
 const path = require('path');
 const fs = require('fs');
@@ -27,6 +40,7 @@ const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
 const signPS1 = path.join(repoPath, 'build', 'tfs', 'win32', 'sign.ps1');
 
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
@@ -41,6 +55,12 @@ function packageInnoSetup(iss, options, cb) {
 	}
 
 	const keys = Object.keys(definitions);
+<<<<<<< HEAD
+	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${ key }' in Inno Setup package step`));
+	const defs = keys.map(key => `/d${ key }=${ definitions[key] }`);
+	const args = [iss].concat(defs);
+	cp.spawn(innoSetupPath, args, { stdio: 'inherit' })
+=======
 
 	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
 
@@ -52,6 +72,7 @@ function packageInnoSetup(iss, options, cb) {
 	];
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		.on('error', cb)
 		.on('exit', () => cb(null));
 }
@@ -102,6 +123,12 @@ function buildWin32Setup(arch, target) {
 
 		packageInnoSetup(issPath, { definitions }, cb);
 	};
+<<<<<<< HEAD
+	packageInnoSetup(issPath, { definitions }, cb);
+}
+gulp.task('clean-vscode-win32-setup', util.rimraf('.build/win32/setup'));
+gulp.task('vscode-win32-setup', ['clean-vscode-win32-setup', 'vscode-win32-min'], buildWin32Setup);
+=======
 }
 
 function defineWin32SetupTasks(arch, target) {
@@ -149,3 +176,4 @@ function patchInnoUpdater(arch) {
 
 gulp.task('vscode-win32-ia32-inno-updater', ['vscode-win32-ia32-copy-inno-updater'], patchInnoUpdater('ia32'));
 gulp.task('vscode-win32-x64-inno-updater', ['vscode-win32-x64-copy-inno-updater'], patchInnoUpdater('x64'));
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274

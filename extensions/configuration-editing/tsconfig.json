@@ -3,7 +3,11 @@
 	"compilerOptions": {
 		"outDir": "./out"
 	},
+<<<<<<< HEAD
+	"exclude": ["node_modules"]
+=======
 	"include": [
 		"src/**/*"
 	]
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 }

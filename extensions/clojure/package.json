@@ -1,8 +1,15 @@
 {
 	"name": "clojure",
+<<<<<<< HEAD
+	"version": "0.1.0",
+	"author":"microsoft",
+	"description":"clojure",
+	"licence":"MIT",
+=======
 	"displayName": "%displayName%",
 	"description": "%description%",
 	"version": "1.0.0",
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {

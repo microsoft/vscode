@@ -4,6 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 'use strict';
+<<<<<<< HEAD
+const gulp = require('gulp'),
+	  filter = require('gulp-filter'),
+	  es = require('event-stream'),
+	  gulptslint = require('gulp-tslint'),
+	  tslint = require('tslint'),
+	  all = [
+=======
 
 const gulp = require('gulp');
 const filter = require('gulp-filter');
@@ -28,16 +36,22 @@ const pall = require('p-all');
  */
 
 const all = [
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	'*',
 	'build/**/*',
 	'extensions/**/*',
 	'scripts/**/*',
 	'src/**/*',
+<<<<<<< HEAD
+	'test/**/*'
+],eolFilter = [
+=======
 	'test/**/*',
 	'!**/node_modules/**'
 ];
 
 const indentationFilter = [
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	'**',
 
 	// except specific files
@@ -59,9 +73,24 @@ const indentationFilter = [
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
+<<<<<<< HEAD
+	'!build/win32/**'
+],indentationFilter = [
+	'**',
+	'!ThirdPartyNotices.txt',
+	'!**/*.md',
+	'!**/*.template',
+	'!**/*.yml',
+	'!**/lib/**',
+	'!**/*.d.ts',
+	'!**/*.d.ts.recipe',
+	'!extensions/typescript/server/**',
+	'!test/assert.js',
+=======
 	'!build/win32/**',
 
 	// except multiple specific files
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	'!**/package.json',
 	'!**/yarn.lock',
 	'!**/yarn-error.log',
@@ -75,6 +104,10 @@ const indentationFilter = [
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
 	'!extensions/**/colorize-fixtures/**',
+<<<<<<< HEAD
+	'!extensions/vscode-api-tests/testWorkspace/**'
+],copyrightFilter = [
+=======
 
 	// except specific file types
 	'!src/vs/*/**/*.d.ts',
@@ -90,6 +123,7 @@ const indentationFilter = [
 ];
 
 const copyrightFilter = [
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
@@ -104,6 +138,10 @@ const copyrightFilter = [
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
+<<<<<<< HEAD
+	'!extensions/markdown/media/tomorrow.css'
+],tslintFilter = [
+=======
 	'!**/*.opts',
 	'!**/*.disabled',
 	'!**/*.code-workspace',
@@ -130,11 +168,19 @@ const eslintFilter = [
 ];
 
 const tslintFilter = [
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
+<<<<<<< HEAD
+	'!src/vs/base/**/*.test.ts',
+	'!src/vs/languages/**/*.test.ts',
+	'!src/vs/workbench/**/*.test.ts',
+	'!extensions/**/*.test.ts'
+],copyrightHeader = [
+=======
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
@@ -144,10 +190,26 @@ const tslintFilter = [
 ];
 
 const copyrightHeaderLines = [
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	'/*---------------------------------------------------------------------------------------------',
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
+<<<<<<< HEAD
+].join('\n');
+function reportFailures(failures) {
+	failures.forEach(failure => {
+		const name = failure.name || failure.fileName;
+		const position = failure.startPosition;
+		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+		console.error(`${ name }:${ line + 1}:${ character + 1 }:${ failure.failure }`);
+	});
+}
+gulp.task('tslint', () => {
+	const options = { summarizeFailureOutput: true };
+	return gulp.src(all, { base: '.' })
+=======
 ];
 
 gulp.task('eslint', () => {
@@ -162,6 +224,7 @@ gulp.task('tslint', () => {
 	const options = { emitError: true };
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		.pipe(filter(tslintFilter))
 		.pipe(gulptslint.default({ rulesDirectory: 'build/lib/tslint' }))
 		.pipe(gulptslint.default.report(options));
@@ -169,7 +232,17 @@ gulp.task('tslint', () => {
 
 function hygiene(some) {
 	let errorCount = 0;
+<<<<<<< HEAD
+	const eol = es.through(function (file) {
+		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
+			console.error(file.relative + ': Bad EOL found');
+			errorCount++;
+		}
+		this.emit('data', file);
+	});
+=======
 
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 	const indentation = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
@@ -187,10 +260,8 @@ function hygiene(some) {
 					errorCount++;
 				}
 			});
-
 		this.emit('data', file);
 	});
-
 	const copyrights = es.through(function (file) {
 		const lines = file.__lines;
 
@@ -201,9 +272,22 @@ function hygiene(some) {
 				break;
 			}
 		}
-
 		this.emit('data', file);
 	});
+<<<<<<< HEAD
+	const tsl = es.through(function(file) {
+		const configuration = tslint.findConfiguration(null, '.');
+		const options = { configuration, formatter: 'json', rulesDirectory: 'build/lib/tslint' };
+		const contents = file.contents.toString('utf8');
+		const linter = new tslint(file.relative, contents, options);
+		const result = linter.lint();
+		if (result.failureCount > 0) {
+			reportFailures(result.failures);
+			errorCount += result.failureCount;
+		};		this.emit('data', file);
+	});
+	return gulp.src(some || all, { base: '.' })
+=======
 
 	const formatting = es.map(function (file, cb) {
 		tsfmt.processString(file.path, file.contents.toString('utf8'), {
@@ -254,6 +338,7 @@ function hygiene(some) {
 	}
 
 	const result = input
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
@@ -301,6 +386,9 @@ function hygiene(some) {
 				this.emit('end');
 			}
 		}));
+<<<<<<< HEAD
+};
+=======
 }
 
 function createGitIndexVinyls(paths) {
@@ -336,11 +424,15 @@ function createGitIndexVinyls(paths) {
 		.then(r => r.filter(p => !!p));
 }
 
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 gulp.task('hygiene', () => hygiene());
-
 // this allows us to run hygiene as a git pre-commit hook
 if (require.main === module) {
 	const cp = require('child_process');
+<<<<<<< HEAD
+	cp.exec('git config core.autocrlf', (err, out) => {
+		const skipEOL = out.trim() === 'true';
+=======
 
 	process.on('unhandledRejection', (reason, p) => {
 		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
@@ -354,6 +446,7 @@ if (require.main === module) {
 			process.exit(1);
 		});
 	} else {
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, (err, out) => {
 			if (err) {
 				console.error();
@@ -361,10 +454,16 @@ if (require.main === module) {
 				process.exit(1);
 				return;
 			}
-
 			const some = out
 				.split(/\r?\n/)
 				.filter(l => !!l);
+<<<<<<< HEAD
+			hygiene(some, { skipEOL: skipEOL }).on('error', err => {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			});
+=======
 
 			if (some.length > 0) {
 				console.log('Reading git index versions...');
@@ -379,6 +478,7 @@ if (require.main === module) {
 						process.exit(1);
 					});
 			}
+>>>>>>> 36a2a4b9cf5709be280a891cfeeabf586daea274
 		});
 	}
 }
