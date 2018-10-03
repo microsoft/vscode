@@ -77,6 +77,9 @@ export class BreadcrumbsWidget {
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
+	private _pendingLayout: IDisposable;
+	private _dimension: dom.Dimension;
+
 	constructor(
 		container: HTMLElement
 	) {
@@ -105,6 +108,7 @@ export class BreadcrumbsWidget {
 
 	dispose(): void {
 		dispose(this._disposables);
+		dispose(this._pendingLayout);
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
@@ -115,13 +119,20 @@ export class BreadcrumbsWidget {
 	}
 
 	layout(dim: dom.Dimension): void {
+		if (dom.Dimension.equals(dim, this._dimension)) {
+			return;
+		}
+		this._dimension = dim;
 		if (dim) {
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
 		}
-		this._scrollable.setRevealOnScroll(false);
-		this._scrollable.scanDomNode();
-		this._scrollable.setRevealOnScroll(true);
+		dispose(this._pendingLayout);
+		this._pendingLayout = dom.scheduleAtNextAnimationFrame(() => {
+			this._scrollable.setRevealOnScroll(false);
+			this._scrollable.scanDomNode();
+			this._scrollable.setRevealOnScroll(true);
+		});
 	}
 
 	style(style: IBreadcrumbsWidgetStyles): void {

@@ -551,6 +551,16 @@ export class Dimension {
 		this.width = width;
 		this.height = height;
 	}
+
+	static equals(a: Dimension, b: Dimension): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.width === b.width && a.height === b.height;
+	}
 }
 
 export function getTopLeftOffset(element: HTMLElement): { left: number; top: number; } {
