@@ -6,24 +6,8 @@
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { Emitter, Event } from 'vs/base/common/event';
-
-export interface ITreeElement<T> {
-	readonly element: T;
-	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];
-	readonly collapsible?: boolean;
-	readonly collapsed?: boolean;
-}
-
-export interface ITreeNode<T, TFilterData = void> {
-	readonly parent: ITreeNode<T, TFilterData> | undefined;
-	readonly element: T;
-	readonly children: ITreeNode<T, TFilterData>[];
-	readonly depth: number;
-	readonly collapsible: boolean;
-	readonly collapsed: boolean;
-	readonly revealedCount: number;
-	readonly filterData: TFilterData | undefined;
-}
+import { tail2 } from 'vs/base/common/arrays';
+import { ITreeFilterResult, TreeVisibility, ITreeFilter, ITreeOptions, ITreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 
 interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	readonly parent: IMutableTreeNode<T, TFilterData> | undefined;
@@ -35,23 +19,8 @@ interface IMutableTreeNode<T, TFilterData> extends ITreeNode<T, TFilterData> {
 	visible: boolean;
 }
 
-export const enum Visibility {
-	Hidden,
-	Visible,
-	Recurse // TODO@joao come up with a better name
-}
-
-export interface IFilterResult<TFilterData> {
-	visibility: Visibility;
-	data: TFilterData;
-}
-
-function isFilterResult<T>(obj: any): obj is IFilterResult<T> {
+function isFilterResult<T>(obj: any): obj is ITreeFilterResult<T> {
 	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
-}
-
-export interface ITreeFilter<T, TFilterData = void> {
-	filter(element: T): boolean | Visibility | IFilterResult<TFilterData>;
 }
 
 function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
@@ -61,31 +30,17 @@ function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	return { element, children, collapsed };
 }
 
-function getVisibleState(visibility: Visibility): boolean | undefined {
+function getVisibleState(visibility: TreeVisibility): boolean | undefined {
 	switch (visibility) {
-		case Visibility.Hidden: return false;
-		case Visibility.Visible: return true;
-		case Visibility.Recurse: return undefined;
+		case TreeVisibility.Hidden: return false;
+		case TreeVisibility.Visible: return true;
+		case TreeVisibility.Recurse: return undefined;
 	}
 }
 
-export interface ITreeModelOptions<T, TFilterData = void> {
-	filter?: ITreeFilter<T, TFilterData>;
-}
+export interface IIndexTreeModelOptions<T, TFilterData> extends ITreeOptions<T, TFilterData> { }
 
-export class TreeModel<T, TFilterData = void> {
-
-	// TODO@joao perf!
-	static getNodeLocation<T>(node: ITreeNode<T, any>): number[] {
-		const location = [];
-
-		while (node.parent) {
-			location.push(node.parent.children.indexOf(node));
-			node = node.parent;
-		}
-
-		return location.reverse();
-	}
+export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	private root: IMutableTreeNode<T, TFilterData> = {
 		parent: undefined,
@@ -104,7 +59,7 @@ export class TreeModel<T, TFilterData = void> {
 
 	private filter?: ITreeFilter<T, TFilterData>;
 
-	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeModelOptions<T, TFilterData> = {}) {
+	constructor(private list: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeModelOptions<T, TFilterData> = {}) {
 		this.filter = options.filter;
 	}
 
@@ -167,28 +122,28 @@ export class TreeModel<T, TFilterData = void> {
 		this._setCollapsed(node, listIndex, revealed);
 	}
 
-	// TODO@joao cleanup
-	setCollapsedAll(collapsed: boolean): void {
-		if (collapsed) {
-			const queue = [...this.root.children]; // TODO@joao use a linked list
-			let listIndex = 0;
+	// // TODO@joao cleanup
+	// setCollapsedAll(collapsed: boolean): void {
+	// 	if (collapsed) {
+	// 		const queue = [...this.root.children]; // TODO@joao use a linked list
+	// 		let listIndex = 0;
 
-			while (queue.length > 0) {
-				const node = queue.shift();
-				const revealed = listIndex < this.root.children.length;
-				this._setCollapsed(node, listIndex, revealed, collapsed);
+	// 		while (queue.length > 0) {
+	// 			const node = queue.shift();
+	// 			const revealed = listIndex < this.root.children.length;
+	// 			this._setCollapsed(node, listIndex, revealed, collapsed);
 
-				queue.push(...node.children);
-				listIndex++;
-			}
-		}
-	}
+	// 			queue.push(...node.children);
+	// 			listIndex++;
+	// 		}
+	// 	}
+	// }
 
 	isCollapsed(location: number[]): boolean {
 		return this.findNode(location).node.collapsed;
 	}
 
-	refilter(/* location?: number[] */): void {
+	refilter(): void {
 		const previousRevealedCount = this.root.revealedCount;
 		const toInsert = this.updateNodeAfterFilterChange(this.root);
 		this.list.splice(0, previousRevealedCount, toInsert);
@@ -369,7 +324,7 @@ export class TreeModel<T, TFilterData = void> {
 	}
 
 	private _filterNode(node: IMutableTreeNode<T, TFilterData>): boolean | undefined {
-		const result = this.filter ? this.filter.filter(node.element) : Visibility.Visible;
+		const result = this.filter ? this.filter.filter(node.element) : TreeVisibility.Visible;
 
 		if (typeof result === 'boolean') {
 			node.filterData = undefined;
@@ -415,5 +370,25 @@ export class TreeModel<T, TFilterData = void> {
 		}
 
 		return this.findParentNode(rest, node.children[index], listIndex + 1, revealed);
+	}
+
+	// TODO@joao perf!
+	getNodeLocation(node: ITreeNode<T, TFilterData>): number[] {
+		const location = [];
+
+		while (node.parent) {
+			location.push(node.parent.children.indexOf(node));
+			node = node.parent;
+		}
+
+		return location.reverse();
+	}
+
+	getParentNodeLocation(location: number[]): number[] | null {
+		if (location.length <= 1) {
+			return null;
+		}
+
+		return tail2(location)[0];
 	}
 }

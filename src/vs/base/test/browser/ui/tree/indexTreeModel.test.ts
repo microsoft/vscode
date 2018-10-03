@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeNode, ITreeFilter, Visibility } from 'vs/base/browser/ui/tree/treeModel';
+import { ITreeNode, ITreeFilter, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator } from 'vs/base/common/iterator';
+import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 	return {
@@ -20,18 +21,18 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 	return list.map(i => i.element);
 }
 
-suite('TreeModel2', function () {
+suite('IndexTreeModel', function () {
 
 	test('ctor', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 	});
 
 	test('insert', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{ element: 0 },
@@ -53,7 +54,7 @@ suite('TreeModel2', function () {
 
 	test('deep insert', function () {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -90,7 +91,7 @@ suite('TreeModel2', function () {
 
 	test('deep insert collapsed', function () {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -118,7 +119,7 @@ suite('TreeModel2', function () {
 
 	test('delete', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{ element: 0 },
@@ -143,7 +144,7 @@ suite('TreeModel2', function () {
 
 	test('nested delete', function () {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -177,7 +178,7 @@ suite('TreeModel2', function () {
 
 	test('deep delete', function () {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -205,7 +206,7 @@ suite('TreeModel2', function () {
 
 	test('hidden delete', function () {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -230,7 +231,7 @@ suite('TreeModel2', function () {
 
 	test('collapse', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -261,7 +262,7 @@ suite('TreeModel2', function () {
 
 	test('expand', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -301,7 +302,7 @@ suite('TreeModel2', function () {
 
 	test('collapse should recursively adjust visible count', function () {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeModel<number>(toSpliceable(list));
+		const model = new IndexTreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -335,12 +336,12 @@ suite('TreeModel2', function () {
 	test('simple filter', function () {
 		const list = [] as ITreeNode<number>[];
 		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): Visibility {
-				return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+			filter(element: number): TreeVisibility {
+				return element % 2 === 0 ? TreeVisibility.Visible : TreeVisibility.Hidden;
 			}
 		};
 
-		const model = new TreeModel<number>(toSpliceable(list), { filter });
+		const model = new IndexTreeModel<number>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -369,12 +370,12 @@ suite('TreeModel2', function () {
 	test('recursive filter on initial model', function () {
 		const list = [] as ITreeNode<number>[];
 		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): Visibility {
-				return element === 0 ? Visibility.Recurse : Visibility.Hidden;
+			filter(element: number): TreeVisibility {
+				return element === 0 ? TreeVisibility.Recurse : TreeVisibility.Hidden;
 			}
 		};
 
-		const model = new TreeModel<number>(toSpliceable(list), { filter });
+		const model = new IndexTreeModel<number>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -392,12 +393,12 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<number>[];
 		let shouldFilter = false;
 		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): Visibility {
-				return (!shouldFilter || element % 2 === 0) ? Visibility.Visible : Visibility.Hidden;
+			filter(element: number): TreeVisibility {
+				return (!shouldFilter || element % 2 === 0) ? TreeVisibility.Visible : TreeVisibility.Hidden;
 			}
 		};
 
-		const model = new TreeModel<number>(toSpliceable(list), { filter });
+		const model = new IndexTreeModel<number>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -431,12 +432,12 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<string>[];
 		let query = new RegExp('');
 		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): Visibility {
-				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			filter(element: string): TreeVisibility {
+				return query.test(element) ? TreeVisibility.Visible : TreeVisibility.Recurse;
 			}
 		};
 
-		const model = new TreeModel<string>(toSpliceable(list), { filter });
+		const model = new IndexTreeModel<string>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -477,12 +478,12 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<string>[];
 		let query = new RegExp('');
 		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): Visibility {
-				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			filter(element: string): TreeVisibility {
+				return query.test(element) ? TreeVisibility.Visible : TreeVisibility.Recurse;
 			}
 		};
 
-		const model = new TreeModel<string>(toSpliceable(list), { filter });
+		const model = new IndexTreeModel<string>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -523,12 +524,12 @@ suite('TreeModel2', function () {
 		const list = [] as ITreeNode<string>[];
 		let query = new RegExp('');
 		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): Visibility {
-				return query.test(element) ? Visibility.Visible : Visibility.Recurse;
+			filter(element: string): TreeVisibility {
+				return query.test(element) ? TreeVisibility.Visible : TreeVisibility.Recurse;
 			}
 		};
 
-		const model = new TreeModel<string>(toSpliceable(list), { filter });
+		const model = new IndexTreeModel<string>(toSpliceable(list), { filter });
 
 		model.splice([0], 0, Iterator.fromArray([
 			{
@@ -576,7 +577,7 @@ suite('TreeModel2', function () {
 
 		test('simple', function () {
 			const list = [] as ITreeNode<number>[];
-			const model = new TreeModel<number>(toSpliceable(list));
+			const model = new IndexTreeModel<number>(toSpliceable(list));
 
 			model.splice([0], 0, Iterator.fromArray([
 				{
@@ -590,23 +591,23 @@ suite('TreeModel2', function () {
 				{ element: 2 }
 			]));
 
-			assert.deepEqual(TreeModel.getNodeLocation(list[0]), [0]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[1]), [0, 0]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[2]), [0, 1]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[3]), [0, 2]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[4]), [1]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[5]), [2]);
+			assert.deepEqual(model.getNodeLocation(list[0]), [0]);
+			assert.deepEqual(model.getNodeLocation(list[1]), [0, 0]);
+			assert.deepEqual(model.getNodeLocation(list[2]), [0, 1]);
+			assert.deepEqual(model.getNodeLocation(list[3]), [0, 2]);
+			assert.deepEqual(model.getNodeLocation(list[4]), [1]);
+			assert.deepEqual(model.getNodeLocation(list[5]), [2]);
 		});
 
 		test('with filter', function () {
 			const list = [] as ITreeNode<number>[];
 			const filter = new class implements ITreeFilter<number> {
-				filter(element: number): Visibility {
-					return element % 2 === 0 ? Visibility.Visible : Visibility.Hidden;
+				filter(element: number): TreeVisibility {
+					return element % 2 === 0 ? TreeVisibility.Visible : TreeVisibility.Hidden;
 				}
 			};
 
-			const model = new TreeModel<number>(toSpliceable(list), { filter });
+			const model = new IndexTreeModel<number>(toSpliceable(list), { filter });
 
 			model.splice([0], 0, Iterator.fromArray([
 				{
@@ -622,10 +623,10 @@ suite('TreeModel2', function () {
 				}
 			]));
 
-			assert.deepEqual(TreeModel.getNodeLocation(list[0]), [0]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[1]), [0, 1]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[2]), [0, 3]);
-			assert.deepEqual(TreeModel.getNodeLocation(list[3]), [0, 5]);
+			assert.deepEqual(model.getNodeLocation(list[0]), [0]);
+			assert.deepEqual(model.getNodeLocation(list[1]), [0, 1]);
+			assert.deepEqual(model.getNodeLocation(list[2]), [0, 3]);
+			assert.deepEqual(model.getNodeLocation(list[3]), [0, 5]);
 		});
 	});
 });

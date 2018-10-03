@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode } from 'vs/base/browser/ui/tree/treeModel';
+import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { TreeObjectModel } from 'vs/base/browser/ui/tree/treeObjectModel';
+import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { Iterator } from 'vs/base/common/iterator';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
@@ -21,11 +21,11 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 	return list.map(i => i.element);
 }
 
-suite('TreeObjectModel', function () {
+suite('ObjectTreeModel', function () {
 
 	test('ctor', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeObjectModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 		assert.equal(model.size, 0);
@@ -33,7 +33,7 @@ suite('TreeObjectModel', function () {
 
 	test('flat', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeObjectModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
 			{ element: 0 },
@@ -60,7 +60,7 @@ suite('TreeObjectModel', function () {
 
 	test('nested', () => {
 		const list = [] as ITreeNode<number>[];
-		const model = new TreeObjectModel<number>(toSpliceable(list));
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
 
 		model.setChildren(null, Iterator.fromArray([
 			{
