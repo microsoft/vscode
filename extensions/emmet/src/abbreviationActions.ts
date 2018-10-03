@@ -193,6 +193,10 @@ function doWrapping(individualLines: boolean, args: any) {
 					let textToWrap: string[];
 					if (individualLines) {
 						textToWrap = rangesAndContent.textToWrapInPreview;
+					} else if (abbreviation === 'a') {
+						// Fix for https://github.com/Microsoft/vscode/issues/54711
+						// tl;dr - Can't use the $TM_SELECTED_TEXT variable or the href attribute won't get resolved properly
+						textToWrap = rangesAndContent.textToWrapInPreview;
 					} else {
 						textToWrap = rangeToReplace.isSingleLine ? ['$TM_SELECTED_TEXT'] : ['\n\t$TM_SELECTED_TEXT\n'];
 					}
