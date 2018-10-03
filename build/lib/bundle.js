@@ -153,7 +153,7 @@ function extractStrings(destFiles) {
             deps: deps
         };
     };
-    destFiles.forEach(function (destFile, index) {
+    destFiles.forEach(function (destFile) {
         if (!/\.js$/.test(destFile.dest)) {
             return;
         }
@@ -291,7 +291,7 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
             mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
         }
         else {
-            mainResult.sources.push(emitNamedModule(c, deps[c], module.defineLocation, module.path, contents));
+            mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
         }
     });
     Object.keys(usedPlugins).forEach(function (pluginName) {
@@ -357,7 +357,7 @@ function emitPlugin(entryPoint, plugin, pluginName, moduleName) {
         contents: result
     };
 }
-function emitNamedModule(moduleId, myDeps, defineCallPosition, path, contents) {
+function emitNamedModule(moduleId, defineCallPosition, path, contents) {
     // `defineCallPosition` is the position in code: |define()
     var defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
     // `parensOffset` is the position in code: define|()

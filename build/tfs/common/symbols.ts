@@ -97,7 +97,7 @@ function updateVersion(accessor: IVersionAccessor, symbolsPath: string) {
 
 function asyncRequest<T>(options: request.UrlOptions & request.CoreOptions): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		request(options, (error, response, body) => {
+		request(options, (error, _response, body) => {
 			if (error) {
 				reject(error);
 			} else {

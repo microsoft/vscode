@@ -103,7 +103,7 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
             .concat(Object.keys(this._libs))
             .concat(Object.keys(this._files)));
     };
-    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (fileName) {
+    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (_fileName) {
         return '1';
     };
     TypeScriptLanguageServiceHost.prototype.getProjectVersion = function () {
@@ -120,13 +120,13 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
             return ts.ScriptSnapshot.fromString('');
         }
     };
-    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (fileName) {
+    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (_fileName) {
         return ts.ScriptKind.TS;
     };
     TypeScriptLanguageServiceHost.prototype.getCurrentDirectory = function () {
         return '';
     };
-    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (options) {
+    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (_options) {
         return 'defaultLib:lib.d.ts';
     };
     TypeScriptLanguageServiceHost.prototype.isDefaultLibFileName = function (fileName) {

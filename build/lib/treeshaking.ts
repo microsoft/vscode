@@ -172,7 +172,7 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 				.concat(Object.keys(this._files))
 		);
 	}
-	getScriptVersion(fileName: string): string {
+	getScriptVersion(_fileName: string): string {
 		return '1';
 	}
 	getProjectVersion(): string {
@@ -187,13 +187,13 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 			return ts.ScriptSnapshot.fromString('');
 		}
 	}
-	getScriptKind(fileName: string): ts.ScriptKind {
+	getScriptKind(_fileName: string): ts.ScriptKind {
 		return ts.ScriptKind.TS;
 	}
 	getCurrentDirectory(): string {
 		return '';
 	}
-	getDefaultLibFileName(options: ts.CompilerOptions): string {
+	getDefaultLibFileName(_options: ts.CompilerOptions): string {
 		return 'defaultLib:lib.d.ts';
 	}
 	isDefaultLibFileName(fileName: string): boolean {

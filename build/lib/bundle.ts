@@ -267,7 +267,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 		};
 	};
 
-	destFiles.forEach((destFile, index) => {
+	destFiles.forEach((destFile) => {
 		if (!/\.js$/.test(destFile.dest)) {
 			return;
 		}
@@ -438,7 +438,7 @@ function emitEntryPoint(
 		if (module.shim) {
 			mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
 		} else {
-			mainResult.sources.push(emitNamedModule(c, deps[c], module.defineLocation, module.path, contents));
+			mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
 		}
 	});
 
@@ -513,7 +513,7 @@ function emitPlugin(entryPoint: string, plugin: ILoaderPlugin, pluginName: strin
 	};
 }
 
-function emitNamedModule(moduleId: string, myDeps: string[], defineCallPosition: IPosition, path: string, contents: string): IFile {
+function emitNamedModule(moduleId: string, defineCallPosition: IPosition, path: string, contents: string): IFile {
 
 	// `defineCallPosition` is the position in code: |define()
 	let defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);

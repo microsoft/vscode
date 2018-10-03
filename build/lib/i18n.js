@@ -187,10 +187,10 @@ var XLF = /** @class */ (function () {
         this.buffer.push(line.toString());
     };
     XLF.parsePseudo = function (xlfString) {
-        return new Promise(function (resolve, reject) {
+        return new Promise(function (resolve) {
             var parser = new xml2js.Parser();
             var files = [];
-            parser.parseString(xlfString, function (err, result) {
+            parser.parseString(xlfString, function (_err, result) {
                 var fileNodes = result['xliff']['file'];
                 fileNodes.forEach(function (file) {
                     var originalFilePath = file.$.original;
@@ -301,7 +301,7 @@ function stripComments(content) {
     * Fourth matches line comments
     */
     var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-    var result = content.replace(regexp, function (match, m1, m2, m3, m4) {
+    var result = content.replace(regexp, function (match, _m1, _m2, m3, m4) {
         // Only one of m1, m2, m3, m4 matches
         if (m3) {
             // A block comment. Replace with nothing
@@ -834,7 +834,7 @@ function tryGetResource(project, slug, apiHostname, credentials) {
     });
 }
 function createResource(project, slug, xlfFile, apiHostname, credentials) {
-    return new Promise(function (resolve, reject) {
+    return new Promise(function (_resolve, reject) {
         var data = JSON.stringify({
             'content': xlfFile.contents.toString(),
             'name': slug,

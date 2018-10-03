@@ -13,7 +13,8 @@
 		"allowJs": true,
 		"checkJs": true,
 		"strict": true,
-		"noUnusedLocals": true
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
 	},
 	"exclude": [
 		"node_modules/**"
