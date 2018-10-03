@@ -61,6 +61,7 @@ export class WalkThroughPart extends BaseEditor {
 	private content: HTMLDivElement;
 	private scrollbar: DomScrollableElement;
 	private editorFocus: IContextKey<boolean>;
+	private lastFocus: HTMLElement;
 	private size: Dimension;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
 
@@ -134,6 +135,9 @@ export class WalkThroughPart extends BaseEditor {
 				const scrollPosition = this.scrollbar.getScrollPosition();
 				this.content.scrollTop = scrollPosition.scrollTop;
 				this.content.scrollLeft = scrollPosition.scrollLeft;
+			}
+			if (e.target instanceof HTMLElement) {
+				this.lastFocus = e.target;
 			}
 		}));
 	}
@@ -212,7 +216,7 @@ export class WalkThroughPart extends BaseEditor {
 			active = active.parentElement;
 		}
 		if (!active) {
-			this.content.focus();
+			(this.lastFocus || this.content).focus();
 		}
 		this.editorFocus.set(true);
 	}
