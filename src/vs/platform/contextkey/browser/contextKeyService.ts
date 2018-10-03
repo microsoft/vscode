@@ -7,8 +7,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter, debounceEvent } from 'vs/base/common/event';
+import { keys } from 'vs/base/common/map';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -61,87 +62,79 @@ export class Context implements IContext {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private readonly _emitter: Emitter<string | string[]>;
-	private readonly _subscription: IDisposable;
-	private readonly _configurationService: IConfigurationService;
+	private static _keyPrefix = 'config.';
 
-	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string | string[]>) {
+	private readonly _values = new Map<string, any>();
+	private readonly _listener: IDisposable;
+
+	constructor(
+		id: number,
+		private readonly _configurationService: IConfigurationService,
+		emitter: Emitter<string | string[]>
+	) {
 		super(id, null);
 
-		this._emitter = emitter;
-		this._configurationService = configurationService;
-		this._subscription = configurationService.onDidChangeConfiguration(this._onConfigurationUpdated, this);
-		this._initFromConfiguration();
-	}
-
-	public dispose() {
-		this._subscription.dispose();
-	}
-
-	private _onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (event.source === ConfigurationTarget.DEFAULT) {
-			// new setting, rebuild everything
-			this._initFromConfiguration();
-		} else {
-			// update those that we know
-			for (const configKey of event.affectedKeys) {
-				const contextKey = `config.${configKey}`;
-				if (contextKey in this._value) {
-					this._value[contextKey] = this._configurationService.getValue(configKey);
-					this._emitter.fire(contextKey);
-				}
-			}
-		}
-	}
-
-	private _initFromConfiguration() {
-
-		const prefix = 'config.';
-		const config = this._configurationService.getValue();
-		const configKeys: { [key: string]: boolean } = Object.create(null);
-		const configKeysChanged: string[] = [];
-
-		// add new value from config
-		const walk = (obj: any, keys: string[]) => {
-			for (let key in obj) {
-				if (Object.prototype.hasOwnProperty.call(obj, key)) {
-					keys.push(key);
-					let value = obj[key];
-					switch (typeof value) {
-						case 'boolean':
-						case 'string':
-						case 'number':
-							const configKey = keys.join('.');
-							const oldValue = this._value[configKey];
-							this._value[configKey] = value;
-							if (oldValue !== value) {
-								configKeysChanged.push(configKey);
-								configKeys[configKey] = true;
-							} else {
-								configKeys[configKey] = false;
-							}
-							break;
-						case 'object':
-							walk(value, keys);
-							break;
+		this._listener = this._configurationService.onDidChangeConfiguration(event => {
+			if (event.source === ConfigurationTarget.DEFAULT) {
+				// new setting, reset everything
+				const allKeys = keys(this._values);
+				this._values.clear();
+				emitter.fire(allKeys);
+			} else {
+				const changedKeys: string[] = [];
+				for (const configKey of event.affectedKeys) {
+					const contextKey = `config.${configKey}`;
+					if (this._values.has(contextKey)) {
+						this._values.delete(contextKey);
+						changedKeys.push(contextKey);
 					}
-					keys.pop();
 				}
+				emitter.fire(changedKeys);
 			}
-		};
-		walk(config, ['config']);
+		});
+	}
 
-		// remove unused keys
-		for (let key in this._value) {
-			if (key.indexOf(prefix) === 0 && configKeys[key] === undefined) {
-				delete this._value[key];
-				configKeys[key] = true;
-				configKeysChanged.push(key);
-			}
+	dispose(): void {
+		this._listener.dispose();
+	}
+
+	getValue(key: string): any {
+
+		if (key.indexOf(ConfigAwareContextValuesContainer._keyPrefix) !== 0) {
+			return super.getValue(key);
 		}
 
-		// send events
-		this._emitter.fire(configKeysChanged);
+		if (this._values.has(key)) {
+			return this._values.get(key);
+		}
+
+		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
+		const configValue = this._configurationService.getValue(configKey);
+		let value: any = undefined;
+		switch (typeof configValue) {
+			case 'number':
+			case 'boolean':
+			case 'string':
+				value = configValue;
+				break;
+		}
+
+		this._values.set(key, value);
+		return value;
+	}
+
+	setValue(key: string, value: any): boolean {
+		return super.setValue(key, value);
+	}
+
+	removeValue(key: string): boolean {
+		return super.removeValue(key);
+	}
+
+	collectAllValues(): { [key: string]: any; } {
+		const result: { [key: string]: any } = Object.create(null);
+		this._values.forEach((value, index) => result[index] = value);
+		return { ...result, ...super.collectAllValues() };
 	}
 }
 
