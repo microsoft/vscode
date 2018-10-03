@@ -18,7 +18,7 @@ class DecorationRequestsQueue {
 	private _requests: { [id: number]: DecorationRequest } = Object.create(null);
 	private _resolver: { [id: number]: (data: DecorationData) => any } = Object.create(null);
 
-	private _timer: number;
+	private _timer: any;
 
 	constructor(
 		private _proxy: ExtHostDecorationsShape

@@ -173,7 +173,7 @@ class WordHighlighter {
 	private workerRequestValue: DocumentHighlight[] = [];
 
 	private lastCursorPositionChangeTime: number = 0;
-	private renderDecorationsTimer: number = -1;
+	private renderDecorationsTimer: any = -1;
 
 	private _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;

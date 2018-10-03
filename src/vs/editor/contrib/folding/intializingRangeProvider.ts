@@ -16,7 +16,7 @@ export class InitializingRangeProvider implements RangeProvider {
 	readonly id = ID_INIT_PROVIDER;
 
 	private decorationIds: string[] | undefined;
-	private timeout: number;
+	private timeout: any;
 
 	constructor(private editorModel: ITextModel, initialRanges: ILineRange[], onTimeout: () => void, timeoutTime: number) {
 		if (initialRanges.length) {

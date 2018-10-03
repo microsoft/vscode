@@ -75,7 +75,6 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 const typesDts = [
 	'node_modules/typescript/lib/*.d.ts',
 	'node_modules/@types/**/*.d.ts',
-	'!node_modules/@types/node/**/*',
 	'!node_modules/@types/webpack/**/*',
 	'!node_modules/@types/uglify-js/**/*',
 ];

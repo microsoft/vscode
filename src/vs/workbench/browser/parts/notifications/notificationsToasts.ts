@@ -186,7 +186,7 @@ export class NotificationsToasts extends Themable {
 			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
 			// Install Timers
-			let timeoutHandle: number;
+			let timeoutHandle: any;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
 					const showsProgress = item.hasProgress() && !item.progress.state.done;

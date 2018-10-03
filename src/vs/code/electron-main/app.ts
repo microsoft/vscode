@@ -166,7 +166,7 @@ export class CodeApplication {
 		});
 
 		let macOpenFileURIs: URI[] = [];
-		let runningTimeout: number = null;
+		let runningTimeout: any = null;
 		app.on('open-file', (event: Event, path: string) => {
 			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();

@@ -11,7 +11,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
 export class DelayedDragHandler extends Disposable {
-	private timeout: number;
+	private timeout: any;
 
 	constructor(container: HTMLElement, callback: () => void) {
 		super();

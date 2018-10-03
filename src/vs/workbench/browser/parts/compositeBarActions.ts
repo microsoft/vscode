@@ -134,7 +134,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 	private badgeContent: HTMLElement;
 	private badgeDisposable: IDisposable = Disposable.None;
-	private mouseUpTimeout: number;
+	private mouseUpTimeout: any;
 
 	constructor(
 		action: ActivityAction,

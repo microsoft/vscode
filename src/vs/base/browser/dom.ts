@@ -275,7 +275,7 @@ interface IRequestAnimationFrame {
 let _animationFrame: IRequestAnimationFrame = null;
 function doRequestAnimationFrame(callback: (time: number) => void): number {
 	if (!_animationFrame) {
-		const emulatedRequestAnimationFrame = (callback: (time: number) => void): number => {
+		const emulatedRequestAnimationFrame = (callback: (time: number) => void): any => {
 			return setTimeout(() => callback(new Date().getTime()), 0);
 		};
 		_animationFrame = (

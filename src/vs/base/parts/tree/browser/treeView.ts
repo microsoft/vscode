@@ -127,7 +127,7 @@ export class ViewItem implements IViewItem {
 	public needsRender: boolean;
 	public uri: string;
 	public unbindDragStart: Lifecycle.IDisposable;
-	public loadingTimer: number;
+	public loadingTimer: any;
 
 	public _styles: any;
 	private _draggable: boolean;

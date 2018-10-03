@@ -502,7 +502,7 @@ class BatchedCollector<T> {
 	private totalNumberCompleted = 0;
 	private batch: T[] = [];
 	private batchSize = 0;
-	private timeoutHandle: number;
+	private timeoutHandle: any;
 
 	constructor(private maxBatchSize: number, private cb: (items: T | T[]) => void) {
 	}

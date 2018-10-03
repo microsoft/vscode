@@ -65,7 +65,6 @@ function createCompile(src, build, emitError) {
 var typesDts = [
     'node_modules/typescript/lib/*.d.ts',
     'node_modules/@types/**/*.d.ts',
-    '!node_modules/@types/node/**/*',
     '!node_modules/@types/webpack/**/*',
     '!node_modules/@types/uglify-js/**/*',
 ];

@@ -242,7 +242,7 @@ class ExtHostQuickInput implements QuickInput {
 	private _onDidChangeValueEmitter = new Emitter<string>();
 	private _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
 	private _onDidHideEmitter = new Emitter<void>();
-	private _updateTimeout: number;
+	private _updateTimeout: any;
 	private _pendingUpdate: TransferQuickInput = { id: this._id };
 
 	private _disposed = false;

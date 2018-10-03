@@ -128,7 +128,7 @@ class MessageWidget implements IContentWidget {
 	private _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: number;
+		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);

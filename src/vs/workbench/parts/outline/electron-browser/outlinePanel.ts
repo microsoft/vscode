@@ -126,7 +126,7 @@ class RequestOracle {
 		this._lastState = thisState;
 		this._callback(codeEditor, undefined);
 
-		let handle: number;
+		let handle: any;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
 			clearTimeout(handle);
 			handle = setTimeout(() => this._callback(codeEditor, event), 350);
