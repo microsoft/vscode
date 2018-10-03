@@ -35,6 +35,16 @@ export module Iterator {
 		};
 	}
 
+	export function from<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
+		if (!elements) {
+			return Iterator.empty();
+		} else if (Array.isArray(elements)) {
+			return Iterator.fromArray(elements);
+		} else {
+			return elements;
+		}
+	}
+
 	export function map<T, R>(iterator: Iterator<T>, fn: (t: T) => R): Iterator<R> {
 		return {
 			next() {

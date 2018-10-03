@@ -54,16 +54,6 @@ export interface ITreeFilter<T, TFilterData = void> {
 	filter(element: T): boolean | Visibility | IFilterResult<TFilterData>;
 }
 
-function asIterator<T>(elements: Iterator<T> | T[] | undefined): Iterator<T> {
-	if (!elements) {
-		return Iterator.empty();
-	} else if (Array.isArray(elements)) {
-		return Iterator.fromArray(elements);
-	} else {
-		return elements;
-	}
-}
-
 function treeNodeToElement<T>(node: IMutableTreeNode<T, any>): ITreeElement<T> {
 	const { element, collapsed } = node;
 	const children = Iterator.map(Iterator.fromArray(node.children), treeNodeToElement);
@@ -117,14 +107,20 @@ export class TreeModel<T, TFilterData = void> {
 		this.filter = options.filter;
 	}
 
-	splice(location: number[], deleteCount: number, toInsert?: ISequence<ITreeElement<T>>): Iterator<ITreeElement<T>> {
+	splice(
+		location: number[],
+		deleteCount: number,
+		toInsert?: ISequence<ITreeElement<T>>,
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void,
+		onDidDeleteNode?: (node: ITreeNode<T, TFilterData>) => void
+	): Iterator<ITreeElement<T>> {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
 		const { parentNode, listIndex, revealed } = this.findParentNode(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
-		const nodesToInsertIterator = Iterator.map(asIterator(toInsert), el => this.createTreeNode(el, parentNode, revealed, treeListElementsToInsert));
+		const nodesToInsertIterator = Iterator.map(Iterator.from(toInsert), el => this.createTreeNode(el, parentNode, revealed, treeListElementsToInsert, onDidCreateNode));
 
 		const nodesToInsert: IMutableTreeNode<T, TFilterData>[] = [];
 		let revealedCount = 0;
@@ -141,6 +137,15 @@ export class TreeModel<T, TFilterData = void> {
 
 		if (revealed) {
 			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
+		}
+
+		if (onDidDeleteNode) {
+			const visit = (node: ITreeNode<T, TFilterData>) => {
+				onDidDeleteNode(node);
+				node.children.forEach(visit);
+			};
+
+			deletedNodes.forEach(visit);
 		}
 
 		return Iterator.map(Iterator.fromArray(deletedNodes), treeNodeToElement);
@@ -213,7 +218,13 @@ export class TreeModel<T, TFilterData = void> {
 		return true;
 	}
 
-	private createTreeNode(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T, TFilterData>, revealed: boolean, treeListElements: ITreeNode<T, TFilterData>[]): IMutableTreeNode<T, TFilterData> {
+	private createTreeNode(
+		treeElement: ITreeElement<T>,
+		parent: IMutableTreeNode<T, TFilterData>,
+		revealed: boolean,
+		treeListElements: ITreeNode<T, TFilterData>[],
+		onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void
+	): IMutableTreeNode<T, TFilterData> {
 		const node: IMutableTreeNode<T, TFilterData> = {
 			parent,
 			element: treeElement.element,
@@ -232,8 +243,8 @@ export class TreeModel<T, TFilterData = void> {
 			treeListElements.push(node);
 		}
 
-		const childElements = asIterator(treeElement.children);
-		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, revealed && !treeElement.collapsed, treeListElements));
+		const childElements = Iterator.from(treeElement.children);
+		const childNodes = Iterator.map(childElements, el => this.createTreeNode(el, node, revealed && !treeElement.collapsed, treeListElements, onDidCreateNode));
 
 		let hasVisibleDescendants = false;
 		let revealedCount = 1;
@@ -255,6 +266,10 @@ export class TreeModel<T, TFilterData = void> {
 			}
 		} else if (!node.collapsed) {
 			node.revealedCount = revealedCount;
+		}
+
+		if (onDidCreateNode) {
+			onDidCreateNode(node);
 		}
 
 		return node;
