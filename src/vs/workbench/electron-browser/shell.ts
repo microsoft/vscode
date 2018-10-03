@@ -88,7 +88,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/node/dialogIpc';
-import { EventType, addDisposableListener, addClass, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addClass, measure } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
@@ -163,10 +163,10 @@ export class WorkbenchShell extends Disposable {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(this.container);
 
 		// Warm up font cache information before building up too many dom elements
-		scheduleAtNextAnimationFrame(() => {
+		measure(() => {
 			restoreFontInfo(this.storageService);
 			readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
-		}, 100 /* meaure early in frame */);
+		});
 
 		// Workbench
 		this.workbench = this.createWorkbench(instantiationService, serviceCollection, this.container);
