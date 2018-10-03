@@ -2,7 +2,6 @@
 	"compilerOptions": {
 		"target": "es5",
 		"module": "commonjs",
-		"noImplicitAny": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
@@ -13,7 +12,8 @@
 		// type checking so that JavaScript file are not transpiled
 		"allowJs": true,
 		"checkJs": true,
-		"strictNullChecks": true
+		"strict": true,
+		"noUnusedLocals": true
 	},
 	"exclude": [
 		"node_modules/**"

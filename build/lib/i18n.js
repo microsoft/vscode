@@ -1054,7 +1054,6 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
     var mainPack = { version: i18nPackVersion, contents: {} };
     var extensionsPacks = {};
     return event_stream_1.through(function (xlf) {
-        var stream = this;
         var project = path.dirname(xlf.path);
         var resource = path.basename(xlf.path, '.xlf');
         var contents = xlf.contents.toString();

@@ -534,7 +534,6 @@ export function execute(): IMonacoDeclarationResult {
 
 	var t1 = Date.now();
 	Object.keys(SRC_FILES).forEach((fileName) => {
-		var t = Date.now();
 		const emitOutput = languageService.getEmitOutput(fileName, true);
 		OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
 		// console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);

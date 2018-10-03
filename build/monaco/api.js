@@ -447,7 +447,6 @@ function execute() {
     var languageService = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, SRC_FILES, {}));
     var t1 = Date.now();
     Object.keys(SRC_FILES).forEach(function (fileName) {
-        var t = Date.now();
         var emitOutput = languageService.getEmitOutput(fileName, true);
         OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
         // console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);

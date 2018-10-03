@@ -47,7 +47,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		const dstPath = path.join(options.destRoot, fileName);
 		writeFile(dstPath, fs.readFileSync(srcPath));
 	};
-	const writeOutputFile = (fileName: string, contents: string) => {
+	const writeOutputFile = (fileName: string, contents: string | Buffer) => {
 		writeFile(path.join(options.destRoot, fileName), contents);
 	};
 	for (let fileName in result) {
