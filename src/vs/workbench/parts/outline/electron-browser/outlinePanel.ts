@@ -548,7 +548,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		this._input.enable();
-		this.layoutBody();
+		this.layoutBody(this._cachedHeight);
 
 		// transfer focus from domNode to the tree
 		if (this._domNode === document.activeElement) {
