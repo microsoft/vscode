@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, IActionOptions } from 'vs/editor/browser/editorExtensions';
@@ -262,21 +261,21 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 export abstract class AbstractFormatAction extends EditorAction {
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 
 		const workerService = accessor.get(IEditorWorkerService);
 		const notificationService = accessor.get(INotificationService);
 
 		const formattingPromise = this._getFormattingEdits(editor, CancellationToken.None);
 		if (!formattingPromise) {
-			return TPromise.as(void 0);
+			return Promise.resolve(void 0);
 		}
 
 		// Capture the state of the editor
 		const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
-		return TPromise.wrap(formattingPromise).then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits)).then(edits => {
+		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits)).then(edits => {
 			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}

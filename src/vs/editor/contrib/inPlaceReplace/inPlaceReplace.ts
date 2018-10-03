@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -56,7 +55,7 @@ class InPlaceReplaceController implements IEditorContribution {
 		return InPlaceReplaceController.ID;
 	}
 
-	public run(source: string, up: boolean): Thenable<void> {
+	public run(source: string, up: boolean): Promise<void> {
 
 		// cancel any pending request
 		if (this.currentRequest) {
@@ -148,12 +147,12 @@ class InPlaceReplaceUp extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		let controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
 			return undefined;
 		}
-		return TPromise.wrap(controller.run(this.id, true));
+		return controller.run(this.id, true);
 	}
 }
 
@@ -173,12 +172,12 @@ class InPlaceReplaceDown extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		let controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
 			return undefined;
 		}
-		return TPromise.wrap(controller.run(this.id, false));
+		return controller.run(this.id, false);
 	}
 }
 
