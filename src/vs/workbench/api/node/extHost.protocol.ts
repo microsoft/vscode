@@ -127,8 +127,8 @@ export interface MainThreadDialogSaveOptions {
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOpenOptions): Thenable<string[]>;
-	$showSaveDialog(options: MainThreadDialogSaveOptions): Thenable<string>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Thenable<UriComponents[]>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Thenable<UriComponents>;
 }
 
 export interface MainThreadDecorationsShape extends IDisposable {

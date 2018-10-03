@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -66,7 +65,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	buttonLabel?: string;
+	saveLabel?: string;
 }
 
 export interface IOpenDialogOptions {
@@ -128,7 +127,7 @@ export interface IDialogService {
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
-	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult>;
+	confirm(confirmation: IConfirmation): Thenable<IConfirmationResult>;
 
 	/**
 	 * Present a modal dialog to the user.
@@ -137,7 +136,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): TPromise<number>;
+	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Thenable<number>;
 }
 
 
@@ -171,32 +170,32 @@ export interface IFileDialogService {
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
 	 */
-	pickFileFolderAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+	pickFileFolderAndOpen(options: IPickAndOpenOptions): Thenable<any>;
 
 	/**
 	 * Shows a file selection dialog and opens the selected entry.
 	 */
-	pickFileAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+	pickFileAndOpen(options: IPickAndOpenOptions): Thenable<any>;
 
 	/**
 	 * Shows a folder selection dialog and opens the selected entry.
 	 */
-	pickFolderAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+	pickFolderAndOpen(options: IPickAndOpenOptions): Thenable<any>;
 
 	/**
 	 * Shows a workspace selection dialog and opens the selected entry.
 	 */
-	pickWorkspaceAndOpen(options: IPickAndOpenOptions): TPromise<any>;
+	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Thenable<any>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.
 	 */
-	showSaveDialog(options: ISaveDialogOptions): TPromise<URI>;
+	showSaveDialog(options: ISaveDialogOptions): Thenable<URI>;
 
 	/**
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
-	showOpenDialog(options: IOpenDialogOptions): TPromise<URI[] | undefined>;
+	showOpenDialog(options: IOpenDialogOptions): Thenable<URI[] | undefined>;
 
 }
 

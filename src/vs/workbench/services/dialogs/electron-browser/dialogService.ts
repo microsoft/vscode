@@ -5,10 +5,9 @@
 
 import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
-import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IWindowService, INativeOpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowService, INativeOpenDialogOptions, OpenDialogOptions } from 'vs/platform/windows/common/windows';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -44,7 +43,7 @@ export class DialogService implements IDialogService {
 		@ILogService private logService: ILogService
 	) { }
 
-	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	confirm(confirmation: IConfirmation): Thenable<IConfirmationResult> {
 		this.logService.trace('DialogService#confirm', confirmation.message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
@@ -94,7 +93,7 @@ export class DialogService implements IDialogService {
 		return opts;
 	}
 
-	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): TPromise<number> {
+	show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Thenable<number> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
@@ -213,7 +212,7 @@ export class FileDialogService implements IFileDialogService {
 		};
 	}
 
-	public pickFileFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+	public pickFileFolderAndOpen(options: IPickAndOpenOptions): Thenable<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
@@ -222,7 +221,7 @@ export class FileDialogService implements IFileDialogService {
 
 	}
 
-	public pickFileAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+	public pickFileAndOpen(options: IPickAndOpenOptions): Thenable<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFilePath(Schemas.file);
@@ -230,7 +229,7 @@ export class FileDialogService implements IFileDialogService {
 		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickFolderAndOpen(options: IPickAndOpenOptions): TPromise<any> {
+	public pickFolderAndOpen(options: IPickAndOpenOptions): Thenable<any> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultFolderPath(Schemas.file);
@@ -238,7 +237,7 @@ export class FileDialogService implements IFileDialogService {
 		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): TPromise<void> {
+	public pickWorkspaceAndOpen(options: IPickAndOpenOptions): Thenable<void> {
 		let defaultUri = options.defaultUri;
 		if (!defaultUri) {
 			options.defaultUri = this.defaultWorkspacePath(Schemas.file);
@@ -249,13 +248,17 @@ export class FileDialogService implements IFileDialogService {
 	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
 		return {
 			defaultPath: options.defaultUri && options.defaultUri.fsPath,
-			buttonLabel: options.buttonLabel,
+			buttonLabel: options.saveLabel,
 			filters: options.filters,
 			title: options.title
 		};
 	}
 
-	public showSaveDialog(options: ISaveDialogOptions): TPromise<URI> {
+	public showSaveDialog(options: ISaveDialogOptions): Thenable<URI> {
+		const defaultUri = options.defaultUri;
+		if (defaultUri && defaultUri.scheme !== Schemas.file) {
+			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
+		}
 		return this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options)).then(result => {
 			if (result) {
 				return URI.file(result);
@@ -264,31 +267,35 @@ export class FileDialogService implements IFileDialogService {
 		});
 	}
 
-	public showOpenDialog(options: IOpenDialogOptions): TPromise<URI[] | undefined> {
+	public showOpenDialog(options: IOpenDialogOptions): Thenable<URI[] | undefined> {
 		const defaultUri = options.defaultUri;
+		if (defaultUri && defaultUri.scheme !== Schemas.file) {
+			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
+		}
 		const filters = [];
 		if (options.filters) {
 			for (let name in options.filters) {
 				filters.push({ name, extensions: options.filters[name] });
 			}
 		}
-		const properties = [];
-		if (options.canSelectFiles) {
-			properties.push('openFile');
-		}
-		if (options.canSelectFolders) {
-			properties.push('openDirectory');
-		}
-		if (options.canSelectMany) {
-			properties.push('multiSelections');
-		}
-		return this.windowService.showOpenDialog({
+		const newOptions: OpenDialogOptions = {
 			title: options.title,
 			defaultPath: defaultUri && defaultUri.fsPath,
 			buttonLabel: options.openLabel,
 			filters,
-			properties
-		}).then(result => result ? result.map(URI.file) : void 0);
+			properties: []
+		};
+		newOptions.properties.push('createDirectory');
+		if (options.canSelectFiles) {
+			newOptions.properties.push('openFile');
+		}
+		if (options.canSelectFolders) {
+			newOptions.properties.push('openDirectory');
+		}
+		if (options.canSelectMany) {
+			newOptions.properties.push('multiSelections');
+		}
+		return this.windowService.showOpenDialog(newOptions).then(result => result ? result.map(URI.file) : void 0);
 	}
 }
 
