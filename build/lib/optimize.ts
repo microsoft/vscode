@@ -322,7 +322,7 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 				sourceRoot: undefined,
 				includeContent: true,
 				addComment: true
-			}),
+			} as any),
 			gulp.dest(src + '-min')
 			, (err: any) => {
 				if (err instanceof (uglify as any).GulpUglifyError) {

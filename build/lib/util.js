@@ -135,7 +135,7 @@ function loadSourcemaps() {
         }
         if (!lastMatch) {
             f.sourceMap = {
-                version: 3,
+                version: '3',
                 names: [],
                 mappings: '',
                 sources: [f.relative.replace(/\//g, '/')],

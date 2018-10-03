@@ -6,7 +6,7 @@
 'use strict';
 
 import * as es from 'event-stream';
-import * as debounce from 'debounce';
+import debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
 import * as _ from 'underscore';
@@ -134,7 +134,7 @@ export function cleanNodeModule(name: string, excludes: string[], includes?: str
 	const negate = (str: string) => '!' + str;
 
 	const allFilter = _filter(toGlob('**'), { restore: true });
-	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
+	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob) as (x: string) => string));
 
 	const input = es.through();
 	const nodeModuleInput = input.pipe(allFilter);
@@ -180,7 +180,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 
 			if (!lastMatch) {
 				f.sourceMap = {
-					version: 3,
+					version: '3',
 					names: [],
 					mappings: '',
 					sources: [f.relative.replace(/\//g, '/')],
