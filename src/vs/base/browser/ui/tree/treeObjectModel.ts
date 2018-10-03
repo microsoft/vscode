@@ -9,7 +9,6 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { Iterator, ISequence } from 'vs/base/common/iterator';
 import { TreeModel, ITreeNode, ITreeModelOptions, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
 
-
 export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 
 	private model: TreeModel<T, TFilterData>;
@@ -34,7 +33,7 @@ export class TreeObjectModel<T extends NonNullable<any>, TFilterData = void> {
 			}
 		};
 
-		return this.model.splice(location, deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
+		return this.model.splice([...location, start], deleteCount, toInsert, onDidCreateNode, onDidDeleteNode);
 	}
 
 	getListIndex(element: T): number {
