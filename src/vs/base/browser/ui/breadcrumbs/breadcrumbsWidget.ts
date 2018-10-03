@@ -9,7 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
@@ -122,13 +122,30 @@ export class BreadcrumbsWidget {
 		if (dom.Dimension.equals(dim, this._dimension)) {
 			return;
 		}
-		this._dimension = dim;
+		if (this._pendingLayout) {
+			this._pendingLayout.dispose();
+		}
 		if (dim) {
+			// only meaure
+			this._pendingLayout = this._updateDimensions(dim);
+		} else {
+			this._pendingLayout = this._updateScrollbar();
+		}
+	}
+
+	private _updateDimensions(dim: dom.Dimension): IDisposable {
+		let disposables: IDisposable[] = [];
+		disposables.push(dom.modify(() => {
+			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
-		}
-		dispose(this._pendingLayout);
-		this._pendingLayout = dom.scheduleAtNextAnimationFrame(() => {
+			disposables.push(this._updateScrollbar());
+		}));
+		return combinedDisposable(disposables);
+	}
+
+	private _updateScrollbar(): IDisposable {
+		return dom.measure(() => {
 			this._scrollable.setRevealOnScroll(false);
 			this._scrollable.scanDomNode();
 			this._scrollable.setRevealOnScroll(true);

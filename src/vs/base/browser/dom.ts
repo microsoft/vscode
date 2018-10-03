@@ -395,6 +395,14 @@ class AnimationFrameQueueItem implements IDisposable {
 	};
 })();
 
+export function measure(callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
+}
+
+export function modify(callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
+}
+
 /**
  * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
  */
