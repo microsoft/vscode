@@ -240,7 +240,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const monacoWidth = (innerWidth > 1000 ? 1000 : innerWidth) - 10;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
-		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
+		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
+		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
 
 		// #56185
 		if (dimension.width !== this.lastLayedoutWidth) {
