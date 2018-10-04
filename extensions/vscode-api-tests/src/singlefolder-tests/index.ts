@@ -11,6 +11,7 @@ const suite = 'Integration Single Folder Tests';
 const options: any = {
 	ui: 'tdd',
 	useColors: true,
+	grep: 'QuickInput',
 	timeout: 60000
 };
 
