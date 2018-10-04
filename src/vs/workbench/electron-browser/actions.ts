@@ -13,7 +13,6 @@ import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
