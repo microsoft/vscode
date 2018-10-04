@@ -224,6 +224,7 @@ export class Workbench extends Disposable implements IPartService {
 	private zenMode: IZenMode;
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
+	private shouldCenterLayout = false;
 
 	private inZenMode: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
@@ -657,8 +658,14 @@ export class Workbench extends Disposable implements IPartService {
 		this.editorPart.whenRestored.then(() => updateEditorContextKeys());
 		this._register(this.editorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidAddGroup(() => updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidAddGroup(() => {
+			updateEditorContextKeys();
+			this.centerEditorLayout(this.shouldCenterLayout);
+		}));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => {
+			updateEditorContextKeys();
+			this.centerEditorLayout(this.shouldCenterLayout);
+		}));
 
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
 		this._register(DOM.addDisposableListener(window, 'focusin', () => {
@@ -1305,17 +1312,25 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	isEditorLayoutCentered(): boolean {
-		return this.editorPart.isLayoutCentered();
+		return this.shouldCenterLayout;
 	}
 
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
+		this.shouldCenterLayout = active;
+		let smartActive = active;
+		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.centeredLayoutAutoResize')) {
+			// Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
+			smartActive = false;
+		}
 
 		// Enter Centered Editor Layout
-		this.editorPart.centerLayout(active);
+		if (this.editorPart.isLayoutCentered() !== smartActive) {
+			this.editorPart.centerLayout(smartActive);
 
-		if (!skipLayout) {
-			this.layout();
+			if (!skipLayout) {
+				this.layout();
+			}
 		}
 	}
 

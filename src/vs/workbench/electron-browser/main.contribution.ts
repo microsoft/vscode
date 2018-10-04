@@ -598,6 +598,11 @@ configurationRegistry.registerConfiguration({
 			'default': 'left',
 			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
 		},
+		'workbench.centeredLayoutAutoResize': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+		},
 		'workbench.panel.defaultLocation': {
 			'type': 'string',
 			'enum': ['bottom', 'right'],
