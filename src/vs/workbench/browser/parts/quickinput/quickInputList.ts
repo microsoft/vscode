@@ -374,8 +374,8 @@ export class QuickInputList {
 			map.set(element.item, index);
 			return map;
 		}, new Map<IQuickPickItem, number>());
+		this.list.splice(0, this.list.length); // Clear focus and selection first, sending the events when the list is empty.
 		this.list.splice(0, this.list.length, this.elements);
-		this.list.setFocus([]);
 		this._onChangedVisibleCount.fire(this.elements.length);
 	}
 
