@@ -26,7 +26,7 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 	const result: ts.Node[] = [];
 
 	function loop(node: ts.Node) {
-		let stepResult = fn(node);
+		const stepResult = fn(node);
 
 		if (stepResult === CollectStepResult.Yes || stepResult === CollectStepResult.YesAndRecurse) {
 			result.push(node);
@@ -43,7 +43,7 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 
 function clone<T>(object: T): T {
 	const result = <T>{};
-	for (let id in object) {
+	for (const id in object) {
 		result[id] = object[id];
 	}
 	return result;

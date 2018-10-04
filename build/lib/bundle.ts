@@ -98,12 +98,12 @@ export interface ILoaderConfig {
  * Bundle `entryPoints` given config `config`.
  */
 export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult | null) => void): void {
-	let entryPointsMap: IEntryPointMap = {};
+	const entryPointsMap: IEntryPointMap = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		entryPointsMap[module.name] = module;
 	});
 
-	let allMentionedModulesMap: { [modules: string]: boolean; } = {};
+	const allMentionedModulesMap: { [modules: string]: boolean; } = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		allMentionedModulesMap[module.name] = true;
 		(module.include || []).forEach(function (includedModule) {
@@ -128,15 +128,15 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	loader.config(config);
 
 	loader(['require'], (localRequire: any) => {
-		let resolvePath = (path: string) => {
-			let r = localRequire.toUrl(path);
+		const resolvePath = (path: string) => {
+			const r = localRequire.toUrl(path);
 			if (!/\.js/.test(r)) {
 				return r + '.js';
 			}
 			return r;
 		};
-		for (let moduleId in entryPointsMap) {
-			let entryPoint = entryPointsMap[moduleId];
+		for (const moduleId in entryPointsMap) {
+			const entryPoint = entryPointsMap[moduleId];
 			if (entryPoint.append) {
 				entryPoint.append = entryPoint.append.map(resolvePath);
 			}
@@ -147,9 +147,9 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	});
 
 	loader(Object.keys(allMentionedModulesMap), () => {
-		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
-		let partialResult = emitEntryPoints(modules, entryPointsMap);
-		let cssInlinedResources = loader('vs/css').getInlinedResources();
+		const modules = <IBuildModuleInfo[]>loader.getBuildInfo();
+		const partialResult = emitEntryPoints(modules, entryPointsMap);
+		const cssInlinedResources = loader('vs/css').getInlinedResources();
 		callback(null, {
 			files: partialResult.files,
 			cssInlinedResources: cssInlinedResources,
@@ -159,45 +159,45 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 }
 
 function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMap): IPartialBundleResult {
-	let modulesMap: IBuildModuleInfoMap = {};
+	const modulesMap: IBuildModuleInfoMap = {};
 	modules.forEach((m: IBuildModuleInfo) => {
 		modulesMap[m.id] = m;
 	});
 
-	let modulesGraph: IGraph = {};
+	const modulesGraph: IGraph = {};
 	modules.forEach((m: IBuildModuleInfo) => {
 		modulesGraph[m.id] = m.dependencies;
 	});
 
-	let sortedModules = topologicalSort(modulesGraph);
+	const sortedModules = topologicalSort(modulesGraph);
 
 	let result: IConcatFile[] = [];
-	let usedPlugins: IPluginMap = {};
-	let bundleData: IBundleData = {
+	const usedPlugins: IPluginMap = {};
+	const bundleData: IBundleData = {
 		graph: modulesGraph,
 		bundles: {}
 	};
 
 	Object.keys(entryPoints).forEach((moduleToBundle: string) => {
-		let info = entryPoints[moduleToBundle];
-		let rootNodes = [moduleToBundle].concat(info.include || []);
-		let allDependencies = visit(rootNodes, modulesGraph);
-		let excludes: string[] = ['require', 'exports', 'module'].concat(info.exclude || []);
+		const info = entryPoints[moduleToBundle];
+		const rootNodes = [moduleToBundle].concat(info.include || []);
+		const allDependencies = visit(rootNodes, modulesGraph);
+		const excludes: string[] = ['require', 'exports', 'module'].concat(info.exclude || []);
 
 		excludes.forEach((excludeRoot: string) => {
-			let allExcludes = visit([excludeRoot], modulesGraph);
+			const allExcludes = visit([excludeRoot], modulesGraph);
 			Object.keys(allExcludes).forEach((exclude: string) => {
 				delete allDependencies[exclude];
 			});
 		});
 
-		let includedModules = sortedModules.filter((module: string) => {
+		const includedModules = sortedModules.filter((module: string) => {
 			return allDependencies[module];
 		});
 
 		bundleData.bundles[moduleToBundle] = includedModules;
 
-		let res = emitEntryPoint(
+		const res = emitEntryPoint(
 			modulesMap,
 			modulesGraph,
 			moduleToBundle,
@@ -208,15 +208,15 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 		);
 
 		result = result.concat(res.files);
-		for (let pluginName in res.usedPlugins) {
+		for (const pluginName in res.usedPlugins) {
 			usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
 		}
 	});
 
 	Object.keys(usedPlugins).forEach((pluginName: string) => {
-		let plugin = usedPlugins[pluginName];
+		const plugin = usedPlugins[pluginName];
 		if (typeof plugin.finishBuild === 'function') {
-			let write = (filename: string, contents: string) => {
+			const write = (filename: string, contents: string) => {
 				result.push({
 					dest: filename,
 					sources: [{
@@ -237,8 +237,8 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 }
 
 function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
-	let parseDefineCall = (moduleMatch: string, depsMatch: string) => {
-		let module = moduleMatch.replace(/^"|"$/g, '');
+	const parseDefineCall = (moduleMatch: string, depsMatch: string) => {
+		const module = moduleMatch.replace(/^"|"$/g, '');
 		let deps = depsMatch.split(',');
 		deps = deps.map((dep) => {
 			dep = dep.trim();
@@ -246,7 +246,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 			dep = dep.replace(/^'|'$/g, '');
 			let prefix: string | null = null;
 			let _path: string | null = null;
-			let pieces = dep.split('!');
+			const pieces = dep.split('!');
 			if (pieces.length > 1) {
 				prefix = pieces[0] + '!';
 				_path = pieces[1];
@@ -256,7 +256,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 			}
 
 			if (/^\.\//.test(_path) || /^\.\.\//.test(_path)) {
-				let res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
+				const res = path.join(path.dirname(module), _path).replace(/\\/g, '/');
 				return prefix + res;
 			}
 			return prefix + _path;
@@ -276,33 +276,33 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 		}
 
 		// Do one pass to record the usage counts for each module id
-		let useCounts: { [moduleId: string]: number; } = {};
+		const useCounts: { [moduleId: string]: number; } = {};
 		destFile.sources.forEach((source) => {
-			let matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
+			const matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
 			if (!matches) {
 				return;
 			}
 
-			let defineCall = parseDefineCall(matches[1], matches[2]);
+			const defineCall = parseDefineCall(matches[1], matches[2]);
 			useCounts[defineCall.module] = (useCounts[defineCall.module] || 0) + 1;
 			defineCall.deps.forEach((dep) => {
 				useCounts[dep] = (useCounts[dep] || 0) + 1;
 			});
 		});
 
-		let sortedByUseModules = Object.keys(useCounts);
+		const sortedByUseModules = Object.keys(useCounts);
 		sortedByUseModules.sort((a, b) => {
 			return useCounts[b] - useCounts[a];
 		});
 
-		let replacementMap: { [moduleId: string]: number; } = {};
+		const replacementMap: { [moduleId: string]: number; } = {};
 		sortedByUseModules.forEach((module, index) => {
 			replacementMap[module] = index;
 		});
 
 		destFile.sources.forEach((source) => {
 			source.contents = source.contents.replace(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/, (_, moduleMatch, depsMatch) => {
-				let defineCall = parseDefineCall(moduleMatch, depsMatch);
+				const defineCall = parseDefineCall(moduleMatch, depsMatch);
 				return `define(__m[${replacementMap[defineCall.module]}/*${defineCall.module}*/], __M([${defineCall.deps.map(dep => replacementMap[dep] + '/*' + dep + '*/').join(',')}])`;
 			});
 		});
@@ -332,7 +332,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 
 function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	// Taken from typescript compiler => emitFiles
-	let BOILERPLATE = [
+	const BOILERPLATE = [
 		{ start: /^var __extends/, end: /^}\)\(\);$/ },
 		{ start: /^var __assign/, end: /^};$/ },
 		{ start: /^var __decorate/, end: /^};$/ },
@@ -343,14 +343,14 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	];
 
 	destFiles.forEach((destFile) => {
-		let SEEN_BOILERPLATE: boolean[] = [];
+		const SEEN_BOILERPLATE: boolean[] = [];
 		destFile.sources.forEach((source) => {
-			let lines = source.contents.split(/\r\n|\n|\r/);
-			let newLines: string[] = [];
+			const lines = source.contents.split(/\r\n|\n|\r/);
+			const newLines: string[] = [];
 			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
 
 			for (let i = 0; i < lines.length; i++) {
-				let line = lines[i];
+				const line = lines[i];
 				if (IS_REMOVING_BOILERPLATE) {
 					newLines.push('');
 					if (END_BOILERPLATE!.test(line)) {
@@ -358,7 +358,7 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 					}
 				} else {
 					for (let j = 0; j < BOILERPLATE.length; j++) {
-						let boilerplate = BOILERPLATE[j];
+						const boilerplate = BOILERPLATE[j];
 						if (boilerplate.start.test(line)) {
 							if (SEEN_BOILERPLATE[j]) {
 								IS_REMOVING_BOILERPLATE = true;
@@ -403,14 +403,14 @@ function emitEntryPoint(
 	if (!dest) {
 		dest = entryPoint + '.js';
 	}
-	let mainResult: IConcatFile = {
+	const mainResult: IConcatFile = {
 		sources: [],
 		dest: dest
 	},
 		results: IConcatFile[] = [mainResult];
 
-	let usedPlugins: IPluginMap = {};
-	let getLoaderPlugin = (pluginName: string): ILoaderPlugin => {
+	const usedPlugins: IPluginMap = {};
+	const getLoaderPlugin = (pluginName: string): ILoaderPlugin => {
 		if (!usedPlugins[pluginName]) {
 			usedPlugins[pluginName] = modulesMap[pluginName].exports;
 		}
@@ -418,22 +418,22 @@ function emitEntryPoint(
 	};
 
 	includedModules.forEach((c: string) => {
-		let bangIndex = c.indexOf('!');
+		const bangIndex = c.indexOf('!');
 
 		if (bangIndex >= 0) {
-			let pluginName = c.substr(0, bangIndex);
-			let plugin = getLoaderPlugin(pluginName);
+			const pluginName = c.substr(0, bangIndex);
+			const plugin = getLoaderPlugin(pluginName);
 			mainResult.sources.push(emitPlugin(entryPoint, plugin, pluginName, c.substr(bangIndex + 1)));
 			return;
 		}
 
-		let module = modulesMap[c];
+		const module = modulesMap[c];
 
 		if (module.path === 'empty:') {
 			return;
 		}
 
-		let contents = readFileAndRemoveBOM(module.path);
+		const contents = readFileAndRemoveBOM(module.path);
 
 		if (module.shim) {
 			mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
@@ -443,14 +443,14 @@ function emitEntryPoint(
 	});
 
 	Object.keys(usedPlugins).forEach((pluginName: string) => {
-		let plugin = usedPlugins[pluginName];
+		const plugin = usedPlugins[pluginName];
 		if (typeof plugin.writeFile === 'function') {
-			let req: ILoaderPluginReqFunc = <any>(() => {
+			const req: ILoaderPluginReqFunc = <any>(() => {
 				throw new Error('no-no!');
 			});
 			req.toUrl = something => something;
 
-			let write = (filename: string, contents: string) => {
+			const write = (filename: string, contents: string) => {
 				results.push({
 					dest: filename,
 					sources: [{
@@ -463,16 +463,16 @@ function emitEntryPoint(
 		}
 	});
 
-	let toIFile = (path: string): IFile => {
-		let contents = readFileAndRemoveBOM(path);
+	const toIFile = (path: string): IFile => {
+		const contents = readFileAndRemoveBOM(path);
 		return {
 			path: path,
 			contents: contents
 		};
 	};
 
-	let toPrepend = (prepend || []).map(toIFile);
-	let toAppend = (append || []).map(toIFile);
+	const toPrepend = (prepend || []).map(toIFile);
+	const toAppend = (append || []).map(toIFile);
 
 	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
 
@@ -495,7 +495,7 @@ function readFileAndRemoveBOM(path: string): string {
 function emitPlugin(entryPoint: string, plugin: ILoaderPlugin, pluginName: string, moduleName: string): IFile {
 	let result = '';
 	if (typeof plugin.write === 'function') {
-		let write: ILoaderPluginWriteFunc = <any>((what: string) => {
+		const write: ILoaderPluginWriteFunc = <any>((what: string) => {
 			result += what;
 		});
 		write.getEntryPoint = () => {
@@ -516,12 +516,12 @@ function emitPlugin(entryPoint: string, plugin: ILoaderPlugin, pluginName: strin
 function emitNamedModule(moduleId: string, defineCallPosition: IPosition, path: string, contents: string): IFile {
 
 	// `defineCallPosition` is the position in code: |define()
-	let defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
+	const defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
 
 	// `parensOffset` is the position in code: define|()
-	let parensOffset = contents.indexOf('(', defineCallOffset);
+	const parensOffset = contents.indexOf('(', defineCallOffset);
 
-	let insertStr = '"' + moduleId + '", ';
+	const insertStr = '"' + moduleId + '", ';
 
 	return {
 		path: path,
@@ -530,8 +530,8 @@ function emitNamedModule(moduleId: string, defineCallPosition: IPosition, path: 
 }
 
 function emitShimmedModule(moduleId: string, myDeps: string[], factory: string, path: string, contents: string): IFile {
-	let strDeps = (myDeps.length > 0 ? '"' + myDeps.join('", "') + '"' : '');
-	let strDefine = 'define("' + moduleId + '", [' + strDeps + '], ' + factory + ');';
+	const strDeps = (myDeps.length > 0 ? '"' + myDeps.join('", "') + '"' : '');
+	const strDefine = 'define("' + moduleId + '", [' + strDeps + '], ' + factory + ');';
 	return {
 		path: path,
 		contents: contents + '\n;\n' + strDefine
@@ -546,8 +546,8 @@ function positionToOffset(str: string, desiredLine: number, desiredCol: number):
 		return desiredCol - 1;
 	}
 
-	let line = 1,
-		lastNewLineOffset = -1;
+	let line = 1;
+	let lastNewLineOffset = -1;
 
 	do {
 		if (desiredLine === line) {
@@ -565,16 +565,16 @@ function positionToOffset(str: string, desiredLine: number, desiredCol: number):
  * Return a set of reachable nodes in `graph` starting from `rootNodes`
  */
 function visit(rootNodes: string[], graph: IGraph): INodeSet {
-	let result: INodeSet = {},
-		queue = rootNodes;
+	const result: INodeSet = {};
+	const queue = rootNodes;
 
 	rootNodes.forEach((node) => {
 		result[node] = true;
 	});
 
 	while (queue.length > 0) {
-		let el = queue.shift();
-		let myEdges = graph[el!] || [];
+		const el = queue.shift();
+		const myEdges = graph[el!] || [];
 		myEdges.forEach((toNode) => {
 			if (!result[toNode]) {
 				result[toNode] = true;
@@ -591,7 +591,7 @@ function visit(rootNodes: string[], graph: IGraph): INodeSet {
  */
 function topologicalSort(graph: IGraph): string[] {
 
-	let allNodes: INodeSet = {},
+	const allNodes: INodeSet = {},
 		outgoingEdgeCount: { [node: string]: number; } = {},
 		inverseEdges: IGraph = {};
 
@@ -609,7 +609,7 @@ function topologicalSort(graph: IGraph): string[] {
 	});
 
 	// https://en.wikipedia.org/wiki/Topological_sorting
-	let S: string[] = [],
+	const S: string[] = [],
 		L: string[] = [];
 
 	Object.keys(allNodes).forEach((node: string) => {
@@ -623,10 +623,10 @@ function topologicalSort(graph: IGraph): string[] {
 		// Ensure the exact same order all the time with the same inputs
 		S.sort();
 
-		let n: string = S.shift()!;
+		const n: string = S.shift()!;
 		L.push(n);
 
-		let myInverseEdges = inverseEdges[n] || [];
+		const myInverseEdges = inverseEdges[n] || [];
 		myInverseEdges.forEach((m: string) => {
 			outgoingEdgeCount[m]--;
 			if (outgoingEdgeCount[m] === 0) {
