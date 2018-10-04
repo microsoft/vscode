@@ -67,7 +67,8 @@ export class Menu extends ActionBar {
 			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
 			actionRunner: options.actionRunner,
-			ariaLabel: options.ariaLabel
+			ariaLabel: options.ariaLabel,
+			triggerKeys: { keys: [KeyCode.Enter], keyDown: true }
 		});
 
 		this.actionsList.setAttribute('role', 'menu');
