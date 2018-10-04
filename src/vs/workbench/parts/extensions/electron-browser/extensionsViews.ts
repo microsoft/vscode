@@ -88,7 +88,8 @@ export class ExtensionsListView extends ViewletPanel {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		this.list = this.instantiationService.createInstance(WorkbenchPagedList, this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
-			multipleSelectionSupport: false
+			multipleSelectionSupport: false,
+			setRowLineHeight: false
 		}) as WorkbenchPagedList<IExtension>;
 		this.list.onContextMenu(e => this.onContextMenu(e), this, this.disposables);
 		this.disposables.push(this.list);

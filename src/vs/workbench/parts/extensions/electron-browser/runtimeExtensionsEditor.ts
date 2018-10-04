@@ -399,7 +399,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		};
 
 		this._list = this._instantiationService.createInstance(WorkbenchList, parent, delegate, [renderer], {
-			multipleSelectionSupport: false
+			multipleSelectionSupport: false,
+			setRowLineHeight: false
 		}) as WorkbenchList<IRuntimeExtension>;
 
 		this._list.splice(0, this._list.length, this._elements);
