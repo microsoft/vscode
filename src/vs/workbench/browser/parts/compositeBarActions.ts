@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { BaseActionItem, IBaseActionItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -338,7 +337,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	run(event: any): TPromise<any> {
+	run(event: any): Promise<any> {
 		this.showMenu();
 
 		return Promise.resolve(true);
@@ -413,7 +412,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', nls.localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): TPromise<any> {
+	run(id: string): Promise<any> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -653,7 +652,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	run(context: string): TPromise<any> {
+	run(context: string): Promise<any> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {

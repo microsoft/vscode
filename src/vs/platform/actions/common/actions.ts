@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -215,7 +214,7 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	run(...args: any[]): TPromise<any> {
+	run(...args: any[]): Promise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
@@ -253,7 +252,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
-	run(...args: any[]): TPromise<any> {
+	run(...args: any[]): Promise<any> {
 		let runArgs: any[] = [];
 
 		if (this._options.arg) {

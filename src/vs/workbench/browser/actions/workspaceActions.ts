@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -32,7 +31,7 @@ export class OpenFileAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): Thenable<any> {
 		return this.dialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
@@ -50,7 +49,7 @@ export class OpenFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): Thenable<any> {
 		return this.dialogService.pickFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
@@ -68,7 +67,7 @@ export class OpenFileFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): Thenable<any> {
 		return this.dialogService.pickFileFolderAndOpen({ forceNewWindow: false, telemetryExtraData: data });
 	}
 }
@@ -86,7 +85,7 @@ export class AddRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
 	}
 }
@@ -106,7 +105,7 @@ export class GlobalRemoveRootFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const state = this.contextService.getWorkbenchState();
 
 		// Workspace / Folder
@@ -140,7 +139,7 @@ export class SaveWorkspaceAsAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		return this.getNewWorkspaceConfigPath().then(configPathUri => {
 			if (configPathUri) {
 				const configPath = configPathUri.fsPath;
@@ -159,7 +158,7 @@ export class SaveWorkspaceAsAction extends Action {
 		});
 	}
 
-	private getNewWorkspaceConfigPath(): TPromise<URI> {
+	private getNewWorkspaceConfigPath(): Thenable<URI> {
 		return this.dialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
@@ -182,7 +181,7 @@ export class OpenWorkspaceAction extends Action {
 		super(id, label);
 	}
 
-	run(event?: any, data?: ITelemetryData): TPromise<any> {
+	run(event?: any, data?: ITelemetryData): Thenable<any> {
 		return this.dialogService.pickWorkspaceAndOpen({ telemetryExtraData: data });
 	}
 }
@@ -203,7 +202,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		this.enabled = !!this.workspaceContextService.getWorkspace().configuration;
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		return this.editorService.openEditor({ resource: this.workspaceContextService.getWorkspace().configuration });
 	}
 }
@@ -224,7 +223,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
 		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
