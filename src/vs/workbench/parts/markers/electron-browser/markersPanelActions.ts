@@ -37,6 +37,12 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isEqual } from 'vs/base/common/resources';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CodeAction } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
+import { URI } from 'vs/base/common/uri';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -301,6 +307,7 @@ export class QuickFixAction extends Action {
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
 
 	private updated: boolean = false;
+	private _allFixesPromise: Promise<CodeAction[]>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -308,7 +315,7 @@ export class QuickFixAction extends Action {
 		@IBulkEditService private bulkEditService: IBulkEditService,
 		@ICommandService private commandService: ICommandService,
 		@IEditorService private editorService: IEditorService,
-		@IModelService modelService: IModelService
+		@IModelService private modelService: IModelService
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
 		if (modelService.getModel(this.marker.resourceMarkers.uri)) {
@@ -320,18 +327,17 @@ export class QuickFixAction extends Action {
 				}
 			}, this, this.disposables);
 		}
-
 	}
 
 	private update(): void {
 		if (!this.updated) {
-			this.marker.resourceMarkers.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
+			this.hasFixes(this.marker).then(hasFixes => this.enabled = hasFixes);
 			this.updated = true;
 		}
 	}
 
 	async getQuickFixActions(): Promise<IAction[]> {
-		const codeActions = await this.marker.resourceMarkers.getFixes(this.marker);
+		const codeActions = await this.getFixes(this.marker);
 		return codeActions.map(codeAction => new Action(
 			codeAction.command ? codeAction.command.id : codeAction.title,
 			codeAction.title,
@@ -354,6 +360,39 @@ export class QuickFixAction extends Action {
 				revealIfVisible: true
 			},
 		}, ACTIVE_GROUP).then(() => null);
+	}
+
+	private getFixes(marker: Marker): Promise<CodeAction[]> {
+		return this._getFixes(marker.resource, new Range(marker.range.startLineNumber, marker.range.startColumn, marker.range.endLineNumber, marker.range.endColumn));
+	}
+
+	private async hasFixes(marker: Marker): Promise<boolean> {
+		if (!this.modelService.getModel(marker.resource)) {
+			// Return early, If the model is not yet created
+			return false;
+		}
+		if (!this._allFixesPromise) {
+			this._allFixesPromise = this._getFixes(marker.resource);
+		}
+		const allFixes = await this._allFixesPromise;
+		if (allFixes.length) {
+			const markerKey = IMarkerData.makeKey(marker.raw);
+			for (const fix of allFixes) {
+				if (fix.diagnostics && fix.diagnostics.some(d => IMarkerData.makeKey(d) === markerKey)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private async _getFixes(uri: URI, range?: Range): Promise<CodeAction[]> {
+		const model = this.modelService.getModel(uri);
+		if (model) {
+			const codeActions = await getCodeActions(model, range ? range : model.getFullModelRange(), { type: 'manual', filter: { kind: CodeActionKind.QuickFix } });
+			return codeActions;
+		}
+		return [];
 	}
 
 	dispose(): void {
