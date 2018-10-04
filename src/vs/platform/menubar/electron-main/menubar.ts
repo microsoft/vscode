@@ -211,7 +211,8 @@ export class Menubar {
 	}
 
 	private install(): void {
-
+		// Store old menu in our array to avoid GC to collect the menu and crash. See #55347
+		// TODO@sbatten Remove this when fixed upstream by Electron
 		const oldMenu = Menu.getApplicationMenu();
 		if (oldMenu) {
 			this.oldMenus.push(oldMenu);
