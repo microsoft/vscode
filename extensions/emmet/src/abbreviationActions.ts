@@ -643,14 +643,30 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 				}
 
 				// If wrapping with a block element, insert newline in the text to wrap.
-				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1 && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
-					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
+				if (wrappingNode && (expandOptions['profile'].hasOwnProperty('format') ? expandOptions['profile'].format : true)) {
+					if (inlineElements.indexOf(wrappingNode.name) === -1) {
+						wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
+					}
+
+					// Fixes #54711
+					if (wrappingNode.name === 'a') {
+						let hrefAtt = wrappingNode.attributes.filter((a) => a.name === 'href')[0];
+						if (hrefAtt) {
+							hrefAtt.value = input.textToWrap[0]; // This is safe because we've already checked that length is 1.
+						} else {
+							wrappingNode.attributes.push({
+								name: 'href',
+								options: {},
+								value: input.textToWrap[0] // This is safe because we've already checked that length is 1.
+							});
+						}
+					}
 				}
 			}
 			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
-			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
+			expandedText = expandedText.replace(/\\\$TM_SELECTED_TEXT/g, '$TM_SELECTED_TEXT');
 		} else {
 			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
