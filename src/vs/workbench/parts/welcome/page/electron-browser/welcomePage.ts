@@ -70,7 +70,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 }
 
-function isWelcomePageEnabled(configurationService: IConfigurationService, contextService?: IWorkspaceContextService) {
+function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
 	const startupEditor = configurationService.inspect(configurationKey);
 	if (!startupEditor.user && !startupEditor.workspace) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
