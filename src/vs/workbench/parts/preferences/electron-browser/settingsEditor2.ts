@@ -161,6 +161,13 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
+	get minimumWidth(): number { return 375; }
+	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+
+	// these setters need to exist because this extends from BaseEditor
+	set minimumWidth(value: number) { /*noop*/ }
+	set maximumWidth(value: number) { /*noop*/ }
+
 	private get currentSettingsModel() {
 		return this.searchResultModel || this.settingsTreeModel;
 	}
