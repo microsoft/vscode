@@ -88,15 +88,18 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 
 		const lastIndex = location[location.length - 1];
 		const deletedNodes = parentNode.children.splice(lastIndex, deleteCount, ...nodesToInsert);
-		const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.revealedCount, 0);
 
-		this._updateAncestorsRevealedCount(parentNode, revealedCount - visibleDeleteCount);
+		if (!parentNode.collapsed) {
+			const visibleDeleteCount = deletedNodes.reduce((r, node) => r + node.revealedCount, 0);
 
-		if (revealed) {
-			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
+			this._updateAncestorsRevealedCount(parentNode, revealedCount - visibleDeleteCount);
+
+			if (revealed) {
+				this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
+			}
 		}
 
-		if (onDidDeleteNode) {
+		if (deletedNodes.length > 0 && onDidDeleteNode) {
 			const visit = (node: ITreeNode<T, TFilterData>) => {
 				onDidDeleteNode(node);
 				node.children.forEach(visit);
@@ -187,7 +190,7 @@ export class IndexTreeModel<T, TFilterData = void> implements ITreeModel<T, TFil
 			element: treeElement.element,
 			children: [],
 			depth: parent.depth + 1,
-			collapsible: !!treeElement.collapsible,
+			collapsible: typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : (typeof treeElement.collapsed === 'boolean'),
 			collapsed: !!treeElement.collapsed,
 			revealedCount: 1,
 			visible: true,

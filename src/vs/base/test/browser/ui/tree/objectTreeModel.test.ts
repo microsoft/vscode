@@ -93,4 +93,25 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), []);
 		assert.equal(model.size, 0);
 	});
+
+	test('setChildren on collapsed node', () => {
+		const list = [] as ITreeNode<number>[];
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
+
+		model.setChildren(null, Iterator.fromArray([
+			{ element: 0, collapsed: true }
+		]));
+
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setChildren(0, Iterator.fromArray([
+			{ element: 1 },
+			{ element: 2 }
+		]));
+
+		assert.deepEqual(toArray(list), [0]);
+
+		model.setCollapsed(0, false);
+		assert.deepEqual(toArray(list), [0, 1, 2]);
+	});
 });
