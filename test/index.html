@@ -1,21 +1,17 @@
+<!doctype html>
 <html>
-<head>
-	<meta charset="utf-8">
-	<title>VSCode Tests</title>
-	<link href="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.css" rel="stylesheet" />
-</head>
-<body>
-	<div id="mocha"></div>
+  <head>
+    <title>Jasmine Spec Runner</title>
+    <link rel="stylesheet" href="../node_modules/jasmine-core/lib/jasmine-core/jasmine.css">
+  </head>
+  <body>
+    <script src="../node_modules/jasmine-core/lib/jasmine-core/jasmine.js"></script>
+    <script src="../node_modules/jasmine-core/lib/jasmine-core/jasmine-html.js"></script>
+    <script src="../node_modules/jasmine-core/lib/jasmine-core/boot.js"></script>
 
-	<script src="/out/vs/loader.js"></script>
-	<script src="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.js"></script>
-	<script>
-		mocha.setup('tdd');
-		require.config({
-			baseUrl: '/out',
+    <!-- include source files here... -->
 
-		});
-		require({{ modules }}, function (){mocha.run();});
-	</script>
-</body>
+    <!-- include spec files here... -->
+    <script src="spec/test.js"></script>
+  </body>
 </html>
