@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/html.tmbundle/commit/6a6fb2967e2f562a634fca97d18018104d428f1c",
+	"version": "https://github.com/textmate/html.tmbundle/commit/390c8870273a2ae80244dae6db6ba064a802f407",
 	"name": "HTML",
 	"scopeName": "text.html.basic",
 	"injections": {
@@ -20,55 +20,13 @@
 	},
 	"patterns": [
 		{
-			"begin": "(<\\?)(xml)",
-			"captures": {
-				"1": {
-					"name": "punctuation.definition.tag.html"
-				},
-				"2": {
-					"name": "entity.name.tag.html"
-				}
-			},
-			"end": "(\\?>)",
-			"name": "meta.tag.metadata.processing.xml.html",
-			"patterns": [
-				{
-					"include": "#attribute"
-				}
-			]
+			"include": "#xml-processing"
 		},
 		{
 			"include": "#comment"
 		},
 		{
-			"begin": "<!(?=(?i:DOCTYPE\\s))",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.tag.begin.html"
-				}
-			},
-			"end": ">",
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.definition.tag.end.html"
-				}
-			},
-			"name": "meta.tag.metadata.doctype.html",
-			"patterns": [
-				{
-					"match": "\\G(?i:DOCTYPE)",
-					"name": "entity.name.tag.html"
-				},
-				{
-					"begin": "\"",
-					"end": "\"",
-					"name": "string.quoted.double.html"
-				},
-				{
-					"match": "[^\\s>]+",
-					"name": "entity.other.attribute-name.html"
-				}
-			]
+			"include": "#doctype"
 		},
 		{
 			"include": "#cdata"
@@ -465,6 +423,59 @@
 				{
 					"match": "--!>",
 					"name": "invalid.illegal.characters-not-allowed-here.html"
+				}
+			]
+		},
+		"core-minus-invalid": {
+			"comment": "This should be the root pattern array includes minus #tags-invalid",
+			"patterns": [
+				{
+					"include": "#xml-processing"
+				},
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#doctype"
+				},
+				{
+					"include": "#cdata"
+				},
+				{
+					"include": "#tags-valid"
+				},
+				{
+					"include": "#entities"
+				}
+			]
+		},
+		"doctype": {
+			"begin": "<!(?=(?i:DOCTYPE\\s))",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.tag.begin.html"
+				}
+			},
+			"end": ">",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.tag.end.html"
+				}
+			},
+			"name": "meta.tag.metadata.doctype.html",
+			"patterns": [
+				{
+					"match": "\\G(?i:DOCTYPE)",
+					"name": "entity.name.tag.html"
+				},
+				{
+					"begin": "\"",
+					"end": "\"",
+					"name": "string.quoted.double.html"
+				},
+				{
+					"match": "[^\\s>]+",
+					"name": "entity.other.attribute-name.html"
 				}
 			]
 		},
@@ -2557,6 +2568,24 @@
 							"include": "#attribute"
 						}
 					]
+				}
+			]
+		},
+		"xml-processing": {
+			"begin": "(<\\?)(xml)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.tag.html"
+				},
+				"2": {
+					"name": "entity.name.tag.html"
+				}
+			},
+			"end": "(\\?>)",
+			"name": "meta.tag.metadata.processing.xml.html",
+			"patterns": [
+				{
+					"include": "#attribute"
 				}
 			]
 		}
