@@ -13,7 +13,17 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 
-		result.push(original.getText(new Range(currentLine, 0, isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1, 0)));
+		let toCharacter = 0;
+		let toLine = isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1;
+
+		// if this is a deletion at the very end of the document,then we need to account
+		// for a newline at the end of the last line which may have been deleted
+		if (isDeletion && diff.originalStartLineNumber === original.lineCount) {
+			toLine -= 1;
+			toCharacter = original.lineAt(toLine).range.end.character;
+		}
+
+		result.push(original.getText(new Range(currentLine, 0, toLine, toCharacter)));
 
 		if (!isDeletion) {
 			let fromLine = diff.modifiedStartLineNumber - 1;
