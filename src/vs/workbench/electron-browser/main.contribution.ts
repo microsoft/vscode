@@ -577,9 +577,9 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
 			'default': true
 		},
-		'workbench.quickOpen.prefill': {
+		'workbench.quickOpen.preserveInput': {
 			'type': 'boolean',
-			'description': nls.localize('workbench.quickOpen.prefill', "Controls whether to prefill Quick Open with the last input."),
+			'description': nls.localize('workbench.quickOpen.preserveInput', "Controls whether the last typed input to Quick Open should be restored when opening it the next time."),
 			'default': false
 		},
 		'workbench.settings.openDefaultSettings': {
