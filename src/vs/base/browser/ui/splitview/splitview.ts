@@ -160,11 +160,10 @@ export class SplitView extends Disposable {
 	}
 
 	style(styles: ISplitViewStyles): void {
+		dom.addClass(this.el, 'separator-border');
 		if (styles.separatorBorder.isTransparent()) {
-			dom.removeClass(this.el, 'separator-border');
 			this.el.style.removeProperty('--separator-border');
 		} else {
-			dom.addClass(this.el, 'separator-border');
 			this.el.style.setProperty('--separator-border', styles.separatorBorder.toString());
 		}
 	}
