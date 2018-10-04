@@ -381,7 +381,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.iconTheme !== newOptions.iconTheme ||
-			oldOptions.dirtyTabBorder !== newOptions.dirtyTabBorder
+			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
 		) {
 			this.redraw();
 		}
@@ -910,7 +910,7 @@ export class TabsTitleControl extends TitleControl {
 		if (editor.isDirty()) {
 			addClass(tabContainer, 'dirty');
 
-			if (this.accessor.partOptions.dirtyTabBorder && !this.getColor(TAB_ACTIVE_BORDER_TOP)) {
+			if (this.accessor.partOptions.highlightModifiedTabs && !this.getColor(TAB_ACTIVE_BORDER_TOP)) {
 				addClass(tabContainer, 'dirty-border');
 			} else {
 				removeClass(tabContainer, 'dirty-border');

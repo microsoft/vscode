@@ -480,9 +480,9 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 			'default': true
 		},
-		'workbench.editor.dirtyTabBorder': {
+		'workbench.editor.highlightModifiedTabs': {
 			'type': 'boolean',
-			'description': nls.localize('showEditorDirtyTabBorder', "Controls whether top border is drawn on dirty file tabs or not."),
+			'description': nls.localize('highlightModifiedTabs', "Controls whether top border is drawn on modified (dirty) file tabs or not."),
 			'default': false
 		},
 		'workbench.editor.labelFormat': {

@@ -30,7 +30,7 @@ export interface IEditorPartOptions extends IWorkbenchEditorPartConfiguration {
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: true,
-	dirtyTabBorder: false,
+	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
 	showIcons: true,
