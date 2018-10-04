@@ -38,6 +38,8 @@ export class Menubar {
 	private menuUpdater: RunOnceScheduler;
 	private menuGC: RunOnceScheduler;
 
+	// Array to keep menus around so that GC doesn't cause crash as explained in #55347
+	// TODO@sbatten Remove this when fixed upstream by Electron
 	private oldMenus: Menu[];
 
 	private menubarMenus: IMenubarData;
@@ -59,7 +61,7 @@ export class Menubar {
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
-		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = this.oldMenus.slice(this.oldMenus.length - 1); }, 10000);
+		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
 
 		this.menubarMenus = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey) || Object.create(null);
 
