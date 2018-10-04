@@ -470,9 +470,9 @@ export class MenubarControl extends Disposable {
 			this.setupCustomMenubar();
 		} else {
 			// Send menus to main process to be rendered by Electron
-			const menubarData = {};
+			const menubarData = { menus: {}, keybindings: {} };
 			if (this.getMenubarMenus(menubarData)) {
-				this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), menubarData, this.getAdditionalKeybindings());
+				this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), menubarData);
 			}
 		}
 	}
@@ -942,25 +942,25 @@ export class MenubarControl extends Disposable {
 	private getMenubarKeybinding(id: string): IMenubarKeybinding {
 		const binding = this.keybindingService.lookupKeybinding(id);
 		if (!binding) {
-			return null;
+			return undefined;
 		}
 
 		// first try to resolve a native accelerator
 		const electronAccelerator = binding.getElectronAccelerator();
 		if (electronAccelerator) {
-			return { id, label: electronAccelerator, isNative: true };
+			return { label: electronAccelerator, isNative: true };
 		}
 
 		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
 		const acceleratorLabel = binding.getLabel();
 		if (acceleratorLabel) {
-			return { id, label: acceleratorLabel, isNative: false };
+			return { label: acceleratorLabel, isNative: false };
 		}
 
 		return null;
 	}
 
-	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu) {
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding }) {
 		let groups = menu.getActions();
 		for (let group of groups) {
 			const [, actions] = group;
@@ -969,7 +969,7 @@ export class MenubarControl extends Disposable {
 
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
-					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu);
+					this.populateMenuItems(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService), submenu, keybindings);
 
 					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 						id: menuItem.id,
@@ -984,12 +984,13 @@ export class MenubarControl extends Disposable {
 						label: menuItem.label,
 						checked: menuItem.checked,
 						enabled: menuItem.enabled,
-						keybinding: this.getMenubarKeybinding(menuItem.id)
 					};
+
 
 					this.setCheckedStatus(menubarMenuItem);
 					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
 
+					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
 					menuToPopulate.items.push(menubarMenuItem);
 				}
 			});
@@ -1002,10 +1003,10 @@ export class MenubarControl extends Disposable {
 		}
 	}
 
-	private getAdditionalKeybindings(): Array<IMenubarKeybinding> {
-		const keybindings = [];
+	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
+		const keybindings = {};
 		if (isMacintosh) {
-			keybindings.push(this.getMenubarKeybinding('workbench.action.quit'));
+			keybindings['workbench.action.quit'] = (this.getMenubarKeybinding('workbench.action.quit'));
 		}
 
 		return keybindings;
@@ -1016,15 +1017,16 @@ export class MenubarControl extends Disposable {
 			return false;
 		}
 
+		menubarData.keybindings = this.getAdditionalKeybindings();
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
 			let menubarMenu: IMenubarMenu = { items: [] };
-			this.populateMenuItems(menu, menubarMenu);
+			this.populateMenuItems(menu, menubarMenu, menubarData.keybindings);
 			if (menubarMenu.items.length === 0) {
 				// Menus are incomplete
 				return false;
 			}
-			menubarData[topLevelMenuName] = menubarMenu;
+			menubarData.menus[topLevelMenuName] = menubarMenu;
 		}
 
 		return true;

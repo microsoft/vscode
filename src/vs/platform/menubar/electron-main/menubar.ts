@@ -18,7 +18,7 @@ import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel } from 'vs/base
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IStateService } from 'vs/platform/state/common/state';
@@ -28,8 +28,7 @@ const telemetryFrom = 'menu';
 export class Menubar {
 
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
-	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubar';
-	private static readonly lastKnownAdditionalKeybindings = 'lastKnownAdditionalKeybindings';
+	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
 	private isQuitting: boolean;
 	private appMenuInstalled: boolean;
@@ -42,7 +41,7 @@ export class Menubar {
 	// TODO@sbatten Remove this when fixed upstream by Electron
 	private oldMenus: Menu[];
 
-	private menubarMenus: IMenubarData;
+	private menubarMenus: { [id: string]: IMenubarMenu };
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
@@ -63,9 +62,10 @@ export class Menubar {
 
 		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
 
-		this.menubarMenus = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey) || Object.create(null);
+		this.menubarMenus = Object.create(null);
+		this.keybindings = Object.create(null);
 
-		this.keybindings = this.stateService.getItem<IMenubarData>(Menubar.lastKnownAdditionalKeybindings) || Object.create(null);
+		this.restoreCachedMenubarData();
 
 		this.addFallbackHandlers();
 
@@ -76,6 +76,19 @@ export class Menubar {
 		this.install();
 
 		this.registerListeners();
+	}
+
+	private restoreCachedMenubarData() {
+		const menubarData = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey);
+		if (menubarData) {
+			if (menubarData.menus) {
+				this.menubarMenus = menubarData.menus;
+			}
+
+			if (menubarData.keybindings) {
+				this.keybindings = menubarData.keybindings;
+			}
+		}
 	}
 
 	private addFallbackHandlers(): void {
@@ -162,17 +175,12 @@ export class Menubar {
 		return enableNativeTabs;
 	}
 
-	updateMenu(menus: IMenubarData, windowId: number, additionalKeybindings?: Array<IMenubarKeybinding>) {
-		this.menubarMenus = menus;
-		if (additionalKeybindings) {
-			additionalKeybindings.forEach(keybinding => {
-				this.keybindings[keybinding.id] = keybinding;
-			});
-		}
+	updateMenu(menubarData: IMenubarData, windowId: number) {
+		this.menubarMenus = menubarData.menus;
+		this.keybindings = menubarData.keybindings;
 
 		// Save off new menu and keybindings
-		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, this.menubarMenus);
-		this.stateService.setItem(Menubar.lastKnownAdditionalKeybindings, this.keybindings);
+		this.stateService.setItem(Menubar.lastKnownMenubarStorageKey, menubarData);
 
 		this.scheduleUpdateMenu();
 	}
@@ -411,13 +419,6 @@ export class Menubar {
 					this.insertRecentMenuItems(menu);
 				} else if (item.id === 'workbench.action.showAboutDialog') {
 					this.insertCheckForUpdatesItems(menu);
-				}
-
-				// Store the keybinding
-				if (item.keybinding) {
-					this.keybindings[item.id] = item.keybinding;
-				} else if (this.keybindings[item.id]) {
-					this.keybindings[item.id] = undefined;
 				}
 
 				if (isMacintosh) {

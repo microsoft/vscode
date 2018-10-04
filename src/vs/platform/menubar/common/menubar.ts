@@ -11,13 +11,12 @@ export const IMenubarService = createDecorator<IMenubarService>('menubarService'
 export interface IMenubarService {
 	_serviceBrand: any;
 
-	updateMenubar(windowId: number, menus: IMenubarData, additionalKeybindings?: Array<IMenubarKeybinding>): TPromise<void>;
+	updateMenubar(windowId: number, menuData: IMenubarData): TPromise<void>;
 }
 
 export interface IMenubarData {
-	'Files'?: IMenubarMenu;
-	'Edit'?: IMenubarMenu;
-	[id: string]: IMenubarMenu;
+	menus: { [id: string]: IMenubarMenu };
+	keybindings: { [id: string]: IMenubarKeybinding };
 }
 
 export interface IMenubarMenu {
@@ -25,7 +24,6 @@ export interface IMenubarMenu {
 }
 
 export interface IMenubarKeybinding {
-	id: string;
 	label: string;
 	isNative: boolean;
 }
@@ -35,7 +33,6 @@ export interface IMenubarMenuItemAction {
 	label: string;
 	checked: boolean;
 	enabled: boolean;
-	keybinding?: IMenubarKeybinding;
 }
 
 export interface IMenubarMenuItemSubmenu {
