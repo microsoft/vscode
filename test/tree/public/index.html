@@ -137,7 +137,12 @@
 										element,
 										collapsible: element.type === 'dir'
 									}));
-									setTimeout(() => c(els), 2500);
+
+									if (element && /\//.test(element.path)) {
+										setTimeout(() => c(els), 2500);
+									} else {
+										c(els);
+									}
 								}
 							};
 						});
