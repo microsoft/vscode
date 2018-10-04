@@ -271,6 +271,11 @@
         "category": "Git"
       },
       {
+        "command": "git.fetchPrune",
+        "title": "%command.fetchPrune%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -535,6 +540,10 @@
         },
         {
           "command": "git.fetchAll",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.fetchPrune",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -1174,6 +1183,12 @@
           "scope": "resource",
           "default": false,
           "description": "%config.fetchOnPull%"
+        },
+        "git.pruneOnFetch": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.pruneOnFetch%"
         },
         "git.allowForcePush": {
           "type": "boolean",

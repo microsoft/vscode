@@ -1157,7 +1157,7 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean } = {}): Promise<void> {
 		const args = ['fetch'];
 
 		if (options.remote) {
@@ -1168,6 +1168,10 @@ export class Repository {
 			}
 		} else if (options.all) {
 			args.push('--all');
+		}
+
+		if (options.prune) {
+			args.push('--prune');
 		}
 
 		try {

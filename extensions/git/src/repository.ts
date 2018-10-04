@@ -902,16 +902,27 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetchDefault(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch());
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const pruneOnFetch = config.get<boolean>('pruneOnFetch');
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: pruneOnFetch }));
 	}
 
 	@throttle
 	async fetchAll(): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true }));
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const pruneOnFetch = config.get<boolean>('pruneOnFetch');
+		await this.run(Operation.Fetch, () => this.repository.fetch({ all: true, prune: pruneOnFetch }));
+	}
+
+	@throttle
+	async fetchPrune(): Promise<void> {
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: true }));
 	}
 
 	async fetch(remote?: string, ref?: string): Promise<void> {
-		await this.run(Operation.Fetch, () => this.repository.fetch({ remote, ref }));
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const pruneOnFetch = config.get<boolean>('pruneOnFetch');
+		await this.run(Operation.Fetch, () => this.repository.fetch({ prune: pruneOnFetch, remote, ref }));
 	}
 
 	@throttle
