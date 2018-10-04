@@ -235,8 +235,8 @@ export class FileWalker {
 
 			// Mac: uses NFD unicode form on disk, but we want NFC
 			const normalized = leftover + (isMac ? normalization.normalizeNFC(stdout) : stdout);
-			const relativeFiles = normalized.split(useRipgrep ? '\n' : '\n./');
-			if (!useRipgrep && first && normalized.length >= 2) {
+			const relativeFiles = normalized.split('\n./');
+			if (first && normalized.length >= 2) {
 				first = false;
 				relativeFiles[0] = relativeFiles[0].trim().substr(2);
 			}

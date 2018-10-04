@@ -138,15 +138,6 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<string> {
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
-	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
-	private static readonly ESC_CODE = '\u001b'.charCodeAt(0);
-
-	// public for test
-	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
-	public static readonly MATCH_END_MARKER = '\u001b[0m';
-
-	private currentFile = '';
 	private remainder = '';
 	private isDone = false;
 	private stringDecoder: NodeStringDecoder;
@@ -181,108 +172,69 @@ export class RipgrepParser extends EventEmitter {
 		this.remainder = dataLines[dataLines.length - 1] ? <string>dataLines.pop() : '';
 
 		for (let l = 0; l < dataLines.length; l++) {
-			const outputLine = dataLines[l].trim();
-			if (this.isDone) {
-				break;
-			}
-
-			let r: Maybe<RegExpMatchArray>;
-			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
-				const lineNum = parseInt(r[1]) - 1;
-				let matchText = r[2];
-
-				// workaround https://github.com/BurntSushi/ripgrep/issues/416
-				// If the match line ended with \r, append a match end marker so the match isn't lost
-				if (r[3]) {
-					matchText += RipgrepParser.MATCH_END_MARKER;
-				}
-
-				// Line is a result - add to collected results for the current file path
-				this.handleMatchLine(lineNum, matchText);
-			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
-				this.currentFile = r[1];
-			} else {
-				// Line is empty (or malformed)
+			const line = dataLines[l];
+			if (line) { // Empty line at the end of each chunk
+				this.handleLine(line);
 			}
 		}
 	}
 
-	private handleMatchLine(lineNum: number, lineText: string): void {
-		if (lineNum === 0) {
-			lineText = stripUTF8BOM(lineText);
+	private handleLine(outputLine: string): void {
+		if (this.isDone) {
+			return;
 		}
 
-		let lastMatchEndPos = 0;
-		let matchTextStartPos = -1;
+		let parsedLine: any;
+		try {
+			parsedLine = JSON.parse(outputLine);
+		} catch (e) {
+			throw new Error(`malformed line from rg: ${outputLine}`);
+		}
 
-		// Track positions with color codes subtracted - offsets in the final text preview result
-		let matchTextStartRealIdx = -1;
-		let textRealIdx = 0;
-		let hitLimit = false;
-
-		const realTextParts: string[] = [];
-
-		const lineMatches: vscode.Range[] = [];
-
-		for (let i = 0; i < lineText.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
-			if (lineText.charCodeAt(i) === RipgrepParser.ESC_CODE) {
-				if (lineText.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
-					// Match start
-					const chunk = lineText.slice(lastMatchEndPos, i);
-					realTextParts.push(chunk);
-					i += RipgrepParser.MATCH_START_MARKER.length;
-					matchTextStartPos = i;
-					matchTextStartRealIdx = textRealIdx;
-				} else if (lineText.substr(i, RipgrepParser.MATCH_END_MARKER.length) === RipgrepParser.MATCH_END_MARKER) {
-					// Match end
-					const chunk = lineText.slice(matchTextStartPos, i);
-					realTextParts.push(chunk);
-					if (!hitLimit) {
-						const startCol = matchTextStartRealIdx;
-						const endCol = textRealIdx;
-
-						// actually have to finish parsing the line, and use the real ones
-						lineMatches.push(new vscode.Range(lineNum, startCol, lineNum, endCol));
-					}
-
-					matchTextStartPos = -1;
-					matchTextStartRealIdx = -1;
-					i += RipgrepParser.MATCH_END_MARKER.length;
-					lastMatchEndPos = i;
-					this.numResults++;
-
-					// Check hit maxResults limit
-					if (this.numResults >= this.maxResults) {
-						// Finish the line, then report the result below
-						hitLimit = true;
-					}
-				} else {
-					// ESC char in file
-					i++;
-					textRealIdx++;
+		if (parsedLine.type === 'match') {
+			let hitLimit = false;
+			const uri = vscode.Uri.file(path.join(this.rootFolder, parsedLine.data.path.text));
+			parsedLine.data.submatches.map((match: any) => {
+				if (hitLimit) {
+					return null;
 				}
-			} else {
-				// Some other char
-				i++;
-				textRealIdx++;
+
+				if (this.numResults >= this.maxResults) {
+					// Finish the line, then report the result below
+					hitLimit = true;
+				}
+
+				return this.submatchToResult(parsedLine, match, uri);
+			}).forEach((result: any) => {
+				if (result) {
+					this.onResult(result);
+				}
+			});
+
+			if (hitLimit) {
+				this.cancel();
+				this.emit('hitLimit');
+			}
+		}
+	}
+
+	private submatchToResult(parsedLine: any, match: any, uri: vscode.Uri): vscode.TextSearchResult {
+		const lineNumber = parsedLine.data.line_number - 1;
+		let matchText = parsedLine.data.lines.bytes ?
+			new Buffer(parsedLine.data.lines.bytes, 'base64').toString() :
+			parsedLine.data.lines.text;
+		let start = match.start;
+		let end = match.end;
+		if (lineNumber === 0) {
+			if (startsWithUTF8BOM(matchText)) {
+				matchText = stripUTF8BOM(matchText);
+				start -= 3;
+				end -= 3;
 			}
 		}
 
-		const chunk = lineText.slice(lastMatchEndPos);
-		realTextParts.push(chunk);
-
-		// Get full real text line without color codes
-		const previewText = realTextParts.join('');
-
-		const uri = vscode.Uri.file(path.join(this.rootFolder, this.currentFile));
-		lineMatches
-			.map(range => createTextSearchResult(uri, previewText, range, this.previewOptions))
-			.forEach(match => this.onResult(match));
-
-		if (hitLimit) {
-			this.cancel();
-			this.emit('hitLimit');
-		}
+		const range = new vscode.Range(lineNumber, start, lineNumber, end);
+		return createTextSearchResult(uri, matchText, range, this.previewOptions);
 	}
 
 	private onResult(match: vscode.TextSearchResult): void {
@@ -344,6 +296,8 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	if (!options.useGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
+
+	args.push('--json');
 
 	// Folder to search
 	args.push('--');

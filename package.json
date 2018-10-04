@@ -47,7 +47,7 @@
     "vscode-chokidar": "1.6.4",
     "vscode-debugprotocol": "1.32.0",
     "vscode-nsfw": "1.0.17",
-    "vscode-ripgrep": "1.1.0",
+    "vscode-ripgrep": "^1.2.0",
     "vscode-textmate": "^4.0.1",
     "vscode-xterm": "3.9.0-beta1",
     "winreg": "^1.2.4",

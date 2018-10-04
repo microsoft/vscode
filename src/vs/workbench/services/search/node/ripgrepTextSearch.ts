@@ -12,10 +12,11 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as encoding from 'vs/base/node/encoding';
 import * as extfs from 'vs/base/node/extfs';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IProgress, ITextSearchPreviewOptions, ITextSearchStats, TextSearchResult } from 'vs/platform/search/common/search';
 import { rgPath } from 'vscode-ripgrep';
 import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, ISerializedSearchSuccess } from './search';
@@ -77,7 +78,7 @@ export class RipgrepEngine {
 		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
-		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles, this.config.previewOptions);
+		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.previewOptions);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const handleResultP = (<TPromise<string>>this.postProcessExclusions(match.path, undefined, glob.hasSiblingPromiseFn(() => getSiblings(match.path))))
@@ -183,25 +184,16 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
-	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
-
-	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
-	public static readonly MATCH_END_MARKER = '\u001b[0m';
-
 	private fileMatch: FileMatch;
 	private remainder: string;
 	private isDone: boolean;
 	private stringDecoder: NodeStringDecoder;
-	private extraSearchFiles: string[];
 
 	private numResults = 0;
 
-	constructor(private maxResults: number, private rootFolder: string, extraFiles?: string[], private previewOptions?: ITextSearchPreviewOptions) {
+	constructor(private maxResults: number, private rootFolder: string, private previewOptions?: ITextSearchPreviewOptions) {
 		super();
 		this.stringDecoder = new StringDecoder();
-
-		this.extraSearchFiles = extraFiles || [];
 	}
 
 	public cancel(): void {
@@ -232,34 +224,80 @@ export class RipgrepParser extends EventEmitter {
 
 		for (let l = 0; l < dataLines.length; l++) {
 			const outputLine = dataLines[l].trim();
-			if (this.isDone) {
-				break;
-			}
 
-			let r: RegExpMatchArray;
-			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
-				const lineNum = parseInt(r[1]) - 1;
-				let matchText = r[2];
-
-				// workaround https://github.com/BurntSushi/ripgrep/issues/416
-				// If the match line ended with \r, append a match end marker so the match isn't lost
-				if (r[3]) {
-					matchText += RipgrepParser.MATCH_END_MARKER;
-				}
-
-				// Line is a result - add to collected results for the current file path
-				this.handleMatchLine(outputLine, lineNum, matchText);
-			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
-				// Line is a file path - send all collected results for the previous file path
-				if (this.fileMatch) {
-					this.onResult();
-				}
-
-				this.fileMatch = this.getFileMatch(r[1]);
-			} else {
-				// Line is empty (or malformed)
+			if (outputLine) {
+				this.handleLine(outputLine);
 			}
 		}
+	}
+
+	private handleLine(outputLine: string): void {
+		if (this.isDone) {
+			return;
+		}
+
+		let parsedLine: any;
+		try {
+			parsedLine = JSON.parse(outputLine);
+		} catch (e) {
+			throw new Error(`malformed line from rg: ${outputLine}`);
+		}
+
+		if (parsedLine.type === 'begin') {
+			const path = bytesOrTextToString(parsedLine.data.path);
+			this.fileMatch = this.getFileMatch(path);
+		} else if (parsedLine.type === 'match') {
+			this.handleMatchLine(parsedLine);
+		} else if (parsedLine.type === 'end') {
+			if (this.fileMatch) {
+				this.onResult();
+			}
+		}
+	}
+
+	private handleMatchLine(parsedLine: any): void {
+		let hitLimit = false;
+		const uri = URI.file(path.join(this.rootFolder, parsedLine.data.path.text));
+		parsedLine.data.submatches.map((match: any) => {
+			if (hitLimit) {
+				return null;
+			}
+
+			this.numResults++;
+			if (this.numResults >= this.maxResults) {
+				// Finish the line, then report the result below
+				hitLimit = true;
+			}
+
+			return this.submatchToResult(parsedLine, match, uri);
+		}).forEach((result: any) => {
+			if (result) {
+				this.fileMatch.addMatch(result);
+			}
+		});
+
+		if (hitLimit) {
+			this.cancel();
+			this.onResult();
+			this.emit('hitLimit');
+		}
+	}
+
+	private submatchToResult(parsedLine: any, match: any, uri: URI): TextSearchResult {
+		const lineNumber = parsedLine.data.line_number - 1;
+		let matchText = bytesOrTextToString(parsedLine.data.lines);
+		let start = match.start;
+		let end = match.end;
+		if (lineNumber === 0) {
+			if (strings.startsWithUTF8BOM(matchText)) {
+				matchText = strings.stripUTF8BOM(matchText);
+				start -= 3;
+				end -= 3;
+			}
+		}
+
+		const range = new Range(lineNumber, start, lineNumber, end);
+		return new TextSearchResult(matchText, range, this.previewOptions);
 	}
 
 	private getFileMatch(relativeOrAbsolutePath: string): FileMatch {
@@ -270,85 +308,16 @@ export class RipgrepParser extends EventEmitter {
 		return new FileMatch(absPath);
 	}
 
-	private handleMatchLine(outputLine: string, lineNum: number, text: string): void {
-		if (lineNum === 0) {
-			text = strings.stripUTF8BOM(text);
-		}
-
-		if (!this.fileMatch) {
-			// When searching a single file and no folderQueries, rg does not print the file line, so create it here
-			const singleFile = this.extraSearchFiles[0];
-			if (!singleFile) {
-				throw new Error('Got match line for unknown file');
-			}
-
-			this.fileMatch = this.getFileMatch(singleFile);
-		}
-
-		let lastMatchEndPos = 0;
-		let matchTextStartPos = -1;
-
-		// Track positions with color codes subtracted - offsets in the final text preview result
-		let matchTextStartRealIdx = -1;
-		let textRealIdx = 0;
-		let hitLimit = false;
-
-		const matchRanges: IRange[] = [];
-		const realTextParts: string[] = [];
-
-		for (let i = 0; i < text.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
-			if (text.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
-				// Match start
-				const chunk = text.slice(lastMatchEndPos, i);
-				realTextParts.push(chunk);
-				i += RipgrepParser.MATCH_START_MARKER.length;
-				matchTextStartPos = i;
-				matchTextStartRealIdx = textRealIdx;
-			} else if (text.substr(i, RipgrepParser.MATCH_END_MARKER.length) === RipgrepParser.MATCH_END_MARKER) {
-				// Match end
-				const chunk = text.slice(matchTextStartPos, i);
-				realTextParts.push(chunk);
-				if (!hitLimit) {
-					matchRanges.push(new Range(lineNum, matchTextStartRealIdx, lineNum, textRealIdx));
-				}
-
-				matchTextStartPos = -1;
-				matchTextStartRealIdx = -1;
-				i += RipgrepParser.MATCH_END_MARKER.length;
-				lastMatchEndPos = i;
-				this.numResults++;
-
-				// Check hit maxResults limit
-				if (this.numResults >= this.maxResults) {
-					// Finish the line, then report the result below
-					hitLimit = true;
-				}
-			} else {
-				i++;
-				textRealIdx++;
-			}
-		}
-
-		const chunk = text.slice(lastMatchEndPos);
-		realTextParts.push(chunk);
-
-		// Replace preview with version without color codes
-		const preview = realTextParts.join('');
-		matchRanges
-			.map(r => new TextSearchResult(preview, r, this.previewOptions))
-			.forEach(m => this.fileMatch.addMatch(m));
-
-		if (hitLimit) {
-			this.cancel();
-			this.onResult();
-			this.emit('hitLimit');
-		}
-	}
-
 	private onResult(): void {
 		this.emit('result', this.fileMatch.serialize());
 		this.fileMatch = null;
 	}
+}
+
+function bytesOrTextToString(obj: any): string {
+	return obj.bytes ?
+		new Buffer(obj.bytes, 'base64').toString() :
+		obj.text;
 }
 
 export interface IRgGlobResult {
@@ -518,6 +487,8 @@ function getRgArgs(config: IRawSearch) {
 	if (config.disregardGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
 	}
+
+	args.push('--json');
 
 	// Folder to search
 	args.push('--');

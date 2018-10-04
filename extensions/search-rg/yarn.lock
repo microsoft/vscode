@@ -1814,10 +1814,10 @@ vscode-nls@^4.0.0:
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.0.0.tgz#4001c8a6caba5cedb23a9c5ce1090395c0e44002"
   integrity sha512-qCfdzcH+0LgQnBpZA53bA32kzp9rpq/f66Som577ObeuDlFIrtbEJ+A/+CCxjIh4G8dpJYNCKIsxpRAHIfsbNw==
 
-vscode-ripgrep@1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.1.0.tgz#93c1e39d88342ee1b15530a12898ce930d511948"
-  integrity sha512-7Bsa13vk1mtjg1PfkjDwDloy2quDxnhvCjRwVMaYwFcwzgIGkai5TuNuziWisqUeKbSnFQsoIylSaqb+sIpFXA==
+vscode-ripgrep@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.0.tgz#f9daef7332c968a1044afc42a31788ac49e315af"
+  integrity sha512-OZAH4+euvPqf1p8bsl6q+l3XMXit2Ef8B8j2bQlAGJpeJ//2JdAH8Ih0kHNPcPhvnp+M3w+ISAXinfoykwFc7A==
 
 vscode@^1.1.17:
   version "1.1.17"
