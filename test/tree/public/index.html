@@ -47,9 +47,8 @@
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) {
-						container.textContent = element;
-					},
+					renderElement(element, index, container) { container.textContent = element; },
+					disposeElement() { },
 					disposeTemplate() { }
 				};
 
@@ -91,6 +90,7 @@
 					templateId: 'template',
 					renderTemplate(container) { return container; },
 					renderElement(element, index, container) { container.textContent = element.name; },
+					disposeElement() { },
 					disposeTemplate() { }
 				};
 
