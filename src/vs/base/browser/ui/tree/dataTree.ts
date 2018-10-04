@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { ITreeOptions, ComposedTreeDelegate, createComposedTreeListOptions, ITreeRenderer } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IVirtualDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { ITreeElement, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { timeout } from 'vs/base/common/async';
 
 export interface IDataTreeElement<T> {
 	readonly element: T;
@@ -23,7 +25,8 @@ export interface IDataSource<T extends NonNullable<any>> {
 enum DataTreeNodeState {
 	Uninitialized,
 	Loaded,
-	Loading
+	Loading,
+	Slow
 }
 
 interface IDataTreeNode<T extends NonNullable<any>> {
@@ -36,22 +39,35 @@ interface IDataTreeListTemplateData<T> {
 	templateData: T;
 }
 
-class DataTreeRenderer<T, TTemplateData> implements IRenderer<IDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>> {
+class DataTreeRenderer<T, TTemplateData> implements ITreeRenderer<IDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
+	private renderedNodes = new Map<IDataTreeNode<T>, IDataTreeListTemplateData<TTemplateData>>();
+	private disposables: IDisposable[] = [];
 
-	constructor(private renderer: IRenderer<T, TTemplateData>) {
+	constructor(
+		private renderer: IRenderer<T, TTemplateData>,
+		readonly onDidChangeTwistieState: Event<IDataTreeNode<T>>
+	) {
 		this.templateId = renderer.templateId;
 	}
 
 	renderTemplate(container: HTMLElement): IDataTreeListTemplateData<TTemplateData> {
 		const templateData = this.renderer.renderTemplate(container);
-
 		return { templateData };
 	}
 
 	renderElement(node: IDataTreeNode<T>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
 		this.renderer.renderElement(node.element, index, templateData.templateData);
+	}
+
+	renderTwistie(element: IDataTreeNode<T>, twistieElement: HTMLElement): boolean {
+		if (element.state === DataTreeNodeState.Slow) {
+			twistieElement.innerText = '🤨';
+			return true;
+		}
+
+		return false;
 	}
 
 	disposeElement(node: IDataTreeNode<T>, index: number, templateData: IDataTreeListTemplateData<TTemplateData>): void {
@@ -61,6 +77,11 @@ class DataTreeRenderer<T, TTemplateData> implements IRenderer<IDataTreeNode<T>, 
 	disposeTemplate(templateData: IDataTreeListTemplateData<TTemplateData>): void {
 		this.renderer.disposeTemplate(templateData.templateData);
 	}
+
+	dispose(): void {
+		this.renderedNodes.clear();
+		this.disposables = dispose(this.disposables);
+	}
 }
 
 export class DataTree<T extends NonNullable<any>, TFilterData = void> implements IDisposable {
@@ -69,17 +90,19 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 	private root: IDataTreeNode<T>;
 	private nodes = new Map<T, IDataTreeNode<T>>();
 
+	private _onDidChangeNodeState = new Emitter<IDataTreeNode<T>>();
+
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		renderers: ITreeRenderer<T, any>[],
 		private dataSource: IDataSource<T>,
 		options?: ITreeOptions<T, TFilterData>
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, IDataTreeNode<T>>(delegate);
-		const treeRenderers = renderers.map(r => new DataTreeRenderer(r));
+		const treeRenderers = renderers.map(r => new DataTreeRenderer(r, this._onDidChangeNodeState.event));
 		const treeOptions = createComposedTreeListOptions<T, IDataTreeNode<T>>(options);
 
 		this.tree = new ObjectTree(container, treeDelegate, treeRenderers, treeOptions);
@@ -112,10 +135,20 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 			return Promise.resolve(null);
 		} else {
 			node.state = DataTreeNodeState.Loading;
+			this._onDidChangeNodeState.fire(node);
+
+			const slowTimeout = timeout(800);
+
+			slowTimeout.then(() => {
+				node.state = DataTreeNodeState.Slow;
+				this._onDidChangeNodeState.fire(node);
+			});
 
 			return this.dataSource.getChildren(node.element)
 				.then(children => {
+					slowTimeout.cancel();
 					node.state = DataTreeNodeState.Loaded;
+					this._onDidChangeNodeState.fire(node);
 
 					const createTreeElement = (el: IDataTreeElement<T>): ITreeElement<IDataTreeNode<T>> => {
 						return {
@@ -133,7 +166,9 @@ export class DataTree<T extends NonNullable<any>, TFilterData = void> implements
 
 					this.tree.setChildren(node === this.root ? null : node, nodeChildren);
 				}, err => {
+					slowTimeout.cancel();
 					node.state = DataTreeNodeState.Uninitialized;
+					this._onDidChangeNodeState.fire(node);
 
 					if (node !== this.root) {
 						this.tree.collapse(node);

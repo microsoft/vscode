@@ -17,6 +17,10 @@
 		.tl-contents {
 			flex: 1;
 		}
+
+		.monaco-list-row:hover:not(.selected):not(.focused) {
+			background: gainsboro !important;
+		}
 	</style>
 </head>
 
@@ -133,7 +137,7 @@
 										element,
 										collapsible: element.type === 'dir'
 									}));
-									c(els);
+									setTimeout(() => c(els), 2500);
 								}
 							};
 						});

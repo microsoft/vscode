@@ -60,11 +60,10 @@ export class ComposedTreeDelegate<T, N extends { element: T }> implements IVirtu
 
 interface ITreeListTemplateData<T> {
 	twistie: HTMLElement;
-	count: HTMLElement;
 	templateData: T;
 }
 
-function renderTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
+function renderDefaultTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
 	if (node.children.length === 0 && !node.collapsible) {
 		twistie.innerText = '';
 	} else {
@@ -72,36 +71,46 @@ function renderTwistie<T>(node: ITreeNode<T, any>, twistie: HTMLElement): void {
 	}
 }
 
+export interface ITreeRenderer<TElement, TTemplateData> extends IRenderer<TElement, TTemplateData> {
+	renderTwistie?(element: TElement, twistieElement: HTMLElement): boolean;
+	onDidChangeTwistieState?: Event<TElement>;
+}
+
 class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
+	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private renderer: IRenderer<T, TTemplateData>,
+		private renderer: ITreeRenderer<T, TTemplateData>,
 		onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>
 	) {
 		this.templateId = renderer.templateId;
-		onDidChangeCollapseState(this.onDidChangeCollapseState, this, this.disposables);
+
+		onDidChangeCollapseState(this.onDidChangeNodeTwistieState, this, this.disposables);
+
+		if (renderer.onDidChangeTwistieState) {
+			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
+		}
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
 		const el = append(container, $('.monaco-tl-row'));
 		const twistie = append(el, $('.tl-twistie'));
 		const contents = append(el, $('.tl-contents'));
-		const count = append(el, $('.tl-count'));
 		const templateData = this.renderer.renderTemplate(contents);
 
-		return { twistie, count, templateData };
+		return { twistie, templateData };
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
 		this.renderedNodes.set(node, templateData);
+		this.renderedElements.set(node.element, node);
 
 		templateData.twistie.style.width = `${10 + node.depth * 10}px`;
-		renderTwistie(node, templateData.twistie);
-		templateData.count.textContent = `${node.revealedCount}`;
+		this.renderTwistie(node, templateData.twistie);
 
 		this.renderer.renderElement(node.element, index, templateData.templateData);
 	}
@@ -109,25 +118,44 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
 		this.renderer.disposeElement(node.element, index, templateData.templateData);
 		this.renderedNodes.delete(node);
+		this.renderedElements.set(node.element);
 	}
 
 	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {
 		this.renderer.disposeTemplate(templateData.templateData);
 	}
 
-	private onDidChangeCollapseState(node: ITreeNode<T, TFilterData>): void {
+	private onDidChangeTwistieState(element: T): void {
+		const node = this.renderedElements.get(element);
+
+		if (!node) {
+			return;
+		}
+
+		this.onDidChangeNodeTwistieState(node);
+	}
+
+	private onDidChangeNodeTwistieState(node: ITreeNode<T, TFilterData>): void {
 		const templateData = this.renderedNodes.get(node);
 
 		if (!templateData) {
 			return;
 		}
 
-		renderTwistie(node, templateData.twistie);
-		templateData.count.textContent = `${node.revealedCount}`;
+		this.renderTwistie(node, templateData.twistie);
+	}
+
+	private renderTwistie(node: ITreeNode<T, TFilterData>, twistieElement: HTMLElement) {
+		if (this.renderer.renderTwistie && this.renderer.renderTwistie(node.element, twistieElement)) {
+			return;
+		}
+
+		renderDefaultTwistie(node, twistieElement);
 	}
 
 	dispose(): void {
 		this.renderedNodes.clear();
+		this.renderedElements.clear();
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -149,7 +177,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
-		renderers: IRenderer<T, any>[],
+		renderers: ITreeRenderer<T, any>[],
 		options?: ITreeOptions<T, TFilterData>
 	) {
 		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
