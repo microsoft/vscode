@@ -319,7 +319,7 @@ export class QuickFixAction extends Action {
 		@IModelService private modelService: IModelService
 	) {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, 'markers-panel-action-quickfix', false);
-		if (modelService.getModel(this.marker.resourceMarkers.uri)) {
+		if (modelService.getModel(this.marker.resource)) {
 			this.update();
 		} else {
 			modelService.onModelAdded(model => {
@@ -377,7 +377,7 @@ export class QuickFixAction extends Action {
 		}
 		const allFixes = await this._allFixesPromise;
 		if (allFixes.length) {
-			const markerKey = IMarkerData.makeKey(marker.raw);
+			const markerKey = IMarkerData.makeKey(marker.marker);
 			for (const fix of allFixes) {
 				if (fix.diagnostics && fix.diagnostics.some(d => IMarkerData.makeKey(d) === markerKey)) {
 					return true;

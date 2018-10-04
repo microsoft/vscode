@@ -12,7 +12,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { MarkersModel, ResourceMarkers, Marker, RelatedInformation, NodeWithId } from 'vs/workbench/parts/markers/electron-browser/markersModel';
+import { MarkersModel, ResourceMarkers, Marker, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -49,25 +49,25 @@ export class DataSource implements IDataSource {
 		if (element instanceof MarkersModel) {
 			return 'root';
 		}
-		if (element instanceof NodeWithId) {
-			return element.id;
-		}
+		// if (element instanceof NodeWithId) {
+		// 	return element.id;
+		// }
 		return '';
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
-		return element instanceof MarkersModel || element instanceof ResourceMarkers || (element instanceof Marker && element.resourceRelatedInformation.length > 0);
+		return element instanceof MarkersModel || element instanceof ResourceMarkers || (element instanceof Marker && element.relatedInformation.length > 0);
 	}
 
 	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof MarkersModel) {
-			return Promise.as(element.resources);
+			return Promise.as(element.resourceMarkers);
 		}
 		if (element instanceof ResourceMarkers) {
 			return Promise.as(element.markers);
 		}
-		if (element instanceof Marker && element.resourceRelatedInformation.length > 0) {
-			return Promise.as(element.resourceRelatedInformation);
+		if (element instanceof Marker && element.relatedInformation.length > 0) {
+			return Promise.as(element.relatedInformation);
 		}
 		return null;
 	}
@@ -85,7 +85,7 @@ export class DataSource implements IDataSource {
 			return true;
 		}
 
-		if (element instanceof Marker && element.resourceRelatedInformation.length > 0) {
+		if (element instanceof Marker && element.relatedInformation.length > 0) {
 			return true;
 		}
 
@@ -114,7 +114,7 @@ export class Renderer implements IRenderer {
 
 	public getTemplateId(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
-			if ((element).uri.scheme === network.Schemas.file || (<ResourceMarkers>element).uri.scheme === network.Schemas.untitled) {
+			if ((element).resource.scheme === network.Schemas.file || (<ResourceMarkers>element).resource.scheme === network.Schemas.untitled) {
 				return Renderer.FILE_RESOURCE_MARKERS_TEMPLATE_ID;
 			} else {
 				return Renderer.RESOURCE_MARKERS_TEMPLATE_ID;
@@ -213,16 +213,16 @@ export class Renderer implements IRenderer {
 	// TODO@joao
 	private renderResourceMarkersElement(tree: ITree, element: ResourceMarkers, templateData: IResourceMarkersTemplateData) {
 		if (templateData.resourceLabel instanceof FileLabel) {
-			templateData.resourceLabel.setFile(element.uri/* , { matches: element.uriMatches } */);
+			templateData.resourceLabel.setFile(element.resource/* , { matches: element.uriMatches } */);
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.uri), { relative: true }), resource: element.uri }/* , { matches: element.uriMatches } */);
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.resource), { relative: true }), resource: element.resource }/* , { matches: element.uriMatches } */);
 		}
 		(<IResourceMarkersTemplateData>templateData).count.setCount(element.markers.length/* filteredCount */);
 	}
 
 	// TODO@joao
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
-		let marker = element.raw;
+		let marker = element.marker;
 
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
 
@@ -291,7 +291,7 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 	// TODO@joao
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
-			const path = this.labelServie.getUriLabel(element.uri, { relative: true }) || element.uri.fsPath;
+			const path = this.labelServie.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length/* element.filteredCount */, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {

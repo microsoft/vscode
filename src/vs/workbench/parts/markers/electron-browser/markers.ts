@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersModel } from './markersModel';
+import { MarkersModel, compareMarkersByUri } from './markersModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -18,6 +18,7 @@ import { deepClone, mixin } from 'vs/base/common/objects';
 import { IExpression, getEmptyExpression } from 'vs/base/common/glob';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { join, isAbsolute } from 'vs/base/common/paths';
+import { groupBy } from 'vs/base/common/arrays';
 
 export const IMarkersWorkbenchService = createDecorator<IMarkersWorkbenchService>('markersWorkbenchService');
 
@@ -54,6 +55,11 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	) {
 		super();
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
+
+		for (const group of groupBy(this.readMarkers(), compareMarkersByUri)) {
+			this.markersModel.setResourceMarkers(group[0].resource, group);
+		}
+
 		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
 		// TODO@joao
 		// this._register(configurationService.onDidChangeConfiguration(e => {
@@ -69,11 +75,10 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	}
 
 	private onMarkerChanged(resources: URI[]): void {
-		this.markersModel.updateMarkers(updater => {
-			for (const resource of resources) {
-				updater(resource, this.readMarkers(resource));
-			}
-		});
+		for (const resource of resources) {
+			this.markersModel.setResourceMarkers(resource, this.readMarkers(resource));
+		}
+
 		this.refreshBadge();
 		this._onDidChange.fire(resources);
 	}

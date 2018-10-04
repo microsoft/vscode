@@ -7,101 +7,71 @@ import * as paths from 'vs/base/common/paths';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { groupBy, isFalsyOrEmpty, flatten } from 'vs/base/common/arrays';
+import { groupBy, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
+import { memoize } from 'vs/base/common/decorators';
 
 function compareUris(a: URI, b: URI) {
-	if (a.toString() < b.toString()) {
-		return -1;
-	} else if (a.toString() > b.toString()) {
-		return 1;
-	} else {
-		return 0;
-	}
+	const astr = a.toString();
+	const bstr = b.toString();
+	return astr === bstr ? 0 : (astr < bstr ? -1 : 1);
 }
 
-export abstract class NodeWithId {
-	constructor(readonly id: string) { }
+export function compareMarkersByUri(a: IMarker, b: IMarker) {
+	return compareUris(a.resource, b.resource);
 }
 
-export class ResourceMarkers extends NodeWithId {
-
-	private _name: string = null;
-	private _path: string = null;
-
-	markers: Marker[] = [];
-
-	constructor(readonly uri: URI) {
-		super(uri.toString());
+function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
+	let [firstMarkerOfA] = a.markers;
+	let [firstMarkerOfB] = b.markers;
+	let res = 0;
+	if (firstMarkerOfA && firstMarkerOfB) {
+		res = MarkerSeverity.compare(firstMarkerOfA.marker.severity, firstMarkerOfB.marker.severity);
 	}
-
-	get path(): string {
-		if (this._path === null) {
-			this._path = this.uri.fsPath;
-		}
-		return this._path;
+	if (res === 0) {
+		res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
 	}
-
-	get name(): string {
-		if (this._name === null) {
-			this._name = paths.basename(this.uri.fsPath);
-		}
-		return this._name;
-	}
-
-	static compare(a: ResourceMarkers, b: ResourceMarkers): number {
-		let [firstMarkerOfA] = a.markers;
-		let [firstMarkerOfB] = b.markers;
-		let res = 0;
-		if (firstMarkerOfA && firstMarkerOfB) {
-			res = MarkerSeverity.compare(firstMarkerOfA.raw.severity, firstMarkerOfB.raw.severity);
-		}
-		if (res === 0) {
-			res = a.path.localeCompare(b.path) || a.name.localeCompare(b.name);
-		}
-		return res;
-	}
+	return res;
 }
 
-export class Marker extends NodeWithId {
+function compareMarkers(a: Marker, b: Marker): number {
+	return MarkerSeverity.compare(a.marker.severity, b.marker.severity)
+		|| Range.compareRangesUsingStarts(a.marker, b.marker);
+}
 
-	resourceRelatedInformation: RelatedInformation[] = [];
+export class ResourceMarkers {
+
+	@memoize
+	get path(): string { return this.resource.fsPath; }
+
+	@memoize
+	get name(): string { return paths.basename(this.resource.fsPath); }
+
+	constructor(readonly resource: URI, readonly markers: Marker[]) { }
+}
+
+export class Marker {
+
+	get resource(): URI { return this.marker.resource; }
+	get range(): IRange { return this.marker; }
 
 	constructor(
-		id: string,
-		readonly raw: IMarker,
-		readonly resourceMarkers: ResourceMarkers
-	) {
-		super(id);
-	}
-
-	get resource(): URI {
-		return this.raw.resource;
-	}
-
-	get range(): IRange {
-		return this.raw;
-	}
+		readonly marker: IMarker,
+		readonly relatedInformation: RelatedInformation[] = []
+	) { }
 
 	toString(): string {
 		return JSON.stringify({
-			...this.raw,
-			resource: this.raw.resource.path,
-			relatedInformation: this.resourceRelatedInformation.length ? this.resourceRelatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
+			...this.marker,
+			resource: this.marker.resource.path,
+			relatedInformation: this.relatedInformation.length ? this.relatedInformation.map(r => ({ ...r.raw, resource: r.raw.resource.path })) : void 0
 		}, null, '\t');
-	}
-
-	static compare(a: Marker, b: Marker): number {
-		return MarkerSeverity.compare(a.raw.severity, b.raw.severity)
-			|| Range.compareRangesUsingStarts(a.raw, b.raw);
 	}
 }
 
-export class RelatedInformation extends NodeWithId {
+export class RelatedInformation {
 
-	constructor(id: string, readonly raw: IRelatedInformation) {
-		super(id);
-	}
+	constructor(readonly raw: IRelatedInformation) { }
 }
 
 // TODO@joao
@@ -165,27 +135,59 @@ export class RelatedInformation extends NodeWithId {
 
 export class MarkersModel {
 
-	private _cachedSortedResources: ResourceMarkers[];
-	private _markersByResource: Map<string, ResourceMarkers>;
+	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
-	constructor(markers: IMarker[] = []) {
-		this._markersByResource = new Map<string, ResourceMarkers>();
-
-		for (const group of groupBy(markers, MarkersModel._compareMarkersByUri)) {
-			const resource = this.createResource(group[0].resource, group);
-			this._markersByResource.set(resource.uri.toString(), resource);
+	get resourceMarkers(): ResourceMarkers[] {
+		if (!this.cachedSortedResources) {
+			this.cachedSortedResources = values(this.resourcesByUri).sort(compareResourceMarkers);
 		}
+
+		return this.cachedSortedResources;
 	}
 
-	private static _compareMarkersByUri(a: IMarker, b: IMarker) {
-		return compareUris(a.resource, b.resource);
+	private resourcesByUri: Map<string, ResourceMarkers>;
+
+	constructor() {
+		this.resourcesByUri = new Map<string, ResourceMarkers>();
 	}
 
-	get resources(): ResourceMarkers[] {
-		if (!this._cachedSortedResources) {
-			this._cachedSortedResources = values(this._markersByResource).sort(ResourceMarkers.compare);
+	// updateMarkers(callback: (updater: (resource: URI, markers: IMarker[]) => any) => void): void {
+	// 	callback((resource, markers) => {
+	// 		if (isFalsyOrEmpty(markers)) {
+	// 			this.resourcesByUri.delete(resource.toString());
+	// 		} else {
+	// 			this.resourcesByUri.set(resource.toString(), this.createResource(resource, markers));
+	// 		}
+	// 	});
+	// 	this.cachedSortedResources = undefined;
+	// }
+
+	getResourceMarkers(resource: URI): ResourceMarkers | null {
+		return this.resourcesByUri.get(resource.toString()) || null;
+	}
+
+	setResourceMarkers(resource: URI, rawMarkers: IMarker[]): void {
+		if (isFalsyOrEmpty(rawMarkers)) {
+			this.resourcesByUri.delete(resource.toString());
+		} else {
+			const markers = rawMarkers.map(rawMarker => {
+				let relatedInformation: RelatedInformation[] | undefined = undefined;
+
+				if (rawMarker.relatedInformation) {
+					const groupedByResource = groupBy(rawMarker.relatedInformation, compareMarkersByUri);
+					groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
+					relatedInformation = flatten(groupedByResource).map((r, index) => new RelatedInformation(r));
+				}
+
+				return new Marker(rawMarker, relatedInformation);
+			});
+
+			markers.sort(compareMarkers);
+
+			this.resourcesByUri.set(resource.toString(), new ResourceMarkers(resource, markers));
 		}
-		return this._cachedSortedResources;
+
+		this.cachedSortedResources = undefined;
 	}
 
 	// TODO@joao
@@ -206,18 +208,10 @@ export class MarkersModel {
 	// 	return res;
 	// }
 
-	hasResources(): boolean {
-		return this._markersByResource.size > 0;
-	}
-
-	hasResource(resource: URI): boolean {
-		return this._markersByResource.has(resource.toString());
-	}
-
 	stats(): { total: number, filtered: number } {
 		let total = 0;
 		// let filtered = 0;
-		this._markersByResource.forEach(resource => {
+		this.resourcesByUri.forEach(resource => {
 			total += resource.markers.length;
 			// filtered += resource.filteredCount; // TODO@joao
 		});
@@ -225,40 +219,7 @@ export class MarkersModel {
 		return { total, filtered: total };
 	}
 
-	updateMarkers(callback: (updater: (resource: URI, markers: IMarker[]) => any) => void): void {
-		callback((resource, markers) => {
-			if (isFalsyOrEmpty(markers)) {
-				this._markersByResource.delete(resource.toString());
-			} else {
-				this._markersByResource.set(resource.toString(), this.createResource(resource, markers));
-			}
-		});
-		this._cachedSortedResources = undefined;
-	}
-
-	private createResource(uri: URI, rawMarkers: IMarker[]): ResourceMarkers {
-		const markers: Marker[] = [];
-		const resource = new ResourceMarkers(uri);
-
-		rawMarkers.forEach((rawMarker, index) => {
-			const marker = new Marker(uri.toString() + index, rawMarker, resource);
-			if (rawMarker.relatedInformation) {
-				const groupedByResource = groupBy(rawMarker.relatedInformation, MarkersModel._compareMarkersByUri);
-				groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
-				marker.resourceRelatedInformation = flatten(groupedByResource).map((r, index) => new RelatedInformation(marker.id + index, r));
-			}
-			markers.push(marker);
-		});
-		resource.markers = markers.sort(Marker.compare);
-
-		return resource;
-	}
-
-	getMarkers(resource: URI): ResourceMarkers | null {
-		return this._markersByResource.get(resource.toString()) || null;
-	}
-
 	dispose(): void {
-		this._markersByResource.clear();
+		this.resourcesByUri.clear();
 	}
 }

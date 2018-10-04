@@ -212,7 +212,7 @@ export class MarkersPanel extends Panel {
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container.show-file-icons'));
 		const renderer = this.instantiationService.createInstance(Viewer.Renderer, (action) => this.getActionItem(action));
-		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.uri : void 0);
+		const dnd = this.instantiationService.createInstance(SimpleFileResourceDragAndDrop, obj => obj instanceof ResourceMarkers ? obj.resource : void 0);
 		const controller = this.instantiationService.createInstance(Controller, () => this.focusFilter());
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
@@ -406,14 +406,14 @@ export class MarkersPanel extends Panel {
 	}
 
 	private getResourceForCurrentActiveResource(): ResourceMarkers | null {
-		return this.currentActiveResource ? this.markersWorkbenchService.markersModel.getMarkers(this.currentActiveResource) : null;
+		return this.currentActiveResource ? this.markersWorkbenchService.markersModel.getResourceMarkers(this.currentActiveResource) : null;
 	}
 
 	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (resource.uri.toString() === (<Marker>selectedElement[0]).raw.resource.toString()) {
+				if (resource.resource.toString() === (<Marker>selectedElement[0]).marker.resource.toString()) {
 					return true;
 				}
 			}

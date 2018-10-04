@@ -13,7 +13,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 class TestMarkersModel extends MarkersModel {
 
 	get filteredResources(): ResourceMarkers[] {
-		return this.resources;
+		return this.resourceMarkers;
 	}
 }
 
@@ -66,7 +66,7 @@ suite('MarkersModel Test', () => {
 		const marker6 = aMarker('c/res2', MarkerSeverity.Info);
 		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		const actuals = testObject.resources;
+		const actuals = testObject.resourceMarkers;
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res2'));
@@ -85,7 +85,7 @@ suite('MarkersModel Test', () => {
 		const marker6 = aMarker('c/res2');
 		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		const actuals = testObject.resources;
+		const actuals = testObject.resourceMarkers;
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res1'));
@@ -113,53 +113,55 @@ suite('MarkersModel Test', () => {
 		const marker15 = anErrorWithRange(8, 2, 8, 4);
 		const testObject = instantiationService.createInstance(TestMarkersModel, [marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
-		const actuals = testObject.resources[0].markers;
+		const actuals = testObject.resourceMarkers[0].markers;
 
-		assert.equal(actuals[0].raw, marker6);
-		assert.equal(actuals[1].raw, marker14);
-		assert.equal(actuals[2].raw, marker7);
-		assert.equal(actuals[3].raw, marker9);
-		assert.equal(actuals[4].raw, marker11);
-		assert.equal(actuals[5].raw, marker3);
-		assert.equal(actuals[6].raw, marker15);
-		assert.equal(actuals[7].raw, marker10);
-		assert.equal(actuals[8].raw, marker2);
-		assert.equal(actuals[9].raw, marker13);
-		assert.equal(actuals[10].raw, marker1);
-		assert.equal(actuals[11].raw, marker8);
-		assert.equal(actuals[12].raw, marker5);
-		assert.equal(actuals[13].raw, marker12);
-		assert.equal(actuals[14].raw, marker4);
+		assert.equal(actuals[0].marker, marker6);
+		assert.equal(actuals[1].marker, marker14);
+		assert.equal(actuals[2].marker, marker7);
+		assert.equal(actuals[3].marker, marker9);
+		assert.equal(actuals[4].marker, marker11);
+		assert.equal(actuals[5].marker, marker3);
+		assert.equal(actuals[6].marker, marker15);
+		assert.equal(actuals[7].marker, marker10);
+		assert.equal(actuals[8].marker, marker2);
+		assert.equal(actuals[9].marker, marker13);
+		assert.equal(actuals[10].marker, marker1);
+		assert.equal(actuals[11].marker, marker8);
+		assert.equal(actuals[12].marker, marker5);
+		assert.equal(actuals[13].marker, marker12);
+		assert.equal(actuals[14].marker, marker4);
 	});
 
 	test('toString()', () => {
 		let marker = aMarker('a/res1');
 		marker.code = '1234';
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning);
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Info, 1, 2, 1, 8, 'Info', '');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Hint, 1, 2, 1, 8, 'Ignore message', 'Ignore');
-		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, '', marker, null).toString());
+		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path }, null, '\t'), instantiationService.createInstance(Marker, marker, null).toString());
 
 		marker = aMarker('a/res2', MarkerSeverity.Warning, 1, 2, 1, 8, 'Warning message', '', [{ startLineNumber: 2, startColumn: 5, endLineNumber: 2, endColumn: 10, message: 'some info', resource: URI.file('a/res3') }]);
-		const testObject = instantiationService.createInstance(Marker, '', marker, null);
-		testObject.resourceRelatedInformation = marker.relatedInformation.map(r => new RelatedInformation('', r));
+		const testObject = instantiationService.createInstance(Marker, marker, null);
+
+		// hack
+		(testObject as any).relatedInformation = marker.relatedInformation.map(r => new RelatedInformation(r));
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
 
 	function hasMarker(markers: Marker[], marker: IMarker): boolean {
 		return markers.filter((m): boolean => {
-			return m.raw === marker;
+			return m.marker === marker;
 		}).length === 1;
 	}
 
 	function compareResource(a: ResourceMarkers, b: string): boolean {
-		return a.uri.toString() === URI.file(b).toString();
+		return a.resource.toString() === URI.file(b).toString();
 	}
 
 	function anErrorWithRange(startLineNumber: number = 10,
