@@ -160,6 +160,48 @@ suite('window namespace tests', function () {
 				})()
 				.catch(err => done(err));
 		});
+
+		test('createQuickPick, dispose in onDidHide', function (_done) {
+			let done = (err?: any) => {
+				done = () => {};
+				_done(err);
+			};
+
+			let hidden = false;
+			const quickPick = window.createQuickPick();
+			quickPick.onDidHide(() => {
+				if (hidden) {
+					done(new Error('Already hidden'));
+				} else {
+					hidden = true;
+					quickPick.dispose();
+					setTimeout(done, 0);
+				}
+			});
+			quickPick.show();
+			quickPick.hide();
+		});
+
+		test('createQuickPick, hide and dispose', function (_done) {
+			let done = (err?: any) => {
+				done = () => {};
+				_done(err);
+			};
+
+			let hidden = false;
+			const quickPick = window.createQuickPick();
+			quickPick.onDidHide(() => {
+				if (hidden) {
+					done(new Error('Already hidden'));
+				} else {
+					hidden = true;
+					setTimeout(done, 0);
+				}
+			});
+			quickPick.show();
+			quickPick.hide();
+			quickPick.dispose();
+		});
 	});
 });
 
