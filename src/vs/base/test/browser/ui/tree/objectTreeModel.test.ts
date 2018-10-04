@@ -114,4 +114,30 @@ suite('ObjectTreeModel', function () {
 		model.setCollapsed(0, false);
 		assert.deepEqual(toArray(list), [0, 1, 2]);
 	});
+
+	test('setChildren on expanded, unrevealed node', () => {
+		const list = [] as ITreeNode<number>[];
+		const model = new ObjectTreeModel<number>(toSpliceable(list));
+
+		model.setChildren(null, [
+			{
+				element: 1, collapsed: true, children: [
+					{ element: 11, collapsed: false }
+				]
+			},
+			{ element: 2 }
+		]);
+
+		assert.deepEqual(toArray(list), [1, 2]);
+
+		model.setChildren(11, [
+			{ element: 111 },
+			{ element: 112 }
+		]);
+
+		assert.deepEqual(toArray(list), [1, 2]);
+
+		model.setCollapsed(1, false);
+		assert.deepEqual(toArray(list), [1, 11, 111, 112, 2]);
+	});
 });
