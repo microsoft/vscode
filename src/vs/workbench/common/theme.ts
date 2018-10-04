@@ -73,20 +73,20 @@ export const TAB_DIRTY_ACTIVE_FOCUSED_BORDER = registerColor('tab.dirtyActiveFoc
 }, nls.localize('tabDirtyActiveFocusedBorder', "Border on the top of dirty active tab in active editor group."));
 
 export const TAB_DIRTY_ACTIVE_UNFOCUSED_BORDER = registerColor('tab.dirtyActiveUnfocusedBorder', {
-	dark: null,
-	light: null,
+	dark: transparent(TAB_DIRTY_ACTIVE_FOCUSED_BORDER, 0.8),
+	light: transparent(TAB_DIRTY_ACTIVE_FOCUSED_BORDER, 0.9),
 	hc: null
 }, nls.localize('tabDirtyActiveUnfocusedBorder', "Border on the top of dirty active tab in inactive editor group."));
 
 export const TAB_DIRTY_INACTIVE_FOCUSED_BORDER = registerColor('tab.dirtyInactiveFocusedBorder', {
-	dark: null,
-	light: null,
+	dark: transparent(TAB_DIRTY_ACTIVE_FOCUSED_BORDER, 0.85),
+	light: transparent(TAB_DIRTY_ACTIVE_FOCUSED_BORDER, 0.7),
 	hc: null
 }, nls.localize('tabDirtyInactiveFocusedBorder', "Border on the top of dirty inactive tab in active editor group."));
 
 export const TAB_DIRTY_INACTIVE_UNFOCUSED_BORDER = registerColor('tab.dirtyInactiveUnfocusedBorder', {
-	dark: null,
-	light: null,
+	dark: transparent(TAB_DIRTY_ACTIVE_FOCUSED_BORDER, 0.65),
+	light: transparent(TAB_DIRTY_ACTIVE_FOCUSED_BORDER, 0.6),
 	hc: null
 }, nls.localize('tabDirtyInactiveUnfocusedBorder', "Border on the top of dirty inactive tab in inactive editor group."));
 
