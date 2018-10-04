@@ -95,7 +95,7 @@ If you believe the bot got something wrong, please open a new issue and let us k
 ## Contributing Fixes
 
 If you are interested in writing code to fix issues,
-please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) in the wiki.
+please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) in the [wiki](https://github.com/Microsoft/vscode/wiki).
 
 # Thank You!
 
