@@ -325,7 +325,7 @@ export class BreadcrumbsControl {
 						editorViewState = undefined;
 					}
 					this._contextViewService.hideContextView(this);
-					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent), data.payload.originalEvent.middleButton);
+					this._revealInEditor(event, data.target, this._getEditorGroup(data.payload && data.payload.originalEvent), (data.payload && data.payload.originalEvent.middleButton));
 					/* __GDPR__
 						"breadcrumbs/open" : {
 							"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -408,11 +408,11 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.set(value);
 	}
 
-	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, middleClick: boolean = false): void {
+	private _revealInEditor(event: IBreadcrumbsItemEvent, element: any, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, pinned: boolean = false): void {
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
 				// open file in any editor
-				this._editorService.openEditor({ resource: element.uri, options: { pinned: middleClick } }, group);
+				this._editorService.openEditor({ resource: element.uri, options: { pinned: pinned } }, group);
 			} else {
 				// show next picker
 				let items = this._widget.getItems();
