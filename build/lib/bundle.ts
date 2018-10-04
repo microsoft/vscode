@@ -115,12 +115,12 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	});
 
 
-	var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
-	var r: Function = <any>vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
-	var loaderModule = { exports: {} };
+	const code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
+	const r: Function = <any>vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
+	const loaderModule = { exports: {} };
 	r.call({}, require, loaderModule, loaderModule.exports);
 
-	var loader: any = loaderModule.exports;
+	const loader: any = loaderModule.exports;
 	config.isBuild = true;
 	config.paths = config.paths || {};
 	config.paths['vs/nls'] = 'out-build/vs/nls.build';
@@ -483,8 +483,8 @@ function emitEntryPoint(
 }
 
 function readFileAndRemoveBOM(path: string): string {
-	var BOM_CHAR_CODE = 65279;
-	var contents = fs.readFileSync(path, 'utf8');
+	const BOM_CHAR_CODE = 65279;
+	let contents = fs.readFileSync(path, 'utf8');
 	// Remove BOM
 	if (contents.charCodeAt(0) === BOM_CHAR_CODE) {
 		contents = contents.substring(1);

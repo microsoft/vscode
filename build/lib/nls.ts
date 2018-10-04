@@ -26,7 +26,7 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 	const result: ts.Node[] = [];
 
 	function loop(node: ts.Node) {
-		var stepResult = fn(node);
+		let stepResult = fn(node);
 
 		if (stepResult === CollectStepResult.Yes || stepResult === CollectStepResult.YesAndRecurse) {
 			result.push(node);
@@ -42,8 +42,8 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 }
 
 function clone<T>(object: T): T {
-	var result = <T>{};
-	for (var id in object) {
+	const result = <T>{};
+	for (let id in object) {
 		result[id] = object[id];
 	}
 	return result;
@@ -67,8 +67,8 @@ define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
  * Returns a stream containing the patched JavaScript and source maps.
  */
 function nls(): NodeJS.ReadWriteStream {
-	var input = through();
-	var output = input.pipe(through(function (f: FileSourceMap) {
+	const input = through();
+	const output = input.pipe(through(function (f: FileSourceMap) {
 		if (!f.sourceMap) {
 			return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 		}

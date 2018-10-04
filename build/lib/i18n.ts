@@ -398,7 +398,7 @@ function stripComments(content: string): string {
 	* Third matches block comments
 	* Fourth matches line comments
 	*/
-	var regexp: RegExp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 	let result = content.replace(regexp, (match, _m1, _m2, m3, m4) => {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
@@ -421,9 +421,9 @@ function stripComments(content: string): string {
 }
 
 function escapeCharacters(value: string): string {
-	var result: string[] = [];
-	for (var i = 0; i < value.length; i++) {
-		var ch = value.charAt(i);
+	const result: string[] = [];
+	for (let i = 0; i < value.length; i++) {
+		const ch = value.charAt(i);
 		switch (ch) {
 			case '\'':
 				result.push('\\\'');
@@ -1312,9 +1312,9 @@ function createIslFile(originalFilePath: string, messages: Map<string>, language
 }
 
 function encodeEntities(value: string): string {
-	var result: string[] = [];
-	for (var i = 0; i < value.length; i++) {
-		var ch = value[i];
+	let result: string[] = [];
+	for (let i = 0; i < value.length; i++) {
+		let ch = value[i];
 		switch (ch) {
 			case '<':
 				result.push('&lt;');
