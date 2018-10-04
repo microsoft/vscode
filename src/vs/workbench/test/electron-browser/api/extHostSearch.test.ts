@@ -549,18 +549,16 @@ suite('ExtHostSearch', () => {
 		test('multiroot max results', async () => {
 			let cancels = 0;
 			await registerTestFileSearchProvider({
-				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Thenable<URI[]> {
+				async provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
 					token.onCancellationRequested(() => cancels++);
 
 					// Provice results async so it has a chance to invoke every provider
-					return new TPromise(r => process.nextTick(r))
-						.then(() => {
-							return [
-								'file1.ts',
-								'file2.ts',
-								'file3.ts',
-							].map(relativePath => joinPath(options.folder, relativePath));
-						});
+					await new TPromise(r => process.nextTick(r));
+					return [
+						'file1.ts',
+						'file2.ts',
+						'file3.ts',
+					].map(relativePath => joinPath(options.folder, relativePath));
 				}
 			});
 
@@ -1110,18 +1108,15 @@ suite('ExtHostSearch', () => {
 		test('multiroot max results', async () => {
 			let cancels = 0;
 			await registerTestTextSearchProvider({
-				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<vscode.TextSearchComplete> {
+				async provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
 					token.onCancellationRequested(() => cancels++);
-					return new TPromise(r => process.nextTick(r))
-						.then(() => {
-							[
-								'file1.ts',
-								'file2.ts',
-								'file3.ts',
-							].forEach(f => progress.report(makeTextResult(options.folder, f)));
-
-							return null;
-						});
+					await new TPromise(r => process.nextTick(r));
+					[
+						'file1.ts',
+						'file2.ts',
+						'file3.ts',
+					].forEach(f => progress.report(makeTextResult(options.folder, f)));
+					return null;
 				}
 			});
 

@@ -16,7 +16,7 @@ suite('BoundModelReferenceCollection', () => {
 		col.dispose();
 	});
 
-	test('max age', () => {
+	test('max age', async () => {
 
 		let didDispose = false;
 
@@ -27,9 +27,8 @@ suite('BoundModelReferenceCollection', () => {
 			}
 		});
 
-		return timeout(30).then(() => {
-			assert.equal(didDispose, true);
-		});
+		await timeout(30);
+		assert.equal(didDispose, true);
 	});
 
 	test('max size', () => {

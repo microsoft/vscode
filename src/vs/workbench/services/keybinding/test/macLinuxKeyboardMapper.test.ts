@@ -15,20 +15,18 @@ import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybin
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
-function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
-	return readRawMapping<IMacLinuxKeyboardMapping>(file).then((rawMappings) => {
-		return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, OS);
-	});
+async function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
+	const rawMappings = await readRawMapping<IMacLinuxKeyboardMapping>(file);
+	return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, OS);
 }
 
 suite('keyboardMapper - MAC de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
@@ -375,10 +373,9 @@ suite('keyboardMapper - MAC en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
@@ -453,10 +450,9 @@ suite('keyboardMapper - LINUX de_ch', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
@@ -803,10 +799,9 @@ suite('keyboardMapper - LINUX en_us', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
@@ -1322,10 +1317,9 @@ suite('keyboardMapper - LINUX ru', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
@@ -1356,10 +1350,9 @@ suite('keyboardMapper - LINUX en_uk', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
@@ -1394,10 +1387,9 @@ suite('keyboardMapper - MAC zh_hant', () => {
 
 	let mapper: MacLinuxKeyboardMapper;
 
-	suiteSetup(() => {
-		return createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh).then((_mapper) => {
-			mapper = _mapper;
-		});
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant', OperatingSystem.Macintosh);
+		mapper = _mapper;
 	});
 
 	test('mapping', () => {
