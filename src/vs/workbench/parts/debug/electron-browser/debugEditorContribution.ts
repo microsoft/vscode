@@ -203,22 +203,29 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
 						const disable = breakpoints.some(bp => bp.enabled);
 
-						this.dialogService.show(severity.Info, nls.localize('breakpointHasCondition', "This {0} has a {1} that will get lost on remove. Consider {2} the {0} instead.",
+						const enabling = nls.localize('breakpointHasConditionDisabled',
+							"This {0} has a {1} that will get lost on remove. Consider enabling the {0} instead.",
 							breakpointType.toLowerCase(),
-							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition"),
-							disable ? nls.localize('disabling', "disabling") : nls.localize('enabling', "enabling")
-						), [
-								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-								nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-								nls.localize('cancel', "Cancel")
-							], { cancelId: 2 }).then(choice => {
-								if (choice === 0) {
-									breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-								}
-								if (choice === 1) {
-									breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
-								}
-							});
+							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
+						);
+						const disabling = nls.localize('breakpointHasConditionEnabled',
+							"This {0} has a {1} that will get lost on remove. Consider disabling the {0} instead.",
+							breakpointType.toLowerCase(),
+							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
+						);
+
+						this.dialogService.show(severity.Info, disable ? disabling : enabling, [
+							nls.localize('removeLogPoint', "Remove {0}", breakpointType),
+							nls.localize('disableLogPoint', "{0} {1}", disable ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
+							nls.localize('cancel', "Cancel")
+						], { cancelId: 2 }).then(choice => {
+							if (choice === 0) {
+								breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+							}
+							if (choice === 1) {
+								breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
+							}
+						});
 					} else {
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
