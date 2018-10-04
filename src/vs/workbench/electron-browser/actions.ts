@@ -415,7 +415,6 @@ export abstract class BaseOpenRecentAction extends Action {
 		private windowsService: IWindowsService,
 		private quickInputService: IQuickInputService,
 		private contextService: IWorkspaceContextService,
-		private environmentService: IEnvironmentService,
 		private labelService: ILabelService,
 		private keybindingService: IKeybindingService,
 		private modelService: IModelService,
@@ -433,7 +432,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 	private openRecent(recentWorkspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[], recentFiles: URI[]): void {
 
-		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, environmentService: IEnvironmentService, labelService: ILabelService, buttons: IQuickInputButton[]) => {
+		const toPick = (workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, fileKind: FileKind, labelService: ILabelService, buttons: IQuickInputButton[]) => {
 			let resource: URI;
 			let label: string;
 			let description: string;
@@ -467,8 +466,8 @@ export abstract class BaseOpenRecentAction extends Action {
 			return this.windowService.openWindow([resource], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
-		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
-		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.environmentService, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const workspacePicks = recentWorkspaces.map(workspace => toPick(workspace, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
+		const filePicks = recentFiles.map(p => toPick(p, FileKind.FILE, this.labelService, !this.isQuickNavigate() ? [this.removeFromRecentlyOpened] : void 0));
 
 		// focus second entry if the first recent workspace is the current workspace
 		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
@@ -511,13 +510,12 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IWindowsService windowsService: IWindowsService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILabelService labelService: ILabelService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, labelService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -537,13 +535,12 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IWindowsService windowsService: IWindowsService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@ILabelService labelService: ILabelService
 	) {
-		super(id, label, windowService, windowsService, quickInputService, contextService, environmentService, labelService, keybindingService, modelService, modeService);
+		super(id, label, windowService, windowsService, quickInputService, contextService, labelService, keybindingService, modelService, modeService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -746,15 +743,15 @@ export abstract class BaseNavigationAction extends Action {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet | IPanel> {
+	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean | IViewlet | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
+	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
 		return TPromise.as(true);
 	}
 
@@ -814,7 +811,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
 		return this.navigateAcrossEditorGroup(GroupDirection.LEFT)
 			.then(didNavigate => {
 				if (didNavigate) {
@@ -841,7 +838,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
@@ -885,7 +882,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 			});
 	}
 
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
@@ -893,7 +890,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean> {
 		if (isSidebarPositionLeft) {
 			return this.navigateToEditorGroup(GroupLocation.FIRST);
 		}
@@ -918,11 +915,11 @@ export class NavigateUpAction extends BaseNavigationAction {
 		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): TPromise<boolean> {
 		return this.navigateAcrossEditorGroup(GroupDirection.UP);
 	}
 
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (isPanelPositionDown) {
 			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
@@ -947,7 +944,7 @@ export class NavigateDownAction extends BaseNavigationAction {
 		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
+	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
 		return this.navigateAcrossEditorGroup(GroupDirection.DOWN)
 			.then(didNavigate => {
 				if (didNavigate) {
@@ -1042,8 +1039,8 @@ export class NewWindowTab extends Action {
 	static readonly LABEL = nls.localize('newTab', "New Window Tab");
 
 	constructor(
-		id: string,
-		label: string,
+		_id: string,
+		_label: string,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(NewWindowTab.ID, NewWindowTab.LABEL);
@@ -1060,8 +1057,8 @@ export class ShowPreviousWindowTab extends Action {
 	static readonly LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
 
 	constructor(
-		id: string,
-		label: string,
+		_id: string,
+		_label: string,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
@@ -1078,8 +1075,8 @@ export class ShowNextWindowTab extends Action {
 	static readonly LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
 
 	constructor(
-		id: string,
-		label: string,
+		_id: string,
+		_label: string,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
@@ -1096,8 +1093,8 @@ export class MoveWindowTabToNewWindow extends Action {
 	static readonly LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
 
 	constructor(
-		id: string,
-		label: string,
+		_id: string,
+		_label: string,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
@@ -1114,8 +1111,8 @@ export class MergeAllWindowTabs extends Action {
 	static readonly LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
 
 	constructor(
-		id: string,
-		label: string,
+		_id: string,
+		_label: string,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
@@ -1132,8 +1129,8 @@ export class ToggleWindowTabsBar extends Action {
 	static readonly LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
 
 	constructor(
-		id: string,
-		label: string,
+		_id: string,
+		_label: string,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
