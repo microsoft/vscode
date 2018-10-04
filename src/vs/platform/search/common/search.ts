@@ -65,6 +65,7 @@ export interface IFolderQuery<U extends UriComponents=uri> {
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
+	disregardGlobalIgnoreFiles?: boolean;
 }
 
 export interface ICommonQueryOptions<U> {
@@ -82,6 +83,7 @@ export interface ICommonQueryOptions<U> {
 	cacheKey?: string;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
+	disregardGlobalIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
 	maxFileSize?: number;
@@ -275,6 +277,7 @@ export interface ISearchConfigurationProperties {
 	 * Use ignore file for file search.
 	 */
 	useIgnoreFiles: boolean;
+	useGlobalIgnoreFiles: boolean;
 	followSymlinks: boolean;
 	smartCase: boolean;
 	globalFindClipboard: boolean;

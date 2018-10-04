@@ -302,6 +302,7 @@ export class FileIndexSearchEngine {
 			excludes,
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks
 		};
 	}
