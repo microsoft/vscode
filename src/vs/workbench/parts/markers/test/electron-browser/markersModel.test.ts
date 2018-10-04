@@ -13,11 +13,8 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 class TestMarkersModel extends MarkersModel {
 
 	get filteredResources(): ResourceMarkers[] {
-		const res: ResourceMarkers[] = [];
-		this.forEachFilteredResource(resource => res.push(resource));
-		return res;
+		return this.resources;
 	}
-
 }
 
 suite('MarkersModel Test', () => {

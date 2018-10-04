@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersModel, FilterOptions } from './markersModel';
+import { MarkersModel } from './markersModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -55,11 +55,12 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 		super();
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel, this.readMarkers()));
 		this._register(markerService.onMarkerChanged(resources => this.onMarkerChanged(resources)));
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (this.useFilesExclude && e.affectsConfiguration('files.exclude')) {
-				this.doFilter(this.markersModel.filterOptions.filter, this.getExcludeExpression());
-			}
-		}));
+		// TODO@joao
+		// this._register(configurationService.onDidChangeConfiguration(e => {
+		// 	if (this.useFilesExclude && e.affectsConfiguration('files.exclude')) {
+		// 		this.doFilter(this.markersModel.filterOptions.filter, this.getExcludeExpression());
+		// 	}
+		// }));
 	}
 
 	filter(filter: IFilter): void {
@@ -98,7 +99,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 	}
 
 	private doFilter(filterText: string, filesExclude: IExpression): void {
-		this.markersModel.updateFilterOptions(new FilterOptions(filterText, filesExclude));
+		console.warn('marker filter not implemented');
 		this.refreshBadge();
 		this._onDidChange.fire([]);
 	}

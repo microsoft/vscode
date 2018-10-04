@@ -288,9 +288,10 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	private reportFilteringUsed(): void {
 		let data = {};
-		data['errors'] = this.markersWorkbenchService.markersModel.filterOptions.filterErrors;
-		data['warnings'] = this.markersWorkbenchService.markersModel.filterOptions.filterWarnings;
-		data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
+		console.warn('reportFilteringUsed not implemented'); // TODO@joao
+		// data['errors'] = this.markersWorkbenchService.markersModel.filterOptions.filterErrors;
+		// data['warnings'] = this.markersWorkbenchService.markersModel.filterOptions.filterWarnings;
+		// data['infos'] = this.markersWorkbenchService.markersModel.filterOptions.filterInfos;
 		/* __GDPR__
 			"problems.filter" : {
 				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

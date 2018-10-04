@@ -7,7 +7,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
-import { IDataSource, ITree, IRenderer, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -90,18 +90,6 @@ export class DataSource implements IDataSource {
 		}
 
 		return false;
-	}
-}
-
-export class DataFilter implements IFilter {
-	public isVisible(tree: ITree, element: any): boolean {
-		if (element instanceof ResourceMarkers) {
-			return element.filteredCount > 0;
-		}
-		if (element instanceof Marker) {
-			return element.isSelected;
-		}
-		return true;
 	}
 }
 
@@ -222,42 +210,45 @@ export class Renderer implements IRenderer {
 		}
 	}
 
+	// TODO@joao
 	private renderResourceMarkersElement(tree: ITree, element: ResourceMarkers, templateData: IResourceMarkersTemplateData) {
 		if (templateData.resourceLabel instanceof FileLabel) {
-			templateData.resourceLabel.setFile(element.uri, { matches: element.uriMatches });
+			templateData.resourceLabel.setFile(element.uri/* , { matches: element.uriMatches } */);
 		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.uri), { relative: true }), resource: element.uri }, { matches: element.uriMatches });
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.uri), { relative: true }), resource: element.uri }/* , { matches: element.uriMatches } */);
 		}
-		(<IResourceMarkersTemplateData>templateData).count.setCount(element.filteredCount);
+		(<IResourceMarkersTemplateData>templateData).count.setCount(element.markers.length/* filteredCount */);
 	}
 
+	// TODO@joao
 	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
 		let marker = element.raw;
 
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
 
-		templateData.source.set(marker.source, element.sourceMatches);
+		templateData.source.set(marker.source/* , element.sourceMatches */);
 		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
 
 		templateData.actionBar.clear();
 		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
 		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 
-		templateData.description.set(marker.message, element.messageMatches);
+		templateData.description.set(marker.message/* , element.messageMatches */);
 		templateData.description.element.title = marker.message;
 
 		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code || '', element.codeMatches);
+		templateData.code.set(marker.code || ''/* , element.codeMatches */);
 
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 
 	}
 
+	// TODO@joao
 	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
-		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath), element.uriMatches);
+		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath)/* , element.uriMatches */);
 		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, { relative: true });
 		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
-		templateData.description.set(element.raw.message, element.messageMatches);
+		templateData.description.set(element.raw.message/* , element.messageMatches */);
 		templateData.description.element.title = element.raw.message;
 	}
 
@@ -297,10 +288,11 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 	) {
 	}
 
+	// TODO@joao
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelServie.getUriLabel(element.uri, { relative: true }) || element.uri.fsPath;
-			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.filteredCount, element.name, paths.dirname(path));
+			return Messages.MARKERS_TREE_ARIA_LABEL_RESOURCE(element.markers.length/* element.filteredCount */, element.name, paths.dirname(path));
 		}
 		if (element instanceof Marker) {
 			return Messages.MARKERS_TREE_ARIA_LABEL_MARKER(element);
