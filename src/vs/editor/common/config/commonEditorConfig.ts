@@ -862,6 +862,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+		},
+		'editor.selectAfterPaste': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.selectAfterPaste,
+			'description': nls.localize('selectAfterPaste', "Controls whether the editor highlights the selection after pasting a block of text.")
 		}
 	}
 };

@@ -41,3 +41,4 @@ import 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import 'vs/editor/contrib/wordHighlighter/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/wordPartOperations';
+import 'vs/editor/contrib/selectAfterPaste/selectAfterPaste';

@@ -3026,6 +3026,10 @@ declare namespace monaco.editor {
 		 * Controls fading out of unused variables.
 		 */
 		showUnused?: boolean;
+		/**
+		 * Selects text after paste
+		 */
+		selectAfterPaste?: boolean;
 	}
 
 	/**
@@ -3284,6 +3288,7 @@ declare namespace monaco.editor {
 		readonly lightbulbEnabled: boolean;
 		readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 		readonly codeActionsOnSaveTimeout: number;
+		readonly selectAfterPaste: boolean;
 	}
 
 	/**

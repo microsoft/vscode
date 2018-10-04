@@ -672,6 +672,10 @@ export interface IEditorOptions {
 	 * Controls fading out of unused variables.
 	 */
 	showUnused?: boolean;
+	/**
+	 * Selects text after paste
+	 */
+	selectAfterPaste?: boolean;
 }
 
 /**
@@ -989,6 +993,7 @@ export interface EditorContribOptions {
 	readonly lightbulbEnabled: boolean;
 	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
 	readonly codeActionsOnSaveTimeout: number;
+	readonly selectAfterPaste: boolean;
 }
 
 /**
@@ -2032,7 +2037,8 @@ export class EditorOptionsValidator {
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
 			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
 			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
-			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000),
+			selectAfterPaste: _boolean(opts.selectAfterPaste, defaults.selectAfterPaste)
 		};
 	}
 }
@@ -2144,7 +2150,8 @@ export class InternalEditorOptionsFactory {
 				colorDecorators: opts.contribInfo.colorDecorators,
 				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
 				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
-				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
+				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout,
+				selectAfterPaste: opts.contribInfo.selectAfterPaste
 			}
 		};
 	}
@@ -2634,6 +2641,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		colorDecorators: true,
 		lightbulbEnabled: true,
 		codeActionsOnSave: {},
-		codeActionsOnSaveTimeout: 750
+		codeActionsOnSaveTimeout: 750,
+		selectAfterPaste: false
 	},
 };

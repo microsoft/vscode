@@ -153,6 +153,7 @@ const configurationValueWhitelist = [
 	'editor.dragAndDrop',
 	'editor.formatOnSave',
 	'editor.colorDecorators',
+	'editor.selectAfterPaste',
 
 	'breadcrumbs.enabled',
 	'breadcrumbs.filePath',
