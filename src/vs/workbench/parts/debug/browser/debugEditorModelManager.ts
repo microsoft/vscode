@@ -12,6 +12,9 @@ import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/wor
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 interface IBreakpointDecoration {
 	decorationId: string;
@@ -334,3 +337,19 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		stickiness: DebugEditorModelManager.STICKINESS
 	};
 }
+
+registerThemingParticipant((theme, collector) => {
+	const topStackFrame = theme.getColor(topStackFrameColor);
+	if (topStackFrame) {
+		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-line { background: ${topStackFrame}; }`);
+		collector.addRule(`.monaco-editor .view-overlays .debug-top-stack-frame-exception-line { background: ${topStackFrame}; }`);
+	}
+
+	const focusedStackFrame = theme.getColor(focusedStackFrameColor);
+	if (focusedStackFrame) {
+		collector.addRule(`.monaco-editor .view-overlays .debug-focused-stack-frame-line { background: ${focusedStackFrame}; }`);
+	}
+});
+
+const topStackFrameColor = registerColor('editor.debugStackFrameLineHighlight', { dark: '#ffff0033', light: '#ffff6673', hc: '#fff600' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
+const focusedStackFrameColor = registerColor('editor.debugFocusedStackFrameLineHighlight', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#cee7ce' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
