@@ -1,17 +1,29 @@
 <!doctype html>
 <html>
-  <head>
-    <title>Jasmine Spec Runner</title>
-    <link rel="stylesheet" href="../node_modules/jasmine-core/lib/jasmine-core/jasmine.css">
-  </head>
-  <body>
-    <script src="../node_modules/jasmine-core/lib/jasmine-core/jasmine.js"></script>
-    <script src="../node_modules/jasmine-core/lib/jasmine-core/jasmine-html.js"></script>
-    <script src="../node_modules/jasmine-core/lib/jasmine-core/boot.js"></script>
+<head>
+  <meta charset="utf-8">
+  <title>Mocha Spec Runner</title>
+  <link rel="stylesheet" href="../node_modules/mocha/mocha.css">
+</head>
+<body>
+  <div id="mocha"></div>
+  <script src="../node_modules/mocha/mocha.js"></script>
+  <script>mocha.setup('bdd');</script>
+  <script src="../node_modules/chai/chai.js"></script>
+  <script>
+    var assert = chai.assert;
+    var expect = chai.expect;
+    var should = chai.should();
+  </script>
 
-    <!-- include source files here... -->
+  <!-- include source files here... -->
 
-    <!-- include spec files here... -->
-    <script src="spec/test.js"></script>
-  </body>
+  <!-- include spec files here... -->
+  <script src="spec/test.js"></script>
+  <script>
+    if (navigator.userAgent.indexOf('PhantomJS') === -1) {
+      mocha.run();
+    }
+  </script>
+</body>
 </html>

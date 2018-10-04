@@ -5,7 +5,7 @@
       "framework": "react",
       "modules": "webpack",
       "js": "babel",
-      "ci": "travis,circleci,jenkins,wercker",
+      "ci": "travis",
       "css": "scss",
       "resolved": "C:\\Users\\edwin perez\\AppData\\Roaming\\npm\\node_modules\\generator-fountain-webapp\\node_modules\\generator-fountain-react\\generators\\app\\index.js",
       "namespace": "fountain-react:app",
@@ -19,5 +19,9 @@
       "publisher": "vscec"
     }
   },
-  "generator-jasmine": {}
+  "generator-jasmine": {},
+  "generator-mocha": {
+    "ui": "bdd",
+    "rjs": false
+  }
 }
