@@ -404,11 +404,15 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 						mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 					});
 					da.onError(err => {
-						tracker.debugAdapterError(err);
+						if (tracker) {
+							tracker.debugAdapterError(err);
+						}
 						this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack);
 					});
 					da.onExit(code => {
-						tracker.debugAdapterExit(code, null);
+						if (tracker) {
+							tracker.debugAdapterExit(code, null);
+						}
 						this._debugServiceProxy.$acceptDAExit(handle, code, null);
 					});
 
