@@ -138,7 +138,7 @@ suite('languages namespace tests', () => {
 			}
 		});
 
-		const _doc = await vscode.workspace.openTextDocument(uri);
+		await vscode.workspace.openTextDocument(uri);
 		const result = await vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
 		r1.dispose();
 		assert.ok(ran);
