@@ -16,7 +16,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
-import { Thread, ExpressionContainer, DebugModel, Expression, SimpleReplElement } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -31,11 +31,9 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-
-const MAX_REPL_LENGTH = 10000;
+import { ReplModel } from 'vs/workbench/parts/debug/common/replModel';
 
 export class DebugSession implements IDebugSession {
-
 	private id: string;
 	private raw: RawDebugSession;
 
@@ -43,7 +41,7 @@ export class DebugSession implements IDebugSession {
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler;
-	private replElements: IReplElement[] = [];
+	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
@@ -66,6 +64,7 @@ export class DebugSession implements IDebugSession {
 		@IViewletService private viewletService: IViewletService
 	) {
 		this.id = generateUuid();
+		this.repl = new ReplModel(this);
 	}
 
 	getId(): string {
@@ -785,61 +784,30 @@ export class DebugSession implements IDebugSession {
 
 	// REPL
 
-	public getReplElements(): ReadonlyArray<IReplElement> {
-		return this.replElements;
+	getReplElements(): ReadonlyArray<IReplElement> {
+		return this.repl.getReplElements();
 	}
 
-	public addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
-		const expression = new Expression(name);
-		this.addReplElements([expression]);
+	removeReplExpressions(): void {
+		this.repl.removeReplExpressions();
+		this._onDidChangeREPLElements.fire();
+	}
+
+	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
 		const viewModel = this.debugService.getViewModel();
-		return expression.evaluate(this, stackFrame, 'repl')
+		return this.repl.addReplExpression(stackFrame, name)
 			.then(() => this._onDidChangeREPLElements.fire())
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 			.then(() => this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession));
 	}
 
-	public appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
-		const clearAnsiSequence = '\u001b[2J';
-		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
-			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
-			this.removeReplExpressions();
-			this.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			data = data.substr(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
-		}
-
-		if (typeof data === 'string') {
-			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
-
-			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(line, sev, index === 0 ? source : undefined));
-			if (previousElement && previousElement.value === '') {
-				// remove potential empty lines between different repl types
-				this.replElements.pop();
-			} else if (previousElement instanceof SimpleReplElement && sev === previousElement.severity && toAdd.length && toAdd[0].sourceData === previousElement.sourceData) {
-				previousElement.value += toAdd.shift().value;
-			}
-			this.addReplElements(toAdd);
-		} else {
-			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
-			(<any>data).severity = sev;
-			(<any>data).sourceData = source;
-			this.addReplElements([data]);
-		}
-
+	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
+		this.repl.appendToRepl(data, severity, source);
 		this._onDidChangeREPLElements.fire();
 	}
 
-	private addReplElements(newElements: IReplElement[]): void {
-		this.replElements.push(...newElements);
-		if (this.replElements.length > MAX_REPL_LENGTH) {
-			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
-		}
-	}
-
-	removeReplExpressions(): void {
-		if (this.replElements.length > 0) {
-			this.replElements = [];
-			this._onDidChangeREPLElements.fire();
-		}
+	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+		this.repl.logToRepl(sev, args, frame);
+		this._onDidChangeREPLElements.fire();
 	}
 }

@@ -139,6 +139,7 @@ export class MockSession implements IDebugSession {
 	}
 
 	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
+	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number; }) { }
 
 	configuration: IConfig = { type: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', request: 'launch' };

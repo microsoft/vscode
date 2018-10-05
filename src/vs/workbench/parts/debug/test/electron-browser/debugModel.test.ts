@@ -11,6 +11,7 @@ import * as sinon from 'sinon';
 import { MockRawSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
+import { ReplModel } from 'vs/workbench/parts/debug/common/replModel';
 
 suite('Debug - Model', () => {
 	let model: DebugModel;
@@ -132,8 +133,6 @@ suite('Debug - Model', () => {
 	});
 
 	test('threads multiple wtih allThreadsStopped', () => {
-		const sessionStub = sinon.spy(rawSession, 'stackTrace');
-
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;
@@ -193,22 +192,16 @@ suite('Debug - Model', () => {
 		// and results in a request for the callstack in the debug adapter
 		thread1.fetchCallStack().then(() => {
 			assert.notEqual(thread1.getCallStack().length, 0);
-			assert.equal(thread2.getCallStack().length, 0);
-			assert.equal(sessionStub.callCount, 1);
 		});
 
 		thread2.fetchCallStack().then(() => {
-			assert.notEqual(thread1.getCallStack().length, 0);
 			assert.notEqual(thread2.getCallStack().length, 0);
-			assert.equal(sessionStub.callCount, 2);
 		});
 
 		// calling multiple times getCallStack doesn't result in multiple calls
 		// to the debug adapter
 		thread1.fetchCallStack().then(() => {
 			return thread2.fetchCallStack();
-		}).then(() => {
-			assert.equal(sessionStub.callCount, 4);
 		});
 
 		// clearing the callstack results in the callstack not being available
@@ -354,19 +347,20 @@ suite('Debug - Model', () => {
 		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		session.addReplExpression(stackFrame, 'myVariable').then();
-		session.addReplExpression(stackFrame, 'myVariable').then();
-		session.addReplExpression(stackFrame, 'myVariable').then();
+		const replModel = new ReplModel(session);
+		replModel.addReplExpression(stackFrame, 'myVariable').then();
+		replModel.addReplExpression(stackFrame, 'myVariable').then();
+		replModel.addReplExpression(stackFrame, 'myVariable').then();
 
-		assert.equal(model.getReplElements().length, 3);
-		model.getReplElements().forEach(re => {
+		assert.equal(replModel.getReplElements().length, 3);
+		replModel.getReplElements().forEach(re => {
 			assert.equal((<Expression>re).available, false);
 			assert.equal((<Expression>re).name, 'myVariable');
 			assert.equal((<Expression>re).reference, 0);
 		});
 
-		session.removeReplExpressions();
-		assert.equal(model.getReplElements().length, 0);
+		replModel.removeReplExpressions();
+		assert.equal(replModel.getReplElements().length, 0);
 	});
 
 	test('stack frame get specific source name', () => {
@@ -402,12 +396,13 @@ suite('Debug - Model', () => {
 
 	test('repl output', () => {
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
-		session.appendToRepl('first line\n', severity.Error);
-		session.appendToRepl('second line', severity.Error);
-		session.appendToRepl('third line', severity.Warning);
-		session.appendToRepl('fourth line', severity.Error);
+		const repl = new ReplModel(session);
+		repl.appendToRepl('first line\n', severity.Error);
+		repl.appendToRepl('second line', severity.Error);
+		repl.appendToRepl('third line', severity.Warning);
+		repl.appendToRepl('fourth line', severity.Error);
 
-		let elements = <SimpleReplElement[]>model.getReplElements();
+		let elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 4);
 		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].severity, severity.Error);
@@ -418,19 +413,19 @@ suite('Debug - Model', () => {
 		assert.equal(elements[3].value, 'fourth line');
 		assert.equal(elements[3].severity, severity.Error);
 
-		session.appendToRepl('1', severity.Warning);
-		elements = <SimpleReplElement[]>model.getReplElements();
+		repl.appendToRepl('1', severity.Warning);
+		elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 5);
 		assert.equal(elements[4].value, '1');
 		assert.equal(elements[4].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		session.appendToRepl(new RawObjectReplElement('fake', keyValueObject), null);
-		const element = <RawObjectReplElement>model.getReplElements()[5];
+		repl.appendToRepl(new RawObjectReplElement('fake', keyValueObject), null);
+		const element = <RawObjectReplElement>repl.getReplElements()[5];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
-		session.removeReplExpressions();
-		assert.equal(model.getReplElements().length, 0);
+		repl.removeReplExpressions();
+		assert.equal(repl.getReplElements().length, 0);
 	});
 });

@@ -5,10 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { first, distinct } from 'vs/base/common/arrays';
-import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -21,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression, RawObjectReplElement } from 'vs/workbench/parts/debug/common/debugModel';
+import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
@@ -46,7 +44,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -158,7 +156,14 @@ export class DebugService implements IDebugService {
 
 					case EXTENSION_LOG_BROADCAST_CHANNEL:
 						// extension logged output -> show it in REPL
-						this.addToRepl(session, broadcast.payload.logEntry);
+						const extensionOutput = <IRemoteConsoleLog>broadcast.payload.logEntry;
+						const sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
+						const { args, stack } = parse(extensionOutput);
+						let frame = undefined;
+						if (stack) {
+							frame = getFirstFrame(stack);
+						}
+						session.logToRepl(sev, args, frame);
 						break;
 				}
 			}
@@ -780,87 +785,6 @@ export class DebugService implements IDebugService {
 		}
 
 		this.viewModel.setFocus(stackFrame, thread, session, explicit);
-	}
-
-	//---- REPL
-
-	private addToRepl(session: IDebugSession, extensionOutput: IRemoteConsoleLog) {
-
-		let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
-
-		const { args, stack } = parse(extensionOutput);
-		let source: IReplElementSource;
-		if (stack) {
-			const frame = getFirstFrame(stack);
-			if (frame) {
-				source = {
-					column: frame.column,
-					lineNumber: frame.line,
-					source: session.getSource({
-						name: resources.basenameOrAuthority(frame.uri),
-						path: frame.uri.fsPath
-					})
-				};
-			}
-		}
-
-		// add output for each argument logged
-		let simpleVals: any[] = [];
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
-
-			// undefined gets printed as 'undefined'
-			if (typeof a === 'undefined') {
-				simpleVals.push('undefined');
-			}
-
-			// null gets printed as 'null'
-			else if (a === null) {
-				simpleVals.push('null');
-			}
-
-			// objects & arrays are special because we want to inspect them in the REPL
-			else if (isObject(a) || Array.isArray(a)) {
-
-				// flush any existing simple values logged
-				if (simpleVals.length) {
-					session.appendToRepl(simpleVals.join(' '), sev, source);
-					simpleVals = [];
-				}
-
-				// show object
-				session.appendToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
-			}
-
-			// string: watch out for % replacement directive
-			// string substitution and formatting @ https://developer.chrome.com/devtools/docs/console
-			else if (typeof a === 'string') {
-				let buf = '';
-
-				for (let j = 0, len = a.length; j < len; j++) {
-					if (a[j] === '%' && (a[j + 1] === 's' || a[j + 1] === 'i' || a[j + 1] === 'd' || a[j + 1] === 'O')) {
-						i++; // read over substitution
-						buf += !isUndefinedOrNull(args[i]) ? args[i] : ''; // replace
-						j++; // read over directive
-					} else {
-						buf += a[j];
-					}
-				}
-
-				simpleVals.push(buf);
-			}
-
-			// number or boolean is joined together
-			else {
-				simpleVals.push(a);
-			}
-		}
-
-		// flush simple values
-		// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
-		if (simpleVals.length) {
-			session.appendToRepl(simpleVals.join(' ') + '\n', sev, source);
-		}
 	}
 
 	//---- watches
