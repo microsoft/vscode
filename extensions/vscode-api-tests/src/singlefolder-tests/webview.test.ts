@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { join } from 'path';
-import { closeAllEditors } from '../utils';
+import { closeAllEditors, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
@@ -24,12 +24,7 @@ suite('Webview tests', () => {
 	teardown(async () => {
 		await closeAllEditors();
 
-		while (disposables.length) {
-			let item = disposables.pop();
-			if (item) {
-				item.dispose();
-			}
-		}
+		disposeAll(disposables);
 	});
 
 	test('webviews should be able to send and receive messages', async () => {
