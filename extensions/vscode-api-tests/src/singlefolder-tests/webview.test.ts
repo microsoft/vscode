@@ -32,7 +32,7 @@ suite('Webview tests', () => {
 		}
 	});
 
-	test('webview communication', async () => {
+	test('webviews should be able to send and receive messages', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const firstResponse = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -47,7 +47,7 @@ suite('Webview tests', () => {
 		assert.strictEqual((await firstResponse).value, 2);
 	});
 
-	test('webview preserves state when switching visibility', async () => {
+	test('webviews should preserve vscode API state when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -90,7 +90,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webview preserves context when moving between view columns', async () => {
+	test('webviews should preserve their context when they are moved between view columns', async () => {
 		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 
@@ -128,7 +128,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webview should keep context when retainContextWhenHidden is set', async () => {
+	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 
@@ -168,7 +168,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webview should preserve position when switching visibility with retainContextWhenHidden', async () => {
+	test('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
