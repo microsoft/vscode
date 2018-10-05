@@ -33,7 +33,7 @@ suite('Webview tests', () => {
 	});
 
 	test('webview communication', async () => {
-		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const firstResponse = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
 			<script>
@@ -48,7 +48,7 @@ suite('Webview tests', () => {
 	});
 
 	test('webview preserves state when switching visibility', async () => {
-		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const firstResponse = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
 			<script>
