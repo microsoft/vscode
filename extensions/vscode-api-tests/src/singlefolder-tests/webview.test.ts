@@ -35,7 +35,7 @@ suite('Webview tests', () => {
 	test('webview communication', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const firstResponse = getMesssage(webview);
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
@@ -49,11 +49,58 @@ suite('Webview tests', () => {
 
 	test('webview preserves state when switching visibility', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
-		const firstResponse = getMesssage(webview);
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
+		const ready = getMesssage(webview);
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				let value = (vscode.getState() || {}).value || 0;
+
+				window.addEventListener('message', (message) => {
+					switch (message.data.type) {
+					case 'get':
+						vscode.postMessage({ value });
+						break;
+
+					case 'add':
+						++value;;
+						vscode.setState({ value });
+						vscode.postMessage({ value });
+						break;
+					}
+				});
+
+				vscode.postMessage({ type: 'ready' });
+			</script>`);
+		await ready;
+
+		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		assert.strictEqual(firstResponse.value, 1);
+
+		// Swap away from the webview
+		const doc = await vscode.workspace.openTextDocument(testDocument);
+		await vscode.window.showTextDocument(doc);
+
+		// And then back
+		const ready2 = getMesssage(webview);
+		webview.reveal(vscode.ViewColumn.One);
+		await ready2;
+
+		// We should still have old state
+		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		assert.strictEqual(secondResponse.value, 1);
+	});
+
+	test('webview preserves context when moving between view columns', async () => {
+		const doc = await vscode.workspace.openTextDocument(testDocument);
+		await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+
+		// Open webview in same column
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
+		const ready = getMesssage(webview);
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<script>
+				const vscode = acquireVsCodeApi();
+				let value = 0;
 				window.addEventListener('message', (message) => {
 					switch (message.data.type) {
 						case 'get':
@@ -62,33 +109,30 @@ suite('Webview tests', () => {
 
 						case 'add':
 							++value;;
-							vscode.setState({ value });
 							vscode.postMessage({ value });
 							break;
 					}
 				});
+				vscode.postMessage({ type: 'ready' });
 			</script>`);
+		await ready;
 
-		webview.webview.postMessage({ type: 'add' });
-		assert.strictEqual((await firstResponse).value, 1);
+		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		assert.strictEqual(firstResponse.value, 1);
 
-		// Swap away from the webview
-		const doc = await vscode.workspace.openTextDocument(testDocument);
-		await vscode.window.showTextDocument(doc);
-
-		// And then back
-		webview.reveal(vscode.ViewColumn.One);
+		// Now move webview to new view column
+		webview.reveal(vscode.ViewColumn.Two);
 
 		// We should still have old state
 		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webview should keep dom state state when retainContextWhenHidden is set', async () => {
+	test('webview should keep context when retainContextWhenHidden is set', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
-		const firstResponse = getMesssage(webview);
+		const ready = getMesssage(webview);
 
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				let value = 0;
@@ -105,9 +149,11 @@ suite('Webview tests', () => {
 							break;
 					}
 				});
+				vscode.postMessage({ type: 'ready' });
 			</script>`);
+		await ready;
 
-		webview.webview.postMessage({ type: 'add' });
+		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
 		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
@@ -124,8 +170,7 @@ suite('Webview tests', () => {
 
 	test('webview should preserve position when switching visibility with retainContextWhenHidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
-		const firstResponse = getMesssage(webview);
-
+		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			${'<h1>Header</h1>'.repeat(200)}
 			<script>
@@ -143,7 +188,12 @@ suite('Webview tests', () => {
 							break;
 					}
 				});
+				vscode.postMessage({ type: 'ready' });
+
 			</script>`);
+		await ready;
+
+		const firstResponse = getMesssage(webview);
 
 		assert.strictEqual((await firstResponse).value, 100);
 
