@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/panelpart';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
@@ -30,7 +29,7 @@ export class ClosePanelAction extends Action {
 		super(id, name, 'hide-panel-action');
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		return this.partService.setPanelHidden(true);
 	}
 }
@@ -48,7 +47,7 @@ export class TogglePanelAction extends Action {
 		super(id, name, partService.isVisible(Parts.PANEL_PART) ? 'panel expanded' : 'panel');
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		return this.partService.setPanelHidden(this.partService.isVisible(Parts.PANEL_PART));
 	}
 }
@@ -67,7 +66,7 @@ class FocusPanelAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 
 		// Show panel
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
@@ -79,6 +78,7 @@ class FocusPanelAction extends Action {
 		if (panel) {
 			panel.focus();
 		}
+
 		return Promise.resolve(true);
 	}
 }
@@ -99,23 +99,29 @@ export class TogglePanelPositionAction extends Action {
 		@IPartService private partService: IPartService,
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
+
 		this.toDispose = [];
+
 		const setClassAndLabel = () => {
 			const positionRight = this.partService.getPanelPosition() === Position.RIGHT;
 			this.class = positionRight ? 'move-panel-to-bottom' : 'move-panel-to-right';
 			this.label = positionRight ? TogglePanelPositionAction.MOVE_TO_BOTTOM_LABEL : TogglePanelPositionAction.MOVE_TO_RIGHT_LABEL;
 		};
+
 		this.toDispose.push(partService.onEditorLayout(() => setClassAndLabel()));
+
 		setClassAndLabel();
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const position = this.partService.getPanelPosition();
+
 		return this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
 	}
 
 	dispose(): void {
 		super.dispose();
+
 		this.toDispose = dispose(this.toDispose);
 	}
 }
@@ -136,7 +142,9 @@ export class ToggleMaximizedPanelAction extends Action {
 		@IPartService private partService: IPartService
 	) {
 		super(id, label, partService.isPanelMaximized() ? 'minimize-panel-action' : 'maximize-panel-action');
+
 		this.toDispose = [];
+
 		this.toDispose.push(partService.onEditorLayout(() => {
 			const maximized = this.partService.isPanelMaximized();
 			this.class = maximized ? 'minimize-panel-action' : 'maximize-panel-action';
@@ -144,13 +152,15 @@ export class ToggleMaximizedPanelAction extends Action {
 		}));
 	}
 
-	run(): TPromise<any> {
-		const thenable: Thenable<void> = !this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : Promise.resolve(null);
-		return thenable.then(() => this.partService.toggleMaximizedPanel());
+	run(): Thenable<any> {
+		const promise: Thenable<void> = !this.partService.isVisible(Parts.PANEL_PART) ? this.partService.setPanelHidden(false) : Promise.resolve(null);
+
+		return promise.then(() => this.partService.toggleMaximizedPanel());
 	}
 
 	dispose(): void {
 		super.dispose();
+
 		this.toDispose = dispose(this.toDispose);
 	}
 }
@@ -164,7 +174,7 @@ export class PanelActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): TPromise<any> {
+	run(event: any): Thenable<any> {
 		return this.panelService.openPanel(this.activity.id, true).then(() => this.activate());
 	}
 }

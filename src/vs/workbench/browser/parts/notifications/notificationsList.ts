@@ -75,7 +75,10 @@ export class NotificationsList extends Themable {
 			this.listContainer,
 			new NotificationsListDelegate(this.listContainer),
 			[renderer],
-			this.options
+			{
+				...this.options,
+				setRowLineHeight: false
+			}
 		));
 
 		// Context menu to copy message

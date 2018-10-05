@@ -208,7 +208,7 @@ class BatchedCollector<T> {
 	private totalNumberCompleted = 0;
 	private batch: T[] = [];
 	private batchSize = 0;
-	private timeoutHandle: number;
+	private timeoutHandle: any;
 
 	constructor(private maxBatchSize: number, private cb: (items: T[]) => void) {
 	}
@@ -386,6 +386,7 @@ class TextSearchEngine {
 			excludes,
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks,
 			encoding: this.config.fileEncoding,
 			maxFileSize: this.config.maxFileSize,
@@ -559,6 +560,7 @@ class FileSearchEngine {
 			excludes,
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !this.config.disregardGlobalIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks,
 			maxResults: this.config.maxResults
 		};

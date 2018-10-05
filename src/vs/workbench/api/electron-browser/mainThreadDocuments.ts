@@ -36,7 +36,7 @@ export class BoundModelReferenceCollection {
 
 	add(ref: IReference<ITextEditorModel>): void {
 		let length = ref.object.textEditorModel.getValueLength();
-		let handle: number;
+		let handle: any;
 		let entry: { length: number, dispose(): void };
 		const dispose = () => {
 			let idx = this._data.indexOf(entry);

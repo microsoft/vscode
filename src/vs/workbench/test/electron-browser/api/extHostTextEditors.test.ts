@@ -43,22 +43,20 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors);
 	});
 
-	test('uses version id if document available', () => {
+	test('uses version id if document available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		return editors.applyWorkspaceEdit(edit).then((result) => {
-			assert.equal(workspaceResourceEdits.edits.length, 1);
-			assert.equal((<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
-		});
+		await editors.applyWorkspaceEdit(edit);
+		assert.equal(workspaceResourceEdits.edits.length, 1);
+		assert.equal((<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
 	});
 
-	test('does not use version id if document is not available', () => {
+	test('does not use version id if document is not available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		return editors.applyWorkspaceEdit(edit).then((result) => {
-			assert.equal(workspaceResourceEdits.edits.length, 1);
-			assert.ok(typeof (<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
-		});
+		await editors.applyWorkspaceEdit(edit);
+		assert.equal(workspaceResourceEdits.edits.length, 1);
+		assert.ok(typeof (<ResourceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
 	});
 
 });

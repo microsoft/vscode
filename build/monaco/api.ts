@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs = require('fs');
-import ts = require('typescript');
-import path = require('path');
+import * as fs from 'fs';
+import * as ts from 'typescript';
+import * as path from 'path';
+import * as util from 'gulp-util';
+
 const tsfmt = require('../../tsfmt.json');
 
-var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.cyan('[monaco.d.ts]'), message, ...rest);
 }
@@ -32,7 +33,7 @@ function moduleIdToPath(out: string, moduleId: string): string {
 }
 
 let SOURCE_FILE_MAP: { [moduleId: string]: ts.SourceFile; } = {};
-function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile {
+function getSourceFile(out: string, inputFiles: { [file: string]: string; }, moduleId: string): ts.SourceFile | null {
 	if (!SOURCE_FILE_MAP[moduleId]) {
 		let filePath = path.normalize(moduleIdToPath(out, moduleId));
 
@@ -128,10 +129,10 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 }
 
 
-function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare {
-	let result: TSTopLevelDeclare = null;
+function getTopLevelDeclaration(sourceFile: ts.SourceFile, typeName: string): TSTopLevelDeclare | null {
+	let result: TSTopLevelDeclare | null = null;
 	visitTopLevelDeclarations(sourceFile, (node) => {
-		if (isDeclaration(node)) {
+		if (isDeclaration(node) && node.name) {
 			if (node.name.text === typeName) {
 				result = node;
 				return true /*stop*/;
@@ -153,7 +154,7 @@ function getNodeText(sourceFile: ts.SourceFile, node: { pos: number; end: number
 	return sourceFile.getFullText().substring(node.pos, node.end);
 }
 
-function hasModifier(modifiers: ts.NodeArray<ts.Modifier>, kind: ts.SyntaxKind): boolean {
+function hasModifier(modifiers: ts.NodeArray<ts.Modifier> | undefined, kind: ts.SyntaxKind): boolean {
 	if (modifiers) {
 		for (let i = 0; i < modifiers.length; i++) {
 			let mod = modifiers[i];
@@ -188,7 +189,7 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 		const staticTypeName = (
 			isDefaultExport(interfaceDeclaration)
 				? `${importName}.default`
-				: `${importName}.${declaration.name.text}`
+				: `${importName}.${declaration.name!.text}`
 		);
 
 		let instanceTypeName = staticTypeName;
@@ -307,7 +308,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m1) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			let sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = getSourceFile(out, inputFiles, moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -336,7 +337,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 		if (m2) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			let sourceFile = getSourceFile(out, inputFiles, moduleId);
+			const sourceFile = getSourceFile(out, inputFiles, moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -358,7 +359,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 			});
 
 			getAllTopLevelDeclarations(sourceFile).forEach((declaration) => {
-				if (isDeclaration(declaration)) {
+				if (isDeclaration(declaration) && declaration.name) {
 					if (typesToExcludeMap[declaration.name.text]) {
 						return;
 					}
@@ -395,7 +396,7 @@ function generateDeclarationFile(out: string, inputFiles: { [file: string]: stri
 function getIncludesInRecipe(): string[] {
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
 	let lines = recipe.split(/\r\n|\n|\r/);
-	let result = [];
+	let result: string[] = [];
 
 	lines.forEach(line => {
 
@@ -478,12 +479,12 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	getScriptFileNames(): string[] {
 		return (
-			[]
+			([] as string[])
 				.concat(Object.keys(this._libs))
 				.concat(Object.keys(this._files))
 		);
 	}
-	getScriptVersion(fileName: string): string {
+	getScriptVersion(_fileName: string): string {
 		return '1';
 	}
 	getProjectVersion(): string {
@@ -498,13 +499,13 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 			return ts.ScriptSnapshot.fromString('');
 		}
 	}
-	getScriptKind(fileName: string): ts.ScriptKind {
+	getScriptKind(_fileName: string): ts.ScriptKind {
 		return ts.ScriptKind.TS;
 	}
 	getCurrentDirectory(): string {
 		return '';
 	}
-	getDefaultLibFileName(options: ts.CompilerOptions): string {
+	getDefaultLibFileName(_options: ts.CompilerOptions): string {
 		return 'defaultLib:es5';
 	}
 	isDefaultLibFileName(fileName: string): boolean {
@@ -533,7 +534,6 @@ export function execute(): IMonacoDeclarationResult {
 
 	var t1 = Date.now();
 	Object.keys(SRC_FILES).forEach((fileName) => {
-		var t = Date.now();
 		const emitOutput = languageService.getEmitOutput(fileName, true);
 		OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
 		// console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);

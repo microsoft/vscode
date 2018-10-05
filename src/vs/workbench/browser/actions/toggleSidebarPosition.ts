@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -30,7 +29,7 @@ export class ToggleSidebarPositionAction extends Action {
 		this.enabled = !!this.partService && !!this.configurationService;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const position = this.partService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 

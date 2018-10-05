@@ -41,7 +41,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 	opts.inlineSources = !!build;
 	opts.noFilesystemLookup = true;
 
-	const ts = tsb.create(opts, true, null, err => reporter(err.toString()));
+	const ts = tsb.create(opts, true, undefined, err => reporter(err.toString()));
 
 	return function (token?: util.ICancellationToken) {
 
@@ -66,7 +66,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 				sourceRoot: opts.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(reporter.end(emitError));
+			.pipe(reporter.end(!!emitError));
 
 		return es.duplex(input, output);
 	};
@@ -75,7 +75,6 @@ function createCompile(src: string, build: boolean, emitError?: boolean): (token
 const typesDts = [
 	'node_modules/typescript/lib/*.d.ts',
 	'node_modules/@types/**/*.d.ts',
-	'!node_modules/@types/node/**/*',
 	'!node_modules/@types/webpack/**/*',
 	'!node_modules/@types/uglify-js/**/*',
 ];
@@ -136,7 +135,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 	});
 
 	const inputFiles: { [file: string]: string; } = {};
-	for (let filePath in neededFiles) {
+	for (const filePath in neededFiles) {
 		if (/\bsrc(\/|\\)vs\b/.test(filePath)) {
 			// This file is needed from source => simply read it now
 			inputFiles[filePath] = fs.readFileSync(filePath).toString();

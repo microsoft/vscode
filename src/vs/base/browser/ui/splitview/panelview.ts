@@ -5,7 +5,7 @@
 
 import 'vs/css!./panelview';
 import { IDisposable, dispose, combinedDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -386,14 +386,13 @@ export class PanelView extends Disposable {
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {
 		const disposables: IDisposable[] = [];
-		disposables.push(
-			// fix https://github.com/Microsoft/vscode/issues/37129 by delaying the listener
-			// for changes to animate them. lots of views cause a onDidChange during their
-			// initial creation and this causes the view to animate even though it shows
-			// for the first time. animation should only be used to indicate new elements
-			// are added or existing ones removed in a view that is already showing
-			scheduleAtNextAnimationFrame(() => panel.onDidChange(this.setupAnimation, this, disposables))
-		);
+
+		// https://github.com/Microsoft/vscode/issues/59950
+		let shouldAnimate = false;
+		disposables.push(scheduleAtNextAnimationFrame(() => shouldAnimate = true));
+
+		filterEvent(panel.onDidChange, () => shouldAnimate)
+			(this.setupAnimation, this, disposables);
 
 		const panelItem = { panel, disposable: combinedDisposable(disposables) };
 		this.panelItems.splice(index, 0, panelItem);

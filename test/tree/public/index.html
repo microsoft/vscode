@@ -17,6 +17,10 @@
 		.tl-contents {
 			flex: 1;
 		}
+
+		.monaco-list-row:hover:not(.selected):not(.focused) {
+			background: gainsboro !important;
+		}
 	</style>
 </head>
 
@@ -47,9 +51,8 @@
 				const renderer = {
 					templateId: 'template',
 					renderTemplate(container) { return container; },
-					renderElement(element, index, container) {
-						container.textContent = element;
-					},
+					renderElement(element, index, container) { container.textContent = element; },
+					disposeElement() { },
 					disposeTemplate() { }
 				};
 
@@ -91,6 +94,7 @@
 					templateId: 'template',
 					renderTemplate(container) { return container; },
 					renderElement(element, index, container) { container.textContent = element.name; },
+					disposeElement() { },
 					disposeTemplate() { }
 				};
 
@@ -133,7 +137,12 @@
 										element,
 										collapsible: element.type === 'dir'
 									}));
-									c(els);
+
+									if (element && /\//.test(element.path)) {
+										setTimeout(() => c(els), 2500);
+									} else {
+										c(els);
+									}
 								}
 							};
 						});

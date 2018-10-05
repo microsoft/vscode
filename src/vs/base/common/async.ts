@@ -174,7 +174,7 @@ export class SimpleThrottler {
  */
 export class Delayer<T> {
 
-	private timeout: number;
+	private timeout: any;
 	private completionPromise: TPromise;
 	private doResolve: ValueCallback;
 	private doReject: (err: any) => void;
@@ -303,6 +303,15 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 			reject(errors.canceled());
 		});
 	});
+}
+
+export function disposableTimeout(handler: Function, timeout = 0): IDisposable {
+	const timer = setTimeout(handler, timeout);
+	return {
+		dispose() {
+			clearTimeout(timer);
+		}
+	};
 }
 
 /**
@@ -482,7 +491,7 @@ export class ResourceQueue {
 }
 
 export class TimeoutTimer extends Disposable {
-	private _token: number;
+	private _token: any;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
@@ -529,7 +538,7 @@ export class TimeoutTimer extends Disposable {
 
 export class IntervalTimer extends Disposable {
 
-	private _token: number;
+	private _token: any;
 
 	constructor() {
 		super();
@@ -560,7 +569,7 @@ export class RunOnceScheduler {
 
 	protected runner: (...args: any[]) => void;
 
-	private timeoutToken: number;
+	private timeoutToken: any;
 	private timeout: number;
 	private timeoutHandler: () => void;
 

@@ -8,7 +8,6 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export class ToggleRenderControlCharacterAction extends Action {
@@ -24,7 +23,7 @@ export class ToggleRenderControlCharacterAction extends Action {
 		super(id, label);
 	}
 
-	public run(): TPromise<any> {
+	public run(): Promise<any> {
 		let newRenderControlCharacters = !this._configurationService.getValue<boolean>('editor.renderControlCharacters');
 		return this._configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters, ConfigurationTarget.USER);
 	}

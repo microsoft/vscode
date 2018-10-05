@@ -13,8 +13,8 @@ var xml2js = require("xml2js");
 var glob = require("glob");
 var https = require("https");
 var gulp = require("gulp");
-var util = require('gulp-util');
-var iconv = require('iconv-lite');
+var util = require("gulp-util");
+var iconv = require("iconv-lite");
 var NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
 function log(message) {
     var rest = [];
@@ -79,20 +79,9 @@ var PackageJsonFormat;
     }
     PackageJsonFormat.is = is;
 })(PackageJsonFormat || (PackageJsonFormat = {}));
-var ModuleJsonFormat;
-(function (ModuleJsonFormat) {
-    function is(value) {
-        var candidate = value;
-        return Is.defined(candidate)
-            && Is.array(candidate.messages) && candidate.messages.every(function (message) { return Is.string(message); })
-            && Is.array(candidate.keys) && candidate.keys.every(function (key) { return Is.string(key) || LocalizeInfo.is(key); });
-    }
-    ModuleJsonFormat.is = is;
-})(ModuleJsonFormat || (ModuleJsonFormat = {}));
 var Line = /** @class */ (function () {
     function Line(indent) {
         if (indent === void 0) { indent = 0; }
-        this.indent = indent;
         this.buffer = [];
         if (indent > 0) {
             this.buffer.push(new Array(indent + 1).join(' '));
@@ -198,10 +187,10 @@ var XLF = /** @class */ (function () {
         this.buffer.push(line.toString());
     };
     XLF.parsePseudo = function (xlfString) {
-        return new Promise(function (resolve, reject) {
+        return new Promise(function (resolve) {
             var parser = new xml2js.Parser();
             var files = [];
-            parser.parseString(xlfString, function (err, result) {
+            parser.parseString(xlfString, function (_err, result) {
                 var fileNodes = result['xliff']['file'];
                 fileNodes.forEach(function (file) {
                     var originalFilePath = file.$.original;
@@ -312,7 +301,7 @@ function stripComments(content) {
     * Fourth matches line comments
     */
     var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-    var result = content.replace(regexp, function (match, m1, m2, m3, m4) {
+    var result = content.replace(regexp, function (match, _m1, _m2, m3, m4) {
         // Only one of m1, m2, m3, m4 matches
         if (m3) {
             // A block comment. Replace with nothing
@@ -375,7 +364,6 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
     var messageSection = json.messages;
     var bundleSection = json.bundles;
     var statistics = Object.create(null);
-    var total = 0;
     var defaultMessages = Object.create(null);
     var modules = Object.keys(keysSection);
     modules.forEach(function (module) {
@@ -388,7 +376,6 @@ function processCoreBundleFormat(fileHeader, languages, json, emitter) {
         var messageMap = Object.create(null);
         defaultMessages[module] = messageMap;
         keys.map(function (key, i) {
-            total++;
             if (typeof key === 'string') {
                 messageMap[key] = messages[i];
             }
@@ -847,7 +834,7 @@ function tryGetResource(project, slug, apiHostname, credentials) {
     });
 }
 function createResource(project, slug, xlfFile, apiHostname, credentials) {
-    return new Promise(function (resolve, reject) {
+    return new Promise(function (_resolve, reject) {
         var data = JSON.stringify({
             'content': xlfFile.contents.toString(),
             'name': slug,
@@ -957,7 +944,7 @@ function pullXlfFiles(apiHostname, username, password, language, resources) {
     var credentials = username + ":" + password;
     var expectedTranslationsCount = resources.length;
     var translationsRetrieved = 0, called = false;
-    return event_stream_1.readable(function (count, callback) {
+    return event_stream_1.readable(function (_count, callback) {
         // Mark end of stream when all resources were retrieved
         if (translationsRetrieved === expectedTranslationsCount) {
             return this.emit('end');
@@ -1067,7 +1054,6 @@ function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pse
     var mainPack = { version: i18nPackVersion, contents: {} };
     var extensionsPacks = {};
     return event_stream_1.through(function (xlf) {
-        var stream = this;
         var project = path.dirname(xlf.path);
         var resource = path.basename(xlf.path, '.xlf');
         var contents = xlf.contents.toString();
@@ -1192,7 +1178,7 @@ function createIslFile(originalFilePath, messages, language, innoSetup) {
     var filePath = basename + "." + language.id + ".isl";
     return new File({
         path: filePath,
-        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8'), innoSetup.codePage)
+        contents: iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage)
     });
 }
 function encodeEntities(value) {

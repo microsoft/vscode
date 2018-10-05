@@ -66,7 +66,7 @@ class MessageWidget {
 	public get domNode(): HTMLElement { return this._domNode; }
 
 	public static fadeOut(messageWidget: MessageWidget): IDisposable {
-		let handle: number;
+		let handle: any;
 		const dispose = () => {
 			messageWidget.dispose();
 			clearTimeout(handle);

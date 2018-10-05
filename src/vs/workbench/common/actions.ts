@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -30,14 +29,14 @@ export interface IWorkbenchActionRegistry {
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
 	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
-		return this._registerWorkbenchCommandFromAction(descriptor, alias, category, when);
+		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private _registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
 		let registrations: IDisposable[] = [];
 
 		// command
-		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this._createCommandHandler(descriptor)));
+		registrations.push(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
 
 		// keybinding
 		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
@@ -82,19 +81,20 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		return combinedDisposable(registrations);
 	}
 
-	private _createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
+	private createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
 		return (accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
 			const instantiationService = accessor.get(IInstantiationService);
 			const lifecycleService = accessor.get(ILifecycleService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
+			Promise.resolve(this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, err => {
 				notificationService.error(err);
 			});
 		};
 	}
 
-	private _triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
+	private triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
+
 		// run action when workbench is created
 		return lifecycleService.when(LifecyclePhase.Running).then(() => {
 			const actionInstance = instantiationService.createInstance(descriptor.syncDescriptor);
@@ -110,15 +110,17 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 				const from = args && args.from || 'keybinding';
 
-				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
+				return Promise.resolve(actionInstance.run(undefined, { from })).then(() => {
 					actionInstance.dispose();
-				}, (err) => {
+				}, err => {
 					actionInstance.dispose();
-					return TPromise.wrapError(err);
+
+					return Promise.reject(err);
 				});
 			} catch (err) {
 				actionInstance.dispose();
-				return TPromise.wrapError(err);
+
+				return Promise.reject(err);
 			}
 		});
 	}

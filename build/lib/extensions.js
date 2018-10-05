@@ -26,11 +26,11 @@ var stats_1 = require("./stats");
 var util2 = require("./util");
 var remote = require("gulp-remote-src");
 var vzip = require('gulp-vinyl-zip');
-var filter = require('gulp-filter');
-var rename = require('gulp-rename');
+var filter = require("gulp-filter");
+var rename = require("gulp-rename");
 var util = require('gulp-util');
 var buffer = require('gulp-buffer');
-var json = require('gulp-json-editor');
+var json = require("gulp-json-editor");
 var webpack = require('webpack');
 var webpackGulp = require('webpack-stream');
 var root = path.resolve(path.join(__dirname, '..', '..'));
@@ -150,11 +150,6 @@ function fromLocalNormal(extensionPath) {
         .catch(function (err) { return result.emit('error', err); });
     return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
-function error(err) {
-    var result = es.through();
-    setTimeout(function () { return result.emit('error', err); });
-    return result;
-}
 var baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
     'User-Agent': 'VSCode Build',
@@ -211,8 +206,8 @@ function sequence(streamProviders) {
     pop();
     return result;
 }
-function packageExtensionsStream(opts) {
-    opts = opts || {};
+function packageExtensionsStream(optsIn) {
+    var opts = optsIn || {};
     var localExtensionDescriptions = glob.sync('extensions/*/package.json')
         .map(function (manifestPath) {
         var extensionPath = path.dirname(path.join(root, manifestPath));

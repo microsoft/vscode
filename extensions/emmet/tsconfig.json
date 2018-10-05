@@ -1,16 +1,7 @@
 {
+	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"target": "es2017",
-		"module": "commonjs",
-		"lib": [
-			"es6",
-			"es2015.promise"
-		],
-		"outDir": "./out",
-		"noImplicitReturns": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"strictNullChecks": true
+		"outDir": "./out"
 	},
 	"exclude": [
 		"node_modules",

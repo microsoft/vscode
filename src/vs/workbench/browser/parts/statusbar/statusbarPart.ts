@@ -194,7 +194,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
-		let hideHandle: number;
+		let hideHandle: any;
 
 		// Dispose function takes care of timeouts and actual entry
 		const dispose = {

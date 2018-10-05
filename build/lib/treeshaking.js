@@ -103,7 +103,7 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
             .concat(Object.keys(this._libs))
             .concat(Object.keys(this._files)));
     };
-    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (fileName) {
+    TypeScriptLanguageServiceHost.prototype.getScriptVersion = function (_fileName) {
         return '1';
     };
     TypeScriptLanguageServiceHost.prototype.getProjectVersion = function () {
@@ -120,13 +120,13 @@ var TypeScriptLanguageServiceHost = /** @class */ (function () {
             return ts.ScriptSnapshot.fromString('');
         }
     };
-    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (fileName) {
+    TypeScriptLanguageServiceHost.prototype.getScriptKind = function (_fileName) {
         return ts.ScriptKind.TS;
     };
     TypeScriptLanguageServiceHost.prototype.getCurrentDirectory = function () {
         return '';
     };
-    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (options) {
+    TypeScriptLanguageServiceHost.prototype.getDefaultLibFileName = function (_options) {
         return 'defaultLib:lib.d.ts';
     };
     TypeScriptLanguageServiceHost.prototype.isDefaultLibFileName = function (fileName) {
@@ -172,6 +172,9 @@ function nodeOrChildIsBlack(node) {
 }
 function markNodes(languageService, options) {
     var program = languageService.getProgram();
+    if (!program) {
+        throw new Error('Could not get program from language service');
+    }
     if (options.shakeLevel === 0 /* Files */) {
         // Mark all source files Black
         program.getSourceFiles().forEach(function (sourceFile) {
@@ -192,7 +195,7 @@ function markNodes(languageService, options) {
                 return;
             }
             if (ts.isExportDeclaration(node)) {
-                if (ts.isStringLiteral(node.moduleSpecifier)) {
+                if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
                     setColor(node, 2 /* Black */);
                     enqueueImport(node, node.moduleSpecifier.text);
                 }
@@ -259,6 +262,9 @@ function markNodes(languageService, options) {
                 for (var i = 0, len = references.length; i < len; i++) {
                     var reference = references[i];
                     var referenceSourceFile = program.getSourceFile(reference.fileName);
+                    if (!referenceSourceFile) {
+                        continue;
+                    }
                     var referenceNode = getTokenAtPosition(referenceSourceFile, reference.textSpan.start, false, false);
                     if (ts.isMethodDeclaration(referenceNode.parent)
                         || ts.isPropertyDeclaration(referenceNode.parent)
@@ -389,6 +395,9 @@ function nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol) {
 }
 function generateResult(languageService, shakeLevel) {
     var program = languageService.getProgram();
+    if (!program) {
+        throw new Error('Could not get program from language service');
+    }
     var result = {};
     var writeFile = function (filePath, contents) {
         result[filePath] = contents;
@@ -445,13 +454,13 @@ function generateResult(languageService, shakeLevel) {
                         var leadingTriviaWidth = node.getLeadingTriviaWidth();
                         var leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
                         if (survivingImports.length > 0) {
-                            if (node.importClause && getColor(node.importClause) === 2 /* Black */) {
+                            if (node.importClause && node.importClause.name && getColor(node.importClause) === 2 /* Black */) {
                                 return write(leadingTrivia + "import " + node.importClause.name.text + ", {" + survivingImports.join(',') + " } from" + node.moduleSpecifier.getFullText(sourceFile) + ";");
                             }
                             return write(leadingTrivia + "import {" + survivingImports.join(',') + " } from" + node.moduleSpecifier.getFullText(sourceFile) + ";");
                         }
                         else {
-                            if (node.importClause && getColor(node.importClause) === 2 /* Black */) {
+                            if (node.importClause && node.importClause.name && getColor(node.importClause) === 2 /* Black */) {
                                 return write(leadingTrivia + "import " + node.importClause.name.text + " from" + node.moduleSpecifier.getFullText(sourceFile) + ";");
                             }
                         }
@@ -467,7 +476,7 @@ function generateResult(languageService, shakeLevel) {
                 var toWrite = node.getFullText();
                 for (var i = node.members.length - 1; i >= 0; i--) {
                     var member = node.members[i];
-                    if (getColor(member) === 2 /* Black */) {
+                    if (getColor(member) === 2 /* Black */ || !member.name) {
                         // keep method
                         continue;
                     }

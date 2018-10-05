@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
@@ -30,7 +29,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	run(): TPromise<any> {
+	run(): Promise<any> {
 		const visibility = this.partService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 

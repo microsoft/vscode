@@ -137,7 +137,7 @@ export class ProfileExtHostStatusbarItem implements IStatusbarItem {
 	private statusBarItem: HTMLElement;
 	private label: HTMLElement;
 	private timeStarted: number;
-	private labelUpdater: number;
+	private labelUpdater: any;
 	private clickHandler: () => void;
 
 	constructor() {

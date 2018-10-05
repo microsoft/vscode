@@ -6,7 +6,6 @@
 import 'vs/css!./media/activityaction';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -39,7 +38,7 @@ export class ViewletActivityAction extends ActivityAction {
 		super(activity);
 	}
 
-	run(event: any): TPromise<any> {
+	run(event: any): Thenable<any> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return Promise.resolve(false); // do not run on right click
 		}
@@ -85,7 +84,7 @@ export class ToggleViewletAction extends Action {
 		super(_viewlet.id, _viewlet.name);
 	}
 
-	run(): TPromise<any> {
+	run(): Thenable<any> {
 		const sideBarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
 

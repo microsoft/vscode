@@ -10,6 +10,7 @@ export interface IVirtualDelegate<T> {
 	getTemplateId(element: T): string;
 }
 
+// TODO@joao rename to IListRenderer
 export interface IRenderer<TElement, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;

@@ -468,8 +468,7 @@ export class MenubarControl extends Disposable {
 	private doSetupMenubar(): void {
 		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
-		} else if (isMacintosh) {
-			// TODO@sbatten currently limiting dynamic native menus to macOS #55347
+		} else {
 			// Send menus to main process to be rendered by Electron
 			const menubarData = {};
 			if (this.getMenubarMenus(menubarData)) {

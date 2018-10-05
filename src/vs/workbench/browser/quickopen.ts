@@ -21,7 +21,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
-export const PREFILL_CONFIG = 'workbench.quickOpen.prefill';
+export const PRESERVE_INPUT_CONFIG = 'workbench.quickOpen.preserveInput';
 export const SEARCH_EDITOR_HISTORY = 'search.quickOpen.includeHistory';
 
 export interface IWorkbenchQuickOpenConfiguration {

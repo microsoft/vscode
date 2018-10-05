@@ -164,7 +164,7 @@ export class Action implements IAction {
 		}
 	}
 
-	run(event?: any, data?: ITelemetryData): Thenable<any> {
+	run(event?: any, _data?: ITelemetryData): Thenable<any> {
 		if (this._actionCallback !== void 0) {
 			return this._actionCallback(event);
 		}

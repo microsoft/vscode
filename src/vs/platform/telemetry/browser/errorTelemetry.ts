@@ -53,7 +53,7 @@ export default class ErrorTelemetry {
 
 	private _telemetryService: ITelemetryService;
 	private _flushDelay: number;
-	private _flushHandle = -1;
+	private _flushHandle: any = -1;
 	private _buffer: ErrorEvent[] = [];
 	private _disposables: IDisposable[] = [];
 

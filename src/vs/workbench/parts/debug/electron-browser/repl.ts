@@ -81,7 +81,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private treeContainer: HTMLElement;
 	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
-	private refreshTimeoutHandle: number;
+	private refreshTimeoutHandle: any;
 	private actions: IAction[];
 	private dimension: dom.Dimension;
 	private replInputHeight: number;

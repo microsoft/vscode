@@ -32,5 +32,8 @@
 	"include": [
 		"./typings",
 		"./vs"
+	],
+	"exclude": [
+		"./typings/require-monaco.d.ts"
 	]
 }

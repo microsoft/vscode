@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -141,7 +140,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (iconData) {
 				_applyIconTheme(iconData, () => {
 					this.doSetFileIconTheme(iconData);
-					return TPromise.wrap(iconData);
+					return Promise.resolve(iconData);
 				});
 			}
 		}
@@ -196,7 +195,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.onColorThemeChange.event;
 	}
 
-	private initialize(): TPromise<[IColorTheme, IFileIconTheme]> {
+	private initialize(): Thenable<[IColorTheme, IFileIconTheme]> {
 		let detectHCThemeSetting = this.configurationService.getValue<boolean>(DETECT_HC_SETTING);
 
 		let colorThemeSetting: string;
@@ -208,7 +207,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		let iconThemeSetting = this.configurationService.getValue<string>(ICON_THEME_SETTING) || '';
 
-		return Promise.join([
+		return Promise.all([
 			this.colorThemeStore.findThemeDataBySettingsId(colorThemeSetting, DEFAULT_THEME_ID).then(theme => {
 				return this.setColorTheme(theme && theme.id, null);
 			}),
@@ -260,7 +259,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentColorTheme;
 	}
 
-	public getColorThemes(): TPromise<IColorTheme[]> {
+	public getColorThemes(): Thenable<IColorTheme[]> {
 		return this.colorThemeStore.getColorThemes();
 	}
 
@@ -268,9 +267,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.getColorTheme();
 	}
 
-	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
+	public setColorTheme(themeId: string, settingsTarget: ConfigurationTarget): Thenable<IColorTheme> {
 		if (!themeId) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 		if (themeId === this.currentColorTheme.id && this.currentColorTheme.isLoaded) {
 			return this.writeColorThemeConfiguration(settingsTarget);
@@ -286,14 +285,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						this.currentColorTheme = themeData;
 						themeData.setCustomColors(this.colorCustomizations);
 						themeData.setCustomTokenColors(this.tokenColorCustomizations);
-						return TPromise.as(themeData);
+						return Promise.resolve(themeData);
 					}
 					themeData.setCustomColors(this.colorCustomizations);
 					themeData.setCustomTokenColors(this.tokenColorCustomizations);
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location.toString(), error.message)));
+					return Promise.reject(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location.toString(), error.message)));
 				});
 			}
 			return null;
@@ -326,7 +325,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IColorTheme> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): Thenable<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				removeClasses(this.container, this.currentColorTheme.id);
@@ -343,7 +342,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.sendTelemetry(newTheme.id, newTheme.extensionData, 'color');
 
 		if (silent) {
-			return TPromise.as(null);
+			return Promise.resolve(null);
 		}
 
 		this.onColorThemeChange.fire(this.currentColorTheme);
@@ -354,11 +353,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.writeColorThemeConfiguration(settingsTarget);
 	}
 
-	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
+	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): Thenable<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}
-		return TPromise.as(this.currentColorTheme);
+		return Promise.resolve(this.currentColorTheme);
 	}
 
 	private themeExtensionsActivated = new Map<string, boolean>();
@@ -387,7 +386,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 	}
 
-	public getFileIconThemes(): TPromise<IFileIconTheme[]> {
+	public getFileIconThemes(): Thenable<IFileIconTheme[]> {
 		return this.iconThemeStore.getFileIconThemes();
 	}
 
@@ -395,7 +394,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentIconTheme;
 	}
 
-	public setFileIconTheme(iconTheme: string, settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
+	public setFileIconTheme(iconTheme: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentIconTheme.id && this.currentIconTheme.isLoaded) {
 			return this.writeFileIconConfiguration(settingsTarget);
@@ -436,11 +435,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	}
 
-	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
+	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
 		}
-		return TPromise.wrap(this.currentIconTheme);
+		return Promise.resolve(this.currentIconTheme);
 	}
 
 	private get configurationWriter(): ConfigurationWriter {
@@ -464,7 +463,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 }
 
-function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
+function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => Thenable<IFileIconTheme>): Thenable<IFileIconTheme> {
 	_applyRules(data.styleSheetContent, iconThemeRulesClassName);
 	return onApply(data);
 }
@@ -489,20 +488,20 @@ class ConfigurationWriter {
 	constructor(@IConfigurationService private configurationService: IConfigurationService) {
 	}
 
-	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): TPromise<void> {
+	public writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget): Thenable<void> {
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === ConfigurationTarget.USER) {
 			if (value === settings.user) {
-				return TPromise.as(null); // nothing to do
+				return Promise.resolve(null); // nothing to do
 			} else if (value === settings.default) {
 				if (types.isUndefined(settings.user)) {
-					return TPromise.as(null); // nothing to do
+					return Promise.resolve(null); // nothing to do
 				}
 				value = void 0; // remove configuration from user settings
 			}
 		} else if (settingsTarget === ConfigurationTarget.WORKSPACE) {
 			if (value === settings.value) {
-				return TPromise.as(null); // nothing to do
+				return Promise.resolve(null); // nothing to do
 			}
 		}
 		return this.configurationService.updateValue(key, value, settingsTarget);

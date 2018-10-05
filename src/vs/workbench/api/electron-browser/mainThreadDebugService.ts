@@ -5,7 +5,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, IDebugSession, DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -299,7 +299,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 			if (paths.isAbsolute(source.path)) {
 				(<any>source).path = uri.file(source.path);
 			} else {
-				(<any>source).path = uri.parse(source.path);
+				(<any>source).path = uri.parse(`${DEBUG_SCHEME}:${source.path}`);
 			}
 		});
 

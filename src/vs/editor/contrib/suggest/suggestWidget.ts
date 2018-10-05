@@ -363,7 +363,7 @@ export class SuggestWidget implements IContentWidget, IVirtualDelegate<ICompleti
 
 	private state: State;
 	private isAuto: boolean;
-	private loadingTimeout: number;
+	private loadingTimeout: any;
 	private currentSuggestionDetails: CancelablePromise<void>;
 	private focusedItem: ICompletionItem;
 	private ignoreFocusEvents = false;

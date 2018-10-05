@@ -46,6 +46,14 @@ async function readdir(relativePath) {
 		}
 	}
 
+	result.sort((a, b) => {
+		if (a.type === b.type) {
+			return a.name < b.name ? -1 : 1;
+		}
+
+		return a.type === 'dir' ? -1 : 1;
+	});
+
 	return result;
 }
 

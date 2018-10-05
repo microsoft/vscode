@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -405,7 +404,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		});
 	}
 
-	private doNavigate(location: IStackEntry, withSelection: boolean): TPromise<IBaseEditor> {
+	private doNavigate(location: IStackEntry, withSelection: boolean): Thenable<IBaseEditor> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true // support to navigate across editor groups
 		};

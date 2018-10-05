@@ -496,6 +496,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}),
 				this.ui.list.onDidChangeSelection(selectedItems => {
 					if (this.canSelectMany) {
+						if (selectedItems.length) {
+							this.ui.list.setSelectedElements([]);
+						}
 						return;
 					}
 					if (this.selectedItemsToConfirm !== this._selectedItems && equals(selectedItems, this._selectedItems, (a, b) => a === b)) {
@@ -503,7 +506,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					}
 					this._selectedItems = selectedItems as T[];
 					this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
-					this.onDidAcceptEmitter.fire();
+					if (selectedItems.length) {
+						this.onDidAcceptEmitter.fire();
+					}
 				}),
 				this.ui.list.onChangedCheckedElements(checkedItems => {
 					if (!this.canSelectMany) {

@@ -36,6 +36,11 @@ export class Menubar {
 	private closedLastWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
+	private menuGC: RunOnceScheduler;
+
+	// Array to keep menus around so that GC doesn't cause crash as explained in #55347
+	// TODO@sbatten Remove this when fixed upstream by Electron
+	private oldMenus: Menu[];
 
 	private menubarMenus: IMenubarData;
 
@@ -56,6 +61,8 @@ export class Menubar {
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
+		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
+
 		this.menubarMenus = this.stateService.getItem<IMenubarData>(Menubar.lastKnownMenubarStorageKey) || Object.create(null);
 
 		this.keybindings = this.stateService.getItem<IMenubarData>(Menubar.lastKnownAdditionalKeybindings) || Object.create(null);
@@ -63,6 +70,8 @@ export class Menubar {
 		this.addFallbackHandlers();
 
 		this.closedLastWindow = false;
+
+		this.oldMenus = [];
 
 		this.install();
 
@@ -202,6 +211,12 @@ export class Menubar {
 	}
 
 	private install(): void {
+		// Store old menu in our array to avoid GC to collect the menu and crash. See #55347
+		// TODO@sbatten Remove this when fixed upstream by Electron
+		const oldMenu = Menu.getApplicationMenu();
+		if (oldMenu) {
+			this.oldMenus.push(oldMenu);
+		}
 
 		// If we don't have a menu yet, set it to null to avoid the electron menu.
 		// This should only happen on the first launch ever
@@ -293,15 +308,6 @@ export class Menubar {
 			menubar.append(macWindowMenuItem);
 		}
 
-		// Preferences
-		if (!isMacintosh) {
-			const preferencesMenu = new Menu();
-			const preferencesMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
-
-			this.setMenuById(preferencesMenu, 'Preferences');
-			menubar.append(preferencesMenuItem);
-		}
-
 		// Help
 		const helpMenu = new Menu();
 		const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
@@ -314,6 +320,9 @@ export class Menubar {
 		} else {
 			Menu.setApplicationMenu(null);
 		}
+
+		// Dispose of older menus after some time
+		this.menuGC.schedule();
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Electron.Menu): void {
