@@ -8,9 +8,10 @@ import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Position } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, ActualBreakpoints, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { CompletionItem } from 'vs/editor/common/modes';
+import Severity from 'vs/base/common/severity';
 
 export class MockDebugService implements IDebugService {
 
@@ -117,7 +118,7 @@ export class MockDebugService implements IDebugService {
 		return null;
 	}
 
-	public logToRepl(value: string): void { }
+	public logToRepl(session: IDebugSession, value: string): void { }
 
 	public sourceIsNotAvailable(uri: uri): void { }
 
@@ -127,6 +128,21 @@ export class MockDebugService implements IDebugService {
 }
 
 export class MockSession implements IDebugSession {
+	getReplElements(): ReadonlyArray<IReplElement> {
+		return [];
+	}
+
+	removeReplExpressions(): void { }
+	get onDidChangeReplElements(): Event<void> {
+		return null;
+	}
+
+	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
+	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number; }) { }
 
 	configuration: IConfig = { type: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', request: 'launch' };
