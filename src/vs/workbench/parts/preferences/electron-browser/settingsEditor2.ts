@@ -47,7 +47,6 @@ import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { Disposable } from 'vscode';
 
 const $ = DOM.$;
 
@@ -117,8 +116,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings: boolean;
-
-	private disposables: Disposable[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -466,7 +463,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.clearFilterLinkContainer.textContent = ' - ';
 		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
-		this.disposables.push(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
+		this._register(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
 			this.clearSearchFilters();
 		}));
@@ -477,7 +474,7 @@ export class SettingsEditor2 extends BaseEditor {
 		clearSearchContainer.textContent = ' - ';
 
 		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
-		this.disposables.push(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
+		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, false);
 			this.clearSearchResults();
 		}));
@@ -799,11 +796,6 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.settingModified2', data2);
-	}
-
-	dispose() {
-		this.disposables.forEach(disposable => disposable.dispose());
-		super.dispose();
 	}
 
 	private render(token: CancellationToken): TPromise<any> {
