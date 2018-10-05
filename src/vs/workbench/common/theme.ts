@@ -79,7 +79,7 @@ export const TAB_MODIFIED_ACTIVE_UNFOCUSED_BORDER = registerColor('tab.modifiedA
 }, nls.localize('tabModifiedActiveUnfocusedBorder', "Border on the top of modified (dirty) active tab in unfocused editor group."));
 
 export const TAB_MODIFIED_INACTIVE_FOCUSED_BORDER = registerColor('tab.modifiedInactiveFocusedBorder', {
-	dark: transparent(TAB_MODIFIED_BORDER, 0.85),
+	dark: transparent(TAB_MODIFIED_BORDER, 0.75),
 	light: transparent(TAB_MODIFIED_BORDER, 0.7),
 	hc: null
 }, nls.localize('tabModifiedInactiveFocusedBorder', "Border on the top of modified (dirty) inactive tab in focused editor group."));
