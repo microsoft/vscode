@@ -149,7 +149,7 @@ class UpdateImportsOnFileRenameHandler {
 		}
 
 		const response = await vscode.window.showInformationMessage<Item>(
-			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
+			localize('prompt', "Update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
 				modal: true,
 			},
 			{
@@ -162,11 +162,11 @@ class UpdateImportsOnFileRenameHandler {
 				choice: Choice.Accept,
 			},
 			{
-				title: localize('always.title', "Yes, always update imports"),
+				title: localize('always.title', "Always automatically update imports"),
 				choice: Choice.Always,
 			},
 			{
-				title: localize('never.title', "No, never update imports"),
+				title: localize('never.title', "Never automatically update imports"),
 				choice: Choice.Never,
 			});
 
