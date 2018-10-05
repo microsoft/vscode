@@ -918,30 +918,30 @@ export class TabsTitleControl extends TitleControl {
 				if (isFocusedEditorGroup && isActiveEditorTab) {
 					const tabModifiedBorder = this.getColor(TAB_MODIFIED_BORDER);
 					if (tabModifiedBorder) {
-						tabContainer.style.borderTop = `2px solid ${tabModifiedBorder}`;
+						tabContainer.style.borderTopColor = tabModifiedBorder;
 					}
 				} else if (isFocusedEditorGroup && !isActiveEditorTab) {
 					const tabModifiedInactiveFocusedBorder = this.getColor(TAB_MODIFIED_INACTIVE_FOCUSED_BORDER);
 					if (tabModifiedInactiveFocusedBorder) {
-						tabContainer.style.borderTop = `2px solid ${tabModifiedInactiveFocusedBorder}`;
+						tabContainer.style.borderTopColor = tabModifiedInactiveFocusedBorder;
 					}
 				} else if (!isFocusedEditorGroup && isActiveEditorTab) {
 					const tabModifiedActiveUnfocusedBorder = this.getColor(TAB_MODIFIED_ACTIVE_UNFOCUSED_BORDER);
 					if (tabModifiedActiveUnfocusedBorder) {
-						tabContainer.style.borderTop = `2px solid ${tabModifiedActiveUnfocusedBorder}`;
+						tabContainer.style.borderTopColor = tabModifiedActiveUnfocusedBorder;
 					}
 				} else {
 					const tabModifiedInactiveUnfocusedBorder = this.getColor(TAB_MODIFIED_INACTIVE_UNFOCUSED_BORDER);
 					if (tabModifiedInactiveUnfocusedBorder) {
-						tabContainer.style.borderTop = `2px solid ${tabModifiedInactiveUnfocusedBorder}`;
+						tabContainer.style.borderTopColor = tabModifiedInactiveUnfocusedBorder;
 					}
 				}
 			} else {
-				tabContainer.style.borderTop = null;
+				tabContainer.style.borderTopColor = 'transparent';
 			}
 		} else {
 			removeClass(tabContainer, 'dirty');
-			tabContainer.style.borderTop = null;
+			tabContainer.style.borderTopColor = 'transparent';
 		}
 	}
 
