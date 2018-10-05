@@ -182,17 +182,17 @@ class MessageWidget implements IContentWidget {
 registerEditorContribution(MessageController);
 
 registerThemingParticipant((theme, collector) => {
-	let border = theme.getColor(inputValidationInfoBorder);
+	const border = theme.getColor(inputValidationInfoBorder);
 	if (border) {
 		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor { border-top-color: ${border}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
 	}
-	let background = theme.getColor(inputValidationInfoBackground);
+	const background = theme.getColor(inputValidationInfoBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { background-color: ${background}; }`);
 	}
-	let foreground = theme.getColor(inputValidationInfoForeground);
+	const foreground = theme.getColor(inputValidationInfoForeground);
 	if (foreground) {
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { color: ${foreground}; }`);
 	}

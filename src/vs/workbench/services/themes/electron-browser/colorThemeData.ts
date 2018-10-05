@@ -346,8 +346,8 @@ function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, result
 }
 
 function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
-	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
-	let background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
+	const foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
+	const background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
 	defaultRule.settings.foreground = Color.Format.CSS.formatHexA(foreground);
 	defaultRule.settings.background = Color.Format.CSS.formatHexA(background);
 	return defaultRule;

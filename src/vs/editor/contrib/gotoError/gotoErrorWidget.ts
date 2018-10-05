@@ -180,7 +180,7 @@ export class MarkerNavigationWidget extends ZoneWidget {
 		} else if (this._severity === MarkerSeverity.Info) {
 			colorId = editorMarkerNavigationInfo;
 		}
-		let frameColor = theme.getColor(colorId);
+		const frameColor = theme.getColor(colorId);
 		this.style({
 			arrowColor: frameColor,
 			frameColor: frameColor

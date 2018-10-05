@@ -402,15 +402,15 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorSelectionColor = theme.getColor(editorSelectionBackground);
+	const editorSelectionColor = theme.getColor(editorSelectionBackground);
 	if (editorSelectionColor) {
 		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
 	}
-	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
+	const editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
 	if (editorInactiveSelectionColor) {
 		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
 	}
-	let editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
+	const editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
 	if (editorSelectionForegroundColor) {
 		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
 	}
