@@ -39,6 +39,7 @@
 	height: 35px;
 	box-sizing: border-box;
 	padding-left: 10px;
+	border-top: 2px solid transparent;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon-theme.close-button-right,

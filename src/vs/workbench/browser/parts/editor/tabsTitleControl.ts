@@ -342,6 +342,7 @@ export class TabsTitleControl extends TitleControl {
 		// Activity has an impact on each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
 			this.redrawEditorActive(isGroupActive, editor, tabContainer, tabLabelWidget);
+			this.redrawEditorDirty(editor, tabContainer);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -895,7 +896,7 @@ export class TabsTitleControl extends TitleControl {
 		// Tab is inactive
 		else {
 
-			// Containr
+			// Container
 			removeClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'false');
 			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
@@ -911,13 +912,36 @@ export class TabsTitleControl extends TitleControl {
 			addClass(tabContainer, 'dirty');
 
 			if (this.accessor.partOptions.highlightModifiedTabs && !this.getColor(TAB_ACTIVE_BORDER_TOP)) {
-				addClass(tabContainer, 'dirty-border');
+				const isFocusedEditorGroup = this.accessor.activeGroup === this.group;
+				const isActiveEditorTab = this.group.isActive(editor);
+
+				if (isFocusedEditorGroup && isActiveEditorTab) {
+					const tabModifiedBorder = this.getColor(TAB_MODIFIED_BORDER);
+					if (tabModifiedBorder) {
+						tabContainer.style.borderTop = `2px solid ${tabModifiedBorder}`;
+					}
+				} else if (isFocusedEditorGroup && !isActiveEditorTab) {
+					const tabModifiedInactiveFocusedBorder = this.getColor(TAB_MODIFIED_INACTIVE_FOCUSED_BORDER);
+					if (tabModifiedInactiveFocusedBorder) {
+						tabContainer.style.borderTop = `2px solid ${tabModifiedInactiveFocusedBorder}`;
+					}
+				} else if (!isFocusedEditorGroup && isActiveEditorTab) {
+					const tabModifiedActiveUnfocusedBorder = this.getColor(TAB_MODIFIED_ACTIVE_UNFOCUSED_BORDER);
+					if (tabModifiedActiveUnfocusedBorder) {
+						tabContainer.style.borderTop = `2px solid ${tabModifiedActiveUnfocusedBorder}`;
+					}
+				} else {
+					const tabModifiedInactiveUnfocusedBorder = this.getColor(TAB_MODIFIED_INACTIVE_UNFOCUSED_BORDER);
+					if (tabModifiedInactiveUnfocusedBorder) {
+						tabContainer.style.borderTop = `2px solid ${tabModifiedInactiveUnfocusedBorder}`;
+					}
+				}
 			} else {
-				removeClass(tabContainer, 'dirty-border');
+				tabContainer.style.borderTop = null;
 			}
 		} else {
 			removeClass(tabContainer, 'dirty');
-			removeClass(tabContainer, 'dirty-border');
+			tabContainer.style.borderTop = null;
 		}
 	}
 
@@ -1146,42 +1170,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				box-shadow: ${tabUnfocusedHoverBorder} 0 -1px inset !important;
 			}
 		`);
-	}
-
-	// Dirty tab borders
-	if (theme.type !== 'hc') {
-		const tabModifiedActiveFocusedBorder = theme.getColor(TAB_MODIFIED_BORDER);
-		if (tabModifiedActiveFocusedBorder) {
-			collector.addRule(`
-				.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active.dirty-border  {
-					box-shadow: ${tabModifiedActiveFocusedBorder} 0 2px inset !important;
-				}
-			`);
-		}
-		const tabModifiedActiveUnfocusedBorder = theme.getColor(TAB_MODIFIED_ACTIVE_UNFOCUSED_BORDER);
-		if (tabModifiedActiveUnfocusedBorder) {
-			collector.addRule(`
-				.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.dirty-border  {
-					box-shadow: ${tabModifiedActiveUnfocusedBorder} 0 2px inset !important;
-				}
-			`);
-		}
-		const tabModifiedInactiveFocusedBorder = theme.getColor(TAB_MODIFIED_INACTIVE_FOCUSED_BORDER);
-		if (tabModifiedInactiveFocusedBorder) {
-			collector.addRule(`
-				.monaco-workbench > .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.dirty-border  {
-					box-shadow: ${tabModifiedInactiveFocusedBorder} 0 2px inset !important;
-				}
-			`);
-		}
-		const tabModifiedInactiveUnfocusedBorder = theme.getColor(TAB_MODIFIED_INACTIVE_UNFOCUSED_BORDER);
-		if (tabModifiedInactiveUnfocusedBorder) {
-			collector.addRule(`
-				.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border  {
-					box-shadow: ${tabModifiedInactiveUnfocusedBorder} 0 2px inset !important;
-				}
-			`);
-		}
 	}
 
 	// Fade out styles via linear gradient (when tabs are set to shrink)
