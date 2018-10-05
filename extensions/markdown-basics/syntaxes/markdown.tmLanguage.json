@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/98d4a7b3eb094a162c6978bb8df63cbbfe015c55",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/0bd394a33046eeb204a9ebebdffb113d39587591",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1164,7 +1164,7 @@
 					]
 				},
 				"fenced_code_block_json": {
-					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)(\\s+[^`~]*)?$)",
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|json5|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)(\\s+[^`~]*)?$)",
 					"name": "markup.fenced_code.block.markdown",
 					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
 					"beginCaptures": {
