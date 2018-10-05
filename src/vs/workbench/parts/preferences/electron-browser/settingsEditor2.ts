@@ -1002,11 +1002,6 @@ export class SettingsEditor2 extends BaseEditor {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
 			parsedQuery.tags.forEach(tag => this.viewState.tagFilters.add(tag));
-
-			// show or hide 'Clear Filters'-link
-			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters.size > 0
-				? 'initial'
-				: 'none';
 		}
 
 		if (query && query !== '@') {
@@ -1207,6 +1202,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.countElement.style.display = 'block';
 			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters.size > 0
+				? 'initial'
+				: 'none';
 		}
 	}
 
