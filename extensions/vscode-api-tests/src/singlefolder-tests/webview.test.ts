@@ -15,8 +15,7 @@ suite('Webview tests', () => {
 	teardown(closeAllEditors);
 
 	test('webview communication', async () => {
-		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+		const webview = createMockWebviewWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
@@ -24,20 +23,14 @@ suite('Webview tests', () => {
 				});
 			</script>`);
 
-		const p = new Promise<any>(resolve => {
-			webview.webview.onDidReceiveMessage(message => {
-				resolve(message);
-			});
-		});
-
+		const messages = messageAwaiter(webview, 1);
 		webview.webview.postMessage({ value: 1 });
-		const response = await p;
+		const [response] = await messages;
 		assert.strictEqual(response.value, 2);
 	});
 
 	test('webview preserves state when switching visibility', async () => {
-		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
-		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+		const webview = createMockWebviewWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
 				let value = (vscode.getState() || {}).value || 0;
@@ -57,9 +50,9 @@ suite('Webview tests', () => {
 			</script>`);
 
 		{
-			const p = messageAwaiter(webview, 1);
+			const messages = messageAwaiter(webview, 1);
 			webview.webview.postMessage({ type: 'add' });
-			const [response] = await p;
+			const [response] = await messages;
 			assert.strictEqual(response.value, 1);
 		}
 
@@ -71,13 +64,19 @@ suite('Webview tests', () => {
 		webview.reveal(vscode.ViewColumn.One);
 
 		{
-			const p = messageAwaiter(webview, 1);
+			const messages = messageAwaiter(webview, 1);
 			webview.webview.postMessage({ type: 'get' });
-			const [response] = await p;
+			const [response] = await messages;
 			assert.strictEqual(response.value, 1);
 		}
 	});
 });
+
+function createMockWebviewWithBody(body: string) {
+	const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
+	webview.webview.html = createHtmlDocumentWithBody(body);
+	return webview;
+}
 
 function createHtmlDocumentWithBody(body: string): string {
 	return /*html*/`<!DOCTYPE html>
