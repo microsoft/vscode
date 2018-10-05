@@ -15,7 +15,7 @@ suite('Webview tests', () => {
 	teardown(closeAllEditors);
 
 	test('webview communication', async () => {
-		const webview = createMockWebviewWithBody(/*html*/`
+		const webview = createWebviewWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
@@ -23,14 +23,12 @@ suite('Webview tests', () => {
 				});
 			</script>`);
 
-		const messages = messageAwaiter(webview, 1);
-		webview.webview.postMessage({ value: 1 });
-		const [response] = await messages;
+		const response = await sendRecieveMessage(webview, { value: 1 });
 		assert.strictEqual(response.value, 2);
 	});
 
 	test('webview preserves state when switching visibility', async () => {
-		const webview = createMockWebviewWithBody(/*html*/ `
+		const webview = createWebviewWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
 				let value = (vscode.getState() || {}).value || 0;
@@ -42,19 +40,15 @@ suite('Webview tests', () => {
 
 						case 'add':
 							++value;;
-							vscode.setState({ value })
+							vscode.setState({ value });
 							vscode.postMessage({ value });
 							break;
 					}
 				});
 			</script>`);
 
-		{
-			const messages = messageAwaiter(webview, 1);
-			webview.webview.postMessage({ type: 'add' });
-			const [response] = await messages;
-			assert.strictEqual(response.value, 1);
-		}
+		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		assert.strictEqual(firstResponse.value, 1);
 
 		// Swap away from the webview
 		const doc = await vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt'));
@@ -63,16 +57,49 @@ suite('Webview tests', () => {
 		// And then back
 		webview.reveal(vscode.ViewColumn.One);
 
-		{
-			const messages = messageAwaiter(webview, 1);
-			webview.webview.postMessage({ type: 'get' });
-			const [response] = await messages;
-			assert.strictEqual(response.value, 1);
-		}
+		// We should still have old state
+		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		assert.strictEqual(secondResponse.value, 1);
+	});
+
+	test('webview should keep dom state state when retainContextWhenHidden is set', async () => {
+		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true });
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
+			<script>
+				const vscode = acquireVsCodeApi();
+				let value = 0;
+				window.addEventListener('message', (message) => {
+					switch (message.data.type) {
+						case 'get':
+							vscode.postMessage({ value });
+							break;
+
+						case 'add':
+							++value;;
+							vscode.setState({ value });
+							vscode.postMessage({ value });
+							break;
+					}
+				});
+			</script>`);
+
+		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		assert.strictEqual(firstResponse.value, 1);
+
+		// Swap away from the webview
+		const doc = await vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt'));
+		await vscode.window.showTextDocument(doc);
+
+		// And then back
+		webview.reveal(vscode.ViewColumn.One);
+
+		// We should still have old state
+		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		assert.strictEqual(secondResponse.value, 1);
 	});
 });
 
-function createMockWebviewWithBody(body: string) {
+function createWebviewWithBody(body: string) {
 	const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
 	webview.webview.html = createHtmlDocumentWithBody(body);
 	return webview;
@@ -94,14 +121,13 @@ function createHtmlDocumentWithBody(body: string): string {
 }
 
 
-function messageAwaiter(webview: vscode.WebviewPanel, expected: number): Promise<any[]> {
-	let received: any[] = [];
-	return new Promise<any>(resolve => {
-		webview.webview.onDidReceiveMessage(message => {
-			received.push(message);
-			if (received.length >= expected) {
-				resolve(received);
-			}
+function sendRecieveMessage(webview: vscode.WebviewPanel, message: any): Promise<any> {
+	const p = new Promise<any>(resolve => {
+		const sub = webview.webview.onDidReceiveMessage(message => {
+			sub.dispose();
+			resolve(message);
 		});
 	});
+	webview.webview.postMessage(message);
+	return p;
 }
