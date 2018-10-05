@@ -474,7 +474,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				this.cancel();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
-				if (this.options.triggerKeys.keyDown) {
+				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
 					this.doTrigger(event);
 				}
 			} else {
@@ -539,9 +539,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
 		let ret = false;
-		this.options.triggerKeys.keys.forEach(keyCode => {
-			ret = ret || event.equals(keyCode);
-		});
+		if (this.options.triggerKeys) {
+			this.options.triggerKeys.keys.forEach(keyCode => {
+				ret = ret || event.equals(keyCode);
+			});
+		}
 
 		return ret;
 	}
