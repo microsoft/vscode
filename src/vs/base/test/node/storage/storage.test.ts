@@ -68,6 +68,8 @@ suite('Storage', () => {
 		await storage.deleteItems(['foo', 'some/foo/path', JSON.stringify({ foo: 'bar' })]);
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
+
+		await storage.close();
 	}
 
 	test('basics', async () => {
@@ -76,6 +78,17 @@ suite('Storage', () => {
 		await mkdirp(storageDir);
 
 		testDBBasics(join(storageDir, 'storage.db'));
+
+		await del(storageDir, tmpdir());
+	});
+
+	test('basics (open multiple times)', async () => {
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		await testDBBasics(join(storageDir, 'storage.db'));
+		await testDBBasics(join(storageDir, 'storage.db'));
 
 		await del(storageDir, tmpdir());
 	});
@@ -165,6 +178,8 @@ suite('Storage', () => {
 
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items1.size + items2.size + items3.size);
+
+		await storage.close();
 
 		await del(storageDir, tmpdir());
 	});
