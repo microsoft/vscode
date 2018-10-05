@@ -7,7 +7,7 @@
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
-provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
+provides comprehensive editing and debugging support, an extensibile model, and light-weight integration with a lot of existing tools.
 
 VS Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
@@ -15,9 +15,9 @@ VS Code is updated monthly with new features and bug fixes. You can download it 
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
 </p>
 
-The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
+The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in this project, for example:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify as they are checked in.
+* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify bugs and issues as they are checked in.
 * Review [source code changes](https://github.com/microsoft/vscode/pulls).
 * Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
 
@@ -32,7 +32,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contributing to translations](https://aka.ms/vscodeloc)
 
-Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
+Please do also see our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Feedback
 
@@ -44,7 +44,7 @@ Please see also our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Related Projects
 
-Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
+Many of the core components and extensions to Code live on their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug).
 
 For a complete list, please see the [Related Projects](https://github.com/Microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/Microsoft/vscode/wiki).
 
