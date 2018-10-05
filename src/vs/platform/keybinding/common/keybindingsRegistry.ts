@@ -46,7 +46,7 @@ export interface IKeybindingRule2 {
 	win?: { primary: Keybinding; };
 	linux?: { primary: Keybinding; };
 	mac?: { primary: Keybinding; };
-	args?: [string];
+	args?: any;
 	id: string;
 	weight: number;
 	when: ContextKeyExpr;
@@ -191,7 +191,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, args: [string], commandId: string, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: string, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
@@ -202,7 +202,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._keybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			commandArgs: args,
+			commandArgs: commandArgs,
 			when: when,
 			weight1: weight1,
 			weight2: weight2
