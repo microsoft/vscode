@@ -12,6 +12,7 @@ import * as typeConverters from '../utils/typeConverters';
 class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	public static readonly triggerCharacters = ['(', ',', '<'];
+	public static readonly retriggerCharacters = [')'];
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -92,6 +93,8 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return vscode.languages.registerSignatureHelpProvider(selector,
-		new TypeScriptSignatureHelpProvider(client),
-		...TypeScriptSignatureHelpProvider.triggerCharacters);
+		new TypeScriptSignatureHelpProvider(client), {
+			triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
+			retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
+		});
 }

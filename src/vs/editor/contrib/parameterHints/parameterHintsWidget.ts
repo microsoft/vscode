@@ -48,6 +48,7 @@ export class ParameterHintsModel extends Disposable {
 	private active: boolean = false;
 	private pending: boolean = false;
 	private triggerChars = new CharacterSet();
+	private retriggerChars = new CharacterSet();
 
 	private triggerContext: modes.SignatureHelpContext | undefined;
 	private throttledDelayer: RunOnceScheduler;
@@ -146,6 +147,7 @@ export class ParameterHintsModel extends Disposable {
 
 		// Update trigger characters
 		this.triggerChars = new CharacterSet();
+		this.retriggerChars = new CharacterSet();
 
 		const model = this.editor.getModel();
 		if (!model) {
@@ -156,6 +158,15 @@ export class ParameterHintsModel extends Disposable {
 			if (Array.isArray(support.signatureHelpTriggerCharacters)) {
 				for (const ch of support.signatureHelpTriggerCharacters) {
 					this.triggerChars.add(ch.charCodeAt(0));
+
+					// All trigger characters are also considered retrigger characters
+					this.retriggerChars.add(ch.charCodeAt(0));
+
+				}
+			}
+			if (Array.isArray(support.signatureHelpRetriggerCharacters)) {
+				for (const ch of support.signatureHelpRetriggerCharacters) {
+					this.retriggerChars.add(ch.charCodeAt(0));
 				}
 			}
 		}
@@ -167,11 +178,16 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		const lastCharIndex = text.length - 1;
-		if (this.triggerChars.has(text.charCodeAt(lastCharIndex))) {
+		const triggerCharCode = text.charCodeAt(lastCharIndex);
+
+		if (this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
 			this.trigger({
-				triggerReason: this.isTriggered
-					? modes.SignatureHelpTriggerReason.Retrigger
-					: modes.SignatureHelpTriggerReason.TriggerCharacter,
+				triggerReason: modes.SignatureHelpTriggerReason.Retrigger,
+				triggerCharacter: text.charAt(lastCharIndex)
+			});
+		} else if (this.triggerChars.has(triggerCharCode)) {
+			this.trigger({
+				triggerReason: modes.SignatureHelpTriggerReason.TriggerCharacter,
 				triggerCharacter: text.charAt(lastCharIndex)
 			});
 		}

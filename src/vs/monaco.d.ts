@@ -4900,7 +4900,8 @@ declare namespace monaco.languages {
 	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
 	 */
 	export interface SignatureHelpProvider {
-		signatureHelpTriggerCharacters: string[];
+		readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
+		readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
 		/**
 		 * Provide help for the signature at the given position and document.
 		 */

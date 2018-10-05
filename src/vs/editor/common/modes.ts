@@ -622,7 +622,8 @@ export interface SignatureHelpContext {
  */
 export interface SignatureHelpProvider {
 
-	signatureHelpTriggerCharacters: string[];
+	readonly signatureHelpTriggerCharacters: ReadonlyArray<string>;
+	readonly signatureHelpRetriggerCharacters: ReadonlyArray<string>;
 
 	/**
 	 * Provide help for the signature at the given position and document.
