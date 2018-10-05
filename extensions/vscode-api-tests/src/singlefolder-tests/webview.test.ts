@@ -11,6 +11,8 @@ import { closeAllEditors } from '../utils';
 
 const webviewId = 'myWebview';
 
+const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
+
 suite('Webview tests', () => {
 	teardown(closeAllEditors);
 
@@ -51,7 +53,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(firstResponse.value, 1);
 
 		// Swap away from the webview
-		const doc = await vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt'));
+		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc);
 
 		// And then back
@@ -87,7 +89,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(firstResponse.value, 1);
 
 		// Swap away from the webview
-		const doc = await vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt'));
+		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc);
 
 		// And then back
@@ -123,7 +125,7 @@ suite('Webview tests', () => {
 		assert.strictEqual(firstResponse.value, 100);
 
 		// Swap away from the webview
-		const doc = await vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt'));
+		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc);
 
 		// And then back
