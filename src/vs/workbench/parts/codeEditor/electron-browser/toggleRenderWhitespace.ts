@@ -46,7 +46,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	command: {
 		id: ToggleRenderWhitespaceAction.ID,
 		title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace"),
-		effectToggled: ContextKeyExpr.notEquals('config.editor.renderWhitespace', 'none')
+		toggled: ContextKeyExpr.notEquals('config.editor.renderWhitespace', 'none')
 	},
 	order: 3
 });

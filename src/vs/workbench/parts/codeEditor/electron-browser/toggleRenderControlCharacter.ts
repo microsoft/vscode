@@ -38,7 +38,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	command: {
 		id: ToggleRenderControlCharacterAction.ID,
 		title: nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters"),
-		effectToggled: ContextKeyExpr.equals('config.editor.renderControlCharacters', true)
+		toggled: ContextKeyExpr.equals('config.editor.renderControlCharacters', true)
 	},
 	order: 4
 });

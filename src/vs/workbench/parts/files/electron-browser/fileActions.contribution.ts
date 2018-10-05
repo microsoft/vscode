@@ -556,7 +556,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: ToggleAutoSaveAction.ID,
 		title: nls.localize({ key: 'miAutoSave', comment: ['&& denotes a mnemonic'] }, "A&&uto Save"),
-		effectToggled: ContextKeyExpr.notEquals('config.files.autoSave', 'off')
+		toggled: ContextKeyExpr.notEquals('config.files.autoSave', 'off')
 	},
 	order: 1
 });
