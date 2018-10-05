@@ -20,7 +20,7 @@ import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debu
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -61,7 +61,8 @@ export class DebugSession implements IDebugSession {
 		@IOutputService private outputService: IOutputService,
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		this.id = generateUuid();
 		this.repl = new ReplModel(this);
@@ -83,7 +84,8 @@ export class DebugSession implements IDebugSession {
 		this._configuration = configuration;
 	}
 
-	getName(includeRoot: boolean): string {
+	getLabel(): string {
+		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
 		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
 	}
 

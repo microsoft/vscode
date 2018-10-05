@@ -192,7 +192,7 @@ export class FocusSessionActionItem extends SelectActionItem {
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
@@ -215,8 +215,7 @@ export class FocusSessionActionItem extends SelectActionItem {
 	private update() {
 		const session = this.debugService.getViewModel().focusedSession;
 		const sessions = this.debugService.getModel().getSessions();
-		const showRootName = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const names = sessions.map(s => s.getName(showRootName));
+		const names = sessions.map(s => s.getLabel());
 		this.setOptions(names, session ? sessions.indexOf(session) : undefined);
 	}
 }

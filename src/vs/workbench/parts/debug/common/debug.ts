@@ -144,7 +144,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly state: State;
 	readonly root: IWorkspaceFolder;
 
-	getName(includeRoot: boolean): string;
+	getLabel(): string;
 
 	getSourceForUri(modelUri: uri): Source;
 	getSource(raw: DebugProtocol.Source): Source;

@@ -238,7 +238,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			return {
 				id: <DebugSessionUUID>session.getId(),
 				type: session.configuration.type,
-				name: session.getName(false)
+				name: session.configuration.name
 			};
 		}
 		return undefined;

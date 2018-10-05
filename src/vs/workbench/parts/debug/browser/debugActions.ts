@@ -760,8 +760,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 	}
 
 	public run(sessionName: string): TPromise<any> {
-		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const session = this.debugService.getModel().getSessions().filter(p => p.getName(isMultiRoot) === sessionName).pop();
+		const session = this.debugService.getModel().getSessions().filter(p => p.getLabel() === sessionName).pop();
 		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {

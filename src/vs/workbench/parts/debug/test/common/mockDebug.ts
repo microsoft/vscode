@@ -154,7 +154,7 @@ export class MockSession implements IDebugSession {
 		return 'mock';
 	}
 
-	getName(includeRoot: boolean): string {
+	getLabel(): string {
 		return 'mockname';
 	}
 
