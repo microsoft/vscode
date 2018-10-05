@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor, FileSystemWatcher } from 'vscode';
 import * as path from 'path';
 import { Repository, GitResourceGroup, Status } from './repository';
 import { Model } from './model';
@@ -18,13 +18,18 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 	readonly onDidChangeDecorations: Event<Uri[]>;
 	private queue = new Map<string, { repository: Repository; queue: Map<string, Callback>; }>();
 	private disposables: Disposable[] = [];
+	private gitignoreWatcher: FileSystemWatcher;
 
 	constructor(private model: Model) {
 		//todo@joh -> events when the ignore status actually changes, not only when the file changes
+		this.gitignoreWatcher = workspace.createFileSystemWatcher('**/.gitignore');
 		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
-			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore')),
+			this.gitignoreWatcher.onDidChange,
+			this.gitignoreWatcher.onDidCreate,
+			this.gitignoreWatcher.onDidDelete,
 			model.onDidOpenRepository,
-			model.onDidCloseRepository
+			model.onDidCloseRepository,
+			model.onDidChangeRepository
 		));
 
 		this.disposables.push(window.registerDecorationProvider(this));
