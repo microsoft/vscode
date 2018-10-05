@@ -440,6 +440,17 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return this._selected;
 	}
 
+	private _hideInputBox: boolean = false;
+
+	get hideInputBox(): boolean {
+		return this._hideInputBox;
+	}
+
+	set hideInputBox(hideInputBox: boolean | undefined) {
+		this._hideInputBox = hideInputBox;
+		this._proxy.$updateSourceControl(this.handle, { hideInputBox: !!hideInputBox });
+	}
+
 	private _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 

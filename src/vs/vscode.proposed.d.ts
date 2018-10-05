@@ -675,6 +675,11 @@ declare module 'vscode' {
 		 * An event signaling when the selection state changes.
 		 */
 		readonly onDidChangeSelection: Event<boolean>;
+
+		/**
+		* Whether the input box is hidden.
+		*/
+		hideInputBox: boolean;
 	}
 
 	//#endregion
