@@ -97,6 +97,42 @@ suite('Webview tests', () => {
 		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
+
+	test('webview should preserve position when switching visibility with retainContextWhenHidden', async () => {
+		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true });
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			${'<h1>Header</h1>'.repeat(200)}
+			<script>
+				const vscode = acquireVsCodeApi();
+
+				setTimeout(() => {
+					window.scroll(0, 100);
+					vscode.postMessage({ value: window.scrollY });
+				}, 500);
+
+				window.addEventListener('message', (message) => {
+					switch (message.data.type) {
+						case 'get':
+							vscode.postMessage({ value: window.scrollY });
+							break;
+					}
+				});
+			</script>`);
+
+		const firstResponse = await getWebviewMesssage(webview);
+		assert.strictEqual(firstResponse.value, 100);
+
+		// Swap away from the webview
+		const doc = await vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt'));
+		await vscode.window.showTextDocument(doc);
+
+		// And then back
+		webview.reveal(vscode.ViewColumn.One);
+
+		// We should still have old scroll pos
+		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		assert.strictEqual(secondResponse.value, 100);
+	});
 });
 
 function createWebviewWithBody(body: string) {
@@ -121,13 +157,18 @@ function createHtmlDocumentWithBody(body: string): string {
 }
 
 
-function sendRecieveMessage(webview: vscode.WebviewPanel, message: any): Promise<any> {
-	const p = new Promise<any>(resolve => {
+
+function getWebviewMesssage<T = any>(webview: vscode.WebviewPanel): Promise<T> {
+	return new Promise<any>(resolve => {
 		const sub = webview.webview.onDidReceiveMessage(message => {
 			sub.dispose();
 			resolve(message);
 		});
 	});
+}
+
+function sendRecieveMessage<T = any>(webview: vscode.WebviewPanel, message: any): Promise<T> {
+	const p = getWebviewMesssage(webview);
 	webview.webview.postMessage(message);
 	return p;
 }
