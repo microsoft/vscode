@@ -77,7 +77,7 @@ suite('languages namespace tests', () => {
 		assert.ok(found);
 	});
 
-	test('diagnostics & CodeActionProvider', function () {
+	test('diagnostics & CodeActionProvider', async function () {
 
 		class D2 extends vscode.Diagnostic {
 			customProp = { complex() { } };
@@ -117,15 +117,13 @@ suite('languages namespace tests', () => {
 		let r4 = vscode.languages.createDiagnosticCollection();
 		r4.set(uri, [diag2]);
 
-		return vscode.workspace.openTextDocument(uri).then(_doc => {
-			return vscode.commands.executeCommand('vscode.executeCodeActionProvider', uri, new vscode.Range(0, 0, 0, 10));
-		}).then(_commands => {
-			assert.ok(ran);
-			vscode.Disposable.from(r1, r2, r3, r4).dispose();
-		});
+		await vscode.workspace.openTextDocument(uri);
+		await vscode.commands.executeCommand('vscode.executeCodeActionProvider', uri, new vscode.Range(0, 0, 0, 10));
+		assert.ok(ran);
+		vscode.Disposable.from(r1, r2, r3, r4).dispose();
 	});
 
-	test('completions with document filters', function () {
+	test('completions with document filters', async function () {
 		let ran = false;
 		let uri = vscode.Uri.file(join(vscode.workspace.rootPath || '', './bower.json'));
 
@@ -140,12 +138,10 @@ suite('languages namespace tests', () => {
 			}
 		});
 
-		return vscode.workspace.openTextDocument(uri).then(_doc => {
-			return vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
-		}).then((result: vscode.CompletionList | undefined) => {
-			r1.dispose();
-			assert.ok(ran);
-			assert.equal(result!.items[0].label, 'foo');
-		});
+		const _doc = await vscode.workspace.openTextDocument(uri);
+		const result = await vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
+		r1.dispose();
+		assert.ok(ran);
+		assert.equal(result!.items[0].label, 'foo');
 	});
 });
