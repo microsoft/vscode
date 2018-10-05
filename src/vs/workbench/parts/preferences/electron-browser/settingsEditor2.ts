@@ -87,6 +87,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 	private noResultsMessage: HTMLElement;
+	private clearFilterLinkContainer: HTMLElement;
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
@@ -336,6 +337,16 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue('');
 	}
 
+	clearSearchFilters(): void {
+		let query = this.searchWidget.getValue();
+
+		SettingsEditor2.SUGGESTIONS.forEach(suggestion => {
+			query = query.replace(suggestion, '');
+		});
+
+		this.searchWidget.setValue(query.trim());
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -468,7 +479,31 @@ export class SettingsEditor2 extends BaseEditor {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results'));
+
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+
+		this.clearFilterLinkContainer = $('span.clear-search-filters');
+
+		this.clearFilterLinkContainer.textContent = ' - ';
+		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
+		this._register(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchFilters();
+		}));
+
+		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
+
+		const clearSearchContainer = $('span.clear-search');
+		clearSearchContainer.textContent = ' - ';
+
+		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
+		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchResults();
+		}));
+
+		DOM.append(this.noResultsMessage, clearSearchContainer);
+
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
@@ -1195,6 +1230,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.countElement.style.display = 'block';
 			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters.size > 0
+				? 'initial'
+				: 'none';
 		}
 	}
 
