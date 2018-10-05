@@ -25,6 +25,11 @@ import { IStateService } from 'vs/platform/state/common/state';
 
 const telemetryFrom = 'menu';
 
+interface IMenuItemClickHandler {
+	inDevTools: (contents: Electron.WebContents) => void;
+	inNoWindow: () => void;
+}
+
 export class Menubar {
 
 	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
@@ -634,8 +639,8 @@ export class Menubar {
 			commandId = arg2[0];
 		}
 
-		// Add role for special case menu items
 		if (isMacintosh) {
+			// Add role for special case menu items
 			if (commandId === 'editor.action.clipboardCutAction') {
 				options['role'] = 'cut';
 			} else if (commandId === 'editor.action.clipboardCopyAction') {
@@ -643,9 +648,45 @@ export class Menubar {
 			} else if (commandId === 'editor.action.clipboardPasteAction') {
 				options['role'] = 'paste';
 			}
+
+			// Add context aware click handlers for special case menu items
+			if (commandId === 'undo') {
+				options.click = this.makeContextAwareClickHandler(click, {
+					inDevTools: devTools => devTools.undo(),
+					inNoWindow: () => Menu.sendActionToFirstResponder('undo:')
+				});
+			} else if (commandId === 'redo') {
+				options.click = this.makeContextAwareClickHandler(click, {
+					inDevTools: devTools => devTools.redo(),
+					inNoWindow: () => Menu.sendActionToFirstResponder('redo:')
+				});
+			} else if (commandId === 'editor.action.selectAll') {
+				options.click = this.makeContextAwareClickHandler(click, {
+					inDevTools: devTools => devTools.selectAll(),
+					inNoWindow: () => Menu.sendActionToFirstResponder('selectAll:')
+				});
+			}
 		}
 
 		return new MenuItem(this.withKeybinding(commandId, options));
+	}
+
+	private makeContextAwareClickHandler(click: () => void, contextSpecificHandlers: IMenuItemClickHandler): () => void {
+		return () => {
+			// No Active Window
+			const activeWindow = this.windowsMainService.getFocusedWindow();
+			if (!activeWindow) {
+				return contextSpecificHandlers.inNoWindow();
+			}
+
+			// DevTools focused
+			if (activeWindow.win.webContents.isDevToolsFocused()) {
+				return contextSpecificHandlers.inDevTools(activeWindow.win.webContents.devToolsWebContents);
+			}
+
+			// Finally execute command in Window
+			click();
+		};
 	}
 
 	private runActionInRenderer(id: string): void {
