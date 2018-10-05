@@ -6,7 +6,7 @@
 import { basename, extname, join } from 'path';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { compare, endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -278,58 +278,37 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initFolderSnippets(source: SnippetSource, folder: URI, bucket: IDisposable[]): Thenable<any> {
-		const addUserSnippet = (filepath: URI) => {
-			const ext = extname(filepath.path);
-			if (source === SnippetSource.User && ext === '.json') {
-				const langName = basename(filepath.path, '.json');
-				this._files.set(filepath.toString(), new SnippetFile(source, filepath, [langName], undefined, this._fileService));
-
-			} else if (ext === '.code-snippets') {
-				this._files.set(filepath.toString(), new SnippetFile(source, filepath, undefined, undefined, this._fileService));
-			}
+		let disposables: IDisposable[] = [];
+		let addFolderSnippets = () => {
+			disposables = dispose(disposables);
+			return this._fileService.resolveFile(folder).then(stat => {
+				if (!isFalsyOrEmpty(stat.children)) {
+					for (const entry of stat.children) {
+						disposables.push(this._addSnippetFile(entry.resource, source));
+					}
+				}
+			}, err => {
+				this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
+			});
 		};
 
-		return this._fileService.resolveFile(folder).then(stat => {
-			if (!isFalsyOrEmpty(stat.children)) {
-				for (const entry of stat.children) {
-					addUserSnippet(entry.resource);
-				}
-			}
-		}).then(() => {
-			// watch
-			bucket.push(watch(this._fileService, folder, (_type, filename) => {
+		bucket.push(watch(this._fileService, folder, addFolderSnippets));
+		bucket.push(combinedDisposable(disposables));
+		return addFolderSnippets();
+	}
 
-				this._fileService.existsFile(filename).then(value => {
-					if (value) {
-						// file created or changed
-						if (this._files.has(filename.toString())) {
-							this._files.get(filename.toString()).reset();
-						} else {
-							addUserSnippet(filename);
-						}
-					} else {
-						// file not found
-						this._files.delete(filename.toString());
-					}
-				});
-			}));
-
-			bucket.push({
-				dispose: () => {
-					// add a disposable that removes all snippets
-					// from this folder. that ensures snippets disappear
-					// when the folder goes away
-					this._files.forEach((value, index) => {
-						if (resources.isEqualOrParent(value.location, folder)) {
-							this._files.delete(index);
-						}
-					});
-				}
-			});
-
-		}).then(undefined, err => {
-			this._logService.error(`Failed snippets from folder '${folder.toString()}'`, err);
-		});
+	private _addSnippetFile(uri: URI, source: SnippetSource): IDisposable {
+		const ext = extname(uri.path);
+		const key = uri.toString();
+		if (source === SnippetSource.User && ext === '.json') {
+			const langName = basename(uri.path, '.json');
+			this._files.set(key, new SnippetFile(source, uri, [langName], undefined, this._fileService));
+		} else if (ext === '.code-snippets') {
+			this._files.set(key, new SnippetFile(source, uri, undefined, undefined, this._fileService));
+		}
+		return {
+			dispose: () => this._files.delete(key)
+		};
 	}
 }
 
