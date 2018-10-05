@@ -42,6 +42,21 @@ suite('Webview tests', () => {
 		assert.strictEqual((await firstResponse).value, 2);
 	});
 
+	test('webviews should not have scripts enabled by default', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { }));
+		const response = Promise.race<any>([
+			getMesssage(webview),
+			new Promise<{}>(resolve => setTimeout(() => resolve({ value: '🎉' }), 1000))
+		]);
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<script>
+				const vscode = acquireVsCodeApi();
+				vscode.postMessage({ value: '💉' });
+			</script>`);
+
+		assert.strictEqual((await response).value, '🎉');
+	});
+
 	test('webviews should update html', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 
