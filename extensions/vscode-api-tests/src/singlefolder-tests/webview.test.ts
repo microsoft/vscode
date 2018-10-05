@@ -21,8 +21,8 @@ suite('Webview tests', () => {
 		return disposable;
 	}
 
-	teardown(() => {
-		closeAllEditors();
+	teardown(async () => {
+		await closeAllEditors();
 
 		while (disposables.length) {
 			let item = disposables.pop();
