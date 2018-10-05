@@ -78,7 +78,7 @@ class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
-		this.client.bufferSyncSupport.closeResource(targetResource);
+		this.client.bufferSyncSupport.closeResource(oldResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
 		if (this.client.apiVersion.lt(API.v300) && !fs.lstatSync(newResource.fsPath).isDirectory()) {
