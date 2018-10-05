@@ -471,7 +471,7 @@ export class DebugService implements IDebugService {
 			}
 
 			// Show the repl if some error got logged there #5870
-			if (this.model.getReplElements().length > 0) {
+			if (session && session.getReplElements().length > 0) {
 				this.panelService.openPanel(REPL_ID, false);
 			}
 

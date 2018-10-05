@@ -340,8 +340,8 @@ suite('Debug - Model', () => {
 	});
 
 	test('repl expressions', () => {
-		assert.equal(model.getReplElements().length, 0);
 		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
+		assert.equal(session.getReplElements().length, 0);
 		model.addSession(session);
 
 		session['raw'] = <any>rawSession;

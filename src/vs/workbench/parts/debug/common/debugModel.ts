@@ -1005,10 +1005,6 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed: removed });
 	}
 
-	public getReplElements(): ReadonlyArray<IReplElement> {
-		return this.sessions.map(s => s.getReplElements()).reduce((left, right) => left.concat(right), []);
-	}
-
 	public getWatchExpressions(): Expression[] {
 		return this.watchExpressions;
 	}

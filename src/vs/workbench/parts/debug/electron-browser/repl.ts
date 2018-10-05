@@ -37,7 +37,7 @@ import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { memoize } from 'vs/base/common/decorators';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -106,10 +106,21 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	private registerListeners(): void {
-		// TODO@Isidor
-		// this._register(this.debugService.getModel().onDidChangeReplElements(() => {
-		// 	this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
-		// }));
+		let replElementsChangeListener: IDisposable;
+		this._register(this.debugService.getViewModel().onDidFocusSession(session => {
+			if (replElementsChangeListener) {
+				replElementsChangeListener.dispose();
+			}
+			if (session) {
+				replElementsChangeListener = session.onDidChangeReplElements(() => {
+					this.refreshReplElements(session.getReplElements().length === 0);
+				});
+
+				if (this.tree && this.isVisible()) {
+					this.tree.setInput(session);
+				}
+			}
+		}));
 		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
@@ -149,8 +160,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
-
-		await this.tree.setInput(this.debugService.getModel());
 	}
 
 	public setVisible(visible: boolean): Promise<void> {
@@ -159,6 +168,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		} else {
 			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
+			const focusedSession = this.debugService.getViewModel().focusedSession;
+			if (focusedSession && this.tree.getInput() !== focusedSession) {
+				this.tree.setInput(focusedSession);
+			}
 		}
 
 		return super.setVisible(visible);

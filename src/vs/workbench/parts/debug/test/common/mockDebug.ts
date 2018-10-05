@@ -133,6 +133,9 @@ export class MockSession implements IDebugSession {
 	}
 
 	removeReplExpressions(): void { }
+	get onDidChangeReplElements(): Event<void> {
+		return null;
+	}
 
 	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
 		return TPromise.as(void 0);

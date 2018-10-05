@@ -166,6 +166,7 @@ export interface IDebugSession extends ITreeElement {
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent>;
 	readonly onDidChangeState: Event<void>;
+	readonly onDidChangeReplElements: Event<void>;
 
 	// DA capabilities
 	readonly capabilities: DebugProtocol.Capabilities;
@@ -381,7 +382,6 @@ export interface IDebugModel extends ITreeElement {
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression>;
-	getReplElements(): ReadonlyArray<IReplElement>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
