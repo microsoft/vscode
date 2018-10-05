@@ -24,7 +24,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground, editorSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IStyleOverrides, IThemable } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/browser/menuPreventer';
@@ -247,9 +247,15 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 // Override styles in selections.ts
 registerThemingParticipant((theme, collector) => {
-	const workbenchSelectionColor = theme.getColor(selectionBackground);
-	if (workbenchSelectionColor) {
-		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${workbenchSelectionColor.transparent(.4)}; }`);
+	let selectionColor = theme.getColor(selectionBackground);
+	if (selectionColor) {
+		selectionColor = selectionColor.transparent(.4);
+	} else {
+		selectionColor = theme.getColor(editorSelectionBackground);
+	}
+
+	if (selectionColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor .focused .selected-text { background-color: ${selectionColor}; }`);
 	}
 
 	// Override inactive selection bg
