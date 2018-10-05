@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionItem } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -29,7 +29,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
-import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { ClearReplAction, FocusSessionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -51,6 +51,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/si
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 
 const $ = dom.$;
 
@@ -86,7 +87,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	private replInput: CodeEditorWidget;
 	private replInputContainer: HTMLElement;
 	private refreshTimeoutHandle: any;
-	private actions: IAction[];
 	private dimension: dom.Dimension;
 	private replInputHeight: number;
 	private model: ITextModel;
@@ -130,6 +130,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			this.updateInputDecoration();
 		}));
 		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
+		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
 		this._register(this.themeService.onThemeChange(() => this.updateInputDecoration()));
 	}
 
@@ -316,16 +317,24 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.replInput.focus();
 	}
 
-	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [
-				this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL)
-			];
-
-			this.actions.forEach(a => this._register(a));
+	getActionItem(action: IAction): IActionItem {
+		if (action.id === FocusSessionAction.ID) {
+			return this.focusSessionActionItem;
 		}
 
-		return this.actions;
+		return undefined;
+	}
+
+	public getActions(): IAction[] {
+		const result: IAction[] = [];
+		if (this.debugService.getModel().getSessions().length > 1) {
+			result.push(this.focusSessionAction);
+		}
+		result.push(this.clearReplAction);
+
+		result.forEach(a => this._register(a));
+
+		return result;
 	}
 
 	public shutdown(): void {
@@ -335,6 +344,21 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		} else {
 			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
+	}
+
+	@memoize
+	private get focusSessionAction(): FocusSessionAction {
+		return this.instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL);
+	}
+
+	@memoize
+	private get clearReplAction(): ClearReplAction {
+		return this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
+	}
+
+	@memoize
+	private get focusSessionActionItem(): FocusSessionActionItem {
+		return this.instantiationService.createInstance(FocusSessionActionItem, this.focusSessionAction);
 	}
 
 	private updateInputDecoration(): void {
