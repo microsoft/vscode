@@ -539,7 +539,7 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	private updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
+	public updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget || settingsTarget instanceof URI && this.settingsTarget instanceof URI && this.settingsTarget.toString() === settingsTarget.toString();
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;
