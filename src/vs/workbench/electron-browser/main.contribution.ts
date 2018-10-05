@@ -562,6 +562,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),
 			'default': true,
 		},
+		'workbench.editor.centeredLayoutAutoResize': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+		},
 		'workbench.commandPalette.history': {
 			'type': 'number',
 			'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -597,11 +602,6 @@ configurationRegistry.registerConfiguration({
 			'enum': ['left', 'right'],
 			'default': 'left',
 			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
-		},
-		'workbench.centeredLayoutAutoResize': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
 		},
 		'workbench.panel.defaultLocation': {
 			'type': 'string',

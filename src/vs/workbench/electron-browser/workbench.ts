@@ -1319,7 +1319,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
 		this.shouldCenterLayout = active;
 		let smartActive = active;
-		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.centeredLayoutAutoResize')) {
+		if (this.editorPart.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
 			// Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
 			smartActive = false;
 		}
