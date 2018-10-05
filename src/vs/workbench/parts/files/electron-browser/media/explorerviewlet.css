@@ -104,6 +104,7 @@
 .explorer-viewlet .explorer-item .monaco-inputbox {
 	width: 100%;
 	line-height: normal;
+	margin-left: -1px; /* makes the text align perfectly with the non-editing mode */
 }
 
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
