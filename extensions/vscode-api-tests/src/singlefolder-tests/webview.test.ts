@@ -137,7 +137,7 @@ suite('Webview tests', () => {
 				});
 			</script>`);
 
-		const firstResponse = await getWebviewMesssage(webview);
+		const firstResponse = await getMesssage(webview);
 		assert.strictEqual(firstResponse.value, 100);
 
 		// Swap away from the webview
@@ -174,10 +174,8 @@ function createHtmlDocumentWithBody(body: string): string {
 </html>`;
 }
 
-
-
-function getWebviewMesssage<T = any>(webview: vscode.WebviewPanel): Promise<T> {
-	return new Promise<any>(resolve => {
+function getMesssage<R = any>(webview: vscode.WebviewPanel): Promise<R> {
+	return new Promise<R>(resolve => {
 		const sub = webview.webview.onDidReceiveMessage(message => {
 			sub.dispose();
 			resolve(message);
@@ -185,8 +183,8 @@ function getWebviewMesssage<T = any>(webview: vscode.WebviewPanel): Promise<T> {
 	});
 }
 
-function sendRecieveMessage<T = any>(webview: vscode.WebviewPanel, message: any): Promise<T> {
-	const p = getWebviewMesssage(webview);
+function sendRecieveMessage<T = {}, R = any>(webview: vscode.WebviewPanel, message: T): Promise<R> {
+	const p = getMesssage<R>(webview);
 	webview.webview.postMessage(message);
 	return p;
 }
