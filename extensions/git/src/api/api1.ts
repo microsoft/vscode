@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
 import { mapEvent } from '../util';
 
@@ -17,7 +17,23 @@ class ApiInputBox implements InputBox {
 
 export class ApiChange implements Change {
 
-	constructor(_resource: Resource) { }
+	constructor(private readonly resource: Resource) { }
+
+	public get resourceUri(): Uri {
+		return this.resource.resourceUri;
+	}
+
+	public get status(): Status {
+		return this.resource.type;
+	}
+
+	public get original(): Uri {
+		return this.resource.original;
+	}
+
+	public get renameResourceUri(): Uri | undefined {
+		return this.resource.renameResourceUri;
+	}
 }
 
 export class ApiRepositoryState implements RepositoryState {
@@ -77,6 +93,14 @@ export class ApiRepository implements Repository {
 
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
 		return this._repository.getObjectDetails(treeish, path);
+	}
+
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		return this._repository.detectObjectType(object);
+	}
+
+	buffer(ref: string, filePath: string): Promise<Buffer> {
+		return this._repository.buffer(ref, filePath);
 	}
 
 	diffWithHEAD(path: string): Promise<string> {
@@ -149,6 +173,10 @@ export class ApiRepository implements Repository {
 
 	pull(): Promise<void> {
 		return this._repository.pull();
+	}
+
+	clean(filePaths: string[]) {
+		return this._repository.clean(filePaths.map(p => Uri.file(p)));
 	}
 }
 

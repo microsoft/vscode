@@ -56,8 +56,32 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export const enum Status {
+	INDEX_MODIFIED,
+	INDEX_ADDED,
+	INDEX_DELETED,
+	INDEX_RENAMED,
+	INDEX_COPIED,
+
+	MODIFIED,
+	DELETED,
+	UNTRACKED,
+	IGNORED,
+
+	ADDED_BY_US,
+	ADDED_BY_THEM,
+	DELETED_BY_US,
+	DELETED_BY_THEM,
+	BOTH_ADDED,
+	BOTH_DELETED,
+	BOTH_MODIFIED
+}
+
 export interface Change {
-	// TODO
+	readonly resourceUri: Uri;
+	readonly status: Status;
+	readonly original: Uri;
+	readonly renameResourceUri: Uri | undefined;
 }
 
 export interface RepositoryState {
@@ -93,6 +117,8 @@ export interface Repository {
 	show(ref: string, path: string): Promise<string>;
 	getCommit(ref: string): Promise<Commit>;
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }>;
+	buffer(ref: string, filePath: string): Promise<Buffer>;
 
 	diffWithHEAD(path: string): Promise<string>;
 	diffWith(ref: string, path: string): Promise<string>;
@@ -118,6 +144,8 @@ export interface Repository {
 
 	fetch(remote?: string, ref?: string): Promise<void>;
 	pull(): Promise<void>;
+
+	clean(filePaths: string[]): Promise<void>;	
 }
 
 export interface API {
