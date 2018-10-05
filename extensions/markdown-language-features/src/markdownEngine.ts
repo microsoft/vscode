@@ -39,10 +39,13 @@ export class MarkdownEngine {
 			const mdnh = await import('markdown-it-named-headers');
 			this.md = (await import('markdown-it'))({
 				html: true,
-				highlight: (str: string, lang: string) => {
+				highlight: (str: string, lang?: string) => {
 					// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
 					if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
 						lang = 'jsx';
+					}
+					if (lang && lang.toLocaleLowerCase() === 'json5') {
+						lang = 'json';
 					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
