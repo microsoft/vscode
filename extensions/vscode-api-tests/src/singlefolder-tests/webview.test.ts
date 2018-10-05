@@ -16,7 +16,7 @@ const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 suite('Webview tests', () => {
 	const disposables: vscode.Disposable[] = [];
 
-	function _register<T extends vscode.Disposable>(disposable: T)  {
+	function _register<T extends vscode.Disposable>(disposable: T) {
 		disposables.push(disposable);
 		return disposable;
 	}
@@ -33,20 +33,24 @@ suite('Webview tests', () => {
 	});
 
 	test('webview communication', async () => {
-		const webview = _register(createWebviewWithBody(/*html*/`
+		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
+		const firstResponse = getMesssage(webview);
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
 					vscode.postMessage({ value: message.data.value + 1 });
 				});
-			</script>`));
+			</script>`);
 
-		const response = await sendRecieveMessage(webview, { value: 1 });
-		assert.strictEqual(response.value, 2);
+		webview.webview.postMessage({ value: 1 });
+		assert.strictEqual((await firstResponse).value, 2);
 	});
 
 	test('webview preserves state when switching visibility', async () => {
-		const webview = _register(createWebviewWithBody(/*html*/ `
+		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
+		const firstResponse = getMesssage(webview);
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
 				let value = (vscode.getState() || {}).value || 0;
@@ -63,10 +67,10 @@ suite('Webview tests', () => {
 							break;
 					}
 				});
-			</script>`));
+			</script>`);
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
-		assert.strictEqual(firstResponse.value, 1);
+		webview.webview.postMessage({ type: 'add' });
+		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
 		const doc = await vscode.workspace.openTextDocument(testDocument);
@@ -82,6 +86,8 @@ suite('Webview tests', () => {
 
 	test('webview should keep dom state state when retainContextWhenHidden is set', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
+		const firstResponse = getMesssage(webview);
+
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
@@ -101,8 +107,8 @@ suite('Webview tests', () => {
 				});
 			</script>`);
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
-		assert.strictEqual(firstResponse.value, 1);
+		webview.webview.postMessage({ type: 'add' });
+		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
 		const doc = await vscode.workspace.openTextDocument(testDocument);
@@ -118,6 +124,8 @@ suite('Webview tests', () => {
 
 	test('webview should preserve position when switching visibility with retainContextWhenHidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
+		const firstResponse = getMesssage(webview);
+
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			${'<h1>Header</h1>'.repeat(200)}
 			<script>
@@ -137,8 +145,7 @@ suite('Webview tests', () => {
 				});
 			</script>`);
 
-		const firstResponse = await getMesssage(webview);
-		assert.strictEqual(firstResponse.value, 100);
+		assert.strictEqual((await firstResponse).value, 100);
 
 		// Swap away from the webview
 		const doc = await vscode.workspace.openTextDocument(testDocument);
@@ -152,12 +159,6 @@ suite('Webview tests', () => {
 		assert.strictEqual(secondResponse.value, 100);
 	});
 });
-
-function createWebviewWithBody(body: string) {
-	const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true });
-	webview.webview.html = createHtmlDocumentWithBody(body);
-	return webview;
-}
 
 function createHtmlDocumentWithBody(body: string): string {
 	return /*html*/`<!DOCTYPE html>
