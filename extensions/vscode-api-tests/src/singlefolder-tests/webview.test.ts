@@ -14,23 +14,39 @@ const webviewId = 'myWebview';
 const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
 
 suite('Webview tests', () => {
-	teardown(closeAllEditors);
+	const disposables: vscode.Disposable[] = [];
+
+	function _register<T extends vscode.Disposable>(disposable: T)  {
+		disposables.push(disposable);
+		return disposable;
+	}
+
+	teardown(() => {
+		closeAllEditors();
+
+		while (disposables.length) {
+			let item = disposables.pop();
+			if (item) {
+				item.dispose();
+			}
+		}
+	});
 
 	test('webview communication', async () => {
-		const webview = createWebviewWithBody(/*html*/`
+		const webview = _register(createWebviewWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
 					vscode.postMessage({ value: message.data.value + 1 });
 				});
-			</script>`);
+			</script>`));
 
 		const response = await sendRecieveMessage(webview, { value: 1 });
 		assert.strictEqual(response.value, 2);
 	});
 
 	test('webview preserves state when switching visibility', async () => {
-		const webview = createWebviewWithBody(/*html*/ `
+		const webview = _register(createWebviewWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
 				let value = (vscode.getState() || {}).value || 0;
@@ -47,7 +63,7 @@ suite('Webview tests', () => {
 							break;
 					}
 				});
-			</script>`);
+			</script>`));
 
 		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
 		assert.strictEqual(firstResponse.value, 1);
@@ -65,7 +81,7 @@ suite('Webview tests', () => {
 	});
 
 	test('webview should keep dom state state when retainContextWhenHidden is set', async () => {
-		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true });
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/ `
 			<script>
 				const vscode = acquireVsCodeApi();
@@ -101,7 +117,7 @@ suite('Webview tests', () => {
 	});
 
 	test('webview should preserve position when switching visibility with retainContextWhenHidden', async () => {
-		const webview = vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true });
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			${'<h1>Header</h1>'.repeat(200)}
 			<script>
