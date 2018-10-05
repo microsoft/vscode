@@ -239,9 +239,7 @@ export class RestartAction extends AbstractDebugAction {
 			return this.startAction.run();
 		}
 
-		if (this.debugService.getModel().getSessions().length <= 1) {
-			this.debugService.removeReplExpressions();
-		}
+		session.removeReplExpressions();
 		return this.debugService.restartSession(session);
 	}
 
@@ -692,8 +690,11 @@ export class ClearReplAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		this.debugService.removeReplExpressions();
-		aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
+		const session = this.debugService.getViewModel().focusedSession;
+		if (session) {
+			session.removeReplExpressions();
+			aria.status(nls.localize('debugConsoleCleared', "Debug console was cleared"));
+		}
 
 		// focus back to repl
 		return this.panelService.openPanel(REPL_ID, true);
@@ -706,7 +707,6 @@ export class ToggleReplAction extends TogglePanelAction {
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(id: string, label: string,
-		@IDebugService private debugService: IDebugService,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService
 	) {
@@ -716,23 +716,12 @@ export class ToggleReplAction extends TogglePanelAction {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
-			if (!this.isReplVisible()) {
-				this.class = 'debug-action toggle-repl notification';
-				this.tooltip = nls.localize('unreadOutput', "New Output in Debug Console");
-			}
-		}));
 		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
 			if (panel.getId() === REPL_ID) {
 				this.class = 'debug-action toggle-repl';
 				this.tooltip = ToggleReplAction.LABEL;
 			}
 		}));
-	}
-
-	private isReplVisible(): boolean {
-		const panel = this.panelService.getActivePanel();
-		return panel && panel.getId() === REPL_ID;
 	}
 
 	public dispose(): void {

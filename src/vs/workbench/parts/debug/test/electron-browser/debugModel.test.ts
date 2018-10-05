@@ -354,9 +354,9 @@ suite('Debug - Model', () => {
 		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		model.addReplExpression(session, stackFrame, 'myVariable').then();
-		model.addReplExpression(session, stackFrame, 'myVariable').then();
-		model.addReplExpression(session, stackFrame, 'myVariable').then();
+		session.addReplExpression(stackFrame, 'myVariable').then();
+		session.addReplExpression(stackFrame, 'myVariable').then();
+		session.addReplExpression(stackFrame, 'myVariable').then();
 
 		assert.equal(model.getReplElements().length, 3);
 		model.getReplElements().forEach(re => {
@@ -365,7 +365,7 @@ suite('Debug - Model', () => {
 			assert.equal((<Expression>re).reference, 0);
 		});
 
-		model.removeReplExpressions();
+		session.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
 
@@ -401,10 +401,11 @@ suite('Debug - Model', () => {
 	// Repl output
 
 	test('repl output', () => {
-		model.appendToRepl('first line\n', severity.Error);
-		model.appendToRepl('second line', severity.Error);
-		model.appendToRepl('third line', severity.Warning);
-		model.appendToRepl('fourth line', severity.Error);
+		const session = new DebugSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined, model, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
+		session.appendToRepl('first line\n', severity.Error);
+		session.appendToRepl('second line', severity.Error);
+		session.appendToRepl('third line', severity.Warning);
+		session.appendToRepl('fourth line', severity.Error);
 
 		let elements = <SimpleReplElement[]>model.getReplElements();
 		assert.equal(elements.length, 4);
@@ -417,19 +418,19 @@ suite('Debug - Model', () => {
 		assert.equal(elements[3].value, 'fourth line');
 		assert.equal(elements[3].severity, severity.Error);
 
-		model.appendToRepl('1', severity.Warning);
+		session.appendToRepl('1', severity.Warning);
 		elements = <SimpleReplElement[]>model.getReplElements();
 		assert.equal(elements.length, 5);
 		assert.equal(elements[4].value, '1');
 		assert.equal(elements[4].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		model.appendToRepl(new RawObjectReplElement('fake', keyValueObject), null);
+		session.appendToRepl(new RawObjectReplElement('fake', keyValueObject), null);
 		const element = <RawObjectReplElement>model.getReplElements()[5];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 
-		model.removeReplExpressions();
+		session.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
 	});
 });

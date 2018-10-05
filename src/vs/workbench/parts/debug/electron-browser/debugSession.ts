@@ -13,10 +13,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
-import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
+import { Thread, ExpressionContainer, DebugModel, Expression, SimpleReplElement } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -32,6 +32,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
+const MAX_REPL_LENGTH = 10000;
+
 export class DebugSession implements IDebugSession {
 
 	private id: string;
@@ -41,6 +43,7 @@ export class DebugSession implements IDebugSession {
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler;
+	private replElements: IReplElement[] = [];
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
@@ -48,6 +51,7 @@ export class DebugSession implements IDebugSession {
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 
+	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
@@ -109,6 +113,10 @@ export class DebugSession implements IDebugSession {
 		return this._onDidEndAdapter.event;
 	}
 
+	get onDidChangeReplElements(): Event<void> {
+		return this._onDidChangeREPLElements.event;
+	}
+
 	//---- DAP events
 
 	get onDidCustomEvent(): Event<DebugProtocol.Event> {
@@ -118,7 +126,6 @@ export class DebugSession implements IDebugSession {
 	get onDidLoadedSource(): Event<LoadedSourceEvent> {
 		return this._onDidLoadedSource.event;
 	}
-
 
 	//---- DAP requests
 
@@ -673,11 +680,11 @@ export class DebugSession implements IDebugSession {
 					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
-						this.debugService.logToRepl(child, outputSeverity, source);
+						this.appendToRepl(child, outputSeverity, source);
 					}));
 				}));
 			} else if (typeof event.body.output === 'string') {
-				Promise.all(waitFor).then(() => this.debugService.logToRepl(event.body.output, outputSeverity, source));
+				Promise.all(waitFor).then(() => this.appendToRepl(event.body.output, outputSeverity, source));
 			}
 			Promise.all(outputPromises).then(() => outputPromises = []);
 		}));
@@ -774,5 +781,65 @@ export class DebugSession implements IDebugSession {
 
 	private getUriKey(uri: URI): string {
 		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
+	}
+
+	// REPL
+
+	public getReplElements(): ReadonlyArray<IReplElement> {
+		return this.replElements;
+	}
+
+	public addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+		const expression = new Expression(name);
+		this.addReplElements([expression]);
+		const viewModel = this.debugService.getViewModel();
+		return expression.evaluate(this, stackFrame, 'repl')
+			.then(() => this._onDidChangeREPLElements.fire())
+			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
+			.then(() => this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession));
+	}
+
+	public appendToRepl(data: string | IExpression, sev: severity, source?: IReplElementSource): void {
+		const clearAnsiSequence = '\u001b[2J';
+		if (typeof data === 'string' && data.indexOf(clearAnsiSequence) >= 0) {
+			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
+			this.removeReplExpressions();
+			this.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
+			data = data.substr(data.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
+		}
+
+		if (typeof data === 'string') {
+			const previousElement = this.replElements.length && (this.replElements[this.replElements.length - 1] as SimpleReplElement);
+
+			const toAdd = data.split('\n').map((line, index) => new SimpleReplElement(line, sev, index === 0 ? source : undefined));
+			if (previousElement && previousElement.value === '') {
+				// remove potential empty lines between different repl types
+				this.replElements.pop();
+			} else if (previousElement instanceof SimpleReplElement && sev === previousElement.severity && toAdd.length && toAdd[0].sourceData === previousElement.sourceData) {
+				previousElement.value += toAdd.shift().value;
+			}
+			this.addReplElements(toAdd);
+		} else {
+			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
+			(<any>data).severity = sev;
+			(<any>data).sourceData = source;
+			this.addReplElements([data]);
+		}
+
+		this._onDidChangeREPLElements.fire();
+	}
+
+	private addReplElements(newElements: IReplElement[]): void {
+		this.replElements.push(...newElements);
+		if (this.replElements.length > MAX_REPL_LENGTH) {
+			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
+		}
+	}
+
+	removeReplExpressions(): void {
+		if (this.replElements.length > 0) {
+			this.replElements = [];
+			this._onDidChangeREPLElements.fire();
+		}
 	}
 }

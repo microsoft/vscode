@@ -46,7 +46,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/parts/debug/electron-browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, IExpression, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, REPL_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IReplElementSource, IEnablement, IBreakpoint, IBreakpointData, ICompound, IGlobalConfig, IStackFrame, AdapterEndEvent } from 'vs/workbench/parts/debug/common/debug';
 import { isExtensionHostDebugging } from 'vs/workbench/parts/debug/common/debugUtils';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -266,9 +266,7 @@ export class DebugService implements IDebugService {
 			this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined).then(() =>
 				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 
-					// If it is the very first start debugging we need to clear the repl and our sessions map
 					if (this.model.getSessions().length === 0) {
-						this.removeReplExpressions();
 						this.allSessions.clear();
 					}
 
@@ -786,16 +784,6 @@ export class DebugService implements IDebugService {
 
 	//---- REPL
 
-	addReplExpression(name: string): TPromise<void> {
-		return this.model.addReplExpression(this.viewModel.focusedSession, this.viewModel.focusedStackFrame, name)
-			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-			.then(() => this.focusStackFrame(this.viewModel.focusedStackFrame, this.viewModel.focusedThread, this.viewModel.focusedSession));
-	}
-
-	removeReplExpressions(): void {
-		this.model.removeReplExpressions();
-	}
-
 	private addToRepl(session: IDebugSession, extensionOutput: IRemoteConsoleLog) {
 
 		let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
@@ -836,12 +824,12 @@ export class DebugService implements IDebugService {
 
 				// flush any existing simple values logged
 				if (simpleVals.length) {
-					this.logToRepl(simpleVals.join(' '), sev, source);
+					session.appendToRepl(simpleVals.join(' '), sev, source);
 					simpleVals = [];
 				}
 
 				// show object
-				this.logToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				session.appendToRepl(new RawObjectReplElement((<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 			}
 
 			// string: watch out for % replacement directive
@@ -871,20 +859,8 @@ export class DebugService implements IDebugService {
 		// flush simple values
 		// always append a new line for output coming from an extension such that separate logs go to separate lines #23695
 		if (simpleVals.length) {
-			this.logToRepl(simpleVals.join(' ') + '\n', sev, source);
+			session.appendToRepl(simpleVals.join(' ') + '\n', sev, source);
 		}
-	}
-
-	logToRepl(value: string | IExpression, sev = severity.Info, source?: IReplElementSource): void {
-		const clearAnsiSequence = '\u001b[2J';
-		if (typeof value === 'string' && value.indexOf(clearAnsiSequence) >= 0) {
-			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
-			this.model.removeReplExpressions();
-			this.model.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
-			value = value.substr(value.lastIndexOf(clearAnsiSequence) + clearAnsiSequence.length);
-		}
-
-		this.model.appendToRepl(value, sev, source);
 	}
 
 	//---- watches

@@ -106,9 +106,10 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	private registerListeners(): void {
-		this._register(this.debugService.getModel().onDidChangeReplElements(() => {
-			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
-		}));
+		// TODO@Isidor
+		// this._register(this.debugService.getModel().onDidChangeReplElements(() => {
+		// 	this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
+		// }));
 		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
@@ -235,12 +236,16 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 	}
 
 	public acceptReplInput(): void {
-		this.debugService.addReplExpression(this.replInput.getValue());
-		this.history.add(this.replInput.getValue());
-		this.replInput.setValue('');
-		// Trigger a layout to shrink a potential multi line input
-		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
-		this.layout(this.dimension);
+		const viewModel = this.debugService.getViewModel();
+		const session = viewModel.focusedSession;
+		if (session) {
+			session.addReplExpression(viewModel.focusedStackFrame, this.replInput.getValue());
+			this.history.add(this.replInput.getValue());
+			this.replInput.setValue('');
+			// Trigger a layout to shrink a potential multi line input
+			this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
+			this.layout(this.dimension);
+		}
 	}
 
 	public getVisibleContent(): string {

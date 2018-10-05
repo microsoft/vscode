@@ -152,6 +152,16 @@ export interface IDebugSession extends ITreeElement {
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }): void;
 	rawUpdate(data: IRawModelUpdate): void;
 
+	getThread(threadId: number): IThread;
+	getAllThreads(): ReadonlyArray<IThread>;
+	clearThreads(removeThreads: boolean, reference?: number): void;
+
+	getReplElements(): ReadonlyArray<IReplElement>;
+
+	removeReplExpressions(): void;
+	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void>;
+	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
+
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent>;
 	readonly onDidChangeState: Event<void>;
@@ -200,10 +210,6 @@ export interface IDebugSession extends ITreeElement {
 	setVariable(variablesReference: number, name: string, value: string): TPromise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): TPromise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): TPromise<Source[]>;
-
-	getThread(threadId: number): IThread;
-	getAllThreads(): ReadonlyArray<IThread>;
-	clearThreads(removeThreads: boolean, reference?: number): void;
 }
 
 export interface IThread extends ITreeElement {
@@ -379,7 +385,6 @@ export interface IDebugModel extends ITreeElement {
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
-	onDidChangeReplElements: Event<void>;
 }
 
 /**
@@ -720,21 +725,6 @@ export interface IDebugService {
 	 * If session is not passed, sends all breakpoints to each session.
 	 */
 	sendAllBreakpoints(session?: IDebugSession): TPromise<any>;
-
-	/**
-	 * Adds a new expression to the repl.
-	 */
-	addReplExpression(name: string): TPromise<void>;
-
-	/**
-	 * Removes all repl expressions.
-	 */
-	removeReplExpressions(): void;
-
-	/**
-	 * Appends the passed string to the debug repl.
-	 */
-	logToRepl(value: string | IExpression, sev?: severity, source?: IReplElementSource): void;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
