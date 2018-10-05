@@ -48,6 +48,9 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleCodeEditorWidgetOptions } from 'vs/workbench/parts/codeEditor/electron-browser/simpleEditorOptions';
 import { getSimpleEditorOptions } from 'vs/workbench/parts/codeEditor/browser/simpleEditorOptions';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const $ = dom.$;
 
@@ -58,6 +61,7 @@ const replTreeOptions: ITreeOptions = {
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplService');
+const DECORATION_KEY = 'replinputdecoration';
 
 export interface IPrivateReplService {
 	_serviceBrand: any;
@@ -96,13 +100,15 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		@IPanelService private panelService: IPanelService,
 		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 	) {
 		super(REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.registerListeners();
+		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 	}
 
 	private registerListeners(): void {
@@ -120,8 +126,11 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 					this.tree.setInput(session);
 				}
 			}
+			this.replInput.updateOptions({ readOnly: !session });
+			this.updateInputDecoration();
 		}));
 		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
+		this._register(this.themeService.onThemeChange(() => this.updateInputDecoration()));
 	}
 
 	private refreshReplElements(noDelay: boolean): void {
@@ -168,6 +177,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		} else {
 			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
+			this.updateInputDecoration();
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			if (focusedSession && this.tree.getInput() !== focusedSession) {
 				this.tree.setInput(focusedSession);
@@ -187,7 +197,9 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
-		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
+		const options = getSimpleEditorOptions();
+		options.readOnly = true;
+		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
 		modes.CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
@@ -323,6 +335,32 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		} else {
 			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		}
+	}
+
+	private updateInputDecoration(): void {
+		if (!this.replInput) {
+			return;
+		}
+
+		const decorations: IDecorationOptions[] = [];
+		if (!this.debugService.getViewModel().focusedSession) {
+			decorations.push({
+				range: {
+					startLineNumber: 0,
+					endLineNumber: 0,
+					startColumn: 0,
+					endColumn: 1
+				},
+				renderOptions: {
+					after: {
+						contentText: nls.localize('startDebugFirst', "Please start a debug session to evaluate"),
+						color: transparent(editorForeground, 0.4)(this.themeService.getTheme()).toString()
+					}
+				}
+			});
+		}
+
+		this.replInput.setDecorations(DECORATION_KEY, decorations);
 	}
 
 	public dispose(): void {
