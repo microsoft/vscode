@@ -47,6 +47,31 @@ suite('Webview tests', () => {
 		assert.strictEqual((await firstResponse).value, 2);
 	});
 
+	test('webviews should update html', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
+
+		{
+			const response = getMesssage(webview);
+			webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+				<script>
+					const vscode = acquireVsCodeApi();
+					vscode.postMessage({ value: 'first' });
+				</script>`);
+
+			assert.strictEqual((await response).value, 'first');
+		}
+		{
+			const firstResponse = getMesssage(webview);
+			webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+				<script>
+					const vscode = acquireVsCodeApi();
+					vscode.postMessage({ value: 'second' });
+				</script>`);
+
+			assert.strictEqual((await firstResponse).value, 'second');
+		}
+	});
+
 	test('webviews should preserve vscode API state when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
