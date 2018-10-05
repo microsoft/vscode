@@ -48,6 +48,7 @@ import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity, editorUnnecessaryCodeBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { mark } from 'vs/base/common/performance';
 
 let EDITOR_ID = 0;
 
@@ -264,6 +265,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
+		mark('editor/start/contrib');
 		let contributions: IEditorContributionCtor[] = codeEditorWidgetOptions.contributions;
 		if (!Array.isArray(contributions)) {
 			contributions = EditorExtensionsRegistry.getEditorContributions();
@@ -277,6 +279,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				onUnexpectedError(err);
 			}
 		}
+		mark('editor/end/contrib');
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
 			const internalAction = new InternalEditorAction(
