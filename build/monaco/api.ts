@@ -84,13 +84,6 @@ function visitTopLevelDeclarations(sourceFile: ts.SourceFile, visitor: (node: TS
 				stop = visitor(<TSTopLevelDeclare>node);
 		}
 
-		// if (node.kind !== ts.SyntaxKind.SourceFile) {
-		// 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-		// 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-		// 		console.log(getNodeText(sourceFile, node));
-		// 	}
-		// }
-
 		if (stop) {
 			return;
 		}
@@ -110,10 +103,6 @@ function getAllTopLevelDeclarations(sourceFile: ts.SourceFile): TSTopLevelDeclar
 			let triviaEnd = interfaceDeclaration.name.pos;
 			let triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
 
-			// // let nodeText = getNodeText(sourceFile, node);
-			// if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-			// 	console.log('TRIVIA: ', triviaText);
-			// }
 			if (triviaText.indexOf('@internal') === -1) {
 				all.push(node);
 			}
@@ -179,10 +168,6 @@ function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclarat
 
 function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[]): string {
 	let result = getNodeText(sourceFile, declaration);
-	// if (result.indexOf('MonacoWorker') >= 0) {
-	// 	console.log('here!');
-	// 	// console.log(ts.SyntaxKind[declaration.kind]);
-	// }
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
 
@@ -207,9 +192,7 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 			try {
 				let memberText = getNodeText(sourceFile, member);
 				if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
-					// console.log('BEFORE: ', result);
 					result = result.replace(memberText, '');
-					// console.log('AFTER: ', result);
 				} else {
 					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
 					if (isStatic(member)) {
@@ -536,13 +519,8 @@ export function execute(): IMonacoDeclarationResult {
 	Object.keys(SRC_FILES).forEach((fileName) => {
 		const emitOutput = languageService.getEmitOutput(fileName, true);
 		OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
-		// console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);
 	});
 	console.log(`Generating .d.ts took ${Date.now() - t1} ms`);
-
-	// console.log(result.filePath);
-	// fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
-	// fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
 
 	return run('src', OUTPUT_FILES);
 }
