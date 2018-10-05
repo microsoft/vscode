@@ -10,7 +10,7 @@ import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
 import { mkdirp, del } from 'vs/base/node/pfs';
 
-suite('Storage pasero', () => {
+suite('Storage', () => {
 
 	function uniqueStorageDir(): string {
 		const id = generateUuid();
