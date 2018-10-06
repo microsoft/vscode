@@ -250,7 +250,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 	}
 
 	public setOptions(options: string[], selected?: number, disabled?: number): void {
-
 		if (!this.options || !arrays.equals(this.options, options)) {
 			this.options = options;
 			this.selectElement.options.length = 0;
@@ -260,18 +259,16 @@ export class SelectBoxList implements ISelectBoxDelegate, IVirtualDelegate<ISele
 				this.selectElement.add(this.createOption(option, i, disabled === i++));
 			});
 
-			if (selected !== undefined) {
-				this.select(selected);
-				// Set current = selected since this is not necessarily a user exit
-				this._currentSelection = this.selected;
-			}
-
 			if (disabled !== undefined) {
 				this.disabledOptionIndex = disabled;
 			}
 		}
 
-
+		if (selected !== undefined) {
+			this.select(selected);
+			// Set current = selected since this is not necessarily a user exit
+			this._currentSelection = this.selected;
+		}
 	}
 
 
