@@ -6,6 +6,7 @@
 import 'vs/css!./welcomePage';
 import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
+import { readdirSync } from 'vs/base/node/extfs';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -61,8 +62,21 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			backupFileService.hasBackups().then(hasBackups => {
 				const activeEditor = editorService.activeEditor;
 				if (!activeEditor && !hasBackups) {
-					return instantiationService.createInstance(WelcomePage)
-						.openEditor();
+					const preferReadme = true;
+					if (preferReadme) {
+						const onlyWorkSpaceFolder = contextService.getWorkbenchState() === WorkbenchState.FOLDER
+						&& contextService.getWorkspace().folders[0].uri;
+						if (onlyWorkSpaceFolder) {
+							for (const content of readdirSync(onlyWorkSpaceFolder.path)) {
+								if (content.toLowerCase().lastIndexOf('readme', 0) === 0) {
+									return editorService.openEditor({
+										resource: URI.file(path.join(onlyWorkSpaceFolder.path, content)),
+									});
+								}
+							}
+						}
+					}
+					return instantiationService.createInstance(WelcomePage).openEditor();
 				}
 				return undefined;
 			}).then(null, onUnexpectedError);
