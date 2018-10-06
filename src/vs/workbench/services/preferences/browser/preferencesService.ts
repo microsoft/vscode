@@ -284,7 +284,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	configureSettingsForLanguage(language: string): void {
-		this.openGlobalSettings()
+		this.openGlobalSettings(true)
 			.then(editor => this.createPreferencesEditorModel(this.userSettingsResource)
 				.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 					const codeEditor = getCodeEditor(editor.getControl());
