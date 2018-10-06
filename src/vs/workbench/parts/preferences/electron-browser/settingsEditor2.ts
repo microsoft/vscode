@@ -106,7 +106,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingSlowUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
 
-	private viewState: ISettingsEditorViewState;
+	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel;
 
 	private tocRowFocused: IContextKey<boolean>;
@@ -216,15 +216,23 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
-			}).then(() => {
-				const cachedState = this.editorMemento.loadState(this.group, this.input);
-				if (cachedState) {
-					const settingsTarget = cachedState.target;
-					this.settingsTargetsWidget.settingsTarget = settingsTarget;
-					this.viewState = { settingsTarget };
-					this.searchWidget.setValue(cachedState.searchQuery);
-				}
+
+				this.restoreCachedState();
 			});
+	}
+
+	private restoreCachedState(): void {
+		const cachedState = this.editorMemento.loadState(this.group, this.input);
+		if (typeof cachedState.target === 'object') {
+			cachedState.target = URI.revive(cachedState.target);
+		}
+
+		if (cachedState) {
+			const settingsTarget = cachedState.target;
+			this.settingsTargetsWidget.settingsTarget = settingsTarget;
+			this.onDidSettingsTargetChange(settingsTarget);
+			this.searchWidget.setValue(cachedState.searchQuery);
+		}
 	}
 
 	setOptions(options: SettingsEditorOptions): void {
@@ -1230,7 +1238,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.countElement.style.display = 'block';
 			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
-			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters.size > 0
+			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters && this.viewState.tagFilters.size > 0
 				? 'initial'
 				: 'none';
 		}
