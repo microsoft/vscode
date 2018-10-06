@@ -223,7 +223,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private restoreCachedState(): void {
 		const cachedState = this.editorMemento.loadState(this.group, this.input);
-		if (typeof cachedState.target === 'object') {
+		if (cachedState && typeof cachedState.target === 'object') {
 			cachedState.target = URI.revive(cachedState.target);
 		}
 
