@@ -39,7 +39,6 @@
 	height: 35px;
 	box-sizing: border-box;
 	padding-left: 10px;
-	border-top: 2px solid transparent;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon-theme.close-button-right,
@@ -97,13 +96,24 @@
 	display: block;
 	position: absolute;
 	top: 0;
-	margin-top: -2px;
 	left: 0;
 	z-index: 6; /* over possible title border */
 	pointer-events: none;
 	background-color: var(--tab-border-top-color);
 	width: 100%;
 	height: 1px;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
+	display: block;
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 6; /* over possible title border */
+	pointer-events: none;
+	background-color: var(--tab-border-top-color);
+	width: 100%;
+	height: 2px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
