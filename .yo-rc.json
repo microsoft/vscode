@@ -1,0 +1,27 @@
+{
+  "generator-fountain-react": {
+    "version": "1.0.0",
+    "props": {
+      "framework": "react",
+      "modules": "webpack",
+      "js": "babel",
+      "ci": "travis",
+      "css": "scss",
+      "resolved": "C:\\Users\\edwin perez\\AppData\\Roaming\\npm\\node_modules\\generator-fountain-webapp\\node_modules\\generator-fountain-react\\generators\\app\\index.js",
+      "namespace": "fountain-react:app",
+      "_": [],
+      "sample": "techs",
+      "router": "router"
+    }
+  },
+  "generator-code": {
+    "promptValues": {
+      "publisher": "vscec"
+    }
+  },
+  "generator-jasmine": {},
+  "generator-mocha": {
+    "ui": "bdd",
+    "rjs": false
+  }
+}

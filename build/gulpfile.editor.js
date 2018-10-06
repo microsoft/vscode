@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+<<<<<<< HEAD
 const gulp = require('gulp');
 const path = require('path');
 const util = require('./lib/util');
@@ -40,18 +41,46 @@ var editorEntryPoints = [
 ];
 
 var editorResources = [
+=======
+var gulp = require('gulp'),
+	path = require('path'),
+	_ = require('underscore'),
+	buildfile = require('../src/buildfile'),
+	util = require('./lib/util'),
+	common = require('./gulpfile.common'),
+	es = require('event-stream'),
+	fs = require('fs'),
+	File = require('vinyl'),
+	root = path.dirname(__dirname),
+	sha1 = util.getVersion(root),
+	semver = require('./monaco/package.json').version,
+	headerVersion = semver + '(' + sha1 + ')',
+ editorEntryPoints = _.flatten([
+	buildfile.entrypoint('vs/editor/editor.main'),
+	buildfile.base,
+	buildfile.editor,
+	buildfile.languages
+]),editorResources = [
+>>>>>>> commit
 	'out-build/vs/{base,editor}/**/*.{svg,png}',
 	'!out-build/vs/base/browser/ui/splitview/**/*',
 	'!out-build/vs/base/browser/ui/toolbar/**/*',
 	'!out-build/vs/base/browser/ui/octiconLabel/**/*',
 	'!out-build/vs/workbench/**',
 	'!**/test/**'
+<<<<<<< HEAD
 ];
 
 var editorOtherSources = [
 ];
 
 var BUNDLED_FILE_HEADER = [
+=======
+],editorOtherSources = [
+	'out-build/vs/css.js',
+	'out-build/vs/nls.js'
+],BUNDLED_FILE_HEADER = [
+>>>>>>> commit
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
@@ -60,6 +89,7 @@ var BUNDLED_FILE_HEADER = [
 	' *-----------------------------------------------------------*/',
 	''
 ].join('\n');
+<<<<<<< HEAD
 
 const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
@@ -99,6 +129,15 @@ gulp.task('extract-editor-src', ['clean-editor-src'], function () {
 gulp.task('clean-editor-build', util.rimraf('out-editor-build'));
 gulp.task('compile-editor-build', ['clean-editor-build', 'extract-editor-src'], compilation.compileTask('out-editor-src', 'out-editor-build', true));
 
+=======
+function editorLoaderConfig() {
+	var result = common.loaderConfig();
+	// never ship octicons in editor
+	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
+	result['vs/css'] = { inlineResources: true };
+	return result;
+}
+>>>>>>> commit
 gulp.task('clean-optimized-editor', util.rimraf('out-editor'));
 gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'], common.optimizeTask({
 	src: 'out-editor-build',
@@ -117,8 +156,8 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-editor-build'],
 	out: 'out-editor',
 	languages: languages
 }));
-
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
+<<<<<<< HEAD
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor'));
 
 gulp.task('clean-editor-esm', util.rimraf('out-editor-esm'));
@@ -186,6 +225,9 @@ function toExternalDTS(contents) {
 	return lines.join('\n');
 }
 
+=======
+gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
+>>>>>>> commit
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
 gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify-editor', 'optimize-editor'], function () {
 	return es.merge(
@@ -195,6 +237,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 			gulp.src('build/monaco/ThirdPartyNotices.txt'),
 			gulp.src('src/vs/monaco.d.ts')
 		).pipe(gulp.dest('out-monaco-editor-core')),
+<<<<<<< HEAD
 
 		// place the .d.ts in the esm folder
 		gulp.src('src/vs/monaco.d.ts')
@@ -207,6 +250,8 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),
 
+=======
+>>>>>>> commit
 		// package.json
 		gulp.src('build/monaco/package.json')
 			.pipe(es.through(function (data) {
@@ -216,7 +261,6 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				this.emit('data', data);
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
-
 		// README.md
 		gulp.src('build/monaco/README-npm.md')
 			.pipe(es.through(function (data) {
@@ -227,12 +271,10 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				}));
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
-
 		// dev folder
 		es.merge(
 			gulp.src('out-editor/**/*')
 		).pipe(gulp.dest('out-monaco-editor-core/dev')),
-
 		// min folder
 		es.merge(
 			gulp.src('out-editor-min/**/*')
@@ -245,17 +287,18 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				this.emit('data', data);
 				return;
 			}
-
-			var relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
-
-			var strContents = data.contents.toString();
-			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
+			var relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map')),
+				strContents = data.contents.toString(),
+				newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
 			strContents = strContents.replace(/\/\/\# sourceMappingURL=[^ ]+$/, newStr);
+<<<<<<< HEAD
 
 			data.contents = Buffer.from(strContents);
+=======
+			data.contents = new Buffer(strContents);
+>>>>>>> commit
 			this.emit('data', data);
 		})).pipe(gulp.dest('out-monaco-editor-core/min')),
-
 		// min-maps folder
 		es.merge(
 			gulp.src('out-editor-min/**/*')
@@ -265,6 +308,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
 });
+<<<<<<< HEAD
 
 gulp.task('analyze-editor-distro', function () {
 	// @ts-ignore
@@ -274,11 +318,19 @@ gulp.task('analyze-editor-distro', function () {
 
 	var inverseGraph = {};
 	Object.keys(graph).forEach(function (module) {
+=======
+gulp.task('analyze-editor-distro', function() {
+	var bundleInfo = require('../out-editor/bundleInfo.json'),
+		graph = bundleInfo.graph,bundles = bundleInfo.bundles,
+		inverseGraph = {};
+	Object.keys(graph).forEach(function(module) {
+>>>>>>> commit
 		var dependencies = graph[module];
 		dependencies.forEach(function (dep) {
 			inverseGraph[dep] = inverseGraph[dep] || [];
 			inverseGraph[dep].push(module);
 		});
+<<<<<<< HEAD
 	});
 
 	var detailed = {};
@@ -296,6 +348,20 @@ gulp.task('analyze-editor-distro', function () {
 			}
 
 			var reason = (inverseGraph[included] || []).filter(function (mod) {
+=======
+	}),detailed = {};
+	Object.keys(bundles).forEach(function(entryPoint) {
+		var included = bundles[entryPoint],
+			includedMap = {};
+		included.forEach(function(included) {
+			includedMap[included] = true;
+		}), explanation = [];
+		included.map(function(included) {
+			if (included.indexOf('!') >= 0) {
+				return;
+			}
+			var reason = (inverseGraph[included]||[]).filter(function(mod) {
+>>>>>>> commit
 				return !!includedMap[mod];
 			});
 			explanation.push({
@@ -303,18 +369,20 @@ gulp.task('analyze-editor-distro', function () {
 				reason: reason
 			});
 		});
-
 		detailed[entryPoint] = explanation;
 	});
-
 	console.log(JSON.stringify(detailed, null, '\t'));
 });
-
 function filterStream(testFunc) {
+<<<<<<< HEAD
 	return es.through(function (data) {
 		if (!testFunc(data.relative)) {
 			return;
 		}
+=======
+	return es.through(function(data){
+		if (!testFunc(data.relative)){return;	}
+>>>>>>> commit
 		this.emit('data', data);
 	});
 }

@@ -1,47 +1,29 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
-'use strict';
-
-// Increase max listeners for event emitters
-require('events').EventEmitter.defaultMaxListeners = 100;
-
 const gulp = require('gulp');
-const util = require('./build/lib/util');
-const path = require('path');
-const compilation = require('./build/lib/compilation');
+const HubRegistry = require('gulp-hub');
+const browserSync = require('browser-sync');
 
-// Fast compile for development time
-gulp.task('clean-client', util.rimraf('out'));
-gulp.task('compile-client', ['clean-client'], compilation.compileTask('src', 'out', false));
-gulp.task('watch-client', ['clean-client'], compilation.watchTask('out', false));
+const conf = require('./conf/gulp.conf');
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('clean-client-build', util.rimraf('out-build'));
-gulp.task('compile-client-build', ['clean-client-build'], compilation.compileTask('src', 'out-build', true));
-gulp.task('watch-client-build', ['clean-client-build'], compilation.watchTask('out-build', true));
+// Load some files into the registry
+const hub = new HubRegistry([conf.path.tasks('*.js')]);
 
-// Default
-gulp.task('default', ['compile']);
+// Tell gulp to use the tasks just loaded
+gulp.registry(hub);
 
-// All
-gulp.task('clean', ['clean-client', 'clean-extensions']);
-gulp.task('compile', ['monaco-typecheck', 'compile-client', 'compile-extensions']);
-gulp.task('watch', [/* 'monaco-typecheck-watch', */ 'watch-client', 'watch-extensions']);
+gulp.task('build', gulp.series(gulp.parallel('other', 'webpack:dist')));
+gulp.task('test', gulp.series('karma:single-run'));
+gulp.task('test:auto', gulp.series('karma:auto-run'));
+gulp.task('serve', gulp.series('webpack:watch', 'watch', 'browsersync'));
+gulp.task('serve:dist', gulp.series('default', 'browsersync:dist'));
+gulp.task('default', gulp.series('clean', 'build'));
+gulp.task('watch', watch);
 
-// All Build
-gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);
-gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
-gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
+function reloadBrowserSync(cb) {
+  browserSync.reload();
+  cb();
+}
 
-process.on('unhandledRejection', (reason, p) => {
-	console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
-	process.exit(1);
-});
-
-// Load all the gulpfiles only if running tasks other than the editor tasks
-const build = path.join(__dirname, 'build');
-require('glob').sync('gulpfile.*.js', { cwd: build })
-	.forEach(f => require(`./build/${f}`));
+function watch(done) {
+  gulp.watch(conf.path.tmp('index.html'), reloadBrowserSync);
+  done();
+}

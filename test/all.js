@@ -6,6 +6,7 @@
 /*eslint-env mocha*/
 /*global define,run*/
 
+<<<<<<< HEAD
 var assert = require('assert');
 var path = require('path');
 var glob = require('glob');
@@ -18,6 +19,17 @@ var vm = require('vm');
 var TEST_GLOB = '**/test/**/*.test.js';
 
 var optimist = require('optimist')
+=======
+var assert = require('assert'),
+	path = require('path'),
+	glob = require('glob'),
+	istanbul = require('istanbul'),
+	jsdom = require('jsdom-no-contextify'),
+	minimatch = require('minimatch'),
+	async = require('async'),
+	TEST_GLOB = '**/test/**/*.test.js',
+	optimist = require('optimist')
+>>>>>>> commit
 	.usage('Run the Code tests. All mocha options apply.')
 	.describe('build', 'Run from out-build').boolean('build')
 	.describe('run', 'Run a single file').string('run')
@@ -26,24 +38,14 @@ var optimist = require('optimist')
 	.describe('forceLoad', 'Force loading').boolean('forceLoad')
 	.describe('browser', 'Run tests in a browser').boolean('browser')
 	.alias('h', 'help').boolean('h')
-	.describe('h', 'Show help');
-
-var argv = optimist.argv;
-
+	.describe('h', 'Show help'),
+	argv = optimist.argv;
 if (argv.help) {
 	optimist.showHelp();
 	process.exit(1);
 }
-
-var out = argv.build ? 'out-build' : 'out';
-var loader = require('../' + out + '/vs/loader');
-var src = path.join(path.dirname(__dirname), out);
-
 function main() {
-	process.on('uncaughtException', function (e) {
-		console.error(e.stack || e);
-	});
-
+	process.on('uncaughtException', function (e) {console.error(e.stack || e);});
 	var loaderConfig = {
 		nodeRequire: require,
 		nodeMain: __filename,
@@ -56,60 +58,8 @@ function main() {
 		},
 		catchError: true
 	};
-
 	if (argv.coverage) {
 		var instrumenter = new istanbul.Instrumenter();
-
-		var seenSources = {};
-
-		loaderConfig.nodeInstrumenter = function (contents, source) {
-			seenSources[source] = true;
-
-			if (minimatch(source, TEST_GLOB)) {
-				return contents;
-			}
-
-			return instrumenter.instrumentSync(contents, source);
-		};
-
-		process.on('exit', function (code) {
-			if (code !== 0) {
-				return;
-			}
-
-			if (argv.forceLoad) {
-				var allFiles = glob.sync(out + '/vs/**/*.js');
-				allFiles = allFiles.map(function(source) {
-					return path.join(__dirname, '..', source);
-				});
-				allFiles = allFiles.filter(function(source) {
-					if (seenSources[source]) {
-						return false;
-					}
-					if (minimatch(source, TEST_GLOB)) {
-						return false;
-					}
-					if (/fixtures/.test(source)) {
-						return false;
-					}
-					return true;
-				});
-				allFiles.forEach(function(source, index) {
-					var contents = fs.readFileSync(source).toString();
-					contents = instrumenter.instrumentSync(contents, source);
-					var stopAt = contents.indexOf('}\n__cov');
-					stopAt = contents.indexOf('}\n__cov', stopAt + 1);
-
-					var str = '(function() {' + contents.substr(0, stopAt + 1) + '});';
-					var r = vm.runInThisContext(str, source);
-					r.call(global);
-				});
-			}
-
-			let remapIgnores = /\b((winjs\.base)|(marked)|(raw\.marked)|(nls)|(css))\.js$/;
-
-			var remappedCoverage = i_remap(global.__coverage__, { exclude: remapIgnores }).getFinalCoverage();
-
 			// The remapped coverage comes out with broken paths
 			var toUpperDriveLetter = function(str) {
 				if (/^[a-z]:/.test(str)) {
@@ -157,36 +107,20 @@ function main() {
 			reporter.write(collector, true, function () {});
 		});
 	}
-
 	loader.config(loaderConfig);
-
 	global.define = loader;
 	global.document = jsdom.jsdom('<!doctype html><html><body></body></html>');
 	global.self = global.window = global.document.parentWindow;
-
 	global.Element = global.window.Element;
 	global.HTMLElement = global.window.HTMLElement;
 	global.Node = global.window.Node;
 	global.navigator = global.window.navigator;
 	global.XMLHttpRequest = global.window.XMLHttpRequest;
-
-	var didErr = false;
-	var write = process.stderr.write;
+	var didErr = false,write = process.stderr.write;
 	process.stderr.write = function (data) {
 		didErr = didErr || !!data;
 		write.apply(process.stderr, arguments);
 	};
-
-	var loadFunc = null;
-
-	if (argv.runGlob) {
-		loadFunc = cb => {
-			const doRun = tests => {
-				const modulesToLoad = tests.map(test => {
-					if (path.isAbsolute(test)) {
-						test = path.relative(src, path.resolve(test));
-					}
-
 					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
 				});
 				define(modulesToLoad, () => cb(null), cb);
@@ -234,16 +168,12 @@ function main() {
 			});
 		};
 	}
-
-	loadFunc(function(err) {
 		if (err) {
 			console.error(err);
 			return process.exit(1);
 		}
-
 		process.stderr.write = write;
 
-		if (!argv.run && !argv.runGlob) {
 			// set up last test
 			suite('Loader', function () {
 				test('should not explode while loading', function () {
@@ -251,7 +181,6 @@ function main() {
 				});
 			});
 		}
-
 		// report failing test for every unexpected error during any of the tests
 		var unexpectedErrors = [];
 		suite('Errors', function () {
@@ -260,28 +189,14 @@ function main() {
 					unexpectedErrors.forEach(function (stack) {
 						console.error('');
 						console.error(stack);
-					});
-
+					})
 					assert.ok(false);
 				}
 			});
 		});
-
 		// replace the default unexpected error handler to be useful during tests
 		loader(['vs/base/common/errors'], function(errors) {
 			errors.setUnexpectedErrorHandler(function (err) {
-				let stack = (err && err.stack) || (new Error().stack);
-				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
-			});
-
-			// fire up mocha
-			run();
 		});
 	});
-}
-
-if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
-	require('./browser');
-} else {
-	main();
-}
+};if (process.argv.some(function (a) { return /^--browser/.test(a); })){require('./browser');} else {main();}
