@@ -1225,25 +1225,14 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 					}));
 				} else {
 					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
-					this.messageDisposables.push(dom.addDisposableListener(openSettingsLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-
-						const options: ISettingsEditorOptions = { query: '.exclude' };
-						this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-							this.preferencesService.openWorkspaceSettings(undefined, options) :
-							this.preferencesService.openGlobalSettings(undefined, options);
-					}));
+					this.addClickEvents(openSettingsLink, this.onOpenSettings);
 				}
 
 				if (completed) {
 					dom.append(p, $('span', undefined, ' - '));
 
 					const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
-					this.messageDisposables.push(dom.addDisposableListener(learnMoreLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-
-						window.open('https://go.microsoft.com/fwlink/?linkid=853977');
-					}));
+					this.addClickEvents(learnMoreLink, this.onLearnMore);
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1329,6 +1318,40 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.viewModel.search(query, onProgress).then(onComplete, onError);
+	}
+
+	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
+		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.CLICK, handler));
+		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let eventHandled = true;
+
+			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				handler(e);
+			} else {
+				eventHandled = false;
+			}
+
+			if (eventHandled) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
+	}
+
+	private onOpenSettings = (e: dom.EventLike): void => {
+		dom.EventHelper.stop(e, false);
+
+		const options: ISettingsEditorOptions = { query: '.exclude' };
+		this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ?
+			this.preferencesService.openWorkspaceSettings(undefined, options) :
+			this.preferencesService.openGlobalSettings(undefined, options);
+	}
+
+	private onLearnMore = (e: MouseEvent): void => {
+		dom.EventHelper.stop(e, false);
+
+		window.open('https://go.microsoft.com/fwlink/?linkid=853977');
 	}
 
 	private updateSearchResultCount(): void {
