@@ -239,6 +239,11 @@
 	white-space: initial;
 }
 
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs p {
+	margin: 0;
+	padding: 0;
+}
+
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {
 	white-space: pre-wrap;
 	word-wrap: break-word;
