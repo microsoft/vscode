@@ -5,6 +5,14 @@
 [![Bugs](https://img.shields.io/github/issues/Microsoft/vscode/bug.svg)](https://github.com/Microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
 
+## Index
+1. [About VS Code](#about-vs-code)
+2. [Contributing](#contributing)
+3. [Feedback](#feedback)
+4. [Related Projects](#related-projects)
+5. [License](#license)
+
+## About VS Code
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
 provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
