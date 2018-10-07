@@ -877,7 +877,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom.toString());
 			} else {
 				removeClass(tabContainer, 'tab-border-bottom');
-				// tabContainer.style.removeProperty('--tab-border-bottom-color');
+				tabContainer.style.removeProperty('--tab-border-bottom-color');
 			}
 
 			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
@@ -886,7 +886,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
 			} else {
 				removeClass(tabContainer, 'tab-border-top');
-				// tabContainer.style.removeProperty('--tab-border-top-color');
+				tabContainer.style.removeProperty('--tab-border-top-color');
 			}
 
 			// Label
