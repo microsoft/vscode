@@ -184,6 +184,7 @@ export interface ITerminalService {
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
+	onInstanceProcessLaunching: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
@@ -318,6 +319,8 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onFocused: Event<ITerminalInstance>;
+
+	onProcessLaunching: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
 

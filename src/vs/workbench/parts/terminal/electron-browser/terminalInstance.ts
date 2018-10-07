@@ -102,6 +102,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onTitleChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
+	private readonly _onProcessLaunching: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onProcessLaunching(): Event<ITerminalInstance> { return this._onProcessLaunching.event; }
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
 	private readonly _onLineData: Emitter<string> = new Emitter<string>();
@@ -771,6 +773,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(data => this._onData.fire(data));
+
+		this._onProcessLaunching.fire(this);
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
