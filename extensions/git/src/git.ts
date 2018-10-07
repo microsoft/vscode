@@ -1106,14 +1106,7 @@ export class Repository {
 	}
 
 	async reset(treeish: string, hard: boolean = false): Promise<void> {
-		const args = ['reset'];
-
-		if (hard) {
-			args.push('--hard');
-		}
-
-		args.push(treeish);
-
+		const args = ['reset', hard ? '--hard' : '--soft', treeish];
 		await this.run(args);
 	}
 
