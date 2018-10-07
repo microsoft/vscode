@@ -75,7 +75,9 @@ function getRgArgs(config: IRawSearch, folderQuery: IFolderSearch, includePatter
 	}
 
 	args.push('--no-config');
-	args.push('--no-ignore-global');
+	if (config.disregardGlobalIgnoreFiles) {
+		args.push('--no-ignore-global');
+	}
 
 	return { args, siblingClauses };
 }
