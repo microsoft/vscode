@@ -293,6 +293,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 							.then(position => {
 								if (codeEditor) {
 									codeEditor.setPosition(position);
+									codeEditor.revealLine(position.lineNumber);
 									codeEditor.focus();
 								}
 							});
