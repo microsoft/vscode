@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED, IExpression } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED, IExpression, IViewModel } from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { twistiePixels, renderViewTree, IVariableTemplateData, BaseDebugController, renderRenameBox, renderVariable } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { SetValueAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { SetValueAction, AddToWatchExpressionsAction, SearchVariableAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyValueAction, CopyEvaluatePathAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
@@ -29,6 +29,7 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 
 const $ = dom.$;
 
@@ -40,6 +41,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 	private expandedElements: any[];
 	private needsRefresh: boolean;
 	private treeContainer: HTMLElement;
+	private searchTextBox: InputBox;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -83,9 +85,15 @@ export class VariablesView extends TreeViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
+		this.searchTextBox = new InputBox(this.treeContainer, null);
+		dom.hide(this.searchTextBox.element);
+		this.searchTextBox.onDidChange(s => {
+			this.debugService.getViewModel().setSearchTextBoxValue(s);
+			this.onFocusStackFrameScheduler.schedule();
+		});
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-			dataSource: new VariablesDataSource(),
+			dataSource: new VariablesDataSource(this.debugService.getViewModel()),
 			renderer: this.instantiationService.createInstance(VariablesRenderer),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext, { openMode: OpenMode.SINGLE_CLICK, clickBehavior: ClickBehavior.ON_MOUSE_UP })
@@ -101,7 +109,8 @@ export class VariablesView extends TreeViewsViewletPanel {
 		this.tree.setInput(viewModel);
 
 		const collapseAction = new CollapseAction(this.tree, false, 'explorer-action collapse-explorer');
-		this.toolbar.setActions([collapseAction])();
+		const searchVariableAction = new SearchVariableAction(SearchVariableAction.ID, SearchVariableAction.LABEL, this.debugService, this.keybindingService);
+		this.toolbar.setActions([collapseAction, searchVariableAction])();
 
 		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
 			if (!this.isVisible() || !this.isExpanded()) {
@@ -124,6 +133,15 @@ export class VariablesView extends TreeViewsViewletPanel {
 		this.disposables.push(this.debugService.getViewModel().onDidSelectExpression(expression => {
 			if (expression instanceof Variable) {
 				this.tree.refresh(expression, false);
+			}
+		}));
+
+		this.disposables.push(this.debugService.getViewModel().onDidChangeSearchTextBoxVisibility(visibility => {
+			if (visibility) {
+				dom.show(this.searchTextBox.element);
+			} else {
+				dom.hide(this.searchTextBox.element);
+				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
 	}
@@ -194,6 +212,12 @@ class VariablesActionProvider implements IActionProvider {
 
 export class VariablesDataSource implements IDataSource {
 
+	private viewModel: IViewModel;
+
+	constructor(viewModel: IViewModel) {
+		this.viewModel = viewModel;
+	}
+
 	public getId(tree: ITree, element: any): string {
 		return element.getId();
 	}
@@ -213,12 +237,32 @@ export class VariablesDataSource implements IDataSource {
 			return focusedStackFrame ? focusedStackFrame.getScopes() : Promise.resolve([]);
 		}
 
+		let filter = this.shouldDisplay;
+		filter = filter.bind(this);
+
 		let scope = <Scope>element;
-		return scope.getChildren();
+		return scope.getChildren().then(c => {
+			return c.filter(filter);
+		});
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
 		return Promise.resolve(null);
+	}
+
+	private shouldDisplay(e: IExpression): boolean {
+		if (this.viewModel === null) {
+			return true;
+		} else if (this.viewModel.getSearchTextBoxVisible()) {
+			let query = this.viewModel.getSearchTextBoxValue();
+			if (query) {
+				return e.name.indexOf(query) !== -1;
+			} else {
+				return true;
+			}
+		} else {
+			return true;
+		}
 	}
 }
 

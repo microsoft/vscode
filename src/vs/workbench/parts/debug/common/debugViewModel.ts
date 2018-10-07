@@ -23,6 +23,9 @@ export class ViewModel implements IViewModel {
 	private expressionSelectedContextKey: IContextKey<boolean>;
 	private breakpointSelectedContextKey: IContextKey<boolean>;
 	private loadedScriptsSupportedContextKey: IContextKey<boolean>;
+	private isSearchTextBoxVisible: boolean;
+	private readonly _onDidChangeSearchTextBoxVisibility: Emitter<boolean>;
+	private searchTextBoxValue: string;
 
 	constructor(contextKeyService: IContextKeyService) {
 		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
@@ -32,6 +35,8 @@ export class ViewModel implements IViewModel {
 		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
 		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);
 		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
+		this._onDidChangeSearchTextBoxVisibility = new Emitter<boolean>();
+		this.isSearchTextBoxVisible = false;
 	}
 
 	getId(): string {
@@ -105,5 +110,26 @@ export class ViewModel implements IViewModel {
 
 	setMultiSessionView(isMultiSessionView: boolean): void {
 		this.multiSessionView = isMultiSessionView;
+	}
+
+	getSearchTextBoxVisible(): boolean {
+		return this.isSearchTextBoxVisible;
+	}
+
+	setSearchTextBoxVisible(isSearchTextBoxVisible: boolean): void {
+		this.isSearchTextBoxVisible = isSearchTextBoxVisible;
+		this._onDidChangeSearchTextBoxVisibility.fire(this.isSearchTextBoxVisible);
+	}
+
+	get onDidChangeSearchTextBoxVisibility(): Event<boolean> {
+		return this._onDidChangeSearchTextBoxVisibility.event;
+	}
+
+	getSearchTextBoxValue(): string {
+		return this.searchTextBoxValue;
+	}
+
+	setSearchTextBoxValue(searchTextBoxValue: string): void {
+		this.searchTextBoxValue = searchTextBoxValue;
 	}
 }

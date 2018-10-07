@@ -72,7 +72,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
-			dataSource: new VariablesDataSource(),
+			dataSource: new VariablesDataSource(null),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: this.instantiationService.createInstance(DebugHoverController, this.editor)
 		}, {

@@ -373,6 +373,12 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression>;
+
+	getSearchTextBoxVisible(): boolean;
+	setSearchTextBoxVisible(isSearchTextBoxVisible: boolean): void;
+	onDidChangeSearchTextBoxVisibility: Event<boolean>;
+	getSearchTextBoxValue(): string;
+	setSearchTextBoxValue(searchTextBoxValue: string);
 }
 
 export interface IDebugModel extends ITreeElement {
