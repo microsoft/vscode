@@ -720,6 +720,9 @@ class BaseDeleteFileAction extends BaseFileAction {
 		}
 
 		if (distinctElements[0].isDirectory) {
+			if (distinctElements[0].getChildrenCount() === 0) {
+				return nls.localize('confirmMoveTrashMessageEmptyFolder', "Are you sure you want to delete empty directory '{0}'?", distinctElements[0].name);
+			}
 			return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
 		}
 
