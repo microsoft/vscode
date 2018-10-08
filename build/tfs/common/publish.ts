@@ -152,7 +152,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	const queuedBy = process.env['BUILD_QUEUEDBY']!;
 	const sourceBranch = process.env['BUILD_SOURCEBRANCH']!;
-	const isReleased = (quality === 'insider' || quality === 'exploration')
+	const isReleased = quality === 'insider'
 		&& /^master$|^refs\/heads\/master$/.test(sourceBranch)
 		&& /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy);
 
