@@ -11,6 +11,19 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
+	//#region Joh - clipboard https://github.com/Microsoft/vscode/issues/217
+
+	export interface Clipboard {
+		readText(): Promise<string>;
+		writeText(value: string): Promise<void>;
+	}
+
+	export namespace env {
+		export const clipboard: Clipboard;
+	}
+
+	//#endregion
+
 	//#region Joh - read/write in chunks
 
 	export interface FileSystemProvider {
