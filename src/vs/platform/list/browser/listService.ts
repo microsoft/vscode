@@ -75,7 +75,7 @@ export class ListService implements IListService {
 		this.lists.push(registeredList);
 
 		// Check for currently being focused
-		if (widget.isDOMFocused()) {
+		if (widget.getHTMLElement() === document.activeElement) {
 			this._lastFocusedWidget = widget;
 		}
 

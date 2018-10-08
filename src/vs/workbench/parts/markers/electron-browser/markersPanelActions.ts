@@ -17,8 +17,6 @@ import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
-import * as Tree from 'vs/base/parts/tree/browser/tree';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
@@ -71,13 +69,6 @@ export class ShowProblemsPanelAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
-	}
-}
-
-export class CollapseAllAction extends TreeCollapseAction {
-
-	constructor(viewer: Tree.ITree, enabled: boolean) {
-		super(viewer, enabled);
 	}
 }
 

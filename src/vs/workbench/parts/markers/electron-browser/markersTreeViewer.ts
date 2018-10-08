@@ -7,7 +7,7 @@ import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
-import { IDataSource, ITree, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -22,6 +22,8 @@ import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/act
 import { QuickFixAction } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { IVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { ITreeRenderer } from 'vs/base/browser/ui/tree/abstractTree';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: ResourceLabel;
@@ -93,194 +95,6 @@ export class DataSource implements IDataSource {
 	}
 }
 
-export class Renderer implements IRenderer {
-
-	private static readonly RESOURCE_MARKERS_TEMPLATE_ID = 'resource-markers-template';
-	private static readonly FILE_RESOURCE_MARKERS_TEMPLATE_ID = 'file-resource-markers-template';
-	private static readonly MARKER_TEMPLATE_ID = 'marker-template';
-	private static readonly RELATED_INFO_TEMPLATE_ID = 'related-info-template';
-
-	constructor(
-		private actionItemProvider: IActionItemProvider,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService,
-		@ILabelService private labelService: ILabelService
-	) {
-	}
-
-	public getHeight(tree: ITree, element: any): number {
-		return 22;
-	}
-
-	public getTemplateId(tree: ITree, element: any): string {
-		if (element instanceof ResourceMarkers) {
-			if ((element).resource.scheme === network.Schemas.file || (<ResourceMarkers>element).resource.scheme === network.Schemas.untitled) {
-				return Renderer.FILE_RESOURCE_MARKERS_TEMPLATE_ID;
-			} else {
-				return Renderer.RESOURCE_MARKERS_TEMPLATE_ID;
-			}
-		}
-		if (element instanceof Marker) {
-			return Renderer.MARKER_TEMPLATE_ID;
-		}
-		if (element instanceof RelatedInformation) {
-			return Renderer.RELATED_INFO_TEMPLATE_ID;
-		}
-		return '';
-	}
-
-	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
-		dom.addClass(container, 'markers-panel-tree-entry');
-		switch (templateId) {
-			case Renderer.FILE_RESOURCE_MARKERS_TEMPLATE_ID:
-				return this.renderFileResourceMarkersTemplate(container);
-			case Renderer.RESOURCE_MARKERS_TEMPLATE_ID:
-				return this.renderResourceMarkersTemplate(container);
-			case Renderer.MARKER_TEMPLATE_ID:
-				return this.renderMarkerTemplate(container);
-			case Renderer.RELATED_INFO_TEMPLATE_ID:
-				return this.renderRelatedInfoTemplate(container);
-		}
-	}
-
-	private renderFileResourceMarkersTemplate(container: HTMLElement): IResourceMarkersTemplateData {
-		const data = <IResourceMarkersTemplateData>Object.create(null);
-
-		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
-
-		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
-		data.count = new CountBadge(badgeWrapper);
-		data.styler = attachBadgeStyler(data.count, this.themeService);
-
-		return data;
-	}
-
-	private renderResourceMarkersTemplate(container: HTMLElement): IResourceMarkersTemplateData {
-		const data = <IResourceMarkersTemplateData>Object.create(null);
-
-		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
-		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
-
-		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
-		data.count = new CountBadge(badgeWrapper);
-		data.styler = attachBadgeStyler(data.count, this.themeService);
-
-		return data;
-	}
-
-	private renderRelatedInfoTemplate(container: HTMLElement): IRelatedInformationTemplateData {
-		const data: IRelatedInformationTemplateData = Object.create(null);
-
-		dom.append(container, dom.$('.actions'));
-		dom.append(container, dom.$('.icon'));
-
-		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
-		data.lnCol = dom.append(container, dom.$('span.marker-line'));
-
-		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
-		separator.textContent = ':';
-		separator.style.paddingRight = '4px';
-
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
-		return data;
-	}
-
-	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
-		const data: IMarkerTemplateData = Object.create(null);
-		const actionsContainer = dom.append(container, dom.$('.actions'));
-		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
-		data.icon = dom.append(container, dom.$('.icon'));
-		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
-		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
-		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
-		data.lnCol = dom.append(container, dom.$('span.marker-line'));
-		return data;
-	}
-
-	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
-		switch (templateId) {
-			case Renderer.FILE_RESOURCE_MARKERS_TEMPLATE_ID:
-			case Renderer.RESOURCE_MARKERS_TEMPLATE_ID:
-				return this.renderResourceMarkersElement(tree, <ResourceMarkers>element, templateData);
-			case Renderer.MARKER_TEMPLATE_ID:
-				return this.renderMarkerElement(tree, (<Marker>element), templateData);
-			case Renderer.RELATED_INFO_TEMPLATE_ID:
-				return this.renderRelatedInfoElement(tree, <RelatedInformation>element, templateData);
-		}
-	}
-
-	// TODO@joao
-	private renderResourceMarkersElement(tree: ITree, element: ResourceMarkers, templateData: IResourceMarkersTemplateData) {
-		if (templateData.resourceLabel instanceof FileLabel) {
-			templateData.resourceLabel.setFile(element.resource/* , { matches: element.uriMatches } */);
-		} else {
-			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.resource), { relative: true }), resource: element.resource }/* , { matches: element.uriMatches } */);
-		}
-		(<IResourceMarkersTemplateData>templateData).count.setCount(element.markers.length/* filteredCount */);
-	}
-
-	// TODO@joao
-	private renderMarkerElement(tree: ITree, element: Marker, templateData: IMarkerTemplateData) {
-		let marker = element.marker;
-
-		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(marker);
-
-		templateData.source.set(marker.source/* , element.sourceMatches */);
-		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
-
-		templateData.actionBar.clear();
-		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
-		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
-
-		templateData.description.set(marker.message/* , element.messageMatches */);
-		templateData.description.element.title = marker.message;
-
-		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
-		templateData.code.set(marker.code || ''/* , element.codeMatches */);
-
-		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
-
-	}
-
-	// TODO@joao
-	private renderRelatedInfoElement(tree: ITree, element: RelatedInformation, templateData: IRelatedInformationTemplateData) {
-		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath)/* , element.uriMatches */);
-		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, { relative: true });
-		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
-		templateData.description.set(element.raw.message/* , element.messageMatches */);
-		templateData.description.element.title = element.raw.message;
-	}
-
-	private static iconClassNameFor(element: IMarker): string {
-		switch (element.severity) {
-			case MarkerSeverity.Hint:
-				return 'info';
-			case MarkerSeverity.Info:
-				return 'info';
-			case MarkerSeverity.Warning:
-				return 'warning';
-			case MarkerSeverity.Error:
-				return 'error';
-		}
-		return '';
-	}
-
-	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
-		if (templateId === Renderer.RESOURCE_MARKERS_TEMPLATE_ID || templateId === Renderer.FILE_RESOURCE_MARKERS_TEMPLATE_ID) {
-			(<IResourceMarkersTemplateData>templateData).resourceLabel.dispose();
-			(<IResourceMarkersTemplateData>templateData).styler.dispose();
-		} else if (templateId === Renderer.MARKER_TEMPLATE_ID) {
-			(<IMarkerTemplateData>templateData).description.dispose();
-			(<IMarkerTemplateData>templateData).source.dispose();
-			(<IMarkerTemplateData>templateData).actionBar.dispose();
-		} else if (templateId === Renderer.RELATED_INFO_TEMPLATE_ID) {
-			(<IRelatedInformationTemplateData>templateData).description.dispose();
-			(<IRelatedInformationTemplateData>templateData).resourceLabel.dispose();
-		}
-	}
-}
-
 export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider {
 
 	constructor(
@@ -301,5 +115,200 @@ export class MarkersTreeAccessibilityProvider implements IAccessibilityProvider 
 			return Messages.MARKERS_TREE_ARIA_LABEL_RELATED_INFORMATION(element.raw);
 		}
 		return null;
+	}
+}
+
+const enum TemplateId {
+	FileResourceMarkers = 'frm',
+	ResourceMarkers = 'rm',
+	Marker = 'm',
+	RelatedInformation = 'ri'
+}
+
+export class VirtualDelegate implements IVirtualDelegate<ResourceMarkers | Marker | RelatedInformation> {
+
+	getHeight(): number {
+		return 22;
+	}
+
+	getTemplateId(element: ResourceMarkers | Marker | RelatedInformation): string {
+		if (element instanceof ResourceMarkers) {
+			if ((element).resource.scheme === network.Schemas.file || (<ResourceMarkers>element).resource.scheme === network.Schemas.untitled) {
+				return TemplateId.FileResourceMarkers;
+			} else {
+				return TemplateId.ResourceMarkers;
+			}
+		} else if (element instanceof Marker) {
+			return TemplateId.Marker;
+		} else {
+			return TemplateId.RelatedInformation;
+		}
+	}
+}
+
+export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, IResourceMarkersTemplateData> {
+
+	constructor(
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService,
+		@ILabelService private labelService: ILabelService
+	) { }
+
+	templateId = TemplateId.ResourceMarkers;
+
+	renderTemplate(container: HTMLElement): IResourceMarkersTemplateData {
+		const data = <IResourceMarkersTemplateData>Object.create(null);
+
+		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
+		data.resourceLabel = this.createResourceLabel(resourceLabelContainer);
+
+		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
+		data.count = new CountBadge(badgeWrapper);
+		data.styler = attachBadgeStyler(data.count, this.themeService);
+
+		return data;
+	}
+
+	// TODO@joao
+	renderElement(element: ResourceMarkers, _: number, templateData: IResourceMarkersTemplateData): void {
+		if (templateData.resourceLabel instanceof FileLabel) {
+			templateData.resourceLabel.setFile(element.resource/* , { matches: element.uriMatches } */);
+		} else {
+			templateData.resourceLabel.setLabel({ name: element.name, description: this.labelService.getUriLabel(dirname(element.resource), { relative: true }), resource: element.resource }/* , { matches: element.uriMatches } */);
+		}
+
+		templateData.count.setCount(element.markers.length/* filteredCount */);
+	}
+
+	disposeElement(): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: IResourceMarkersTemplateData): void {
+		templateData.resourceLabel.dispose();
+		templateData.styler.dispose();
+	}
+
+	protected createResourceLabel(container: HTMLElement): ResourceLabel {
+		return this.instantiationService.createInstance(ResourceLabel, container, { supportHighlights: true });
+	}
+}
+
+export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
+
+	protected createResourceLabel(container: HTMLElement): ResourceLabel {
+		return this.instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
+	}
+}
+
+export class MarkerRenderer implements ITreeRenderer<Marker, IMarkerTemplateData> {
+
+	constructor(
+		private actionItemProvider: IActionItemProvider,
+		@IInstantiationService protected instantiationService: IInstantiationService
+	) { }
+
+	templateId = TemplateId.Marker;
+
+	renderTemplate(container: HTMLElement): IMarkerTemplateData {
+		const data: IMarkerTemplateData = Object.create(null);
+		const actionsContainer = dom.append(container, dom.$('.actions'));
+		data.actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
+		data.icon = dom.append(container, dom.$('.icon'));
+		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		data.code = new HighlightedLabel(dom.append(container, dom.$('')));
+		data.lnCol = dom.append(container, dom.$('span.marker-line'));
+		return data;
+	}
+
+	// TODO@joao
+	renderElement(element: Marker, _: number, templateData: IMarkerTemplateData): void {
+		let marker = element.marker;
+
+		templateData.icon.className = 'icon ' + MarkerRenderer.iconClassNameFor(marker);
+
+		templateData.source.set(marker.source/* , element.sourceMatches */);
+		dom.toggleClass(templateData.source.element, 'marker-source', !!marker.source);
+
+		templateData.actionBar.clear();
+		const quickFixAction = this.instantiationService.createInstance(QuickFixAction, element);
+		templateData.actionBar.push([quickFixAction], { icon: true, label: false });
+
+		templateData.description.set(marker.message/* , element.messageMatches */);
+		templateData.description.element.title = marker.message;
+
+		dom.toggleClass(templateData.code.element, 'marker-code', !!marker.code);
+		templateData.code.set(marker.code || ''/* , element.codeMatches */);
+
+		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
+	}
+
+	disposeElement(): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: IMarkerTemplateData): void {
+		templateData.description.dispose();
+		templateData.source.dispose();
+		templateData.actionBar.dispose();
+	}
+
+	private static iconClassNameFor(element: IMarker): string {
+		switch (element.severity) {
+			case MarkerSeverity.Hint:
+				return 'info';
+			case MarkerSeverity.Info:
+				return 'info';
+			case MarkerSeverity.Warning:
+				return 'warning';
+			case MarkerSeverity.Error:
+				return 'error';
+		}
+		return '';
+	}
+}
+
+export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformation, IRelatedInformationTemplateData> {
+
+	constructor(
+		@ILabelService private labelService: ILabelService
+	) { }
+
+	templateId = TemplateId.Marker;
+
+	renderTemplate(container: HTMLElement): IRelatedInformationTemplateData {
+		const data: IRelatedInformationTemplateData = Object.create(null);
+
+		dom.append(container, dom.$('.actions'));
+		dom.append(container, dom.$('.icon'));
+
+		data.resourceLabel = new HighlightedLabel(dom.append(container, dom.$('.related-info-resource')));
+		data.lnCol = dom.append(container, dom.$('span.marker-line'));
+
+		const separator = dom.append(container, dom.$('span.related-info-resource-separator'));
+		separator.textContent = ':';
+		separator.style.paddingRight = '4px';
+
+		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
+		return data;
+	}
+
+	// TODO@joao
+	renderElement(element: RelatedInformation, _: number, templateData: IRelatedInformationTemplateData): void {
+		templateData.resourceLabel.set(paths.basename(element.raw.resource.fsPath)/* , element.uriMatches */);
+		templateData.resourceLabel.element.title = this.labelService.getUriLabel(element.raw.resource, { relative: true });
+		templateData.lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.raw.startLineNumber, element.raw.startColumn);
+		templateData.description.set(element.raw.message/* , element.messageMatches */);
+		templateData.description.element.title = element.raw.message;
+	}
+
+	disposeElement(): void {
+		// noop
+	}
+
+	disposeTemplate(templateData: IRelatedInformationTemplateData): void {
+		templateData.description.dispose();
+		templateData.resourceLabel.dispose();
 	}
 }

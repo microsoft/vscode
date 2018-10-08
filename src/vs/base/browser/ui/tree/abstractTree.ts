@@ -8,12 +8,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { IVirtualDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
-import { Event, Relay, chain } from 'vs/base/common/event';
+import { Event, Relay, chain, mapEvent } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIndexTreeModelOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { memoize } from 'vs/base/common/decorators';
 
 export function createComposedTreeListOptions<T, N extends { element: T }>(options?: IListOptions<T>): IListOptions<N> {
 	if (!options) {
@@ -174,6 +175,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	readonly onDidChangeCollapseState: Event<ITreeNode<T, TFilterData>>;
 
+	@memoize get onDidChangeFocus(): Event<T[]> {
+		return mapEvent(this.view.onFocusChange, e => e.elements.map(e => e.element));
+	}
+
+	@memoize get onDidChangeSelection(): Event<T[]> {
+		return mapEvent(this.view.onSelectionChange, e => e.elements.map(e => e.element));
+	}
+
 	constructor(
 		container: HTMLElement,
 		delegate: IVirtualDelegate<T>,
@@ -202,10 +211,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
-	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+	// TODO@joao rename to `get domElement`
+	getHTMLElement(): HTMLElement {
+		return this.view.getHTMLElement();
+	}
 
-	refilter(): void {
-		this.model.refilter();
+	layout(height?: number): void {
+		this.view.layout(height);
 	}
 
 	collapse(location: TRef): boolean {
@@ -214,6 +226,88 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	expand(location: TRef): boolean {
 		return this.model.setCollapsed(location, false);
+	}
+
+	toggleCollapsed(ref: TRef): void {
+		this.model.toggleCollapsed(ref);
+	}
+
+	isCollapsed(ref: TRef): boolean {
+		return this.model.isCollapsed(ref);
+	}
+
+	isExpanded(ref: TRef): boolean {
+		return !this.isCollapsed(ref);
+	}
+
+	refilter(): void {
+		this.model.refilter();
+	}
+
+	setSelection(elements: TRef[]): void {
+		const indexes = elements.map(e => this.model.getListIndex(e));
+		this.view.setSelection(indexes);
+	}
+
+	selectNext(n = 1, loop = false): void {
+		this.view.selectNext(n, loop);
+	}
+
+	selectPrevious(n = 1, loop = false): void {
+		this.view.selectPrevious(n, loop);
+	}
+
+	getSelection(): T[] {
+		const nodes = this.view.getSelectedElements();
+		return nodes.map(n => n.element);
+	}
+
+	setFocus(elements: TRef[]): void {
+		const indexes = elements.map(e => this.model.getListIndex(e));
+		this.view.setFocus(indexes);
+	}
+
+	focusNext(n = 1, loop = false): void {
+		this.view.focusNext();
+	}
+
+	focusPrevious(n = 1, loop = false): void {
+		this.view.focusPrevious();
+	}
+
+	focusNextPage(): void {
+		this.view.focusNextPage();
+	}
+
+	focusPreviousPage(): void {
+		this.view.focusPreviousPage();
+	}
+
+	focusLast(): void {
+		this.view.focusLast();
+	}
+
+	focusFirst(): void {
+		this.view.focusFirst();
+	}
+
+	getFocus(): T[] {
+		const nodes = this.view.getFocusedElements();
+		return nodes.map(n => n.element);
+	}
+
+	reveal(location: TRef, relativeTop?: number): void {
+		const index = this.model.getListIndex(location);
+		this.view.reveal(index, relativeTop);
+	}
+
+	/**
+	 * Returns the relative position of an element rendered in the list.
+	 * Returns `null` if the element isn't *entirely* in the visible viewport.
+	 */
+	getRelativeTop(location: TRef): number | null {
+		const index = this.model.getListIndex(location);
+		return this.view.getRelativeTop(index);
 	}
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
@@ -292,6 +386,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const location = this.model.getNodeLocation(node);
 		this.model.toggleCollapsed(location);
 	}
+
+	protected abstract createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: ITreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);

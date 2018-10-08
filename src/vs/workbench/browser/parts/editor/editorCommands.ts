@@ -687,7 +687,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;
-	if (list instanceof List && list.isDOMFocused()) {
+	if (list instanceof List && list.getHTMLElement() === document.activeElement) {
 		const elementToContext = (element: IEditorIdentifier | IEditorGroup) => {
 			if (isEditorGroup(element)) {
 				return { groupId: element.id, editorIndex: void 0 };

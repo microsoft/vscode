@@ -30,7 +30,7 @@ function ensureDOMFocus(widget: ListWidget): void {
 	// DOM focus is within another focusable control within the
 	// list/tree item. therefor we should ensure that the
 	// list/tree has DOM focus again after the command ran.
-	if (widget && !widget.isDOMFocused()) {
+	if (widget && widget.getHTMLElement() !== document.activeElement) {
 		widget.domFocus();
 	}
 }
