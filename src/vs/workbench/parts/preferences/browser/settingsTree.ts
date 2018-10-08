@@ -339,12 +339,20 @@ export interface ISettingLinkClickEvent {
 	targetKey: string;
 }
 
+export interface ISettingOverrideClickEvent {
+	scope: string;
+	targetKey: string;
+}
+
 export class SettingsRenderer implements ITreeRenderer {
 
 	public static readonly CONTROL_CLASS = 'setting-control-focus-target';
 	public static readonly CONTROL_SELECTOR = '.' + SettingsRenderer.CONTROL_CLASS;
 
 	public static readonly SETTING_KEY_ATTR = 'data-key';
+
+	private readonly _onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent> = new Emitter<ISettingOverrideClickEvent>();
+	public readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -636,6 +644,9 @@ export class SettingsRenderer implements ITreeRenderer {
 
 		// Prevent clicks from being handled by list
 		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, (e: IMouseEvent) => container.classList.add('mouseover')));
+		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, (e: IMouseEvent) => container.classList.remove('mouseover')));
 
 		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
@@ -1059,14 +1070,33 @@ export class SettingsRenderer implements ITreeRenderer {
 			template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
 		}
 
+		template.otherOverridesElement.innerHTML = '';
+
 		if (element.overriddenScopeList.length) {
 			const otherOverridesLabel = element.isConfigured ?
 				localize('alsoConfiguredIn', "Also modified in") :
 				localize('configuredIn', "Modified in");
 
-			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
-		} else {
-			template.otherOverridesElement.textContent = '';
+			DOM.append(template.otherOverridesElement, $('span', null, `(${otherOverridesLabel}: `));
+
+			for (let i = 0; i < element.overriddenScopeList.length; i++) {
+				let view = DOM.append(template.otherOverridesElement, $('a.modified-scope', null, element.overriddenScopeList[i]));
+
+				if (i !== element.overriddenScopeList.length - 1) {
+					DOM.append(template.otherOverridesElement, $('span', null, ', '));
+				} else {
+					DOM.append(template.otherOverridesElement, $('span', null, ')'));
+				}
+
+				DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
+					this._onDidClickOverrideElement.fire({
+						targetKey: element.setting.key,
+						scope: element.overriddenScopeList[i]
+					});
+					e.preventDefault();
+					e.stopPropagation();
+				});
+			}
 		}
 
 		// Remove tree attributes - sometimes overridden by tree - should be managed there

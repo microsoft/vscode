@@ -9339,10 +9339,10 @@ vscode-nsfw@1.0.17:
     nan "^2.0.0"
     promisify-node "^0.3.0"
 
-vscode-ripgrep@1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.1.0.tgz#93c1e39d88342ee1b15530a12898ce930d511948"
-  integrity sha512-7Bsa13vk1mtjg1PfkjDwDloy2quDxnhvCjRwVMaYwFcwzgIGkai5TuNuziWisqUeKbSnFQsoIylSaqb+sIpFXA==
+vscode-ripgrep@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.2.tgz#c21b91bb558638a7124fe3d9719b2666b12dbfdc"
+  integrity sha512-rPbCj4LUnPzivezk3pC94G5sB17HbayjV9mSvNTDYFg5llHN/XozAmkoDOC0KG9UveuQ71MADX1//CeHtUTmZw==
 
 vscode-textmate@^4.0.1:
   version "4.0.1"
@@ -9351,10 +9351,10 @@ vscode-textmate@^4.0.1:
   dependencies:
     oniguruma "^7.0.0"
 
-vscode-xterm@3.9.0-beta1:
-  version "3.9.0-beta1"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta1.tgz#dfe0ff41ee062a9fbcda9eb050dcd9e73fe34278"
-  integrity sha512-PMLI+4n6ysY2VB/6UF9j1OZ8RR4wATc+mdVFb1fEVWI4k6i6mdTNpMrd9U5cLJaswfr+hlql2PQL9EprhuKRNA==
+vscode-xterm@3.9.0-beta2:
+  version "3.9.0-beta2"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.9.0-beta2.tgz#36e6c6b3dee9324343d240acec0bc0af5283e8bd"
+  integrity sha512-v8uPv0UGoOxz6t22l/0uxIdcZVNOldk/5ZNp1zjVW+EBecE/zN4JCY3rAJALpgsTm4XlJZfi0f49yLVeyg3WeA==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"

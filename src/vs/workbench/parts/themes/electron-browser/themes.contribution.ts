@@ -200,7 +200,7 @@ class GenerateColorThemeAction extends Action {
 		let resultingColors = {};
 		let inherited = [];
 		for (let colorId of colorIds) {
-			let color = theme.getColor(colorId, false);
+			const color = theme.getColor(colorId, false);
 			if (color) {
 				resultingColors[colorId] = Color.Format.CSS.formatHexA(color, true);
 			} else {
@@ -208,7 +208,7 @@ class GenerateColorThemeAction extends Action {
 			}
 		}
 		for (let id of inherited) {
-			let color = theme.getColor(id);
+			const color = theme.getColor(id);
 			if (color) {
 				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
 			}

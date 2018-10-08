@@ -61,6 +61,7 @@ import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
 import { localize } from 'vs/nls';
+import { ExtHostClipboard } from 'vs/workbench/api/node/extHostClipboard';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -134,6 +135,7 @@ export function createApiFactory(
 	rpcProtocol.assertRegistered(expected);
 
 	// Other instances
+	const extHostClipboard = new ExtHostClipboard(rpcProtocol);
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol);
@@ -237,6 +239,10 @@ export function createApiFactory(
 			get onDidChangeLogLevel() {
 				checkProposedApiEnabled(extension);
 				return extHostLogService.onDidChangeLogLevel;
+			},
+			get clipboard(): vscode.Clipboard {
+				checkProposedApiEnabled(extension);
+				return extHostClipboard;
 			}
 		});
 
@@ -316,8 +322,11 @@ export function createApiFactory(
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
 			},
-			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return extHostLanguageFeatures.registerSignatureHelpProvider(checkSelector(selector), provider, triggerCharacters);
+			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
+				if (typeof firstItem === 'object') {
+					return extHostLanguageFeatures.registerSignatureHelpProvider(checkSelector(selector), provider, firstItem);
+				}
+				return extHostLanguageFeatures.registerSignatureHelpProvider(checkSelector(selector), provider, typeof firstItem === 'undefined' ? [] : [firstItem, ...remaining]);
 			},
 			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerCompletionItemProvider(checkSelector(selector), provider, triggerCharacters);

@@ -10,6 +10,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CompletionItemKind, completionKindFromLegacyString } from 'vs/editor/common/modes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export abstract class Memory {
 
@@ -198,17 +200,23 @@ export class SuggestMemories {
 
 	private _mode: MemMode;
 	private _strategy: Memory;
-	private _persistSoon: RunOnceScheduler;
+	private readonly _persistSoon: RunOnceScheduler;
+	private readonly _listener: IDisposable;
 
 	constructor(
-		mode: MemMode,
-		@IStorageService private readonly _storageService: IStorageService
+		editor: ICodeEditor,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._persistSoon = new RunOnceScheduler(() => this._flush(), 3000);
-		this.setMode(mode);
+		this._setMode(editor.getConfiguration().contribInfo.suggestSelection);
+		this._listener = editor.onDidChangeConfiguration(e => e.contribInfo && this._setMode(editor.getConfiguration().contribInfo.suggestSelection));
 	}
 
-	setMode(mode: MemMode): void {
+	dispose(): void {
+		this._listener.dispose();
+	}
+
+	private _setMode(mode: MemMode): void {
 		if (this._mode === mode) {
 			return;
 		}

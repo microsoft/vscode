@@ -321,7 +321,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 	function _replaceURL(contents: string, replacer: (url: string) => string): string {
 		// Use ")" as the terminator as quotes are oftentimes not used at all
 		return contents.replace(/url\(\s*([^\)]+)\s*\)?/g, (_: string, ...matches: string[]) => {
-			var url = matches[0];
+			let url = matches[0];
 			// Eliminate starting quotes (the initial whitespace is not captured)
 			if (url.charAt(0) === '"' || url.charAt(0) === '\'') {
 				url = url.substring(1);

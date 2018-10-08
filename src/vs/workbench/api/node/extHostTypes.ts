@@ -1059,10 +1059,10 @@ export class MarkdownString {
 
 export class ParameterInformation {
 
-	label: string;
+	label: string | [number, number];
 	documentation?: string | MarkdownString;
 
-	constructor(label: string, documentation?: string | MarkdownString) {
+	constructor(label: string | [number, number], documentation?: string | MarkdownString) {
 		this.label = label;
 		this.documentation = documentation;
 	}

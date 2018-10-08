@@ -24,7 +24,7 @@ import * as colors from 'vs/platform/theme/common/colorRegistry';
 registerThemingParticipant((theme, collector) => {
 
 	function getColorGraceful(name: string) {
-		let color = theme.getColor(name);
+		const color = theme.getColor(name);
 		return color ? color.toString() : 'transparent';
 	}
 

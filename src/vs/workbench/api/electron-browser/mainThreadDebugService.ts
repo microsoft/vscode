@@ -205,7 +205,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $appendDebugConsole(value: string): Thenable<void> {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
-		this.debugService.logToRepl(value, severity.Warning);
+		const session = this.debugService.getViewModel().focusedSession;
+		if (session) {
+			session.appendToRepl(value, severity.Warning);
+		}
 		return TPromise.wrap<void>(undefined);
 	}
 
@@ -235,7 +238,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			return {
 				id: <DebugSessionUUID>session.getId(),
 				type: session.configuration.type,
-				name: session.getName(false)
+				name: session.configuration.name
 			};
 		}
 		return undefined;

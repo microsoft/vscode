@@ -372,7 +372,13 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',
 			default: true
-		}
+		},
+		'terminal.integrated.experimentalBufferImpl': {
+			description: nls.localize('terminal.integrated.experimentalBufferImpl', "Controls the terminal's internal buffer implementation. This setting is picked up on terminal creation and will not apply to existing terminals."),
+			type: 'string',
+			enum: ['JsArray', 'TypedArray'],
+			default: 'JsArray'
+		},
 	}
 });
 
@@ -453,8 +459,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTermi
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_K,
-	linux: { primary: null }
+	primary: null,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category);
 if (platform.isWindows) {
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
