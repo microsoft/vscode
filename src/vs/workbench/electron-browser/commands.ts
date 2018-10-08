@@ -464,9 +464,14 @@ export function registerCommands(): void {
 		// ObjectTree
 		else if (focused instanceof ObjectTree) {
 			const list = focused;
+			const first = list.getFirstElementChild(null);
 
-			list.setFocus([0]);
-			list.reveal(0);
+			if (!first) {
+				return;
+			}
+
+			list.setFocus([first]);
+			list.reveal(first);
 		}
 
 		// Tree
