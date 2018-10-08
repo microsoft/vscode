@@ -277,6 +277,36 @@ suite('Webview tests', () => {
 			assert.strictEqual((await response).value, false);
 		}
 	});
+
+	test('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
+		}));
+
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<script>
+				const vscode = acquireVsCodeApi();
+				window.addEventListener('message', (message) => {
+					const img = document.createElement('img');
+					img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
+					img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
+					img.src = message.data.src;
+					document.body.appendChild(img);
+				});
+			</script>`);
+
+		const workspaceRootUri = vscode.Uri.file(vscode.workspace.rootPath!).with({ scheme: 'vscode-resource' });
+
+		{
+			const response = sendRecieveMessage(webview, { src: workspaceRootUri.toString() + '/sub/image.png' });
+			assert.strictEqual((await response).value, true);
+		}
+		{
+			const response = sendRecieveMessage(webview, { src: workspaceRootUri.toString() + '/image.png' });
+			assert.strictEqual((await response).value, false);
+		}
+	});
 });
 
 function createHtmlDocumentWithBody(body: string): string {
