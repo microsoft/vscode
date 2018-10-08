@@ -1711,6 +1711,50 @@ export class CommandCenter {
 		await this._push(repository, { pushType: PushType.PushTo, forcePush: true });
 	}
 
+	private async _remote(repository: Repository, rebase: boolean): Promise<void> {
+		const HEAD = repository.HEAD;
+
+		if (!HEAD || !HEAD.upstream) {
+			return;
+		}
+
+		const remoteName = HEAD.remote || HEAD.upstream.remote;
+		const remote = repository.remotes.find(r => r.name === remoteName);
+		const isReadonly = remote && remote.isReadOnly;
+
+		const config = workspace.getConfiguration('git');
+		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
+
+		if (shouldPrompt) {
+			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
+			const yes = localize('ok', "OK");
+			const neverAgain = localize('never again', "OK, Don't Show Again");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+			if (pick === neverAgain) {
+				await config.update('confirmSync', false, true);
+			} else if (pick !== yes) {
+				return;
+			}
+		}
+
+		if (rebase) {
+			await repository.syncRebase(HEAD);
+		} else {
+			await repository.sync(HEAD);
+		}
+	}
+
+	// @command('git.addRemote', { repository: true })
+	// async addRemote(repository: Repository): Promise<void> {
+	// 	await this._remote(repository, { pushType: PushType.PushTo });
+	// }
+
+	// @command('git.removeRemote', { repository: true })
+	// async removeRemote(repository: Repository): Promise<void> {
+	// 	await this._remote(repository, { pushType: PushType.PushTo, forcePush: true });
+	// }
+
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 
