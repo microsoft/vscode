@@ -134,7 +134,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
 		this._register(this.debugService.onDidEndSession(() => {
-			if (this.debugService.getModel().getSessions().length === 0 && this.isVisible()) {
+			if (this.debugService.getModel().getSessions().length === 0) {
 				// Only hide the session drop down when there are 0 sessions
 				this.updateTitleArea();
 			}
