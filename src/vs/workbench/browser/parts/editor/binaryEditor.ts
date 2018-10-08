@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -23,7 +21,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { dispose } from 'vs/base/common/lifecycle';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => void;
+	openInternal: (input: EditorInput, options: EditorOptions) => Thenable<void>;
 	openExternal: (uri: URI) => void;
 }
 
@@ -104,8 +102,11 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 	}
 
 	private handleOpenInternalCallback(input: EditorInput, options: EditorOptions) {
-		this.callbacks.openInternal(input, options);
-		setTimeout(() => this._onDidOpenInPlace.fire(), 100);
+		this.callbacks.openInternal(input, options).then(() => {
+
+			// Signal to listeners that the binary editor has been opened in-place
+			this._onDidOpenInPlace.fire();
+		});
 	}
 
 	private handleMetadataChanged(meta: string): void {

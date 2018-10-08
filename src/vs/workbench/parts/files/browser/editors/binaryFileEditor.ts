@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
@@ -42,11 +41,14 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		);
 	}
 
-	private openInternal(input: EditorInput, options: EditorOptions): void {
+	private openInternal(input: EditorInput, options: EditorOptions): Thenable<void> {
 		if (input instanceof FileEditorInput) {
 			input.setForceOpenAsText();
-			this.editorService.openEditor(input, options, this.group);
+
+			return this.editorService.openEditor(input, options, this.group).then(() => void 0);
 		}
+
+		return Promise.resolve();
 	}
 
 	private openExternal(resource: URI): void {

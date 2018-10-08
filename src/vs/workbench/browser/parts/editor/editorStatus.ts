@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/editorstatus';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -621,6 +619,7 @@ export class EditorStatus implements IStatusbarItem {
 				this.activeEditorListeners.push(editor.onMetadataChanged(metadata => {
 					this.onMetadataChange(activeControl);
 				}));
+
 				this.activeEditorListeners.push(editor.onDidOpenInPlace(() => {
 					this.updateStatusBar();
 				}));
