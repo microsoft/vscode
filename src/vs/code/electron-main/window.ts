@@ -195,7 +195,7 @@ export class CodeWindow implements ICodeWindow {
 			this._win.maximize();
 
 			if (this.windowState.mode === WindowMode.Fullscreen) {
-				this.toggleFullScreen(true);
+				this.setFullScreen(true);
 			}
 
 			if (!this._win.isVisible()) {
@@ -203,7 +203,7 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
-		if (isMacintosh && windowConfig && !windowConfig.nativeFullscreen) {
+		if (isMacintosh && windowConfig && windowConfig.nativeFullscreen === false) {
 			this._win.setFullScreenable(false);
 		}
 
@@ -788,16 +788,17 @@ export class CodeWindow implements ICodeWindow {
 		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
 	}
 
-	toggleFullScreen(toFullScreen?: boolean): void {
+	toggleFullScreen(): void {
+		this.setFullScreen(!this.isFullScreen());
+	}
+
+	private setFullScreen(willBeFullScreen?: boolean): void {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
-		if (typeof toFullScreen === 'undefined') {
-			toFullScreen = !this.isFullScreen();
-		}
-		if (windowConfig && windowConfig.nativeFullscreen) {
-			this.setFullScreen(toFullScreen);
+		if (windowConfig && windowConfig.nativeFullscreen === false) {
+			this.setSimpleFullScreen(willBeFullScreen);
 		} else {
-			this.setSimpleFullScreen(toFullScreen);
+			this.setNativeFullScreen(willBeFullScreen);
 		}
 	}
 
@@ -805,11 +806,13 @@ export class CodeWindow implements ICodeWindow {
 		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
 	}
 
-	private setFullScreen(willBeFullScreen: boolean): void {
+	private setNativeFullScreen(willBeFullScreen: boolean): void {
 		if (this._win.isSimpleFullScreen()) {
 			this._win.setSimpleFullScreen(false);
 		}
+
 		this._win.setFullScreen(willBeFullScreen);
+
 		// respect configured menu bar visibility or default to toggle if not set
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
@@ -818,8 +821,9 @@ export class CodeWindow implements ICodeWindow {
 		if (this._win.isFullScreen()) {
 			this._win.setFullScreen(false);
 		}
+
 		this._win.setSimpleFullScreen(willBeFullScreen);
-		this._win.webContents.focus();
+		this._win.webContents.focus(); // workaround issue where focus is not going into window
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {

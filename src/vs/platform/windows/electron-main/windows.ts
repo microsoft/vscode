@@ -59,7 +59,7 @@ export interface ICodeWindow {
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, ...args: any[]): void;
 
-	toggleFullScreen(toFullScreen?: boolean): void;
+	toggleFullScreen(): void;
 	hasHiddenTitleBarStyle(): boolean;
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string;
