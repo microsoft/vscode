@@ -201,7 +201,7 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 
 let keybindingType: IJSONSchema = {
 	type: 'object',
-	default: { command: '', key: ''},
+	default: { command: '', key: '' },
 	properties: {
 		command: {
 			description: nls.localize('vscode.extension.contributes.keybindings.command', 'Identifier of the command to run when keybinding is triggered.'),

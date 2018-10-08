@@ -133,13 +133,13 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), undefined, rule.id, rule.weight, 0, rule.when, source);
+			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, undefined, rule.weight, 0, rule.when, source);
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
 			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
 				const k = actualKb.secondary[i];
-				this._registerDefaultKeybinding(createKeybinding(k, OS), undefined, rule.id, rule.weight, -i - 1, rule.when, source);
+				this._registerDefaultKeybinding(createKeybinding(k, OS), rule.id, undefined, rule.weight, -i - 1, rule.when, source);
 			}
 		}
 	}
@@ -148,7 +148,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
 
 		if (actualKb && actualKb.primary) {
-			this._registerDefaultKeybinding(actualKb.primary, rule.args, rule.id, rule.weight, 0, rule.when, source);
+			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.args, rule.weight, 0, rule.when, source);
 		}
 	}
 
@@ -191,7 +191,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: string, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr, source: KeybindingRuleSource): void {
 		if (source === KeybindingRuleSource.Core && OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
