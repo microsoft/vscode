@@ -25,7 +25,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -340,6 +340,9 @@ export class TabsTitleControl extends TitleControl {
 		// Activity has an impact on each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
 			this.redrawEditorActive(isGroupActive, editor, tabContainer, tabLabelWidget);
+			if (this.accessor.partOptions.highlightModifiedTabs) {
+				this.redrawEditorDirty(editor, tabContainer);
+			}
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -378,7 +381,8 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
-			oldOptions.iconTheme !== newOptions.iconTheme
+			oldOptions.iconTheme !== newOptions.iconTheme ||
+			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
 		) {
 			this.redraw();
 		}
@@ -892,7 +896,7 @@ export class TabsTitleControl extends TitleControl {
 		// Tab is inactive
 		else {
 
-			// Containr
+			// Container
 			removeClass(tabContainer, 'active');
 			tabContainer.setAttribute('aria-selected', 'false');
 			tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
@@ -904,10 +908,43 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private redrawEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void {
+
+		// Tab: dirty
 		if (editor.isDirty()) {
 			addClass(tabContainer, 'dirty');
-		} else {
+
+			// Highlight modified tabs with a border if configured
+			if (this.accessor.partOptions.highlightModifiedTabs) {
+				const isGroupActive = this.accessor.activeGroup === this.group;
+				const isTabActive = this.group.isActive(editor);
+
+				let modifiedBorderColor: string;
+				if (isGroupActive && isTabActive) {
+					modifiedBorderColor = this.getColor(TAB_ACTIVE_MODIFIED_BORDER);
+				} else if (isGroupActive && !isTabActive) {
+					modifiedBorderColor = this.getColor(TAB_INACTIVE_MODIFIED_BORDER);
+				} else if (!isGroupActive && isTabActive) {
+					modifiedBorderColor = this.getColor(TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER);
+				} else {
+					modifiedBorderColor = this.getColor(TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER);
+				}
+
+				if (modifiedBorderColor) {
+					addClass(tabContainer, 'dirty-border-top');
+					tabContainer.style.setProperty('--tab-dirty-border-top-color', modifiedBorderColor);
+				}
+			} else {
+				removeClass(tabContainer, 'dirty-border-top');
+				tabContainer.style.removeProperty('--tab-dirty-border-top-color');
+			}
+		}
+
+		// Tab: not dirty
+		else {
 			removeClass(tabContainer, 'dirty');
+
+			removeClass(tabContainer, 'dirty-border-top');
+			tabContainer.style.removeProperty('--tab-dirty-border-top-color');
 		}
 	}
 
