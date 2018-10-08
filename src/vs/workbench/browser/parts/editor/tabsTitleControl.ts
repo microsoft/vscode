@@ -339,10 +339,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Activity has an impact on each tab
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawEditorActive(isGroupActive, editor, tabContainer, tabLabelWidget);
-			if (this.accessor.partOptions.highlightModifiedTabs) {
-				this.redrawEditorDirty(editor, tabContainer);
-			}
+			this.redrawEditorActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -365,7 +362,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, tabContainer => this.redrawEditorDirty(editor, tabContainer));
+		this.withTab(editor, (tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -841,11 +838,8 @@ export class TabsTitleControl extends TitleControl {
 			removeClass(tabContainer, 'has-icon-theme');
 		}
 
-		// Active state
-		this.redrawEditorActive(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
-
-		// Dirty State
-		this.redrawEditorDirty(editor, tabContainer);
+		// Active / dirty state
+		this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 	}
 
 	private redrawLabel(editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel, tabLabel: IEditorInputLabel): void {
@@ -861,7 +855,15 @@ export class TabsTitleControl extends TitleControl {
 		tabLabelWidget.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor) });
 	}
 
-	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
+		const isTabActive = this.group.isActive(editor);
+
+		const hasModifiedBorderTop = this.doRedrawEditorDirty(isGroupActive, isTabActive, editor, tabContainer);
+
+		this.doRedrawEditorActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
+	}
+
+	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
 
 		// Tab is active
 		if (this.group.isActive(editor)) {
@@ -880,7 +882,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.removeProperty('--tab-border-bottom-color');
 			}
 
-			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : void 0;
 			if (activeTabBorderColorTop) {
 				addClass(tabContainer, 'tab-border-top');
 				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
@@ -907,7 +909,8 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redrawEditorDirty(editor: IEditorInput, tabContainer: HTMLElement): void {
+	private doRedrawEditorDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
+		let hasModifiedBorderColor = false;
 
 		// Tab: dirty
 		if (editor.isDirty()) {
@@ -915,9 +918,6 @@ export class TabsTitleControl extends TitleControl {
 
 			// Highlight modified tabs with a border if configured
 			if (this.accessor.partOptions.highlightModifiedTabs) {
-				const isGroupActive = this.accessor.activeGroup === this.group;
-				const isTabActive = this.group.isActive(editor);
-
 				let modifiedBorderColor: string;
 				if (isGroupActive && isTabActive) {
 					modifiedBorderColor = this.getColor(TAB_ACTIVE_MODIFIED_BORDER);
@@ -930,6 +930,8 @@ export class TabsTitleControl extends TitleControl {
 				}
 
 				if (modifiedBorderColor) {
+					hasModifiedBorderColor = true;
+
 					addClass(tabContainer, 'dirty-border-top');
 					tabContainer.style.setProperty('--tab-dirty-border-top-color', modifiedBorderColor);
 				}
@@ -946,6 +948,8 @@ export class TabsTitleControl extends TitleControl {
 			removeClass(tabContainer, 'dirty-border-top');
 			tabContainer.style.removeProperty('--tab-dirty-border-top-color');
 		}
+
+		return hasModifiedBorderColor;
 	}
 
 	layout(dimension: Dimension): void {
