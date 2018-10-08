@@ -380,7 +380,7 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this._register(lifecycleService.onShutdown(reason => this.dispose(reason)));
+		this._register(lifecycleService.onShutdown(event => this.dispose(event.reason)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 

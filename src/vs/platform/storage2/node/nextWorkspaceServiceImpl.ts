@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceStorageChangeEvent, INextWorkspaceStorageService, StorageScope } from 'vs/platform/storage2/common/nextWorkspaceStorageService';
 import { NextStorageServiceImpl } from 'vs/platform/storage2/node/nextStorageServiceImpl';
 import { INextStorageService } from 'vs/platform/storage2/common/nextStorageService';
+import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class NextWorkspaceStorageServiceImpl extends Disposable implements INextWorkspaceStorageService {
 	_serviceBrand: any;
@@ -23,7 +24,8 @@ export class NextWorkspaceStorageServiceImpl extends Disposable implements INext
 	constructor(
 		workspaceDBPath: string,
 		@ILogService logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -36,10 +38,16 @@ export class NextWorkspaceStorageServiceImpl extends Disposable implements INext
 	private registerListeners(): void {
 		this._register(this.globalStorage.onDidChangeStorage(keys => this.handleDidChangeStorage(keys, StorageScope.GLOBAL)));
 		this._register(this.workspaceStorage.onDidChangeStorage(keys => this.handleDidChangeStorage(keys, StorageScope.WORKSPACE)));
+
+		this._register(this.lifecycleService.onShutdown(event => this.onShutdown(event)));
 	}
 
 	private handleDidChangeStorage(keys: Set<string>, scope: StorageScope): void {
 		this._onDidChangeStorage.fire({ keys, scope });
+	}
+
+	private onShutdown(event: ShutdownEvent): void {
+		event.join(this.close());
 	}
 
 	init(): Promise<void> {

@@ -13,6 +13,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { ReadyState } from 'vs/platform/windows/common/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
@@ -80,41 +81,39 @@ export interface ILifecycleService {
 	kill(code?: number): void;
 }
 
-export class LifecycleService implements ILifecycleService {
+export class LifecycleService extends Disposable implements ILifecycleService {
 
 	_serviceBrand: any;
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
-	private windowToCloseRequest: { [windowId: string]: boolean };
-	private quitRequested: boolean;
+	private windowToCloseRequest: { [windowId: string]: boolean } = Object.create(null);
+	private quitRequested = false;
 	private pendingQuitPromise: TPromise<boolean>;
 	private pendingQuitPromiseComplete: TValueCallback<boolean>;
-	private oneTimeListenerTokenGenerator: number;
-	private _wasRestarted: boolean;
-	private windowCounter: number;
+	private oneTimeListenerTokenGenerator = 0;
+	private windowCounter = 0;
 
-	private _onBeforeShutdown = new Emitter<void>();
-	onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
+	private _wasRestarted: boolean = false;
+	get wasRestarted(): boolean { return this._wasRestarted; }
 
-	private _onShutdown = new Emitter<void>();
-	onShutdown: Event<void> = this._onShutdown.event;
+	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
+	readonly onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
 
-	private _onBeforeWindowClose = new Emitter<ICodeWindow>();
-	onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
+	private readonly _onShutdown = this._register(new Emitter<void>());
+	readonly onShutdown: Event<void> = this._onShutdown.event;
 
-	private _onBeforeWindowUnload = new Emitter<IWindowUnloadEvent>();
-	onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
+	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
+	readonly onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
+
+	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
+	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
 		@ILogService private logService: ILogService,
 		@IStateService private stateService: IStateService
 	) {
-		this.windowToCloseRequest = Object.create(null);
-		this.quitRequested = false;
-		this.oneTimeListenerTokenGenerator = 0;
-		this._wasRestarted = false;
-		this.windowCounter = 0;
+		super();
 
 		this.handleRestarted();
 	}
@@ -125,10 +124,6 @@ export class LifecycleService implements ILifecycleService {
 		if (this._wasRestarted) {
 			this.stateService.removeItem(LifecycleService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
 		}
-	}
-
-	get wasRestarted(): boolean {
-		return this._wasRestarted;
 	}
 
 	get isQuitRequested(): boolean {
