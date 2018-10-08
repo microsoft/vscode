@@ -791,7 +791,7 @@ export class DiffReview extends Disposable {
 // theming
 
 registerThemingParticipant((theme, collector) => {
-	let lineNumbers = theme.getColor(editorLineNumbers);
+	const lineNumbers = theme.getColor(editorLineNumbers);
 	if (lineNumbers) {
 		collector.addRule(`.monaco-diff-editor .diff-review-line-number { color: ${lineNumbers}; }`);
 	}

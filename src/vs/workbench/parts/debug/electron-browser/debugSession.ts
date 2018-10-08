@@ -13,14 +13,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { CompletionItem, completionKindFromLegacyString } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, ActualBreakpoints, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/parts/debug/common/debugModel';
 import { RawDebugSession } from 'vs/workbench/parts/debug/electron-browser/rawDebugSession';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -31,9 +31,9 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ReplModel } from 'vs/workbench/parts/debug/common/replModel';
 
 export class DebugSession implements IDebugSession {
-
 	private id: string;
 	private raw: RawDebugSession;
 
@@ -41,6 +41,7 @@ export class DebugSession implements IDebugSession {
 	private threads = new Map<number, Thread>();
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler;
+	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
@@ -48,6 +49,7 @@ export class DebugSession implements IDebugSession {
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 
+	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
 	constructor(
 		private _configuration: { resolved: IConfig, unresolved: IConfig },
@@ -59,9 +61,11 @@ export class DebugSession implements IDebugSession {
 		@IOutputService private outputService: IOutputService,
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		this.id = generateUuid();
+		this.repl = new ReplModel(this);
 	}
 
 	getId(): string {
@@ -80,7 +84,8 @@ export class DebugSession implements IDebugSession {
 		this._configuration = configuration;
 	}
 
-	getName(includeRoot: boolean): string {
+	getLabel(): string {
+		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
 		return includeRoot && this.root ? `${this.configuration.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.configuration.name;
 	}
 
@@ -109,6 +114,10 @@ export class DebugSession implements IDebugSession {
 		return this._onDidEndAdapter.event;
 	}
 
+	get onDidChangeReplElements(): Event<void> {
+		return this._onDidChangeREPLElements.event;
+	}
+
 	//---- DAP events
 
 	get onDidCustomEvent(): Event<DebugProtocol.Event> {
@@ -118,7 +127,6 @@ export class DebugSession implements IDebugSession {
 	get onDidLoadedSource(): Event<LoadedSourceEvent> {
 		return this._onDidLoadedSource.event;
 	}
-
 
 	//---- DAP requests
 
@@ -673,11 +681,11 @@ export class DebugSession implements IDebugSession {
 					return Promise.all(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
-						this.debugService.logToRepl(child, outputSeverity, source);
+						this.appendToRepl(child, outputSeverity, source);
 					}));
 				}));
 			} else if (typeof event.body.output === 'string') {
-				Promise.all(waitFor).then(() => this.debugService.logToRepl(event.body.output, outputSeverity, source));
+				Promise.all(waitFor).then(() => this.appendToRepl(event.body.output, outputSeverity, source));
 			}
 			Promise.all(outputPromises).then(() => outputPromises = []);
 		}));
@@ -774,5 +782,34 @@ export class DebugSession implements IDebugSession {
 
 	private getUriKey(uri: URI): string {
 		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
+	}
+
+	// REPL
+
+	getReplElements(): ReadonlyArray<IReplElement> {
+		return this.repl.getReplElements();
+	}
+
+	removeReplExpressions(): void {
+		this.repl.removeReplExpressions();
+		this._onDidChangeREPLElements.fire();
+	}
+
+	addReplExpression(stackFrame: IStackFrame, name: string): TPromise<void> {
+		const viewModel = this.debugService.getViewModel();
+		return this.repl.addReplExpression(stackFrame, name)
+			.then(() => this._onDidChangeREPLElements.fire())
+			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
+			.then(() => this.debugService.focusStackFrame(viewModel.focusedStackFrame, viewModel.focusedThread, viewModel.focusedSession));
+	}
+
+	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
+		this.repl.appendToRepl(data, severity, source);
+		this._onDidChangeREPLElements.fire();
+	}
+
+	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+		this.repl.logToRepl(sev, args, frame);
+		this._onDidChangeREPLElements.fire();
 	}
 }

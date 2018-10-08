@@ -377,6 +377,10 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	protected layoutBody(height: number): void {
+		if (!this.isExpanded()) {
+			// workaround https://github.com/Microsoft/vscode/issues/60018
+			return;
+		}
 		if (height !== this._cachedHeight) {
 			this._cachedHeight = height;
 			if (this._pendingLayout) {
@@ -391,14 +395,22 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
-		if (visible) {
+		if (visible && this.isExpanded() && !this._requestOracle) {
+			// workaround for https://github.com/Microsoft/vscode/issues/60011
+			this.setExpanded(true);
+		}
+		return super.setVisible(visible);
+	}
+
+	setExpanded(expanded: boolean): void {
+		if (expanded) {
 			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event).then(undefined, onUnexpectedError), DocumentSymbolProviderRegistry);
 		} else {
 			dispose(this._requestOracle);
 			this._requestOracle = undefined;
 			this._doUpdate(undefined, undefined);
 		}
-		return super.setVisible(visible);
+		return super.setExpanded(expanded);
 	}
 
 	getActions(): IAction[] {

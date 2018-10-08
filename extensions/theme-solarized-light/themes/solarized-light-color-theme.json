@@ -417,6 +417,7 @@
 		"tab.activeBackground": "#FDF6E3",
 		"tab.inactiveForeground": "#586E75",
 		"tab.inactiveBackground": "#D3CBB7",
+		"tab.modifiedBorder": "#cb4b16",
 		// "tab.activeBackground": "",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
