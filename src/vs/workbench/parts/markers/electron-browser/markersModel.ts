@@ -176,7 +176,7 @@ export class MarkersModel {
 				if (rawMarker.relatedInformation) {
 					const groupedByResource = groupBy(rawMarker.relatedInformation, compareMarkersByUri);
 					groupedByResource.sort((a, b) => compareUris(a[0].resource, b[0].resource));
-					relatedInformation = flatten(groupedByResource).map((r, index) => new RelatedInformation(r));
+					relatedInformation = flatten(groupedByResource).map(r => new RelatedInformation(r));
 				}
 
 				return new Marker(rawMarker, relatedInformation);
