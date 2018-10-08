@@ -578,7 +578,7 @@ export namespace ParameterInformation {
 	}
 	export function to(info: modes.ParameterInformation): types.ParameterInformation {
 		return {
-			label: typeof info.label === 'string' ? info.label : '', //todo@joh
+			label: info.label,
 			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation
 		};
 	}
