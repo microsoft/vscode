@@ -284,7 +284,7 @@ export class SuggestController implements IEditorContribution {
 		/* __GDPR__
 			"acceptSuggestion" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"multiline" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 			}
 		*/
 		service.publicLog('acceptSuggestion', {
