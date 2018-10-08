@@ -99,6 +99,7 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	showExitAlert: boolean;
+	experimentalBufferImpl: 'JsArray' | 'TypedArray';
 }
 
 export interface ITerminalConfigHelper {
