@@ -99,8 +99,8 @@ class TreeRenderer<T, TFilterData, TTemplateData> implements IRenderer<ITreeNode
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
 		const el = append(container, $('.monaco-tl-row'));
-		const twistie = append(el, $('.tl-twistie'));
-		const contents = append(el, $('.tl-contents'));
+		const twistie = append(el, $('.monaco-tl-twistie'));
+		const contents = append(el, $('.monaco-tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
 		return { twistie, templateData };
