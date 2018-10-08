@@ -27,10 +27,10 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { debounceEvent } from 'vs/base/common/event';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 
 type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -56,7 +56,7 @@ export class MarkersPanel extends Panel {
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI = null;
 
-	private tree: ObjectTree<TreeElement>;
+	private tree: WorkbenchObjectTree<TreeElement>;
 	private rangeHighlightDecorations: RangeHighlightDecorations;
 
 	private actions: IAction[];
@@ -240,11 +240,12 @@ export class MarkersPanel extends Panel {
 			this.instantiationService.createInstance(Viewer.RelatedInformationRenderer)
 		];
 
-		this.tree = new ObjectTree<TreeElement>(
+		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree,
 			this.treeContainer,
 			virtualDelegate,
-			renderers
-		);
+			renderers,
+			{}
+		) as any as WorkbenchObjectTree<TreeElement>;
 
 		// this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 		// 	dataSource: new Viewer.DataSource(),
