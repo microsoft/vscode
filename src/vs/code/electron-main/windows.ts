@@ -1174,6 +1174,7 @@ export class WindowsManager implements IWindowsMainService {
 		const configuration: IWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
 		configuration.machineId = this.machineId;
+		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
 		configuration.mainPid = process.pid;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = assign({}, this.initialUserEnv, options.userEnv || {});
@@ -1188,7 +1189,6 @@ export class WindowsManager implements IWindowsMainService {
 			configuration.filesToDiff = fileInputs.filesToDiff;
 			configuration.filesToWait = fileInputs.filesToWait;
 		}
-		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
 
 		// if we know the backup folder upfront (for empty windows to restore), we can set it
 		// directly here which helps for restoring UI state associated with that window.

@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { equal, ok } from 'assert';
-import { INextStorageService } from 'vs/platform/storage2/common/nextStorageService';
+import { INextStorageService } from 'vs/platform/storage2/common/storage2';
 import { del, mkdirp } from 'vs/base/node/pfs';
 
 suite('Workbench NextStorageService', () => {

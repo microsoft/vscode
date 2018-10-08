@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { INextStorageService } from 'vs/platform/storage2/common/nextStorageService';
+import { INextStorageService } from 'vs/platform/storage2/common/storage2';
 import { SQLiteStorage } from 'vs/base/node/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

@@ -125,6 +125,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
 
 	@memoize
+	get storageHome(): string { return path.join(this.userDataPath, 'Storage'); }
+
+	@memoize
 	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize

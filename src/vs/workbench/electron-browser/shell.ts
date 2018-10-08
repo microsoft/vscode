@@ -43,8 +43,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/node/instantiationService';
-// import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
@@ -76,6 +75,8 @@ import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/elect
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INextWorkspaceStorageService } from 'vs/platform/storage2/common/storage2';
+import { Event, Emitter } from 'vs/base/common/event';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { stat } from 'fs';
 import { join } from 'path';
@@ -109,6 +110,7 @@ export interface ICoreServices {
 	environmentService: IEnvironmentService;
 	logService: ILogService;
 	storageService: IStorageService;
+	nextStorageService: INextWorkspaceStorageService;
 }
 
 /**
@@ -116,7 +118,12 @@ export interface ICoreServices {
  * With the Shell being the top level element in the page, it is also responsible for driving the layouting.
  */
 export class WorkbenchShell extends Disposable {
+
+	private readonly _onShutdown = this._register(new Emitter<ShutdownEvent>());
+	get onShutdown(): Event<ShutdownEvent> { return this._onShutdown.event; }
+
 	private storageService: IStorageService;
+	private nextStorageService: INextWorkspaceStorageService;
 	private environmentService: IEnvironmentService;
 	private logService: ILogService;
 	private configurationService: IConfigurationService;
@@ -147,6 +154,7 @@ export class WorkbenchShell extends Disposable {
 		this.environmentService = coreServices.environmentService;
 		this.logService = coreServices.logService;
 		this.storageService = coreServices.storageService;
+		this.nextStorageService = coreServices.nextStorageService;
 
 		this.mainProcessServices = mainProcessServices;
 
@@ -326,8 +334,9 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILabelService, new SyncDescriptor(LabelService));
 		serviceCollection.set(ILogService, this._register(this.logService));
-
 		serviceCollection.set(IStorageService, this.storageService);
+		serviceCollection.set(INextWorkspaceStorageService, this.nextStorageService);
+
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
 			serviceCollection.set(serviceIdentifier, serviceInstance);
 		});
@@ -353,7 +362,6 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
 
 		// Telemetry
-
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const config: ITelemetryServiceConfig = {
@@ -380,7 +388,11 @@ export class WorkbenchShell extends Disposable {
 		serviceCollection.set(IDialogService, instantiationService.createInstance(DialogService));
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this._register(lifecycleService.onShutdown(event => this.dispose(event.reason)));
+		this._register(lifecycleService.onShutdown(event => {
+			this._onShutdown.fire(event);
+
+			this.dispose(event.reason);
+		}));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
