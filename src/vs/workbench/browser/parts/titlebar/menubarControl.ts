@@ -932,7 +932,7 @@ export class MenubarControl extends Disposable {
 		// first try to resolve a native accelerator
 		const electronAccelerator = binding.getElectronAccelerator();
 		if (electronAccelerator) {
-			return { label: electronAccelerator, isNative: true };
+			return { label: electronAccelerator };
 		}
 
 		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
@@ -965,13 +965,19 @@ export class MenubarControl extends Disposable {
 				} else {
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
-						label: menuItem.label,
-						checked: menuItem.checked,
-						enabled: menuItem.enabled,
+						label: menuItem.label
 					};
 
-					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
+					if (menuItem.checked) {
+						menubarMenuItem.checked = true;
+					}
+
+					if (!menuItem.enabled) {
+						menubarMenuItem.enabled = false;
+					}
+
 					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
+					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
 					menuToPopulate.items.push(menubarMenuItem);
 				}
 			});

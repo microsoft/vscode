@@ -430,10 +430,10 @@ export class Menubar {
 							menu.append(this.createMenuItem(item.label, item.id, false, item.checked));
 						}
 					} else {
-						menu.append(this.createMenuItem(item.label, item.id, item.enabled, item.checked));
+						menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
 					}
 				} else {
-					menu.append(this.createMenuItem(item.label, item.id, item.enabled, item.checked));
+					menu.append(this.createMenuItem(item.label, item.id, item.enabled === false ? false : true, !!item.checked));
 				}
 			}
 		});
@@ -666,7 +666,7 @@ export class Menubar {
 		if (binding && binding.label) {
 
 			// if the binding is native, we can just apply it
-			if (binding.isNative) {
+			if (binding.isNative !== false) {
 				options.accelerator = binding.label;
 			}
 
