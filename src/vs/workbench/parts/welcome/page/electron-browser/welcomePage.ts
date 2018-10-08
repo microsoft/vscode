@@ -62,8 +62,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			backupFileService.hasBackups().then(hasBackups => {
 				const activeEditor = editorService.activeEditor;
 				if (!activeEditor && !hasBackups) {
-					const preferReadme = true;
-					if (preferReadme) {
+					const openWithReadme = configurationService.getValue(configurationKey) === 'openWithReadme';
+					if (openWithReadme) {
 						const onlyWorkSpaceFolder = contextService.getWorkbenchState() === WorkbenchState.FOLDER
 						&& contextService.getWorkspace().folders[0].uri;
 						if (onlyWorkSpaceFolder) {
