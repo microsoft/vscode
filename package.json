@@ -3,7 +3,7 @@
   "version": "1.29.0",
   "distro": "d880cac56e2f97abfbd0a6b8388caebfa96bb40c",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "yaoxc06@gmail.com"
   },
   "main": "./out/main",
   "private": true,
