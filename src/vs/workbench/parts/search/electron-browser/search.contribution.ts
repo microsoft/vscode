@@ -647,7 +647,7 @@ configurationRegistry.registerConfiguration({
 		'search.useReplacePreview': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('search.useReplacePreview', "Controls whether to open Replace Preview when replacing a match."),
+			description: nls.localize('search.useReplacePreview', "Controls whether to open Replace Preview when selecting or replacing a match."),
 		}
 	}
 });
