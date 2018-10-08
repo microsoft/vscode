@@ -43,7 +43,7 @@ suite('Webview tests', () => {
 	});
 
 	test('webviews should not have scripts enabled by default', async () => {
-		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { }));
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {}));
 		const response = Promise.race<any>([
 			getMesssage(webview),
 			new Promise<{}>(resolve => setTimeout(() => resolve({ value: '🎉' }), 1000))
@@ -71,14 +71,14 @@ suite('Webview tests', () => {
 			assert.strictEqual((await response).value, 'first');
 		}
 		{
-			const firstResponse = getMesssage(webview);
+			const response = getMesssage(webview);
 			webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 				<script>
 					const vscode = acquireVsCodeApi();
 					vscode.postMessage({ value: 'second' });
 				</script>`);
 
-			assert.strictEqual((await firstResponse).value, 'second');
+			assert.strictEqual((await response).value, 'second');
 		}
 	});
 
@@ -242,6 +242,40 @@ suite('Webview tests', () => {
 		// We should still have old scroll pos
 		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 100);
+	});
+
+	test('webviews should only be able to load resources from workspace by default', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
+
+		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
+			<script>
+				const vscode = acquireVsCodeApi();
+				window.addEventListener('message', (message) => {
+					const img = document.createElement('img');
+					img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
+					img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
+					img.src = message.data.src;
+					document.body.appendChild(img);
+				});
+			</script>`);
+
+		const workspaceRootUri = vscode.Uri.file(vscode.workspace.rootPath!).with({ scheme: 'vscode-resource' });
+
+		{
+			const imagePath = workspaceRootUri.toString() + '/image.png';
+			const response = sendRecieveMessage(webview, { src: imagePath });
+			assert.strictEqual((await response).value, true);
+		}
+		{
+			const imagePath = workspaceRootUri.toString() + '/no-such-image.png';
+			const response = sendRecieveMessage(webview, { src: imagePath });
+			assert.strictEqual((await response).value, false);
+		}
+		{
+			const imagePath = vscode.Uri.file(join(vscode.workspace.rootPath!, '..', '..', '..', 'resources', 'linux', 'code.png')).with({ scheme: 'vscode-resource' });
+			const response = sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual((await response).value, false);
+		}
 	});
 });
 
