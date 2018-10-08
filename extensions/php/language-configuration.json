@@ -25,8 +25,8 @@
 		["`", "`"]
 	],
 	"indentationRules": {
-		"increaseIndentPattern": "({(?!.+}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch).*:)\\s*(/[/*].*)?$",
-		"decreaseIndentPattern": "^(.*\\*\\/)?\\s*((\\})|(\\)+[;,])|(\\][;,])|\\b(else:)|\\b((end(if|for(each)?|while|switch));))"
+		"increaseIndentPattern": "({(?!.+}).*|\\(|\\[|((else(\\s)?)?if|else|for(each)?|while|switch).*:)\\s*(.*\\?>)?(/[/*].*)?$",
+		"decreaseIndentPattern": "^(.*\\*\\/)?\\s*(<\\?(php)?\\s*)?((\\})|(\\)+[;,])|(\\][;,])|\\b(else:)|\\b((end(if|for(each)?|while|switch))\\s*;))"
 	},
 	"folding": {
 		"markers": {
