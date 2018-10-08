@@ -12,7 +12,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID }
+import { IDebugService, State, IDebugSession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, IViewModel }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -674,6 +674,27 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().length > 0;
+	}
+}
+
+
+export class SearchVariableAction extends AbstractDebugAction {
+	static readonly ID = 'workbench.debug.viewlet.action.searchVariableAction';
+	static LABEL = nls.localize('searchVariable', "Remove All Expressions");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action remove-all', debugService, keybindingService);
+	}
+
+	public run(): TPromise<any> {
+		let viewModel: IViewModel;
+		viewModel = this.debugService.getViewModel();
+		viewModel.setSearchTextBoxVisible(!viewModel.getSearchTextBoxVisible());
+		return Promise.resolve(null);
+	}
+
+	protected isEnabled(state: State): boolean {
+		return true;
 	}
 }
 
