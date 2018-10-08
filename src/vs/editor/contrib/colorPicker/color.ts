@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ColorProviderRegistry, DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -60,7 +58,7 @@ registerLanguageCommand('_executeDocumentColorProvider', function (accessor, arg
 		}
 	}));
 
-	return TPromise.join(promises).then(() => rawCIs);
+	return Promise.all(promises).then(() => rawCIs);
 });
 
 
@@ -89,5 +87,5 @@ registerLanguageCommand('_executeColorPresentationProvider', function (accessor,
 			presentations.push(...result);
 		}
 	}));
-	return TPromise.join(promises).then(() => presentations);
+	return Promise.all(promises).then(() => presentations);
 });
