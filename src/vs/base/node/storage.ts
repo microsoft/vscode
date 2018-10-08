@@ -196,7 +196,6 @@ export class SQLiteStorage {
 			this.logger.error(`Error (statement): ${error} (${sql})`);
 		};
 
-		// @ts-ignore
 		stmt.on('error', statementErrorListener);
 
 		stmt.finalize(error => {
@@ -204,7 +203,6 @@ export class SQLiteStorage {
 				statementErrorListener(error);
 			}
 
-			// @ts-ignore
 			stmt.removeListener('error', statementErrorListener);
 		});
 	}

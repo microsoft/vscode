@@ -29,7 +29,7 @@ declare module 'sqlite3' {
 		changes: number;
 	}
 
-	export class Statement {
+	export class Statement extends events.EventEmitter {
 		bind(callback?: (err: Error | null) => void): this;
 		bind(...params: any[]): this;
 
