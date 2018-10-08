@@ -602,7 +602,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 	let expandedText;
 	try {
 		// Expand the abbreviation
-
+		let isAnchor = false;
 		if (input.textToWrap) {
 			let parsedAbbr = helper.parseAbbreviation(input.abbreviation, expandOptions);
 			if (input.rangeToReplace.isSingleLine && input.textToWrap.length === 1) {
@@ -617,11 +617,19 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 				if (wrappingNode && inlineElements.indexOf(wrappingNode.name) === -1) {
 					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 				}
+
+				if (wrappingNode.name === 'a') {
+					isAnchor = true;
+				}
 			}
 			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable
 			expandedText = expandedText.replace('\\$TM_SELECTED_TEXT', '$TM_SELECTED_TEXT');
+
+			if (isAnchor) {
+				expandedText = expandedText.replace('${0}', '$TM_SELECTED_TEXT');
+			}
 		} else {
 			expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 		}
