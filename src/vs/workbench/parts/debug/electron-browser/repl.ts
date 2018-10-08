@@ -127,11 +127,23 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 				}
 			}
 			this.replInput.updateOptions({ readOnly: !session });
-			this.updateInputDecoration();
+			if (this.isVisible()) {
+				this.updateInputDecoration();
+			}
 		}));
 		this._register(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 		this._register(this.debugService.onDidNewSession(() => this.updateTitleArea()));
-		this._register(this.themeService.onThemeChange(() => this.updateInputDecoration()));
+		this._register(this.debugService.onDidEndSession(() => {
+			if (this.debugService.getModel().getSessions().length === 0 && this.isVisible()) {
+				// Only hide the session drop down when there are 0 sessions
+				this.updateTitleArea();
+			}
+		}));
+		this._register(this.themeService.onThemeChange(() => {
+			if (this.isVisible()) {
+				this.updateInputDecoration();
+			}
+		}));
 	}
 
 	private refreshReplElements(noDelay: boolean): void {
@@ -356,7 +368,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		return this.instantiationService.createInstance(ClearReplAction, ClearReplAction.ID, ClearReplAction.LABEL);
 	}
 
-	@memoize
 	private get focusSessionActionItem(): FocusSessionActionItem {
 		return this.instantiationService.createInstance(FocusSessionActionItem, this.focusSessionAction);
 	}
