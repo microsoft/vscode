@@ -48,6 +48,7 @@ import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity, editorUnnecessaryCodeBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
+import { mark } from 'vs/base/common/performance';
 
 let EDITOR_ID = 0;
 
@@ -264,6 +265,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
 
+		mark('editor/start/contrib');
 		let contributions: IEditorContributionCtor[] = codeEditorWidgetOptions.contributions;
 		if (!Array.isArray(contributions)) {
 			contributions = EditorExtensionsRegistry.getEditorContributions();
@@ -277,6 +279,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				onUnexpectedError(err);
 			}
 		}
+		mark('editor/end/contrib');
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
 			const internalAction = new InternalEditorAction(
@@ -1792,38 +1795,38 @@ function getDotDotDotSVGData(color: Color) {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let errorBorderColor = theme.getColor(editorErrorBorder);
+	const errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
-	let errorForeground = theme.getColor(editorErrorForeground);
+	const errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
-	let warningBorderColor = theme.getColor(editorWarningBorder);
+	const warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
-	let warningForeground = theme.getColor(editorWarningForeground);
+	const warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
 
-	let infoBorderColor = theme.getColor(editorInfoBorder);
+	const infoBorderColor = theme.getColor(editorInfoBorder);
 	if (infoBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
 	}
-	let infoForeground = theme.getColor(editorInfoForeground);
+	const infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 
-	let hintBorderColor = theme.getColor(editorHintBorder);
+	const hintBorderColor = theme.getColor(editorHintBorder);
 	if (hintBorderColor) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { border-bottom: 2px dotted ${hintBorderColor}; }`);
 	}
-	let hintForeground = theme.getColor(editorHintForeground);
+	const hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}

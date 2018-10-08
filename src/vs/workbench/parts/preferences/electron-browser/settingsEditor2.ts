@@ -19,7 +19,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { collapseAll, expandAll } from 'vs/base/parts/tree/browser/treeUtils';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -39,7 +39,7 @@ import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/work
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingLinkClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsDataSource, SettingsRenderer, SettingsTree, SimplePagedDataSource, ISettingOverrideClickEvent } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, MODIFIED_SETTING_TAG, ONLINE_SERVICES_SETTING_TAG, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/parts/preferences/browser/settingsWidgets';
 import { TOCRenderer, TOCTree, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
@@ -87,6 +87,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 	private noResultsMessage: HTMLElement;
+	private clearFilterLinkContainer: HTMLElement;
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
@@ -105,7 +106,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingSlowUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
 
-	private viewState: ISettingsEditorViewState;
+	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel;
 
 	private tocRowFocused: IContextKey<boolean>;
@@ -215,15 +216,23 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				// Init TOC selection
 				this.updateTreeScrollSync();
-			}).then(() => {
-				const cachedState = this.editorMemento.loadState(this.group, this.input);
-				if (cachedState) {
-					const settingsTarget = cachedState.target;
-					this.settingsTargetsWidget.settingsTarget = settingsTarget;
-					this.viewState = { settingsTarget };
-					this.searchWidget.setValue(cachedState.searchQuery);
-				}
+
+				this.restoreCachedState();
 			});
+	}
+
+	private restoreCachedState(): void {
+		const cachedState = this.editorMemento.loadState(this.group, this.input);
+		if (cachedState && typeof cachedState.target === 'object') {
+			cachedState.target = URI.revive(cachedState.target);
+		}
+
+		if (cachedState) {
+			const settingsTarget = cachedState.target;
+			this.settingsTargetsWidget.settingsTarget = settingsTarget;
+			this.onDidSettingsTargetChange(settingsTarget);
+			this.searchWidget.setValue(cachedState.searchQuery);
+		}
 	}
 
 	setOptions(options: SettingsEditorOptions): void {
@@ -336,6 +345,16 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue('');
 	}
 
+	clearSearchFilters(): void {
+		let query = this.searchWidget.getValue();
+
+		SettingsEditor2.SUGGESTIONS.forEach(suggestion => {
+			query = query.replace(suggestion, '');
+		});
+
+		this.searchWidget.setValue(query.trim());
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -351,7 +370,8 @@ export class SettingsEditor2 extends BaseEditor {
 				placeholderText: searchBoxLabel,
 				focusContextKey: this.searchFocusContextKey,
 				// TODO: Aria-live
-			}));
+			})
+		);
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
 			inputBorder: settingsTextInputBorder
@@ -468,7 +488,31 @@ export class SettingsEditor2 extends BaseEditor {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.noResultsMessage = DOM.append(bodyContainer, $('.no-results'));
+
 		this.noResultsMessage.innerText = localize('noResults', "No Settings Found");
+
+		this.clearFilterLinkContainer = $('span.clear-search-filters');
+
+		this.clearFilterLinkContainer.textContent = ' - ';
+		const clearFilterLink = DOM.append(this.clearFilterLinkContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearchFilters', 'Clear Filters')));
+		this._register(DOM.addDisposableListener(clearFilterLink, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchFilters();
+		}));
+
+		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
+
+		const clearSearchContainer = $('span.clear-search');
+		clearSearchContainer.textContent = ' - ';
+
+		const clearSearch = DOM.append(clearSearchContainer, $('a.pointer.prominent', { tabindex: 0 }, localize('clearSearch', 'Clear Search')));
+		this._register(DOM.addDisposableListener(clearSearch, DOM.EventType.CLICK, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, false);
+			this.clearSearchResults();
+		}));
+
+		DOM.append(this.noResultsMessage, clearSearchContainer);
+
 		this._register(attachStylerCallback(this.themeService, { editorForeground }, colors => {
 			this.noResultsMessage.style.color = colors.editorForeground ? colors.editorForeground.toString() : null;
 		}));
@@ -586,6 +630,15 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.settingsTreeRenderer.onDidFocusSetting(element => {
 			this.lastFocusedSettingElement = element.setting.key;
 			this.settingsTree.reveal(element);
+		}));
+		this._register(this.settingsTreeRenderer.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
+			if (ConfigurationTargetToString(ConfigurationTarget.WORKSPACE) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.WORKSPACE);
+			} else if (ConfigurationTargetToString(ConfigurationTarget.USER) === element.scope.toUpperCase()) {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER);
+			}
+
+			this.searchWidget.setValue(element.targetKey);
 		}));
 
 		this.settingsTreeDataSource = this.instantiationService.createInstance(SimplePagedDataSource,
@@ -1195,6 +1248,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.countElement.style.display = 'block';
 			this.noResultsMessage.style.display = count === 0 ? 'block' : 'none';
+			this.clearFilterLinkContainer.style.display = this.viewState.tagFilters && this.viewState.tagFilters.size > 0
+				? 'initial'
+				: 'none';
 		}
 	}
 

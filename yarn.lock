@@ -9345,10 +9345,10 @@ vscode-nsfw@Tyriar/vscode-nsfw#electron-3.0.x:
     nan "^2.10.0"
     promisify-node "^0.5.0"
 
-vscode-ripgrep@^1.2.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.0.tgz#f9daef7332c968a1044afc42a31788ac49e315af"
-  integrity sha512-OZAH4+euvPqf1p8bsl6q+l3XMXit2Ef8B8j2bQlAGJpeJ//2JdAH8Ih0kHNPcPhvnp+M3w+ISAXinfoykwFc7A==
+vscode-ripgrep@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.2.2.tgz#c21b91bb558638a7124fe3d9719b2666b12dbfdc"
+  integrity sha512-rPbCj4LUnPzivezk3pC94G5sB17HbayjV9mSvNTDYFg5llHN/XozAmkoDOC0KG9UveuQ71MADX1//CeHtUTmZw==
 
 vscode-textmate@^4.0.1:
   version "4.0.1"

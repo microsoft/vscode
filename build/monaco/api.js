@@ -73,12 +73,6 @@ function visitTopLevelDeclarations(sourceFile, visitor) {
             case ts.SyntaxKind.ModuleDeclaration:
                 stop = visitor(node);
         }
-        // if (node.kind !== ts.SyntaxKind.SourceFile) {
-        // 	if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-        // 		console.log('FOUND TEXT IN NODE: ' + ts.SyntaxKind[node.kind]);
-        // 		console.log(getNodeText(sourceFile, node));
-        // 	}
-        // }
         if (stop) {
             return;
         }
@@ -94,10 +88,6 @@ function getAllTopLevelDeclarations(sourceFile) {
             var triviaStart = interfaceDeclaration.pos;
             var triviaEnd = interfaceDeclaration.name.pos;
             var triviaText = getNodeText(sourceFile, { pos: triviaStart, end: triviaEnd });
-            // // let nodeText = getNodeText(sourceFile, node);
-            // if (getNodeText(sourceFile, node).indexOf('SymbolKind') >= 0) {
-            // 	console.log('TRIVIA: ', triviaText);
-            // }
             if (triviaText.indexOf('@internal') === -1) {
                 all.push(node);
             }
@@ -154,10 +144,6 @@ function isDefaultExport(declaration) {
 }
 function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName, usage) {
     var result = getNodeText(sourceFile, declaration);
-    // if (result.indexOf('MonacoWorker') >= 0) {
-    // 	console.log('here!');
-    // 	// console.log(ts.SyntaxKind[declaration.kind]);
-    // }
     if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
         var interfaceDeclaration = declaration;
         var staticTypeName_1 = (isDefaultExport(interfaceDeclaration)
@@ -177,9 +163,7 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
             try {
                 var memberText = getNodeText(sourceFile, member);
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
-                    // console.log('BEFORE: ', result);
                     result = result.replace(memberText, '');
-                    // console.log('AFTER: ', result);
                 }
                 else {
                     var memberName = member.name.text;
@@ -449,12 +433,8 @@ function execute() {
     Object.keys(SRC_FILES).forEach(function (fileName) {
         var emitOutput = languageService.getEmitOutput(fileName, true);
         OUTPUT_FILES[SRC_FILE_TO_EXPECTED_NAME[fileName]] = emitOutput.outputFiles[0].text;
-        // console.log(`Generating .d.ts for ${fileName} took ${Date.now() - t} ms`);
     });
     console.log("Generating .d.ts took " + (Date.now() - t1) + " ms");
-    // console.log(result.filePath);
-    // fs.writeFileSync(result.filePath, result.content.replace(/\r\n/gm, '\n'));
-    // fs.writeFileSync(path.join(SRC, 'user.ts'), result.usageContent.replace(/\r\n/gm, '\n'));
     return run('src', OUTPUT_FILES);
 }
 exports.execute = execute;

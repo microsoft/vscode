@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -174,7 +173,7 @@ export class ContextMenuController implements IEditorContribution {
 			getAnchor: () => anchor,
 
 			getActions: () => {
-				return TPromise.as(actions);
+				return Promise.resolve(actions);
 			},
 
 			getActionItem: (action) => {

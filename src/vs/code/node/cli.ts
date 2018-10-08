@@ -261,7 +261,7 @@ export async function main(argv: string[]): Promise<any> {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
+			const filenamePrefix = paths.join(os.homedir(), 'prof-' + Math.random().toString(16).slice(-4));
 
 			argv.push(`--inspect-brk=${portMain}`);
 			argv.push(`--remote-debugging-port=${portRenderer}`);
@@ -300,7 +300,7 @@ export async function main(argv: string[]): Promise<any> {
 									suffix = '.txt';
 								}
 
-								await profiler.writeProfile(profile, `${filenamePrefix}-${name}.cpuprofile${suffix}`);
+								await profiler.writeProfile(profile, `${filenamePrefix}.${name}.cpuprofile${suffix}`);
 							}
 						};
 					}

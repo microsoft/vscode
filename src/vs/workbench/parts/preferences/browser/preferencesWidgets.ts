@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IAction, Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { Position } from 'vs/editor/common/core/position';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Action, IAction } from 'vs/base/common/actions';
+import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { ICodeEditor, IEditorMouseEvent, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, errorForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -327,6 +327,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 			'aria-haspopup': 'true',
 			'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
+		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
 		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
 		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
 
@@ -539,7 +540,7 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	private updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
+	public updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
 		const isSameTarget = this.settingsTarget === settingsTarget || settingsTarget instanceof URI && this.settingsTarget instanceof URI && this.settingsTarget.toString() === settingsTarget.toString();
 		if (!isSameTarget) {
 			this.settingsTarget = settingsTarget;

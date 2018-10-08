@@ -22,6 +22,7 @@
 		"editorGroupHeader.tabsBackground": "#131510",
 		"editorLineNumber.activeForeground": "#adadad",
 		"tab.inactiveBackground": "#131510",
+		"tab.modifiedBorder": "#cd9731",
 		"titleBar.activeBackground": "#423523",
 		"statusBar.background": "#423523",
 		"statusBar.debuggingBackground": "#423523",

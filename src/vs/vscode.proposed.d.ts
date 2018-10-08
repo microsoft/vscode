@@ -1077,6 +1077,18 @@ declare module 'vscode' {
 		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
 	}
 
+	export interface SignatureHelpProviderMetadata {
+		readonly triggerCharacters: ReadonlyArray<string>;
+		readonly retriggerCharacters: ReadonlyArray<string>;
+	}
+
+	namespace languages {
+		export function registerSignatureHelpProvider(
+			selector: DocumentSelector,
+			provider: SignatureHelpProvider,
+			metadata: SignatureHelpProviderMetadata
+		): Disposable;
+	}
 	//#endregion
 
 	//#region Alex - OnEnter enhancement

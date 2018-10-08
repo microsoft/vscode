@@ -26,8 +26,8 @@ The [`vscode`](https://github.com/microsoft/vscode) repository is where we do de
 If you are interested in fixing issues and contributing directly to the code base,
 please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 
-* [How to build and run from source](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run-from-source)
-* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#development-workflow)
+* [How to build and run from source](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run)
+* [The development workflow, including debugging and running tests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#debugging)
 * [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 * [Contributing to translations](https://aka.ms/vscodeloc)

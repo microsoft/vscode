@@ -204,7 +204,9 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 	}
 
 	args.push('--no-config');
-	args.push('--no-ignore-global');
+	if (!options.useGlobalIgnoreFiles) {
+		args.push('--no-ignore-global');
+	}
 
 	return args;
 }

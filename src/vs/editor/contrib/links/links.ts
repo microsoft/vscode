@@ -422,7 +422,7 @@ registerEditorContribution(LinkDetector);
 registerEditorAction(OpenLinkAction);
 
 registerThemingParticipant((theme, collector) => {
-	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
 	}

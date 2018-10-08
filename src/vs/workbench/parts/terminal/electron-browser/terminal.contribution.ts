@@ -453,8 +453,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ScrollToTopTermi
 	linux: { primary: KeyMod.Shift | KeyCode.Home }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Scroll to Top', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_K,
-	linux: { primary: null }
+	primary: null,
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category);
 if (platform.isWindows) {
 	actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
