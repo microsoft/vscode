@@ -18,6 +18,13 @@ suite('Storage', () => {
 		return join(tmpdir(), 'vsctests', id, 'storage', id);
 	}
 
+	function toSet(elements: string[]): Set<string> {
+		const set = new Set<string>();
+		elements.forEach(element => set.add(element));
+
+		return set;
+	}
+
 	async function testDBBasics(path, errorLogger?: (error) => void) {
 		const options: ISQLiteStorageOptions = { path };
 		if (errorLogger) {
@@ -44,7 +51,7 @@ suite('Storage', () => {
 		equal(storedItems.get('some/foo/path'), 'some/bar/path');
 		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
-		await storage.deleteItems(['foo']);
+		await storage.deleteItems(toSet(['foo']));
 		storedItems = await storage.getItems();
 		equal(storedItems.size, items.size - 1);
 		ok(!storedItems.has('foo'));
@@ -65,7 +72,7 @@ suite('Storage', () => {
 		storedItems = await storage.getItems();
 		equal(storedItems.get('foo'), 'otherbar');
 
-		await storage.deleteItems(['foo', 'some/foo/path', JSON.stringify({ foo: 'bar' })]);
+		await storage.deleteItems(toSet(['foo', 'some/foo/path', JSON.stringify({ foo: 'bar' })]));
 		storedItems = await storage.getItems();
 		equal(storedItems.size, 0);
 
@@ -159,9 +166,9 @@ suite('Storage', () => {
 		});
 
 		await Promise.all([
-			await storage.deleteItems(items1Keys),
-			await storage.deleteItems(items2Keys),
-			await storage.deleteItems(items3Keys)
+			await storage.deleteItems(toSet(items1Keys)),
+			await storage.deleteItems(toSet(items2Keys)),
+			await storage.deleteItems(toSet(items3Keys))
 		]);
 
 		storedItems = await storage.getItems();

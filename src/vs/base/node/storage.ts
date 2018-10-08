@@ -40,6 +40,10 @@ export class SQLiteStorage {
 	}
 
 	setItems(keyValueMap: Map<string, string>): Promise<void> {
+		if (keyValueMap.size === 0) {
+			return Promise.resolve();
+		}
+
 		return this.db.then(db => {
 			return this.transaction(db, () => {
 				this.prepare(db, 'INSERT INTO ItemTable VALUES (?,?)', stmt => {
@@ -51,7 +55,11 @@ export class SQLiteStorage {
 		});
 	}
 
-	deleteItems(keys: string[]): Promise<void> {
+	deleteItems(keys: Set<string>): Promise<void> {
+		if (keys.size === 0) {
+			return Promise.resolve();
+		}
+
 		return this.db.then(db => {
 			return this.transaction(db, () => {
 				this.prepare(db, 'DELETE FROM ItemTable WHERE key=?', stmt => {
