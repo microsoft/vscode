@@ -482,7 +482,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'workbench.editor.highlightModifiedTabs': {
 			'type': 'boolean',
-			'description': nls.localize('highlightModifiedTabs', "Controls whether top border is drawn on modified (dirty) file tabs or not."),
+			'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),
 			'default': false
 		},
 		'workbench.editor.labelFormat': {

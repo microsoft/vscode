@@ -27,7 +27,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_MODIFIED_BORDER, TAB_MODIFIED_ACTIVE_UNFOCUSED_BORDER, TAB_MODIFIED_INACTIVE_UNFOCUSED_BORDER, TAB_MODIFIED_INACTIVE_FOCUSED_BORDER } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -917,22 +917,22 @@ export class TabsTitleControl extends TitleControl {
 				const isTabActive = this.group.isActive(editor);
 
 				if (isGroupActive && isTabActive) {
-					const tabModifiedBorder = this.getColor(TAB_MODIFIED_BORDER);
+					const tabModifiedBorder = this.getColor(TAB_ACTIVE_MODIFIED_BORDER);
 					if (tabModifiedBorder) {
 						tabContainer.style.setProperty('--tab-border-top-color', tabModifiedBorder.toString());
 					}
 				} else if (isGroupActive && !isTabActive) {
-					const tabModifiedInactiveFocusedBorder = this.getColor(TAB_MODIFIED_INACTIVE_FOCUSED_BORDER);
+					const tabModifiedInactiveFocusedBorder = this.getColor(TAB_INACTIVE_MODIFIED_BORDER);
 					if (tabModifiedInactiveFocusedBorder) {
 						tabContainer.style.setProperty('--tab-border-top-color', tabModifiedInactiveFocusedBorder.toString());
 					}
 				} else if (!isGroupActive && isTabActive) {
-					const tabModifiedActiveUnfocusedBorder = this.getColor(TAB_MODIFIED_ACTIVE_UNFOCUSED_BORDER);
+					const tabModifiedActiveUnfocusedBorder = this.getColor(TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER);
 					if (tabModifiedActiveUnfocusedBorder) {
 						tabContainer.style.setProperty('--tab-border-top-color', tabModifiedActiveUnfocusedBorder.toString());
 					}
 				} else {
-					const tabModifiedInactiveUnfocusedBorder = this.getColor(TAB_MODIFIED_INACTIVE_UNFOCUSED_BORDER);
+					const tabModifiedInactiveUnfocusedBorder = this.getColor(TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER);
 					if (tabModifiedInactiveUnfocusedBorder) {
 						tabContainer.style.setProperty('--tab-border-top-color', tabModifiedInactiveUnfocusedBorder.toString());
 					}
