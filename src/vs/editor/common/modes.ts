@@ -557,7 +557,7 @@ export interface ParameterInformation {
 	 * The label of this signature. Will be shown in
 	 * the UI.
 	 */
-	label: string;
+	label: string | [number, number];
 	/**
 	 * The human-readable doc-comment of this signature. Will be shown
 	 * in the UI but can be omitted.

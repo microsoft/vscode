@@ -432,7 +432,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.overloads.textContent = currentOverload;
 
 		if (activeParameter) {
-			const labelToAnnounce = activeParameter.label;
+			const labelToAnnounce = this.getParameterLabel(signature, this.hints.activeParameter);
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 
@@ -447,39 +447,41 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	}
 
 	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
-		let end = signature.label.length;
-		let idx = 0;
-		let element: HTMLSpanElement;
 
-		for (let i = signature.parameters.length - 1; i >= 0; i--) {
-			const parameter = signature.parameters[i];
-			idx = signature.label.lastIndexOf(parameter.label, end - 1);
+		let [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
 
-			let signatureLabelOffset = 0;
-			let signatureLabelEnd = 0;
+		let beforeSpan = document.createElement('span');
+		beforeSpan.textContent = signature.label.substring(0, start);
 
-			if (idx >= 0) {
-				signatureLabelOffset = idx;
-				signatureLabelEnd = idx + parameter.label.length;
-			}
+		let paramSpan = document.createElement('span');
+		paramSpan.textContent = signature.label.substring(start, end);
+		paramSpan.className = 'parameter active';
 
-			// non parameter part
-			element = document.createElement('span');
-			element.textContent = signature.label.substring(signatureLabelEnd, end);
-			dom.prepend(parent, element);
+		let afterSpan = document.createElement('span');
+		afterSpan.textContent = signature.label.substring(end);
 
-			// parameter part
-			element = document.createElement('span');
-			element.className = `parameter ${i === currentParameter ? 'active' : ''}`;
-			element.textContent = signature.label.substring(signatureLabelOffset, signatureLabelEnd);
-			dom.prepend(parent, element);
+		dom.append(parent, beforeSpan, paramSpan, afterSpan);
+	}
 
-			end = signatureLabelOffset;
+	private getParameterLabel(signature: modes.SignatureInformation, paramIdx: number): string {
+		const param = signature.parameters[paramIdx];
+		if (typeof param.label === 'string') {
+			return param.label;
+		} else {
+			return signature.label.substring(param.label[0], param.label[1]);
 		}
-		// non parameter part
-		element = document.createElement('span');
-		element.textContent = signature.label.substring(0, end);
-		dom.prepend(parent, element);
+	}
+
+	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {
+		const param = signature.parameters[paramIdx];
+		if (Array.isArray(param.label)) {
+			return param.label;
+		} else {
+			const idx = signature.label.lastIndexOf(param.label);
+			return idx >= 0
+				? [idx, idx + param.label.length]
+				: [0, 0];
+		}
 	}
 
 	// private select(position: number): void {
