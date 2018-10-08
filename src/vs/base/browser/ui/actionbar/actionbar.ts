@@ -472,6 +472,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
+			} else if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				this.doTrigger(event);
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
