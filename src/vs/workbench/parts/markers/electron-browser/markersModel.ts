@@ -10,6 +10,7 @@ import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/marker
 import { groupBy, flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { values } from 'vs/base/common/map';
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
 
 function compareUris(a: URI, b: URI) {
 	const astr = a.toString();
@@ -137,6 +138,9 @@ export class MarkersModel {
 
 	private cachedSortedResources: ResourceMarkers[] | undefined = undefined;
 
+	private readonly _onDidChange: Emitter<URI> = new Emitter<URI>();
+	readonly onDidChange: Event<URI> = this._onDidChange.event;
+
 	get resourceMarkers(): ResourceMarkers[] {
 		if (!this.cachedSortedResources) {
 			this.cachedSortedResources = values(this.resourcesByUri).sort(compareResourceMarkers);
@@ -188,6 +192,7 @@ export class MarkersModel {
 		}
 
 		this.cachedSortedResources = undefined;
+		this._onDidChange.fire(resource);
 	}
 
 	// TODO@joao
@@ -220,6 +225,7 @@ export class MarkersModel {
 	}
 
 	dispose(): void {
+		this._onDidChange.dispose();
 		this.resourcesByUri.clear();
 	}
 }

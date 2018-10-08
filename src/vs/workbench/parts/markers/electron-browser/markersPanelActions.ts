@@ -210,7 +210,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 			this.filterBadge.style.borderColor = border;
 		}));
 		this.updateBadge();
-		this._register(this.markersWorkbenchService.onDidChange(() => this.updateBadge()));
+		this._register(this.markersWorkbenchService.markersModel.onDidChange(() => this.updateBadge()));
 	}
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {

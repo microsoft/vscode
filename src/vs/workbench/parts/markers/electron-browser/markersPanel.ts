@@ -7,7 +7,6 @@ import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Delayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, IActionItem, Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -17,7 +16,7 @@ import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation, MarkersModel } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import * as Viewer from 'vs/workbench/parts/markers/electron-browser/markersTreeViewer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem, IMarkersFilterActionChangeEvent } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
+import { MarkersFilterActionItem, MarkersFilterAction, QuickFixAction, QuickFixActionItem } from 'vs/workbench/parts/markers/electron-browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/electron-browser/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
@@ -31,6 +30,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterator } from 'vs/base/common/iterator';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { debounceEvent } from 'vs/base/common/event';
 
 type TreeElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -52,8 +52,6 @@ function createModelIterator(model: MarkersModel): Iterator<ITreeElement<TreeEle
 }
 
 export class MarkersPanel extends Panel {
-
-	private delayedRefresh: Delayer<void>;
 
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI = null;
@@ -86,7 +84,6 @@ export class MarkersPanel extends Panel {
 	) {
 		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.panelFoucusContextKey = Constants.MarkerPanelFocusContextKey.bindTo(contextKeyService);
-		this.delayedRefresh = new Delayer<void>(500);
 		this.panelSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.setCurrentActiveEditor();
 	}
@@ -106,7 +103,7 @@ export class MarkersPanel extends Panel {
 		this.createActions();
 		this.createListeners();
 
-		this.updateFilter();
+		// this.updateFilter();
 
 		this.onDidFocus(() => this.panelFoucusContextKey.set(true));
 		this.onDidBlur(() => this.panelFoucusContextKey.set(false));
@@ -208,15 +205,15 @@ export class MarkersPanel extends Panel {
 			dom.toggleClass(this.treeContainer, 'hidden', false/* !this.markersWorkbenchService.markersModel.hasFilteredResources() */);
 			this.renderMessage();
 			// if (this.markersWorkbenchService.markersModel.hasFilteredResources()) {
-			// return this.tree.refresh();
+			this.tree.setChildren(null, createModelIterator(this.markersWorkbenchService.markersModel));
 			// }
 		}
 		return TPromise.as(null);
 	}
 
-	private updateFilter() {
-		this.markersWorkbenchService.filter({ filterText: this.filterAction.filterText, useFilesExclude: this.filterAction.useFilesExclude });
-	}
+	// private updateFilter() {
+	// 	this.markersWorkbenchService.filter({ filterText: this.filterAction.filterText, useFilesExclude: this.filterAction.useFilesExclude });
+	// }
 
 	private createMessageBox(parent: HTMLElement): void {
 		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
@@ -293,27 +290,27 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this._register(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
+		const onModelChange = debounceEvent<URI, URI[]>(this.markersWorkbenchService.markersModel.onDidChange, (uris, uri) => { if (!uris) { uris = []; } uris.push(uri); return uris; }, 0);
+
+		this._register(onModelChange(this.onDidChangeModel, this));
 		this._register(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
 		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
-		this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
-			if (event.filterText || event.useFilesExclude) {
-				this.updateFilter();
-			}
-		}));
+		// this._register(this.filterAction.onDidChange((event: IMarkersFilterActionChangeEvent) => {
+		// 	if (event.filterText || event.useFilesExclude) {
+		// 		this.updateFilter();
+		// 	}
+		// }));
 		this.actions.forEach(a => this._register(a));
 	}
 
-	private onDidChange(resources: URI[]) {
+	private onDidChangeModel(resources: URI[]) {
 		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
-		this.delayedRefresh.trigger(() => {
-			this.refreshPanel();
-			this.updateRangeHighlights();
-			if (this.currentResourceGotAddedToMarkersData) {
-				this.autoReveal();
-				this.currentResourceGotAddedToMarkersData = false;
-			}
-		});
+		this.refreshPanel();
+		this.updateRangeHighlights();
+		if (this.currentResourceGotAddedToMarkersData) {
+			this.autoReveal();
+			this.currentResourceGotAddedToMarkersData = false;
+		}
 	}
 
 	private isCurrentResourceGotAddedToMarkersData(changedResources: URI[]) {
@@ -512,8 +509,6 @@ export class MarkersPanel extends Panel {
 
 	public dispose(): void {
 		super.dispose();
-
-		this.delayedRefresh.cancel();
 		this.tree.dispose();
 	}
 }

@@ -196,6 +196,8 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, I
 
 export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
 
+	templateId = TemplateId.FileResourceMarkers;
+
 	protected createResourceLabel(container: HTMLElement): ResourceLabel {
 		return this.instantiationService.createInstance(FileLabel, container, { supportHighlights: true });
 	}
@@ -275,7 +277,7 @@ export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformat
 		@ILabelService private labelService: ILabelService
 	) { }
 
-	templateId = TemplateId.Marker;
+	templateId = TemplateId.RelatedInformation;
 
 	renderTemplate(container: HTMLElement): IRelatedInformationTemplateData {
 		const data: IRelatedInformationTemplateData = Object.create(null);
