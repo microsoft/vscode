@@ -28,6 +28,7 @@ import './mainThreadEditor';
 import './mainThreadEditors';
 import './mainThreadErrors';
 import './mainThreadExtensionService';
+import './mainThreadFileIconTheme';
 import './mainThreadFileSystem';
 import './mainThreadFileSystemEventService';
 import './mainThreadHeapService';

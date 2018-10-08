@@ -30,20 +30,11 @@ export class FileIconThemeData implements IFileIconTheme {
 	}
 
 	public ensureLoaded(fileService: IFileService): Thenable<string> {
-		if (!this.isLoaded) {
-			if (this.location) {
-				return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
-					let result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
-					this.styleSheetContent = result.content;
-					this.hasFileIcons = result.hasFileIcons;
-					this.hasFolderIcons = result.hasFolderIcons;
-					this.hidesExplorerArrows = result.hidesExplorerArrows;
-					this.isLoaded = true;
-					return this.styleSheetContent;
-				});
-			}
-		}
-		return Promise.resolve(this.styleSheetContent);
+		return !this.isLoaded ? this.load(fileService) : Promise.resolve(this.styleSheetContent);
+	}
+
+	public reload(fileService: IFileService): Thenable<string> {
+		return this.load(fileService);
 	}
 
 	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
@@ -116,6 +107,21 @@ export class FileIconThemeData implements IFileIconTheme {
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows
 		});
+	}
+
+	private load(fileService: IFileService): Thenable<string> {
+		if (this.location) {
+			return _loadIconThemeDocument(fileService, this.location).then(iconThemeDocument => {
+				const result = _processIconThemeDocument(this.id, this.location, iconThemeDocument);
+				this.styleSheetContent = result.content;
+				this.hasFileIcons = result.hasFileIcons;
+				this.hasFolderIcons = result.hasFolderIcons;
+				this.hidesExplorerArrows = result.hidesExplorerArrows;
+				this.isLoaded = true;
+				return this.styleSheetContent;
+			});
+		}
+		return Promise.resolve(this.styleSheetContent);
 	}
 }
 

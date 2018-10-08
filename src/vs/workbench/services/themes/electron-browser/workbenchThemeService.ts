@@ -394,6 +394,16 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.currentIconTheme;
 	}
 
+	public reloadFileIconTheme(): Thenable<void> {
+		const onApply = () => {
+			this.onFileIconThemeChange.fire(this.currentIconTheme);
+			return Promise.resolve(this.currentIconTheme);
+		};
+		const iconThemeData = (this.currentIconTheme as FileIconThemeData);
+		return iconThemeData.reload(this.fileService)
+			.then(_ => { _applyIconTheme(iconThemeData, onApply); });
+	}
+
 	public setFileIconTheme(iconTheme: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme> {
 		iconTheme = iconTheme || '';
 		if (iconTheme === this.currentIconTheme.id && this.currentIconTheme.isLoaded) {

@@ -379,6 +379,31 @@ declare module 'vscode' {
 		 * @return A thenable that resolves when the search is complete.
 		 */
 		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+
+		/**
+		 * Reload the file icon theme
+		 * @return A thenable that resolves when the icon theme reload is complete.
+		 */
+		export function reloadFileIconTheme(): Thenable<void>;
+
+		/**
+		 * An event that is emitted when a file icon theme has been reloaded.
+		 */
+		export const onDidReloadFileIconTheme: Event<FileIconThemeReloadEvent>;
+	}
+
+	//#endregion
+
+	//#region JimiC: reload File Icon Theme
+
+	/**
+	 * An event describing a reload of the file icon theme.
+	 */
+	export interface FileIconThemeReloadEvent {
+		/**
+		 * Icon theme reloaded.
+		 */
+		readonly reloaded: boolean;
 	}
 
 	//#endregion

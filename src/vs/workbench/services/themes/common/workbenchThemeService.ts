@@ -60,6 +60,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	restoreColorTheme();
 
 	setFileIconTheme(iconThemeId: string, settingsTarget: ConfigurationTarget): Thenable<IFileIconTheme>;
+	reloadFileIconTheme(): Thenable<void>;
 	getFileIconTheme(): IFileIconTheme;
 	getFileIconThemes(): Thenable<IFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IFileIconTheme>;

@@ -10,6 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+import { ExtHostFileIconTheme } from 'vs/workbench/api/node/extHostFileIconTheme';
 import { ExtHostFileSystemEventService } from 'vs/workbench/api/node/extHostFileSystemEventService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -128,6 +129,7 @@ export function createApiFactory(
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
 	const exthostCommentProviders = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands.converter, extHostDocuments));
 	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, new ExtHostOutputService(initData.logsLocation, rpcProtocol));
+	const extHostFileIconTheme = rpcProtocol.set(ExtHostContext.ExtHostFileIconTheme, new ExtHostFileIconTheme(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => (<any>ExtHostContext)[key]);
@@ -617,6 +619,12 @@ export function createApiFactory(
 			}),
 			onWillRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
+			}),
+			reloadFileIconTheme: proposedApiFunction(extension, () => {
+				return extHostFileIconTheme.reloadFileIconTheme();
+			}),
+			onDidReloadFileIconTheme: proposedApiFunction(extension, (listener: (_: any) => any, thisArg?: any, disposables?: extHostTypes.Disposable[]) => {
+				return extHostFileIconTheme.onDidReloadFileIconTheme(listener, thisArg, disposables);
 			})
 		};
 

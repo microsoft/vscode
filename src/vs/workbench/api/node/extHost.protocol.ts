@@ -1011,6 +1011,13 @@ export interface ExtHostCommentsShape {
 	$provideWorkspaceComments(handle: number): Thenable<modes.CommentThread[]>;
 }
 
+export interface MainThreadFileIconThemeShape extends IDisposable {
+	$reloadFileIconTheme(): Thenable<void>;
+}
+
+export interface ExtHostFileIconThemeShape {
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
@@ -1045,6 +1052,7 @@ export const MainContext = {
 	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
+	MainThreadFileIconTheme: createMainId<MainThreadFileIconThemeShape>('MainThreadFileIconTheme'),
 };
 
 export const ExtHostContext = {
@@ -1077,4 +1085,5 @@ export const ExtHostContext = {
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
 	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
+	ExtHostFileIconTheme: createExtId<ExtHostFileIconThemeShape>('ExtHostFileIconTheme'),
 };
